@@ -1,0 +1,464 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VenturLyft — AI-Native Demand Forecasting</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+</head>
+<body>
+<div class="grain"></div>
+<div class="glow a"></div>
+<div class="glow b"></div>
+
+<header id="hdr">
+  <div class="wrap">
+    <nav>
+      <div class="logo">
+        <span class="mk">
+          <svg viewBox="0 0 32 32" fill="none">
+            <rect x="1" y="1" width="30" height="30" rx="8" stroke="#C8F24E" stroke-width="1.5"/>
+            <path d="M6 22 L12 16 L17 19 L26 8" stroke="#54E6C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 8 H26 V13" stroke="#C8F24E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="16" r="1.8" fill="#C8F24E"/>
+          </svg>
+        </span>
+        <span>Ventur<b>Lyft</b></span>
+      </div>
+      <div class="navlinks">
+        <a href="#platform">Platform</a>
+        <a href="#how">How it works</a>
+        <a href="#industries">Industries</a>
+      </div>
+      <div class="nav-cta">
+        <button class="btn btn-ghost" onclick="openLogin()">Sign in</button>
+        <a href="#demo" class="btn btn-pri">Book a demo</a>
+        <button class="menu-tg" aria-label="Menu">☰</button>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<!-- HERO -->
+<section class="hero">
+  <div class="wrap">
+    <div class="hero-grid">
+      <div>
+        <span class="eyebrow rv"><span class="dot"></span>AI-native demand intelligence</span>
+        <h1 class="rv" style="transition-delay:.05s">Forecast Better <span class="em">Stock Smarter</span> Grow Faster</h1>
+        <p class="lead rv" style="transition-delay:.1s">VenturLyft helps create a shared view of the future, allocate resources with precision, and make better decisions through predictive intelligence</p>
+        <div class="hero-cta rv" style="transition-delay:.15s">
+          <a href="#demo" class="btn btn-pri">Book a demo →</a>
+          <a href="#platform" class="btn btn-ghost">Explore the platform</a>
+        </div>
+        <div class="trust rv" style="transition-delay:.2s">
+          <span>SOC 2 Type II</span><span class="sep"></span>
+          <span>99.99% uptime</span><span class="sep"></span>
+          <span>Deploys in &lt;6 weeks</span>
+        </div>
+      </div>
+
+      <!-- live forecast panel -->
+      <div class="panel rv" style="transition-delay:.18s">
+        <div class="panel-head">
+          <div>
+            <div class="t">Forecasted demand · SKU&nbsp;cluster A12</div>
+            <div class="v">142,860 <small>units / wk</small></div>
+          </div>
+          <div style="text-align:right">
+            <div class="t">Accuracy</div>
+            <div class="v" style="color:var(--signal)">98.2%</div>
+          </div>
+        </div>
+        <div class="legend">
+          <span class="lg-actual"><i></i>Actual</span>
+          <span class="lg-fore"><i></i>Forecast</span>
+          <span style="color:var(--muted-2)"><i style="border-color:var(--muted-2);border-top-style:dotted"></i>Confidence</span>
+        </div>
+        <div class="chart">
+          <svg viewBox="0 0 560 230" preserveAspectRatio="none">
+            <!-- confidence cone -->
+            <path class="cone" d="M300,118 C360,96 420,88 500,70 L540,60 L540,128 L500,128 C420,140 360,150 300,138 Z"
+                  fill="rgba(200,242,78,.08)" stroke="none"/>
+            <!-- actual (solid) -->
+            <path class="draw" d="M10,170 C50,150 80,176 110,150 C140,124 165,158 200,132 C235,106 270,140 300,118"
+                  fill="none" stroke="#54E6C4" stroke-width="2.5" stroke-linecap="round"/>
+            <!-- forecast (dashed) -->
+            <path class="draw" style="animation-delay:1.6s" d="M300,118 C340,104 380,112 420,92 C460,72 500,84 540,68"
+                  fill="none" stroke="#C8F24E" stroke-width="2.5" stroke-linecap="round" stroke-dasharray="7 6"/>
+            <circle class="cone" cx="300" cy="118" r="4" fill="#C8F24E"/>
+          </svg>
+          <div class="tick">today &nbsp;→&nbsp; <b>+14.6% MoM</b></div>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+
+<!-- PLATFORM -->
+<section class="sec" id="platform">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="kicker">The platform</span>
+      <h2>A Multi-Agent Engine for forecasting and optimization</h2>
+      <p>Multi agent environment that monitors the internal and external vectors shaping demand, generating high-confidence forecasts enabling optimal decision making for businesses. </p>
+    </div>
+    <div class="cards">
+      <div class="card rv">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h3>Multi horizon Forecasting</h3>
+        <p>Forecasts for multiple horizons enabling both short term and long term decision making for the businesses</p>
+      </div>
+      <div class="card rv" style="transition-delay:.06s">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3.2"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3M5 5l2 2M17 17l2 2M19 5l-2 2M7 17l-2 2" stroke-linecap="round"/></svg></div>
+         <h3>Demand Sensing</h3>
+        <p>Ingest weather, promotions, pricing and other macro signals in near real time to catch shifts weeks before they hit your warehouse.</p>
+      </div>
+      <div class="card rv" style="transition-delay:.12s">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+        <h3>Scenario Planning</h3>
+        <p>Simulate price changes, supply shocks, or a new launch and watch the ripple across revenue, inventory and service levels instantly.</p>
+      </div>
+      <div class="card rv">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h18M3 12h18M3 17h18" stroke-linecap="round"/><circle cx="8" cy="7" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="6" cy="17" r="1.6" fill="currentColor" stroke="none"/></svg></div>
+        <h3>Inventory Optimization</h3>
+        <p>Predict inventory requirements across every node and channel, ensuring the right stock is available where demand is expected—while minimizing carrying costs and stockouts.</p>
+      </div>
+       <div class="card rv" style="transition-delay:.06s">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3"/><circle cx="17" cy="11" r="2.4"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M15 20c0-2 .8-3.8 2-5" stroke-linecap="round"/></svg></div>
+        <h3>Infrastructure right sizing</h3>
+        <p>Align infrastructure capacity with forecasted demand to reduce bottlenecks, avoid overprovisioning, and improve utilization.</p>
+      </div>
+      <div class="card rv" style="transition-delay:.12s">
+        <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/><path d="M11 8v6M8 11h6" stroke-linecap="round"/></svg></div>
+        <h3>Conversational Intelligence</h3>
+        <p>Planners can query forecasts in natural language and instantly understand what's driving changes across products, regions, customers, and channels — turning every forecast into an actionable business conversation</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- HOW -->
+<section class="sec" id="how" style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="kicker">How it works</span>
+      <h2>One Continuous Loop: Sense, Predict, Optimize & Decide</h2>
+    </div>
+    <div class="flow">
+      <div class="step rv"><span class="n">01</span><div class="bar"><i></i></div><h3>Connect</h3><p>Plug into your ERP, POS, and data warehouse. Pre-built connectors map your data in days.</p></div>
+      <div class="step rv" style="transition-delay:.08s"><span class="n">02</span><div class="bar"><i></i></div><h3>Sense</h3><p>The engine fuses internal history with external demand signals into one live picture.</p></div>
+      <div class="step rv" style="transition-delay:.16s"><span class="n">03</span><div class="bar"><i></i></div><h3>Predict</h3><p>Self-tuning models generate probabilistic forecasts at every level of your hierarchy.</p></div>
+      <div class="step rv" style="transition-delay:.24s"><span class="n">04</span><div class="bar"><i></i></div><h3>Optimize</h3><p>Balance inventory levels and infrastructure capacity to maximize service and minimize cost.</p></div>
+    <div class="step rv" style="transition-delay:.32s"><span class="n">05</span><div class="bar"><i></i></div><h3>Decide</h3><p>Planners act on recommendations, run what-ifs, and commit to one aligned number.</p></div>
+    </div>
+  </div>
+</section>
+
+<!-- BRAIN / DIGITAL TWIN -->
+<section class="sec" style="padding-top:0">
+  <div class="wrap">
+    <div class="split">
+      <div class="rv">
+        <span class="kicker">Decision engine</span>
+        <h2>A living digital twin of your business.</h2>
+        <p style="color:var(--muted);font-size:1.08rem">VVenturLyft continuously maps products, locations, customers, capacity, and demand drivers into a dynamic digital twin of your operations. Every new signal updates forecasts, plans, and recommendations across the network—keeping decisions aligned with reality.</p>
+        <ul class="feat-list">
+          <li><span class="ck">✓</span><div><b>Continuous Adaptation</b><span>Forecasts, inventory targets, and capacity plans evolve automatically as conditions change.</span></div></li>
+          <li><span class="ck">✓</span><div><b>Unified planning intellegence</b><span>A single model keeps decisions consistent across products, regions, channels, and business functions.</span></div></li>
+          <li><span class="ck">✓</span><div><b>Driver attribution</b><span>See exactly which signals moved each forecast and by how much.</span></div></li>
+        </ul>
+      </div>
+      <div class="brain rv">
+        <svg viewBox="0 0 440 400">
+          <!-- edges -->
+          <g class="edge">
+            <path d="M70,80 C140,120 160,160 200,200"/>
+            <path d="M90,300 C150,260 170,230 200,200"/>
+            <path d="M360,70 C300,120 260,150 200,200"/>
+            <path d="M380,310 C310,270 260,230 200,200"/>
+            <path d="M40,200 C120,200 150,200 200,200"/>
+            <path d="M400,200 C320,200 250,200 200,200"/>
+          </g>
+          <!-- moving packets -->
+          <circle class="pkt" r="3"><animateMotion dur="3s" repeatCount="indefinite" path="M70,80 C140,120 160,160 200,200"/></circle>
+          <circle class="pkt" r="3"><animateMotion dur="3.6s" begin="-1s" repeatCount="indefinite" path="M360,70 C300,120 260,150 200,200"/></circle>
+          <circle class="pkt" r="3"><animateMotion dur="4s" begin="-2s" repeatCount="indefinite" path="M90,300 C150,260 170,230 200,200"/></circle>
+          <circle class="pkt" r="3"><animateMotion dur="3.2s" begin="-1.5s" repeatCount="indefinite" path="M400,200 C320,200 250,200 200,200"/></circle>
+          <!-- satellite nodes -->
+          <g>
+            <circle class="node" cx="70" cy="80" r="20"/><text class="node-lab" x="70" y="83" text-anchor="middle">Weather</text>
+            <circle class="node" cx="360" cy="70" r="20"/><text class="node-lab" x="360" y="73" text-anchor="middle">Promotions</text>
+            <circle class="node" cx="90" cy="300" r="20"/><text class="node-lab" x="90" y="303" text-anchor="middle">Holidays</text>
+            <circle class="node" cx="380" cy="310" r="20"/><text class="node-lab" x="380" y="313" text-anchor="middle">Web</text>
+            <circle class="node" cx="40" cy="200" r="20"/><text class="node-lab" x="40" y="203" text-anchor="middle">ERP- SAP/DMS</text>
+            <circle class="node" cx="400" cy="200" r="20"/><text class="node-lab" x="400" y="203" text-anchor="middle">Trends</text>
+          </g>
+          <!-- core -->
+          <circle class="core" cx="200" cy="200" r="44">
+            <animate attributeName="r" values="44;47;44" dur="3s" repeatCount="indefinite"/>
+          </circle>
+          <text x="200" y="196" text-anchor="middle" style="font-family:var(--display);font-weight:600;fill:var(--signal);font-size:15px">Ventur</text>
+          <text x="200" y="213" text-anchor="middle" style="font-family:var(--display);font-weight:600;fill:var(--signal);font-size:15px">Lyft</text>
+        </svg>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- INDUSTRIES -->
+<section class="sec" id="industries" style="padding-top:0">
+  <div class="wrap">
+    <div class="sec-head rv">
+      <span class="kicker">Industries</span>
+      <h2>Built for Businesses Where Accuracy Matters Most</h2>
+    </div>
+    <div class="ind">
+      <a href="#demo" class="rv">Retail &amp; eCommerce <span class="ar">↗</span></a>
+      <a href="#demo" class="rv" style="transition-delay:.04s">Consumer Goods (CPG) <span class="ar">↗</span></a>
+      <a href="#demo" class="rv" style="transition-delay:.08s">Manufacturing <span class="ar">↗</span></a>
+      <a href="#demo" class="rv">Pharma &amp; Life Sciences <span class="ar">↗</span></a>
+      <a href="#demo" class="rv" style="transition-delay:.04s">Automotive <span class="ar">↗</span></a>
+      <a href="#demo" class="rv" style="transition-delay:.08s">High-Tech &amp; Electronics <span class="ar">↗</span></a>
+    </div>
+  </div>
+</section>
+
+
+<!-- CTA -->
+<section class="sec" id="demo" style="padding-top:0">
+  <div class="wrap">
+    <div class="cta-band rv">
+      <span class="kicker">Get started</span>
+      <h2>Stop guessing demand. Start forecasting it.</h2>
+      <p>See VenturLyft run on a slice of your own data. A 30-minute working session, no slideware.</p>
+      <div class="hero-cta">
+        <a href="mailto:contact@venturlyft.com" class="btn btn-pri">Book your demo →</a>
+        <a href="tel:+919260901921" class="btn btn-ghost">Talk to sales</a>
+      </div>
+      <p style="margin-top:18px;font-family:var(--mono);font-size:12.5px;color:var(--muted)">
+        ✉ contact@venturlyft.com &nbsp;·&nbsp; 📞 +91 92609 01921
+      </p>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="logo">
+          <span class="mk">
+            <svg viewBox="0 0 32 32" fill="none">
+              <rect x="1" y="1" width="30" height="30" rx="8" stroke="#C8F24E" stroke-width="1.5"/>
+              <path d="M6 22 L12 16 L17 19 L26 8" stroke="#54E6C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M21 8 H26 V13" stroke="#C8F24E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="12" cy="16" r="1.8" fill="#C8F24E"/>
+            </svg>
+          </span>
+          <span>Ventur<b>Lyft</b></span>
+        </div>
+        <p>AI-native demand forecasting that aligns supply chain, finance, and sales on one trusted number.</p>
+      </div>
+      <div class="fcol">
+        <h4>Product</h4>
+        <a href="#platform">Demand Sensing</a>
+        <a href="#platform">Forecasting</a>
+        <a href="#platform">Scenario Planning</a>
+        <a href="#platform">S&amp;OP</a>
+      </div>
+      <div class="fcol">
+        <h4>Company</h4>
+        <a href="about.html">About</a>
+        <a href="careers.html">Careers</a>
+        <a href="mailto:contact@venturlyft.com">Contact</a>
+      </div>
+      <div class="fcol">
+        <h4>Resources</h4>
+        <a href="resources.html">Documentation</a>
+        <a href="security.html">Security</a>
+        <a href="blog-snop.html">Blog</a>
+        <a href="#demo">Book a demo</a>
+      </div>
+    </div>
+    <div class="foot-bot">
+      <span>© 2026 VenturLyft, Inc. All rights reserved.</span>
+      <span>Privacy · Terms · SOC 2 Type II</span>
+    </div>
+  </div>
+</footer>
+
+<!-- ===== LOGIN MODAL ===== -->
+<div class="modal" id="loginModal" onclick="if(event.target===this)closeLogin()">
+  <div class="login-card">
+    <button class="x" onclick="closeLogin()" aria-label="Close">×</button>
+    <div class="lg-logo">
+      <svg width="26" height="26" viewBox="0 0 32 32" fill="none">
+        <rect x="1" y="1" width="30" height="30" rx="8" stroke="#C8F24E" stroke-width="1.5"/>
+        <path d="M6 22 L12 16 L17 19 L26 8" stroke="#54E6C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M21 8 H26 V13" stroke="#C8F24E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+      <span>Ventur<b>Lyft</b></span>
+    </div>
+    <h3>Welcome back</h3>
+    <p class="sub">Sign in to your demand planning workspace.</p>
+    <form onsubmit="doLogin(event)">
+      <div class="field">
+        <label for="uid">User ID</label>
+        <input id="uid" type="text" placeholder="e.g. dana.w" autocomplete="username">
+      </div>
+      <div class="field">
+        <label for="pwd">Password</label>
+        <input id="pwd" type="password" placeholder="••••••••" autocomplete="current-password">
+      </div>
+      <button type="submit" class="btn btn-pri">Sign in →</button>
+    </form>
+    <p class="login-note"><span class="demo">Demo mode</span> · any user ID and password will sign you in.</p>
+  </div>
+</div>
+
+<!-- ===== DASHBOARD ===== -->
+<div id="dashboard">
+  <aside class="dside">
+    <div class="logo">
+      <span class="mk"><svg viewBox="0 0 32 32" fill="none" width="26" height="26">
+        <rect x="1" y="1" width="30" height="30" rx="8" stroke="#C8F24E" stroke-width="1.5"/>
+        <path d="M6 22 L12 16 L17 19 L26 8" stroke="#54E6C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+        <path d="M21 8 H26 V13" stroke="#C8F24E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg></span><span>Ventur<b>Lyft</b></span>
+    </div>
+    <ul class="dnav">
+      <li class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7" stroke-linecap="round" stroke-linejoin="round"/></svg>Forecasts</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round" stroke-linejoin="round"/></svg>Scenarios</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h18M3 12h18M3 17h18" stroke-linecap="round"/></svg>Inventory</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.3-2.5h-4l-.3 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5c.1-.3.1-.6.1-1Z" stroke-linejoin="round"/></svg>Settings</li>
+    </ul>
+    <div class="signout" onclick="logout()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Sign out
+    </div>
+  </aside>
+
+  <div class="dmain">
+    <div class="dtop">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
+        <input type="text" placeholder="Search SKUs, regions, scenarios…">
+      </div>
+      <div class="right">
+        <div class="report-menu">
+          <button class="dbtn" id="genReport">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-linejoin="round"/><path d="M14 2v6h6M8 13h8M8 17h6" stroke-linecap="round"/></svg>
+            Generate report
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="report-drop" id="reportDrop">
+            <button data-act="pdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="15" height="15"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-linejoin="round"/><path d="M14 2v6h6" stroke-linejoin="round"/></svg>Forecast report (PDF)</button>
+            <button data-act="csv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="15" height="15"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke-linecap="round" stroke-linejoin="round"/></svg>Export data (CSV)</button>
+          </div>
+        </div>
+        <span class="bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div class="uchip" onclick="logout()">
+          <div class="av" id="userAvatar">U</div>
+          <div><div class="nm" id="userName">User</div><div class="rl">Demand Planner</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dbody">
+      <h1 class="dgreet">Welcome back, <span class="hl" id="greetName">there</span>.</h1>
+      <p class="dsubtle">Shipped-units forecast accuracy — <b>2024 weekly backtest</b>, trained on 2022–2023, 1-week-ahead model.</p>
+
+      <div class="kpis">
+        <div class="kpi"><div class="t">Overall WAPE</div><div class="v" id="kpiWape">—</div><div class="d up">volume-weighted error · lower is better</div></div>
+        <div class="kpi"><div class="t">SKUs forecasted</div><div class="v" id="kpiSkus">—</div><div class="d up">across the full catalog</div></div>
+        <div class="kpi"><div class="t">Units forecasted</div><div class="v" id="kpiUnits">—</div><div class="d up">total shipped (52 wks)</div></div>
+        <div class="kpi"><div class="t">Backtest horizon</div><div class="v">52<span style="font-size:1rem;color:var(--muted)"> wks</span></div><div class="d up">1-week-ahead, out-of-sample</div></div>
+      </div>
+
+      <div class="dgrid">
+        <div class="dcard">
+          <div class="ch" style="flex-wrap:wrap;gap:12px">
+            <h4>Forecast vs actuals — shipped units</h4>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <div class="sku-search">
+                <input id="skuInput" list="skuList" placeholder="Search SKU… (blank = all)">
+                <datalist id="skuList"></datalist>
+              </div>
+              <div class="seg" id="periodSeg">
+                <button data-w="12">12W</button><button data-w="26">26W</button><button class="on" data-w="52">52W</button>
+              </div>
+            </div>
+          </div>
+          <div class="selbar">
+            <span id="selName">All SKUs</span>
+            <span class="selwape">selection WAPE&nbsp;<b id="selWape">—</b></span>
+          </div>
+          <div class="dchart" id="forecastChart">
+            <canvas id="fcCanvas"></canvas>
+            <div class="fc-tip" id="fcTip"></div>
+          </div>
+          <div class="chart-legend">
+            <span><i style="background:#54E6C4"></i>Actual</span>
+            <span><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>Forecast</span>
+            <span><i style="background:#7AA2FF"></i>WAPE %</span>
+          </div>
+        </div>
+        <div class="dcard">
+          <div class="ch"><h4>Highest-volume SKUs</h4></div>
+          <ul class="movers" id="moversList"></ul>
+        </div>
+      </div>
+
+      <div class="dcard">
+        <div class="ch"><h4>SKU forecast detail — top by volume</h4><span class="dsubtle" style="margin:0;font-size:.8rem">click a row to chart it</span></div>
+        <div class="table-wrap">
+          <table class="dtable">
+            <thead><tr><th>SKU</th><th>Total units</th><th>Avg forecast / wk</th><th>WAPE</th><th>Accuracy</th><th>Status</th></tr></thead>
+            <tbody id="skuBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== AI ANALYST CHATBOT ===== -->
+  <button class="cb-launch" id="cbLaunch" aria-label="Open AI analyst">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" stroke-linejoin="round"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" stroke-linejoin="round"/></svg>
+  </button>
+
+  <div class="cb-panel" id="cbPanel" aria-hidden="true">
+    <div class="cb-head">
+      <div class="cb-id">
+        <span class="cb-orb"></span>
+        <div><b>Lyra</b><span>AI demand analyst</span></div>
+      </div>
+      <button class="cb-x" id="cbClose" aria-label="Close">×</button>
+    </div>
+    <div class="cb-body" id="cbBody"></div>
+    <div class="cb-chips" id="cbChips">
+      <button>What's our overall accuracy?</button>
+      <button>Top selling SKUs</button>
+      <button>Which SKUs forecast best?</button>
+      <button>Worst week for error</button>
+      <button>Is the model biased?</button>
+    </div>
+    <form class="cb-input" id="cbForm">
+      <input id="cbText" placeholder="Ask about the forecast data…" autocomplete="off">
+      <button type="submit" aria-label="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </form>
+  </div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/main.js"></script>
+</body>
+</html>

@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>About — VenturLyft</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  .about-hero{padding:88px 0 64px;position:relative;z-index:2}
+  .about-hero .kicker{display:block;margin-bottom:16px}
+  .about-hero h1{font-family:var(--display);font-weight:600;
+    font-size:clamp(2.4rem,5vw,4rem);line-height:1.03;letter-spacing:-.03em;margin-bottom:24px;max-width:820px}
+  .about-hero h1 span{color:var(--signal);font-style:italic;font-weight:500}
+  .about-hero p{font-size:1.15rem;color:var(--muted);max-width:640px;line-height:1.75}
+
+  .content{position:relative;z-index:2;padding-bottom:100px}
+
+  /* mission */
+  .mission{display:grid;grid-template-columns:1fr 1fr;gap:56px;align-items:center;padding:72px 0;
+    border-top:1px solid var(--line)}
+  @media(max-width:780px){.mission{grid-template-columns:1fr;gap:36px}}
+  .mission h2{font-family:var(--display);font-weight:600;font-size:clamp(1.8rem,3.2vw,2.6rem);
+    letter-spacing:-.03em;line-height:1.08;margin-bottom:20px}
+  .mission h2 span{color:var(--signal)}
+  .mission p{color:var(--muted);font-size:1.05rem;line-height:1.78;margin-bottom:16px}
+  .mission p:last-child{margin-bottom:0}
+  .mission-nums{display:grid;grid-template-columns:1fr 1fr;gap:2px}
+  .mnum{background:var(--panel);border:1px solid var(--line);padding:28px 24px}
+  .mnum:first-child{border-radius:14px 0 0 0}
+  .mnum:nth-child(2){border-radius:0 14px 0 0}
+  .mnum:nth-child(3){border-radius:0 0 0 14px}
+  .mnum:last-child{border-radius:0 0 14px 0}
+  .mnum .v{font-family:var(--display);font-weight:600;font-size:2.6rem;letter-spacing:-.03em;
+    color:var(--signal);line-height:1;margin-bottom:8px}
+  .mnum .l{color:var(--muted);font-size:.9rem;line-height:1.5}
+
+  /* story */
+  .story{padding:72px 0;border-top:1px solid var(--line)}
+  .story .sec-kicker{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
+    color:var(--signal);margin-bottom:14px;display:block}
+  .story h2{font-family:var(--display);font-weight:600;font-size:clamp(1.6rem,2.8vw,2.2rem);
+    letter-spacing:-.025em;margin-bottom:20px;line-height:1.1;max-width:600px}
+
+  /* values */
+  .values{padding:72px 0;border-top:1px solid var(--line)}
+  .values h2{font-family:var(--display);font-weight:600;font-size:clamp(1.6rem,2.8vw,2.2rem);
+    letter-spacing:-.025em;margin-bottom:36px;line-height:1.1}
+  .val-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  @media(max-width:780px){.val-grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:480px){.val-grid{grid-template-columns:1fr}}
+  .val{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px;
+    transition:border-color .3s,transform .3s;position:relative;overflow:hidden}
+  .val:hover{border-color:var(--line-2);transform:translateY(-4px)}
+  .val::after{content:"";position:absolute;left:0;top:0;height:2px;width:0;background:var(--signal);transition:width .4s}
+  .val:hover::after{width:100%}
+  .val .vn{font-family:var(--mono);font-size:28px;color:var(--signal);opacity:.25;
+    position:absolute;top:16px;right:18px;line-height:1;font-weight:600}
+  .val h3{font-family:var(--display);font-weight:600;font-size:1.1rem;letter-spacing:-.015em;margin-bottom:10px}
+  .val p{color:var(--muted);font-size:.93rem;line-height:1.65;margin:0}
+
+  /* cta */
+  .about-cta{background:radial-gradient(circle at 50% 0%,rgba(200,242,78,.1),transparent 60%),var(--ink-2);
+    border:1px solid var(--line-2);border-radius:20px;padding:64px 48px;text-align:center;margin-top:72px}
+  .about-cta h2{font-family:var(--display);font-weight:600;font-size:clamp(1.7rem,3vw,2.4rem);
+    letter-spacing:-.025em;margin-bottom:14px}
+  .about-cta p{color:var(--muted);font-size:1.05rem;max-width:480px;margin:0 auto 28px}
+  .about-cta .btns{display:flex;gap:14px;justify-content:center;flex-wrap:wrap}
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="glow a"></div>
+<div class="glow b"></div>
+
+<header id="hdr">
+  <div class="wrap">
+    <nav>
+      <div class="logo">
+        <span class="mk">
+          <svg viewBox="0 0 32 32" fill="none">
+            <rect x="1" y="1" width="30" height="30" rx="8" stroke="#C8F24E" stroke-width="1.5"/>
+            <path d="M6 22 L12 16 L17 19 L26 8" stroke="#54E6C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 8 H26 V13" stroke="#C8F24E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="16" r="1.8" fill="#C8F24E"/>
+          </svg>
+        </span>
+        <a href="index.html" style="display:contents"><span>Ventur<b>Lyft</b></span></a>
+      </div>
+      <div class="navlinks">
+        <a href="index.html#platform">Platform</a>
+        <a href="index.html#how">How it works</a>
+        <a href="index.html#industries">Industries</a>
+        <a href="resources.html">Resources</a>
+      </div>
+      <div class="nav-cta">
+        <a href="index.html#demo" class="btn btn-pri">Book a demo</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<section class="about-hero">
+  <div class="wrap">
+    <span class="kicker">About VenturLyft</span>
+    <h1>We built the forecast we <span>always wished</span> we had.</h1>
+    <p>VenturLyft was founded by supply chain and AI practitioners who spent years watching good companies make bad decisions because their demand signal was broken. We set out to fix that — permanently.</p>
+  </div>
+</section>
+
+<div class="content">
+  <div class="wrap">
+
+    <!-- Mission -->
+    <div class="mission">
+      <div>
+        <h2>Our mission is to make <span>demand visible</span> before it becomes a problem.</h2>
+        <p>Supply chains break at the edges — when demand shifts faster than the plan, when inventory is in the wrong place at the wrong time, when finance and operations are arguing about a number instead of a decision.</p>
+        <p>VenturLyft exists to eliminate that gap. We give every team — from the warehouse floor to the boardroom — a single, trusted, continuously updated picture of what demand will do next. So plans are built on signal, not gut feel.</p>
+      </div>
+      <div class="mission-nums">
+        <div class="mnum"><div class="v">98.2%</div><div class="l">SKU-level forecast accuracy</div></div>
+        <div class="mnum"><div class="v">37%</div><div class="l">Average inventory reduction</div></div>
+        <div class="mnum"><div class="v">6×</div><div class="l">Faster planning cycles</div></div>
+        <div class="mnum"><div class="v">$2.4B</div><div class="l">Annual demand orchestrated</div></div>
+      </div>
+    </div>
+
+    <!-- Story -->
+    <div class="story">
+      <span class="sec-kicker">Our story</span>
+      <h2>Deep roots in forecasting at scale.</h2>
+      <p style="color:var(--muted);font-size:1.05rem;line-height:1.78;max-width:680px">
+        VenturLyft's founders bring hands-on experience building and running demand forecasting systems at Amazon — one of the most complex and data-intensive supply chains in the world. That background shaped everything: the obsession with accuracy at the SKU level, the focus on explainability for planners, and the belief that a great forecast only creates value when it's connected to a decision. VenturLyft was built to bring that level of forecasting precision to every business, not just the ones with Amazon-scale engineering teams.
+      </p>
+    </div>
+
+    <!-- Values -->
+    <div class="values">
+      <span class="sec-kicker" style="font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin-bottom:14px;display:block">How we work</span>
+      <h2>The principles we build by.</h2>
+      <div class="val-grid">
+        <div class="val">
+          <span class="vn">01</span>
+          <h3>Accuracy is non-negotiable</h3>
+          <p>A forecast that isn't accurate isn't a forecast — it's noise with a confidence interval. We obsess over error metrics because every percentage point is real money for our customers.</p>
+        </div>
+        <div class="val">
+          <span class="vn">02</span>
+          <h3>Explainability earns trust</h3>
+          <p>A black-box model doesn't get adopted. Every VenturLyft forecast comes with driver attribution — planners need to know why, not just what, before they'll stake a plan on it.</p>
+        </div>
+        <div class="val">
+          <span class="vn">03</span>
+          <h3>Speed matters at every layer</h3>
+          <p>Demand doesn't wait for the monthly S&OP cycle. Our platform reforecasts continuously so the signal is always current, and our team moves fast to ship what customers need.</p>
+        </div>
+        <div class="val">
+          <span class="vn">04</span>
+          <h3>Customer data stays with customers</h3>
+          <p>Your demand patterns are your competitive advantage. We are contractually and architecturally committed to ensuring your data is never used for any purpose beyond your own forecasts.</p>
+        </div>
+        <div class="val">
+          <span class="vn">05</span>
+          <h3>Simple interfaces, powerful models</h3>
+          <p>The best algorithm in the world fails if planners can't use it. We invest as much in UX as we do in model architecture — because adoption drives outcomes.</p>
+        </div>
+        <div class="val">
+          <span class="vn">06</span>
+          <h3>We win when our customers win</h3>
+          <p>Our commercial model is tied to customer outcomes. If your inventory doesn't come down and your accuracy doesn't go up, we haven't done our job.</p>
+        </div>
+      </div>
+    </div>
+
+
+<div class="about-cta">
+      <h2>Want to work on hard problems with us?</h2>
+      <p>We're always looking for people who care about accuracy, explainability, and making supply chains smarter.</p>
+      <div class="btns">
+        <a href="careers.html" class="btn btn-pri">View open roles →</a>
+        <a href="mailto:contact@venturlyft.com" class="btn btn-ghost">Get in touch</a>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="logo">
+          <span class="mk">
+            <svg viewBox="0 0 32 32" fill="none">
+              <rect x="1" y="1" width="30" height="30" rx="8" stroke="#C8F24E" stroke-width="1.5"/>
+              <path d="M6 22 L12 16 L17 19 L26 8" stroke="#54E6C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M21 8 H26 V13" stroke="#C8F24E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="12" cy="16" r="1.8" fill="#C8F24E"/>
+            </svg>
+          </span>
+          <span>Ventur<b>Lyft</b></span>
+        </div>
+        <p>AI-native demand forecasting that aligns supply chain, finance, and sales on one trusted number.</p>
+      </div>
+      <div class="fcol">
+        <h4>Product</h4>
+        <a href="index.html#platform">Demand Sensing</a>
+        <a href="index.html#platform">Forecasting</a>
+        <a href="index.html#platform">Scenario Planning</a>
+        <a href="index.html#platform">S&amp;OP</a>
+      </div>
+      <div class="fcol">
+        <h4>Company</h4>
+        <a href="about.html">About</a>
+        <a href="careers.html">Careers</a>
+        <a href="mailto:contact@venturlyft.com">Contact</a>
+      </div>
+      <div class="fcol">
+        <h4>Resources</h4>
+        <a href="resources.html">Documentation</a>
+        <a href="security.html">Security</a>
+        <a href="blog-snop.html">Blog</a>
+        <a href="index.html#demo">Book a demo</a>
+      </div>
+    </div>
+    <div class="foot-bot">
+      <span>© 2026 VenturLyft, Inc. All rights reserved.</span>
+      <span>Privacy · Terms · SOC 2 Type II</span>
+    </div>
+  </div>
+</footer>
+<script>
+  const hdr = document.getElementById('hdr');
+  addEventListener('scroll', () => hdr.classList.toggle('scrolled', scrollY > 20));
+</script>
+</body>
+</html>

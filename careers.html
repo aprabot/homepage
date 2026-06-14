@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Careers — VenturLyft</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  body{display:flex;flex-direction:column;min-height:100vh}
+  .cs-main{flex:1;display:flex;align-items:center;justify-content:center;
+    position:relative;z-index:2;padding:60px 28px}
+  .cs-inner{text-align:center;max-width:560px}
+  .cs-badge{display:inline-flex;align-items:center;gap:9px;font-family:var(--mono);font-size:12px;
+    letter-spacing:.16em;text-transform:uppercase;color:var(--signal);
+    border:1px solid var(--line);background:var(--signal-soft);padding:7px 16px;
+    border-radius:100px;margin-bottom:32px}
+  .cs-badge .dot{width:6px;height:6px;border-radius:50%;background:var(--signal);
+    box-shadow:0 0 10px var(--signal);animation:pulse 1.8s infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.35}}
+  .cs-inner h1{font-family:var(--display);font-weight:600;
+    font-size:clamp(2.6rem,6vw,4.2rem);line-height:1.03;letter-spacing:-.03em;margin-bottom:20px}
+  .cs-inner h1 span{color:var(--signal);font-style:italic;font-weight:500}
+  .cs-inner p{font-size:1.1rem;color:var(--muted);line-height:1.75;margin-bottom:36px}
+  .cs-form{display:flex;gap:10px;max-width:420px;margin:0 auto 20px;flex-wrap:wrap;justify-content:center}
+  .cs-form input{flex:1;min-width:200px;background:var(--ink-2);border:1px solid var(--line-2);
+    border-radius:10px;padding:13px 16px;color:var(--text);font-family:var(--body);font-size:14.5px;
+    transition:border-color .2s,box-shadow .2s}
+  .cs-form input:focus{outline:none;border-color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
+  .cs-form input::placeholder{color:var(--muted-2)}
+  .cs-note{font-family:var(--mono);font-size:11.5px;color:var(--muted-2)}
+  .cs-note a{color:var(--signal);text-decoration:underline;text-underline-offset:3px}
+  .cs-links{display:flex;gap:20px;justify-content:center;margin-top:44px;flex-wrap:wrap}
+  .cs-links a{font-family:var(--mono);font-size:12px;color:var(--muted);
+    letter-spacing:.06em;transition:color .2s}
+  .cs-links a:hover{color:var(--signal)}
+  .cs-links .sep{color:var(--muted-2)}
+</style>
+</head>
+<body>
+<div class="grain"></div>
+<div class="glow a"></div>
+<div class="glow b"></div>
+
+<header id="hdr">
+  <div class="wrap">
+    <nav>
+      <div class="logo">
+        <span class="mk">
+          <svg viewBox="0 0 32 32" fill="none">
+            <rect x="1" y="1" width="30" height="30" rx="8" stroke="#C8F24E" stroke-width="1.5"/>
+            <path d="M6 22 L12 16 L17 19 L26 8" stroke="#54E6C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path d="M21 8 H26 V13" stroke="#C8F24E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <circle cx="12" cy="16" r="1.8" fill="#C8F24E"/>
+          </svg>
+        </span>
+        <a href="index.html" style="display:contents"><span>Ventur<b>Lyft</b></span></a>
+      </div>
+      <div class="navlinks">
+        <a href="index.html#platform">Platform</a>
+        <a href="index.html#how">How it works</a>
+        <a href="index.html#industries">Industries</a>
+        <a href="resources.html">Resources</a>
+      </div>
+      <div class="nav-cta">
+        <a href="index.html#demo" class="btn btn-pri">Book a demo</a>
+      </div>
+    </nav>
+  </div>
+</header>
+
+<main class="cs-main">
+  <div class="cs-inner">
+    <div class="cs-badge"><span class="dot"></span>Coming soon</div>
+    <h1>We're building something <span>great</span> — join us.</h1>
+    <p>Our careers page is on its way. We're a small, focused team working on a hard problem at the intersection of AI and supply chain. If that sounds like your kind of challenge, drop us your email and we'll reach out when roles open up.</p>
+    <form class="cs-form" onsubmit="handleSubmit(event)">
+      <input type="email" id="emailInput" placeholder="your@email.com" required>
+      <button type="submit" class="btn btn-pri">Notify me</button>
+    </form>
+    <p class="cs-note" id="cs-msg">No spam, ever. Or reach us directly at <a href="mailto:contact@venturlyft.com">contact@venturlyft.com</a></p>
+    <div class="cs-links">
+      <a href="index.html">← Back to home</a>
+      <span class="sep">·</span>
+      <a href="mailto:contact@venturlyft.com">Contact us</a>
+      <span class="sep">·</span>
+      <a href="index.html#demo">Book a demo</a>
+    </div>
+  </div>
+</main>
+
+<footer>
+  <div class="wrap">
+    <div class="foot-grid">
+      <div>
+        <div class="logo">
+          <span class="mk">
+            <svg viewBox="0 0 32 32" fill="none">
+              <rect x="1" y="1" width="30" height="30" rx="8" stroke="#C8F24E" stroke-width="1.5"/>
+              <path d="M6 22 L12 16 L17 19 L26 8" stroke="#54E6C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <path d="M21 8 H26 V13" stroke="#C8F24E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+              <circle cx="12" cy="16" r="1.8" fill="#C8F24E"/>
+            </svg>
+          </span>
+          <span>Ventur<b>Lyft</b></span>
+        </div>
+        <p>AI-native demand forecasting that aligns supply chain, finance, and sales on one trusted number.</p>
+      </div>
+      <div class="fcol">
+        <h4>Product</h4>
+        <a href="index.html#platform">Demand Sensing</a>
+        <a href="index.html#platform">Forecasting</a>
+        <a href="index.html#platform">Scenario Planning</a>
+        <a href="index.html#platform">S&amp;OP</a>
+      </div>
+      <div class="fcol">
+        <h4>Company</h4>
+        <a href="about.html">About</a>
+        <a href="careers.html">Careers</a>
+        <a href="mailto:contact@venturlyft.com">Contact</a>
+      </div>
+      <div class="fcol">
+        <h4>Resources</h4>
+        <a href="resources.html">Documentation</a>
+        <a href="security.html">Security</a>
+        <a href="blog-snop.html">Blog</a>
+        <a href="index.html#demo">Book a demo</a>
+      </div>
+    </div>
+    <div class="foot-bot">
+      <span>© 2026 VenturLyft, Inc. All rights reserved.</span>
+      <span>Privacy · Terms · SOC 2 Type II</span>
+    </div>
+  </div>
+</footer>
+
+<script>
+  const hdr = document.getElementById('hdr');
+  addEventListener('scroll', () => hdr.classList.toggle('scrolled', scrollY > 20));
+
+  function handleSubmit(e) {
+    e.preventDefault();
+    document.getElementById('emailInput').value = '';
+    document.getElementById('cs-msg').textContent = "You're on the list — we'll be in touch!";
+    document.getElementById('cs-msg').style.color = 'var(--signal)';
+  }
+</script>
+</body>
+</html>
