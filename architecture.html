@@ -1,0 +1,674 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>VenturLyft — AWS Architecture</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600&family=Hanken+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#0a0a0a;
+  color:#e8e8e8;
+  font-family:'Hanken Grotesk', system-ui, sans-serif;
+  min-height:100vh;
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  padding:48px 24px 64px;
+}
+.hdr {
+  text-align:center;
+  margin-bottom:40px;
+}
+.hdr .badge {
+  display:inline-flex;
+  align-items:center;
+  gap:8px;
+  font-family:'JetBrains Mono',monospace;
+  font-size:11px;
+  letter-spacing:.16em;
+  text-transform:uppercase;
+  color:#C8F24E;
+  border:1px solid rgba(200,242,78,.2);
+  background:rgba(200,242,78,.05);
+  padding:6px 14px;
+  border-radius:100px;
+  margin-bottom:18px;
+}
+.hdr h1 {
+  font-size:clamp(1.6rem,3vw,2.2rem);
+  font-weight:600;
+  letter-spacing:-.03em;
+  color:#fff;
+  margin-bottom:8px;
+}
+.hdr p {
+  font-size:.95rem;
+  color:#666;
+}
+.diagram-wrap {
+  width:100%;
+  max-width:1180px;
+  overflow-x:auto;
+}
+.legend {
+  display:flex;
+  gap:28px;
+  justify-content:center;
+  flex-wrap:wrap;
+  margin-top:32px;
+  font-size:12px;
+  color:#888;
+}
+.legend-item {
+  display:flex;
+  align-items:center;
+  gap:8px;
+}
+.legend-dot {
+  width:10px; height:10px; border-radius:2px;
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="badge">
+    <svg width="7" height="7"><circle cx="3.5" cy="3.5" r="3.5" fill="#C8F24E"/></svg>
+    AWS Architecture
+  </div>
+  <h1>VenturLyft Platform — Component Diagram</h1>
+  <p>AI-native demand forecasting · Inference pipeline · Explainability agents</p>
+</div>
+
+<div class="diagram-wrap">
+<svg viewBox="0 0 1150 1280" width="100%" xmlns="http://www.w3.org/2000/svg" style="display:block">
+<defs>
+  <marker id="arr-teal" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+    <polygon points="0 0,9 3.5,0 7" fill="#54E6C4"/>
+  </marker>
+  <marker id="arr-orange" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+    <polygon points="0 0,9 3.5,0 7" fill="#FF9900"/>
+  </marker>
+  <marker id="arr-purple" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+    <polygon points="0 0,9 3.5,0 7" fill="#A855F7"/>
+  </marker>
+  <marker id="arr-green" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+    <polygon points="0 0,9 3.5,0 7" fill="#C8F24E"/>
+  </marker>
+  <marker id="arr-gray" markerWidth="9" markerHeight="7" refX="8" refY="3.5" orient="auto">
+    <polygon points="0 0,9 3.5,0 7" fill="#555"/>
+  </marker>
+  <filter id="glow-green" x="-20%" y="-20%" width="140%" height="140%">
+    <feGaussianBlur in="SourceGraphic" stdDeviation="3" result="blur"/>
+    <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+  </filter>
+
+  <!-- AWS S3 icon path (simplified bucket shape) -->
+  <!-- Inline icons drawn with simple SVG shapes per component -->
+</defs>
+
+<!-- ============================================================
+     SECTION BACKGROUNDS
+============================================================ -->
+
+<!-- 1. External Data Sources -->
+<rect x="8" y="8" width="1134" height="162" rx="14" fill="#111" stroke="#222" stroke-width="1"/>
+<text x="22" y="24" font-size="9.5" fill="#444" letter-spacing=".14em" font-family="JetBrains Mono,monospace" font-weight="500">EXTERNAL DATA SOURCES</text>
+
+<!-- 2. Data Ingestion -->
+<rect x="8" y="190" width="1134" height="148" rx="14" fill="#0e1420" stroke="#1a2540" stroke-width="1"/>
+<text x="22" y="206" font-size="9.5" fill="#2a4070" letter-spacing=".14em" font-family="JetBrains Mono,monospace" font-weight="500">DATA INGESTION LAYER</text>
+
+<!-- 3. ML Pipeline -->
+<rect x="8" y="360" width="1134" height="162" rx="14" fill="#130e1a" stroke="#251535" stroke-width="1"/>
+<text x="22" y="376" font-size="9.5" fill="#4a2870" letter-spacing=".14em" font-family="JetBrains Mono,monospace" font-weight="500">ML PIPELINE  ·  WEEKLY SCHEDULED</text>
+
+<!-- 4. Forecast Output -->
+<rect x="8" y="543" width="1134" height="112" rx="14" fill="#0c160c" stroke="#182818" stroke-width="1"/>
+<text x="22" y="559" font-size="9.5" fill="#2a562a" letter-spacing=".14em" font-family="JetBrains Mono,monospace" font-weight="500">FORECAST OUTPUT</text>
+
+<!-- 5. Intelligence + Portal -->
+<rect x="8" y="676" width="1134" height="586" rx="14" fill="#0e0e0e" stroke="#202020" stroke-width="1"/>
+<text x="22" y="692" font-size="9.5" fill="#444" letter-spacing=".14em" font-family="JetBrains Mono,monospace" font-weight="500">INTELLIGENCE &amp; PORTAL LAYER</text>
+
+
+<!-- ============================================================
+     COMPONENTS — EXTERNAL SOURCES
+============================================================ -->
+
+<!-- Macro: company box helper drawn inline -->
+
+<!-- Company 1 -->
+<rect x="28" y="30" width="188" height="122" rx="10" fill="#181818" stroke="#333" stroke-width="1.5"/>
+<rect x="28" y="30" width="4" height="122" rx="2" fill="#555"/>
+<!-- building icon -->
+<g transform="translate(50,48)">
+  <rect x="0" y="0" width="22" height="26" rx="2" fill="none" stroke="#555" stroke-width="1.5"/>
+  <rect x="3" y="4" width="5" height="5" rx="1" fill="#555"/>
+  <rect x="11" y="4" width="5" height="5" rx="1" fill="#555"/>
+  <rect x="3" y="13" width="5" height="5" rx="1" fill="#555"/>
+  <rect x="11" y="13" width="5" height="5" rx="1" fill="#555"/>
+  <rect x="7" y="20" width="8" height="6" rx="1" fill="#555"/>
+</g>
+<text x="84" y="62" font-size="12.5" fill="#ddd" font-weight="600" font-family="Hanken Grotesk,sans-serif">Partner Co. A</text>
+<text x="84" y="78" font-size="10" fill="#666" font-family="Hanken Grotesk,sans-serif">Retailer / Brand</text>
+<text x="122" y="122" font-size="10" fill="#555" text-anchor="middle" font-family="Hanken Grotesk,sans-serif">Historical demand data</text>
+
+<!-- Company 2 -->
+<rect x="248" y="30" width="188" height="122" rx="10" fill="#181818" stroke="#333" stroke-width="1.5"/>
+<rect x="248" y="30" width="4" height="122" rx="2" fill="#555"/>
+<g transform="translate(270,48)">
+  <rect x="0" y="0" width="22" height="26" rx="2" fill="none" stroke="#555" stroke-width="1.5"/>
+  <rect x="3" y="4" width="5" height="5" rx="1" fill="#555"/>
+  <rect x="11" y="4" width="5" height="5" rx="1" fill="#555"/>
+  <rect x="3" y="13" width="5" height="5" rx="1" fill="#555"/>
+  <rect x="11" y="13" width="5" height="5" rx="1" fill="#555"/>
+  <rect x="7" y="20" width="8" height="6" rx="1" fill="#555"/>
+</g>
+<text x="304" y="62" font-size="12.5" fill="#ddd" font-weight="600" font-family="Hanken Grotesk,sans-serif">Partner Co. B</text>
+<text x="304" y="78" font-size="10" fill="#666" font-family="Hanken Grotesk,sans-serif">Distributor / 3PL</text>
+<text x="342" y="122" font-size="10" fill="#555" text-anchor="middle" font-family="Hanken Grotesk,sans-serif">Historical demand data</text>
+
+<!-- Company 3 -->
+<rect x="468" y="30" width="188" height="122" rx="10" fill="#181818" stroke="#333" stroke-width="1.5"/>
+<rect x="468" y="30" width="4" height="122" rx="2" fill="#555"/>
+<g transform="translate(490,48)">
+  <rect x="0" y="0" width="22" height="26" rx="2" fill="none" stroke="#555" stroke-width="1.5"/>
+  <rect x="3" y="4" width="5" height="5" rx="1" fill="#555"/>
+  <rect x="11" y="4" width="5" height="5" rx="1" fill="#555"/>
+  <rect x="3" y="13" width="5" height="5" rx="1" fill="#555"/>
+  <rect x="11" y="13" width="5" height="5" rx="1" fill="#555"/>
+  <rect x="7" y="20" width="8" height="6" rx="1" fill="#555"/>
+</g>
+<text x="524" y="62" font-size="12.5" fill="#ddd" font-weight="600" font-family="Hanken Grotesk,sans-serif">Partner Co. C</text>
+<text x="524" y="78" font-size="10" fill="#666" font-family="Hanken Grotesk,sans-serif">Manufacturer</text>
+<text x="562" y="122" font-size="10" fill="#555" text-anchor="middle" font-family="Hanken Grotesk,sans-serif">Historical demand data</text>
+
+<!-- Company N (dashed — indicates more) -->
+<rect x="688" y="30" width="188" height="122" rx="10" fill="#141414" stroke="#2a2a2a" stroke-width="1.5" stroke-dasharray="5,4"/>
+<text x="782" y="80" font-size="22" fill="#333" text-anchor="middle" font-family="Hanken Grotesk,sans-serif" font-weight="600">···</text>
+<text x="782" y="108" font-size="10" fill="#444" text-anchor="middle" font-family="Hanken Grotesk,sans-serif">More partners</text>
+
+
+
+<!-- ============================================================
+     COMPONENTS — DATA INGESTION
+============================================================ -->
+
+<!-- Data Pipelines (Glue + Transfer + Lambda) -->
+<rect x="28" y="212" width="530" height="108" rx="10" fill="#0f1828" stroke="#1e3560" stroke-width="1.5"/>
+<rect x="28" y="212" width="4" height="108" rx="2" fill="#3B82F6"/>
+<!-- pipeline icon -->
+<g transform="translate(50,232)">
+  <rect x="0" y="8" width="14" height="10" rx="2" fill="#3B82F6" opacity=".7"/>
+  <rect x="20" y="8" width="14" height="10" rx="2" fill="#3B82F6" opacity=".85"/>
+  <rect x="40" y="8" width="14" height="10" rx="2" fill="#3B82F6"/>
+  <line x1="14" y1="13" x2="20" y2="13" stroke="#3B82F6" stroke-width="1.5"/>
+  <line x1="34" y1="13" x2="40" y2="13" stroke="#3B82F6" stroke-width="1.5"/>
+</g>
+<!-- AWS badge -->
+<rect x="470" y="218" width="78" height="20" rx="4" fill="rgba(255,153,0,.12)" stroke="rgba(255,153,0,.3)" stroke-width="1"/>
+<text x="509" y="232" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">AWS Glue</text>
+<text x="120" y="248" font-size="13" fill="#ddd" font-weight="600" font-family="Hanken Grotesk,sans-serif">Data Ingestion Pipeline</text>
+<text x="120" y="266" font-size="10.5" fill="#5a7aaa" font-family="Hanken Grotesk,sans-serif">AWS Transfer Family · AWS Glue ETL · Lambda transforms</text>
+<text x="120" y="283" font-size="10" fill="#3a5070" font-family="Hanken Grotesk,sans-serif">SFTP / API pull · schema normalization · deduplication · partitioning</text>
+<!-- sub-components row -->
+<rect x="42" y="298" width="110" height="15" rx="3" fill="rgba(59,130,246,.1)" stroke="rgba(59,130,246,.25)" stroke-width="1"/>
+<text x="97" y="309" font-size="9" fill="#3B82F6" text-anchor="middle" font-family="JetBrains Mono,monospace">Transfer Family</text>
+<rect x="162" y="298" width="82" height="15" rx="3" fill="rgba(59,130,246,.1)" stroke="rgba(59,130,246,.25)" stroke-width="1"/>
+<text x="203" y="309" font-size="9" fill="#3B82F6" text-anchor="middle" font-family="JetBrains Mono,monospace">Glue ETL</text>
+<rect x="254" y="298" width="78" height="15" rx="3" fill="rgba(59,130,246,.1)" stroke="rgba(59,130,246,.25)" stroke-width="1"/>
+<text x="293" y="309" font-size="9" fill="#3B82F6" text-anchor="middle" font-family="JetBrains Mono,monospace">Lambda</text>
+<rect x="342" y="298" width="96" height="15" rx="3" fill="rgba(59,130,246,.1)" stroke="rgba(59,130,246,.25)" stroke-width="1"/>
+<text x="390" y="309" font-size="9" fill="#3B82F6" text-anchor="middle" font-family="JetBrains Mono,monospace">Data Catalog</text>
+
+<!-- S3 Raw Data Lake -->
+<rect x="618" y="212" width="516" height="108" rx="10" fill="#1a1208" stroke="#3d2a08" stroke-width="1.5"/>
+<rect x="618" y="212" width="4" height="108" rx="2" fill="#FF9900"/>
+<!-- S3 bucket icon -->
+<g transform="translate(640,232)">
+  <ellipse cx="12" cy="6" rx="12" ry="5" fill="none" stroke="#FF9900" stroke-width="1.5"/>
+  <line x1="0" y1="6" x2="0" y2="24" stroke="#FF9900" stroke-width="1.5"/>
+  <line x1="24" y1="6" x2="24" y2="24" stroke="#FF9900" stroke-width="1.5"/>
+  <ellipse cx="12" cy="24" rx="12" ry="5" fill="rgba(255,153,0,.15)" stroke="#FF9900" stroke-width="1.5"/>
+</g>
+<!-- AWS badge -->
+<rect x="1070" y="218" width="52" height="20" rx="4" fill="rgba(255,153,0,.12)" stroke="rgba(255,153,0,.3)" stroke-width="1"/>
+<text x="1096" y="232" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">S3</text>
+<text x="700" y="248" font-size="13" fill="#ddd" font-weight="600" font-family="Hanken Grotesk,sans-serif">S3 Raw Data Lake</text>
+<text x="700" y="266" font-size="10.5" fill="#8a6020" font-family="Hanken Grotesk,sans-serif">Partitioned by company · date · SKU prefix</text>
+<text x="700" y="283" font-size="10" fill="#6a4a18" font-family="Hanken Grotesk,sans-serif">Parquet format · versioned · encrypted at rest (SSE-S3)</text>
+<rect x="632" y="298" width="80" height="15" rx="3" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.25)" stroke-width="1"/>
+<text x="672" y="309" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">Parquet / CSV</text>
+<rect x="722" y="298" width="80" height="15" rx="3" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.25)" stroke-width="1"/>
+<text x="762" y="309" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">S3 Versioning</text>
+<rect x="812" y="298" width="80" height="15" rx="3" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.25)" stroke-width="1"/>
+<text x="852" y="309" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">SSE Encrypted</text>
+
+
+<!-- ============================================================
+     COMPONENTS — ML PIPELINE
+============================================================ -->
+
+<!-- EventBridge Scheduler -->
+<rect x="28" y="382" width="300" height="120" rx="10" fill="#180d28" stroke="#301858" stroke-width="1.5"/>
+<rect x="28" y="382" width="4" height="120" rx="2" fill="#FF9900"/>
+<!-- clock icon -->
+<g transform="translate(52,400)">
+  <circle cx="14" cy="14" r="13" fill="none" stroke="#FF9900" stroke-width="1.5"/>
+  <line x1="14" y1="5" x2="14" y2="14" stroke="#FF9900" stroke-width="1.5" stroke-linecap="round"/>
+  <line x1="14" y1="14" x2="20" y2="14" stroke="#FF9900" stroke-width="1.5" stroke-linecap="round"/>
+</g>
+<rect x="246" y="388" width="72" height="20" rx="4" fill="rgba(255,153,0,.12)" stroke="rgba(255,153,0,.3)" stroke-width="1"/>
+<text x="282" y="402" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">EventBridge</text>
+<text x="100" y="420" font-size="13" fill="#ddd" font-weight="600" font-family="Hanken Grotesk,sans-serif">Scheduler</text>
+<text x="100" y="438" font-size="10.5" fill="#7a4ab0" font-family="Hanken Grotesk,sans-serif">Amazon EventBridge</text>
+<text x="100" y="456" font-size="10" fill="#5a3888" font-family="Hanken Grotesk,sans-serif">cron(0 2 ? * MON *)</text>
+<text x="100" y="474" font-size="10" fill="#5a3888" font-family="Hanken Grotesk,sans-serif">Fires every Monday 02:00 UTC</text>
+<rect x="42" y="490" width="108" height="15" rx="3" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.25)" stroke-width="1"/>
+<text x="96" y="501" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">Weekly cron trigger</text>
+
+<!-- SageMaker -->
+<rect x="390" y="382" width="740" height="120" rx="10" fill="#1c1008" stroke="#3d2808" stroke-width="1.5"/>
+<rect x="390" y="382" width="4" height="120" rx="2" fill="#FF9900"/>
+<!-- ML icon (neural net nodes) -->
+<g transform="translate(415,400)">
+  <circle cx="4" cy="7" r="3.5" fill="none" stroke="#FF9900" stroke-width="1.5"/>
+  <circle cx="4" cy="21" r="3.5" fill="none" stroke="#FF9900" stroke-width="1.5"/>
+  <circle cx="18" cy="3" r="3.5" fill="none" stroke="#FF9900" stroke-width="1.5"/>
+  <circle cx="18" cy="14" r="3.5" fill="none" stroke="#FF9900" stroke-width="1.5"/>
+  <circle cx="18" cy="25" r="3.5" fill="none" stroke="#FF9900" stroke-width="1.5"/>
+  <circle cx="32" cy="14" r="3.5" fill="none" stroke="#FF9900" stroke-width="1.5"/>
+  <line x1="7.5" y1="7" x2="14.5" y2="5" stroke="#FF9900" stroke-width="1" opacity=".6"/>
+  <line x1="7.5" y1="7" x2="14.5" y2="14" stroke="#FF9900" stroke-width="1" opacity=".6"/>
+  <line x1="7.5" y1="21" x2="14.5" y2="14" stroke="#FF9900" stroke-width="1" opacity=".6"/>
+  <line x1="7.5" y1="21" x2="14.5" y2="25" stroke="#FF9900" stroke-width="1" opacity=".6"/>
+  <line x1="21.5" y1="3" x2="28.5" y2="14" stroke="#FF9900" stroke-width="1" opacity=".6"/>
+  <line x1="21.5" y1="14" x2="28.5" y2="14" stroke="#FF9900" stroke-width="1" opacity=".6"/>
+  <line x1="21.5" y1="25" x2="28.5" y2="14" stroke="#FF9900" stroke-width="1" opacity=".6"/>
+</g>
+<rect x="1050" y="388" width="70" height="20" rx="4" fill="rgba(255,153,0,.12)" stroke="rgba(255,153,0,.3)" stroke-width="1"/>
+<text x="1085" y="402" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">SageMaker</text>
+<text x="476" y="420" font-size="13" fill="#ddd" font-weight="600" font-family="Hanken Grotesk,sans-serif">Amazon SageMaker — Batch Inference</text>
+<text x="476" y="438" font-size="10.5" fill="#8a6030" font-family="Hanken Grotesk,sans-serif">Ensemble model · XGBoost + LightGBM · 52-week horizon · SKU-level output</text>
+<text x="476" y="456" font-size="10" fill="#6a4a20" font-family="Hanken Grotesk,sans-serif">Reads raw data from S3 · Outputs per-SKU weekly forecast + WAPE</text>
+<rect x="404" y="490" width="110" height="15" rx="3" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.25)" stroke-width="1"/>
+<text x="459" y="501" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">Batch Transform Job</text>
+<rect x="524" y="490" width="80" height="15" rx="3" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.25)" stroke-width="1"/>
+<text x="564" y="501" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">XGBoost</text>
+<rect x="614" y="490" width="90" height="15" rx="3" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.25)" stroke-width="1"/>
+<text x="659" y="501" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">LightGBM</text>
+<rect x="714" y="490" width="110" height="15" rx="3" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.25)" stroke-width="1"/>
+<text x="769" y="501" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">Ensemble Blending</text>
+<rect x="834" y="490" width="108" height="15" rx="3" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.25)" stroke-width="1"/>
+<text x="888" y="501" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">IAM Role (least priv)</text>
+
+
+<!-- ============================================================
+     COMPONENTS — FORECAST OUTPUT
+============================================================ -->
+
+<!-- S3 Forecast Results -->
+<rect x="348" y="566" width="454" height="76" rx="10" fill="#0e1c0e" stroke="#1e3c1e" stroke-width="1.5"/>
+<rect x="348" y="566" width="4" height="76" rx="2" fill="#22C55E"/>
+<!-- bucket icon small -->
+<g transform="translate(370,578)">
+  <ellipse cx="10" cy="4" rx="10" ry="4" fill="none" stroke="#22C55E" stroke-width="1.5"/>
+  <line x1="0" y1="4" x2="0" y2="18" stroke="#22C55E" stroke-width="1.5"/>
+  <line x1="20" y1="4" x2="20" y2="18" stroke="#22C55E" stroke-width="1.5"/>
+  <ellipse cx="10" cy="18" rx="10" ry="4" fill="rgba(34,197,94,.15)" stroke="#22C55E" stroke-width="1.5"/>
+</g>
+<rect x="728" y="572" width="62" height="20" rx="4" fill="rgba(34,197,94,.12)" stroke="rgba(34,197,94,.3)" stroke-width="1"/>
+<text x="759" y="586" font-size="9" fill="#22C55E" text-anchor="middle" font-family="JetBrains Mono,monospace">S3</text>
+<text x="406" y="597" font-size="13" fill="#ddd" font-weight="600" font-family="Hanken Grotesk,sans-serif">S3 — Forecast Results</text>
+<text x="406" y="614" font-size="10.5" fill="#3a7a3a" font-family="Hanken Grotesk,sans-serif">Per-SKU weekly forecast · WAPE · accuracy metadata · model version</text>
+<text x="406" y="630" font-size="10" fill="#2a5a2a" font-family="Hanken Grotesk,sans-serif">Partitioned by run_date · company · SKU prefix · Lifecycle policy 18 months</text>
+
+
+<!-- ============================================================
+     COMPONENTS — INTELLIGENCE & PORTAL
+============================================================ -->
+
+<!-- ============================================================
+     MULTI-AGENT SYSTEM — OUTER BOX
+============================================================ -->
+<rect x="28" y="698" width="740" height="516" rx="12" fill="#0c0814" stroke="#4c1d8c" stroke-width="2"/>
+<!-- accent top bar -->
+<rect x="28" y="698" width="740" height="3" rx="1" fill="#7c3aed" opacity=".7"/>
+<!-- header -->
+<text x="46" y="717" font-size="9.5" fill="#7c3aed" letter-spacing=".15em" font-family="JetBrains Mono,monospace" font-weight="500">MULTI-AGENT SYSTEM</text>
+<rect x="590" y="703" width="168" height="19" rx="4" fill="rgba(168,85,247,.1)" stroke="rgba(168,85,247,.28)" stroke-width="1"/>
+<text x="674" y="716" font-size="8.5" fill="#A855F7" text-anchor="middle" font-family="JetBrains Mono,monospace">Amazon Bedrock Agents</text>
+
+<!-- "User Query" entry label above Query Agent column -->
+<text x="150" y="733" font-size="8.5" fill="#6d28d9" text-anchor="middle" font-family="JetBrains Mono,monospace">▼ User Query</text>
+
+<!-- ---- QUERY AGENT ---- -->
+<rect x="48" y="740" width="210" height="118" rx="9" fill="#180d2e" stroke="#7c3aed" stroke-width="1.5"/>
+<rect x="48" y="740" width="4" height="118" rx="2" fill="#7c3aed"/>
+<!-- magnifying glass -->
+<g transform="translate(68,757)">
+  <circle cx="9" cy="9" r="7" fill="none" stroke="#7c3aed" stroke-width="1.5"/>
+  <line x1="14" y1="14" x2="20" y2="20" stroke="#7c3aed" stroke-width="2" stroke-linecap="round"/>
+</g>
+<rect x="172" y="746" width="78" height="16" rx="3" fill="rgba(124,58,237,.12)" stroke="rgba(124,58,237,.28)" stroke-width="1"/>
+<text x="211" y="758" font-size="8" fill="#7c3aed" text-anchor="middle" font-family="JetBrains Mono,monospace">Bedrock Agent</text>
+<text x="100" y="778" font-size="12" fill="#e0e0e0" font-weight="600" font-family="Hanken Grotesk,sans-serif">Query Agent</text>
+<text x="100" y="794" font-size="9.5" fill="#7c3aed" font-family="Hanken Grotesk,sans-serif">Parses user intent</text>
+<text x="100" y="809" font-size="9" fill="#5a2aa0" font-family="Hanken Grotesk,sans-serif">Extracts SKU · date · metric</text>
+<text x="100" y="823" font-size="9" fill="#5a2aa0" font-family="Hanken Grotesk,sans-serif">Classifies query type</text>
+<rect x="56" y="845" width="96" height="13" rx="3" fill="rgba(124,58,237,.1)" stroke="rgba(124,58,237,.2)" stroke-width="1"/>
+<text x="104" y="855" font-size="8" fill="#7c3aed" text-anchor="middle" font-family="JetBrains Mono,monospace">intent detection</text>
+<rect x="162" y="845" width="88" height="13" rx="3" fill="rgba(124,58,237,.1)" stroke="rgba(124,58,237,.2)" stroke-width="1"/>
+<text x="206" y="855" font-size="8" fill="#7c3aed" text-anchor="middle" font-family="JetBrains Mono,monospace">entity extract</text>
+
+<!-- ---- ORCHESTRATOR AGENT (center) ---- -->
+<rect x="290" y="790" width="235" height="130" rx="9" fill="#1c1000" stroke="#FF9900" stroke-width="2"/>
+<rect x="290" y="790" width="4" height="130" rx="2" fill="#FF9900"/>
+<!-- hub spokes icon -->
+<g transform="translate(312,808)">
+  <circle cx="10" cy="10" r="5" fill="none" stroke="#FF9900" stroke-width="1.8"/>
+  <circle cx="10" cy="10" r="2" fill="#FF9900"/>
+  <line x1="10" y1="0" x2="10" y2="5" stroke="#FF9900" stroke-width="1.5"/>
+  <line x1="10" y1="15" x2="10" y2="20" stroke="#FF9900" stroke-width="1.5"/>
+  <line x1="0" y1="10" x2="5" y2="10" stroke="#FF9900" stroke-width="1.5"/>
+  <line x1="15" y1="10" x2="20" y2="10" stroke="#FF9900" stroke-width="1.5"/>
+  <line x1="3" y1="3" x2="7" y2="7" stroke="#FF9900" stroke-width="1.2" opacity=".6"/>
+  <line x1="13" y1="13" x2="17" y2="17" stroke="#FF9900" stroke-width="1.2" opacity=".6"/>
+</g>
+<rect x="420" y="796" width="96" height="16" rx="3" fill="rgba(255,153,0,.12)" stroke="rgba(255,153,0,.28)" stroke-width="1"/>
+<text x="468" y="808" font-size="8" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">Bedrock Agent</text>
+<text x="358" y="830" font-size="12" fill="#e0e0e0" font-weight="600" font-family="Hanken Grotesk,sans-serif">Orchestrator Agent</text>
+<text x="358" y="847" font-size="9.5" fill="#cc7700" font-family="Hanken Grotesk,sans-serif">Central routing hub</text>
+<text x="358" y="862" font-size="9" fill="#8a5200" font-family="Hanken Grotesk,sans-serif">Plans task sequence · delegates</text>
+<text x="358" y="877" font-size="9" fill="#8a5200" font-family="Hanken Grotesk,sans-serif">Aggregates all agent outputs</text>
+<rect x="298" y="892" width="96" height="13" rx="3" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.2)" stroke-width="1"/>
+<text x="346" y="902" font-size="8" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">task planning</text>
+<rect x="404" y="892" width="112" height="13" rx="3" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.2)" stroke-width="1"/>
+<text x="460" y="902" font-size="8" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">result aggregation</text>
+
+<!-- ---- BEDROCK KNOWLEDGE BASE ---- -->
+<rect x="572" y="740" width="182" height="150" rx="9" fill="#0f0820" stroke="#6d28d9" stroke-width="1.5"/>
+<rect x="572" y="740" width="4" height="150" rx="2" fill="#6d28d9"/>
+<!-- KB book icon -->
+<g transform="translate(592,758)">
+  <rect x="0" y="0" width="18" height="22" rx="2" fill="none" stroke="#6d28d9" stroke-width="1.5"/>
+  <line x1="4" y1="6" x2="14" y2="6" stroke="#6d28d9" stroke-width="1.2"/>
+  <line x1="4" y1="10" x2="14" y2="10" stroke="#6d28d9" stroke-width="1.2"/>
+  <line x1="4" y1="14" x2="10" y2="14" stroke="#6d28d9" stroke-width="1.2"/>
+  <circle cx="15" cy="19" r="5" fill="#0f0820" stroke="#6d28d9" stroke-width="1.5"/>
+  <text x="15" y="22" font-size="5.5" fill="#6d28d9" text-anchor="middle" font-weight="700">KB</text>
+</g>
+<rect x="644" y="746" width="100" height="16" rx="3" fill="rgba(109,40,217,.12)" stroke="rgba(109,40,217,.28)" stroke-width="1"/>
+<text x="694" y="758" font-size="8" fill="#6d28d9" text-anchor="middle" font-family="JetBrains Mono,monospace">Bedrock KB</text>
+<text x="630" y="786" font-size="12" fill="#e0e0e0" font-weight="600" font-family="Hanken Grotesk,sans-serif">Knowledge Base</text>
+<text x="630" y="802" font-size="9.5" fill="#6d28d9" font-family="Hanken Grotesk,sans-serif">All domain context</text>
+<text x="582" y="817" font-size="9" fill="#4a1a96" font-family="Hanken Grotesk,sans-serif">Forecast schema · biz rules</text>
+<text x="582" y="831" font-size="9" fill="#4a1a96" font-family="Hanken Grotesk,sans-serif">S&amp;OP glossary · docs</text>
+<text x="582" y="845" font-size="9" fill="#4a1a96" font-family="Hanken Grotesk,sans-serif">SKU taxonomy · history</text>
+<text x="582" y="859" font-size="9" fill="#4a1a96" font-family="Hanken Grotesk,sans-serif">Model metadata</text>
+<rect x="582" y="872" width="80" height="13" rx="3" fill="rgba(109,40,217,.1)" stroke="rgba(109,40,217,.2)" stroke-width="1"/>
+<text x="622" y="882" font-size="8" fill="#6d28d9" text-anchor="middle" font-family="JetBrains Mono,monospace">vector search</text>
+<rect x="672" y="872" width="74" height="13" rx="3" fill="rgba(109,40,217,.1)" stroke="rgba(109,40,217,.2)" stroke-width="1"/>
+<text x="709" y="882" font-size="8" fill="#6d28d9" text-anchor="middle" font-family="JetBrains Mono,monospace">OpenSearch</text>
+
+<!-- ---- AMAZON ATHENA ---- -->
+<rect x="62" y="944" width="218" height="92" rx="9" fill="#0a1808" stroke="#FF9900" stroke-width="1.5"/>
+<rect x="62" y="944" width="4" height="92" rx="2" fill="#FF9900"/>
+<!-- magnifier/query icon -->
+<g transform="translate(82,956)">
+  <circle cx="8" cy="8" r="7" fill="none" stroke="#FF9900" stroke-width="1.5"/>
+  <line x1="13" y1="13" x2="18" y2="18" stroke="#FF9900" stroke-width="2" stroke-linecap="round"/>
+  <line x1="5" y1="8" x2="11" y2="8" stroke="#FF9900" stroke-width="1.2"/>
+  <line x1="8" y1="5" x2="8" y2="11" stroke="#FF9900" stroke-width="1.2"/>
+</g>
+<rect x="180" y="950" width="92" height="16" rx="3" fill="rgba(255,153,0,.12)" stroke="rgba(255,153,0,.28)" stroke-width="1"/>
+<text x="226" y="962" font-size="8" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">AWS Athena</text>
+<text x="116" y="982" font-size="12" fill="#e0e0e0" font-weight="600" font-family="Hanken Grotesk,sans-serif">Amazon Athena</text>
+<text x="116" y="998" font-size="9.5" fill="#cc7700" font-family="Hanken Grotesk,sans-serif">Serverless SQL · Parquet queries</text>
+<rect x="70" y="1008" width="72" height="13" rx="3" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.2)" stroke-width="1"/>
+<text x="106" y="1018" font-size="8" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">pay-per-query</text>
+<rect x="152" y="1008" width="120" height="13" rx="3" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.2)" stroke-width="1"/>
+<text x="212" y="1018" font-size="8" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">partition pruning</text>
+
+<!-- ---- EXECUTOR AGENT ---- -->
+<rect x="62" y="1068" width="218" height="122" rx="9" fill="#0a1820" stroke="#0891b2" stroke-width="1.5"/>
+<rect x="62" y="1068" width="4" height="122" rx="2" fill="#0891b2"/>
+<!-- play icon -->
+<g transform="translate(82,1085)">
+  <rect x="0" y="0" width="20" height="20" rx="3" fill="none" stroke="#0891b2" stroke-width="1.5"/>
+  <polygon points="7,5 7,15 15,10" fill="#0891b2"/>
+</g>
+<rect x="182" y="1074" width="90" height="16" rx="3" fill="rgba(8,145,178,.12)" stroke="rgba(8,145,178,.28)" stroke-width="1"/>
+<text x="227" y="1086" font-size="8" fill="#0891b2" text-anchor="middle" font-family="JetBrains Mono,monospace">Bedrock Agent</text>
+<text x="116" y="1108" font-size="12" fill="#e0e0e0" font-weight="600" font-family="Hanken Grotesk,sans-serif">Executor Agent</text>
+<text x="116" y="1124" font-size="9.5" fill="#0891b2" font-family="Hanken Grotesk,sans-serif">Runs structured queries</text>
+<text x="116" y="1139" font-size="9" fill="#066880" font-family="Hanken Grotesk,sans-serif">Queries Athena over S3 Forecast</text>
+<text x="116" y="1154" font-size="9" fill="#066880" font-family="Hanken Grotesk,sans-serif">Retrieves WAPE &amp; accuracy</text>
+<rect x="70" y="1168" width="84" height="13" rx="3" fill="rgba(8,145,178,.1)" stroke="rgba(8,145,178,.2)" stroke-width="1"/>
+<text x="112" y="1178" font-size="8" fill="#0891b2" text-anchor="middle" font-family="JetBrains Mono,monospace">Athena SQL</text>
+<rect x="164" y="1168" width="108" height="13" rx="3" fill="rgba(8,145,178,.1)" stroke="rgba(8,145,178,.2)" stroke-width="1"/>
+<text x="218" y="1178" font-size="8" fill="#0891b2" text-anchor="middle" font-family="JetBrains Mono,monospace">structured queries</text>
+
+<!-- ---- ANALYSIS AGENT ---- -->
+<rect x="456" y="1068" width="218" height="122" rx="9" fill="#081808" stroke="#16a34a" stroke-width="1.5"/>
+<rect x="456" y="1068" width="4" height="122" rx="2" fill="#16a34a"/>
+<!-- chart icon -->
+<g transform="translate(476,1085)">
+  <rect x="0" y="0" width="20" height="20" rx="2" fill="none" stroke="#16a34a" stroke-width="1.5"/>
+  <polyline points="3,14 7,8 11,11 17,4" fill="none" stroke="#16a34a" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <line x1="3" y1="17" x2="17" y2="17" stroke="#16a34a" stroke-width="1"/>
+</g>
+<rect x="576" y="1074" width="90" height="16" rx="3" fill="rgba(22,163,74,.12)" stroke="rgba(22,163,74,.28)" stroke-width="1"/>
+<text x="621" y="1086" font-size="8" fill="#16a34a" text-anchor="middle" font-family="JetBrains Mono,monospace">Bedrock Agent</text>
+<text x="510" y="1108" font-size="12" fill="#e0e0e0" font-weight="600" font-family="Hanken Grotesk,sans-serif">Analysis Agent</text>
+<text x="510" y="1124" font-size="9.5" fill="#16a34a" font-family="Hanken Grotesk,sans-serif">Interprets query results</text>
+<text x="510" y="1139" font-size="9" fill="#0d6e30" font-family="Hanken Grotesk,sans-serif">Generates insights &amp; explanations</text>
+<text x="510" y="1154" font-size="9" fill="#0d6e30" font-family="Hanken Grotesk,sans-serif">Builds S&amp;OP commentary</text>
+<rect x="464" y="1168" width="92" height="13" rx="3" fill="rgba(22,163,74,.1)" stroke="rgba(22,163,74,.2)" stroke-width="1"/>
+<text x="510" y="1178" font-size="8" fill="#16a34a" text-anchor="middle" font-family="JetBrains Mono,monospace">LLM reasoning</text>
+<rect x="566" y="1168" width="100" height="13" rx="3" fill="rgba(22,163,74,.1)" stroke="rgba(22,163,74,.2)" stroke-width="1"/>
+<text x="616" y="1178" font-size="8" fill="#16a34a" text-anchor="middle" font-family="JetBrains Mono,monospace">insight synthesis</text>
+
+<!-- "→ Response to Customer" exit label -->
+<text x="690" y="1125" font-size="8.5" fill="#C8F24E" font-family="JetBrains Mono,monospace">→ Response</text>
+<text x="690" y="1138" font-size="8.5" fill="#C8F24E" font-family="JetBrains Mono,monospace">to Customer</text>
+
+
+<!-- ============================================================
+     API GATEWAY + COGNITO + PORTAL  (right column)
+============================================================ -->
+
+<!-- API Gateway -->
+<rect x="790" y="698" width="342" height="100" rx="10" fill="#0c1422" stroke="#182440" stroke-width="1.5"/>
+<rect x="790" y="698" width="4" height="100" rx="2" fill="#3B82F6"/>
+<rect x="1042" y="704" width="82" height="18" rx="3" fill="rgba(59,130,246,.12)" stroke="rgba(59,130,246,.28)" stroke-width="1"/>
+<text x="1083" y="716" font-size="8" fill="#3B82F6" text-anchor="middle" font-family="JetBrains Mono,monospace">API Gateway</text>
+<text x="856" y="730" font-size="12.5" fill="#e0e0e0" font-weight="600" font-family="Hanken Grotesk,sans-serif">API Gateway + Lambda</text>
+<text x="856" y="747" font-size="9.5" fill="#4a6898" font-family="Hanken Grotesk,sans-serif">REST API · auth via Cognito JWT</text>
+<text x="856" y="763" font-size="9" fill="#3a5070" font-family="Hanken Grotesk,sans-serif">Routes user query to Orchestrator</text>
+<text x="856" y="778" font-size="9" fill="#3a5070" font-family="Hanken Grotesk,sans-serif">Returns analysis response to portal</text>
+<rect x="804" y="788" width="62" height="13" rx="3" fill="rgba(59,130,246,.1)" stroke="rgba(59,130,246,.25)" stroke-width="1"/>
+<text x="835" y="798" font-size="8" fill="#3B82F6" text-anchor="middle" font-family="JetBrains Mono,monospace">REST API</text>
+<rect x="876" y="788" width="72" height="13" rx="3" fill="rgba(59,130,246,.1)" stroke="rgba(59,130,246,.25)" stroke-width="1"/>
+<text x="912" y="798" font-size="8" fill="#3B82F6" text-anchor="middle" font-family="JetBrains Mono,monospace">Lambda fns</text>
+
+<!-- Cognito -->
+<rect x="790" y="814" width="342" height="92" rx="10" fill="#0c1422" stroke="#182440" stroke-width="1.5"/>
+<rect x="790" y="814" width="4" height="92" rx="2" fill="#3B82F6"/>
+<rect x="1042" y="820" width="82" height="18" rx="3" fill="rgba(59,130,246,.12)" stroke="rgba(59,130,246,.28)" stroke-width="1"/>
+<text x="1083" y="832" font-size="8" fill="#3B82F6" text-anchor="middle" font-family="JetBrains Mono,monospace">Cognito</text>
+<g transform="translate(812,832)">
+  <rect x="2" y="8" width="14" height="11" rx="2" fill="none" stroke="#3B82F6" stroke-width="1.5"/>
+  <path d="M5 8 V5 Q9 0 13 5 V8" fill="none" stroke="#3B82F6" stroke-width="1.5"/>
+  <circle cx="9" cy="14" r="2" fill="#3B82F6"/>
+</g>
+<text x="856" y="848" font-size="12.5" fill="#e0e0e0" font-weight="600" font-family="Hanken Grotesk,sans-serif">Auth — Amazon Cognito</text>
+<text x="856" y="864" font-size="9.5" fill="#4a6898" font-family="Hanken Grotesk,sans-serif">User pools · MFA · SSO / SAML</text>
+<text x="856" y="880" font-size="9" fill="#3a5070" font-family="Hanken Grotesk,sans-serif">Per-customer tenant isolation</text>
+<rect x="804" y="892" width="72" height="13" rx="3" fill="rgba(59,130,246,.1)" stroke="rgba(59,130,246,.25)" stroke-width="1"/>
+<text x="840" y="902" font-size="8" fill="#3B82F6" text-anchor="middle" font-family="JetBrains Mono,monospace">User Pools</text>
+<rect x="886" y="892" width="62" height="13" rx="3" fill="rgba(59,130,246,.1)" stroke="rgba(59,130,246,.25)" stroke-width="1"/>
+<text x="917" y="902" font-size="8" fill="#3B82F6" text-anchor="middle" font-family="JetBrains Mono,monospace">MFA/SSO</text>
+
+<!-- VenturLyft Portal -->
+<rect x="790" y="922" width="342" height="296" rx="10" fill="#0e1408" stroke="#253a10" stroke-width="2"/>
+<rect x="790" y="922" width="4" height="296" rx="2" fill="#C8F24E"/>
+<rect x="790" y="922" width="342" height="296" rx="10" fill="none" stroke="#C8F24E" stroke-width="1" opacity=".22"/>
+<g transform="translate(814,940)">
+  <rect x="0" y="0" width="24" height="24" rx="5" fill="none" stroke="#C8F24E" stroke-width="1.5"/>
+  <path d="M4 16 L9 11 L13 14 L20 6" stroke="#54E6C4" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M16 6 H20 V10" stroke="#C8F24E" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
+</g>
+<text x="852" y="958" font-size="14" fill="#fff" font-weight="700" font-family="Hanken Grotesk,sans-serif">VenturLyft Portal</text>
+<text x="852" y="975" font-size="10" fill="#8aaa40" font-family="Hanken Grotesk,sans-serif">Planner Dashboard · S&amp;OP Module</text>
+<text x="808" y="998" font-size="9.5" fill="#6a8830" font-family="Hanken Grotesk,sans-serif">• SKU-level forecast charts &amp; accuracy</text>
+<text x="808" y="1015" font-size="9.5" fill="#6a8830" font-family="Hanken Grotesk,sans-serif">• Weekly WAPE trends &amp; signals</text>
+<text x="808" y="1032" font-size="9.5" fill="#6a8830" font-family="Hanken Grotesk,sans-serif">• AI explainability panel (Lyra)</text>
+<text x="808" y="1049" font-size="9.5" fill="#6a8830" font-family="Hanken Grotesk,sans-serif">• Natural language Q&amp;A chatbot</text>
+<text x="808" y="1066" font-size="9.5" fill="#6a8830" font-family="Hanken Grotesk,sans-serif">• Scenario planning &amp; overrides</text>
+<text x="808" y="1083" font-size="9.5" fill="#6a8830" font-family="Hanken Grotesk,sans-serif">• S&amp;OP report generation</text>
+<text x="808" y="1100" font-size="9.5" fill="#6a8830" font-family="Hanken Grotesk,sans-serif">• CSV export &amp; snapshots</text>
+<rect x="804" y="1116" width="100" height="13" rx="3" fill="rgba(200,242,78,.1)" stroke="rgba(200,242,78,.25)" stroke-width="1"/>
+<text x="854" y="1126" font-size="8" fill="#C8F24E" text-anchor="middle" font-family="JetBrains Mono,monospace">React + CloudFront</text>
+<rect x="914" y="1116" width="84" height="13" rx="3" fill="rgba(200,242,78,.1)" stroke="rgba(200,242,78,.25)" stroke-width="1"/>
+<text x="956" y="1126" font-size="8" fill="#C8F24E" text-anchor="middle" font-family="JetBrains Mono,monospace">S3 Static Host</text>
+<rect x="804" y="1136" width="70" height="13" rx="3" fill="rgba(200,242,78,.1)" stroke="rgba(200,242,78,.25)" stroke-width="1"/>
+<text x="839" y="1146" font-size="8" fill="#C8F24E" text-anchor="middle" font-family="JetBrains Mono,monospace">WAF + TLS</text>
+<rect x="884" y="1136" width="80" height="13" rx="3" fill="rgba(200,242,78,.1)" stroke="rgba(200,242,78,.25)" stroke-width="1"/>
+<text x="924" y="1146" font-size="8" fill="#C8F24E" text-anchor="middle" font-family="JetBrains Mono,monospace">CloudWatch</text>
+<rect x="804" y="1156" width="90" height="13" rx="3" fill="rgba(200,242,78,.1)" stroke="rgba(200,242,78,.25)" stroke-width="1"/>
+<text x="849" y="1166" font-size="8" fill="#C8F24E" text-anchor="middle" font-family="JetBrains Mono,monospace">Cognito AuthZ</text>
+<rect x="904" y="1156" width="80" height="13" rx="3" fill="rgba(200,242,78,.1)" stroke="rgba(200,242,78,.25)" stroke-width="1"/>
+<text x="944" y="1166" font-size="8" fill="#C8F24E" text-anchor="middle" font-family="JetBrains Mono,monospace">Multi-tenant</text>
+
+
+<!-- ============================================================
+     ARROWS / CONNECTIONS
+============================================================ -->
+
+<!-- Companies → Data Ingestion Pipeline -->
+<path d="M 121 152 L 121 212" stroke="#555" stroke-width="1.5" fill="none" marker-end="url(#arr-gray)" stroke-dasharray="4,3"/>
+<path d="M 342 152 L 342 212" stroke="#555" stroke-width="1.5" fill="none" marker-end="url(#arr-gray)" stroke-dasharray="4,3"/>
+<path d="M 562 152 C 562 185 420 195 420 212" stroke="#555" stroke-width="1.5" fill="none" marker-end="url(#arr-gray)" stroke-dasharray="4,3"/>
+
+<!-- Data Pipeline → S3 Raw -->
+<path d="M 558 266 L 618 266" stroke="#54E6C4" stroke-width="2" fill="none" marker-end="url(#arr-teal)"/>
+<text x="583" y="258" font-size="9" fill="#54E6C4" text-anchor="middle" font-family="JetBrains Mono,monospace">ETL output</text>
+
+<!-- S3 Raw → SageMaker -->
+<path d="M 876 320 C 876 355 760 370 760 382" stroke="#FF9900" stroke-width="1.5" fill="none" marker-end="url(#arr-orange)" stroke-dasharray="5,3"/>
+<text x="852" y="348" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">reads input</text>
+
+<!-- EventBridge → SageMaker -->
+<path d="M 328 442 L 390 442" stroke="#FF9900" stroke-width="2" fill="none" marker-end="url(#arr-orange)"/>
+<text x="358" y="434" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">trigger</text>
+
+<!-- SageMaker → S3 Forecast -->
+<path d="M 575 502 L 575 566" stroke="#54E6C4" stroke-width="2" fill="none" marker-end="url(#arr-teal)"/>
+<text x="614" y="538" font-size="9" fill="#54E6C4" font-family="JetBrains Mono,monospace">writes output</text>
+
+<!-- S3 Forecast → Amazon Athena (routes along left margin) -->
+<path d="M 420 642 C 420 672 15 672 15 982 L 62 982" stroke="#FF9900" stroke-width="1.5" fill="none" marker-end="url(#arr-orange)"/>
+<text x="245" y="668" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">S3 → Athena</text>
+
+<!-- S3 Forecast → API Gateway (right side, served via API) -->
+<path d="M 700 604 C 790 604 830 660 830 698" stroke="#54E6C4" stroke-width="1.5" fill="none" marker-end="url(#arr-teal)"/>
+<text x="790" y="648" font-size="9" fill="#54E6C4" text-anchor="middle" font-family="JetBrains Mono,monospace">served via API</text>
+
+<!-- ====== INTERNAL ARROWS — MULTI-AGENT ====== -->
+
+<!-- Query Agent → Orchestrator (intent forwarded) -->
+<path d="M 258 799 C 275 799 275 855 290 855" stroke="#7c3aed" stroke-width="1.5" fill="none" marker-end="url(#arr-purple)"/>
+<text x="267" y="833" font-size="8" fill="#7c3aed" text-anchor="middle" font-family="JetBrains Mono,monospace" transform="rotate(-55,267,833)">intent</text>
+
+<!-- Orchestrator → Knowledge Base (Orch fetches context) -->
+<path d="M 525 845 C 548 845 548 810 572 810" stroke="#FF9900" stroke-width="1.5" fill="none" marker-end="url(#arr-orange)"/>
+<!-- Knowledge Base → Orchestrator (KB returns context) -->
+<path d="M 572 825 C 548 825 548 865 525 865" stroke="#6d28d9" stroke-width="1.5" fill="none" marker-end="url(#arr-purple)"/>
+<text x="550" y="840" font-size="8" fill="#aaa" text-anchor="middle" font-family="JetBrains Mono,monospace">context</text>
+
+<!-- Orchestrator → Athena (SQL query dispatch) -->
+<path d="M 358 920 C 358 938 171 938 171 944" stroke="#FF9900" stroke-width="1.5" fill="none" marker-end="url(#arr-orange)"/>
+<text x="255" y="934" font-size="8" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">SQL query</text>
+
+<!-- Athena → Executor Agent (query results) -->
+<path d="M 171 1036 L 171 1068" stroke="#FF9900" stroke-width="1.5" fill="none" marker-end="url(#arr-orange)"/>
+<text x="192" y="1055" font-size="8" fill="#FF9900" font-family="JetBrains Mono,monospace">results</text>
+
+<!-- Orchestrator → Analysis Agent -->
+<path d="M 442 920 C 442 950 565 950 565 1068" stroke="#FF9900" stroke-width="1.5" fill="none" marker-end="url(#arr-orange)"/>
+<text x="508" y="946" font-size="8" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">analyze</text>
+
+<!-- Executor Agent → Analysis Agent (raw results) -->
+<path d="M 280 1129 L 456 1129" stroke="#0891b2" stroke-width="1.5" fill="none" marker-end="url(#arr-teal)"/>
+<text x="368" y="1122" font-size="8" fill="#54E6C4" text-anchor="middle" font-family="JetBrains Mono,monospace">query results</text>
+
+<!-- Analysis Agent exits right → Portal -->
+<path d="M 674 1129 L 790 1129" stroke="#16a34a" stroke-width="2" fill="none" marker-end="url(#arr-green)"/>
+<text x="732" y="1122" font-size="8" fill="#C8F24E" text-anchor="middle" font-family="JetBrains Mono,monospace">response</text>
+
+<!-- ====== RIGHT COLUMN ARROWS ====== -->
+
+<!-- Portal → API Gateway (user sends query, upward left-side) -->
+<path d="M 800 922 L 800 798" stroke="#C8F24E" stroke-width="1.5" fill="none" marker-end="url(#arr-green)" stroke-dasharray="4,3"/>
+<text x="778" y="862" font-size="8" fill="#C8F24E" text-anchor="end" font-family="JetBrains Mono,monospace">user query</text>
+
+<!-- API GW → Multi-agent system (routes query to Orchestrator via outer box right edge) -->
+<path d="M 790 748 C 780 748 775 855 768 855 L 525 855" stroke="#3B82F6" stroke-width="1.5" fill="none" marker-end="url(#arr-green)" stroke-dasharray="5,3"/>
+<text x="756" y="810" font-size="8" fill="#3B82F6" text-anchor="end" font-family="JetBrains Mono,monospace">route to orchestrator</text>
+
+<!-- Cognito ↔ API Gateway (auth validation) -->
+<path d="M 840 814 L 840 798" stroke="#3B82F6" stroke-width="1.5" fill="none" marker-end="url(#arr-green)"/>
+
+<!-- API GW → Portal (delivers final response, right side downward) -->
+<path d="M 1110 798 L 1110 922" stroke="#3B82F6" stroke-width="1.5" fill="none" marker-end="url(#arr-green)"/>
+<text x="1130" y="862" font-size="8" fill="#3B82F6" text-anchor="start" font-family="JetBrains Mono,monospace">response</text>
+
+<!-- ============================================================
+     SECTION FLOW LABELS
+============================================================ -->
+<text x="283" y="175" font-size="9" fill="#444" text-anchor="middle" font-family="JetBrains Mono,monospace">SFTP · REST API · CSV upload</text>
+
+<rect x="420" y="364" width="130" height="16" rx="4" fill="rgba(255,153,0,.1)" stroke="rgba(255,153,0,.2)" stroke-width="1"/>
+<text x="485" y="375" font-size="9" fill="#FF9900" text-anchor="middle" font-family="JetBrains Mono,monospace">reads from S3 Raw</text>
+
+</svg>
+</div>
+
+<div class="legend">
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#FF9900"></div>
+    <span>AWS managed services</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#3B82F6"></div>
+    <span>Networking / Auth</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#A855F7"></div>
+    <span>AI Agents (Bedrock)</span>
+  </div>
+  <div class="legend-item">
+    <div class="legend-dot" style="background:#C8F24E"></div>
+    <span>VenturLyft Portal</span>
+  </div>
+  <div class="legend-item">
+    <svg width="28" height="10" style="margin-top:1px">
+      <line x1="0" y1="5" x2="20" y2="5" stroke="#54E6C4" stroke-width="2" marker-end="url(#arr-teal-leg)"/>
+      <defs><marker id="arr-teal-leg" markerWidth="6" markerHeight="5" refX="5" refY="2.5" orient="auto"><polygon points="0 0,6 2.5,0 5" fill="#54E6C4"/></marker></defs>
+    </svg>
+    <span>Data flow</span>
+  </div>
+  <div class="legend-item">
+    <svg width="28" height="10" style="margin-top:1px">
+      <line x1="0" y1="5" x2="20" y2="5" stroke="#FF9900" stroke-width="1.5" stroke-dasharray="4,2"/>
+    </svg>
+    <span>Trigger / schedule</span>
+  </div>
+</div>
+
+</body>
+</html>
