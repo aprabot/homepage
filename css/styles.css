@@ -45,6 +45,11 @@
   .logo .mk{width:30px;height:30px;position:relative;flex:0 0 auto}
   .logo .mk svg{width:100%;height:100%;display:block}
   .logo b{color:var(--signal)}
+  .wordmark{display:inline-flex;align-items:center;font-family:var(--display);font-weight:700;font-size:20px;
+    letter-spacing:-.02em;color:var(--text);text-decoration:none;
+    border:1.5px solid rgba(200,242,78,.32);border-radius:9px;padding:6px 13px;line-height:1;transition:border-color .2s}
+  .wordmark:hover{border-color:rgba(200,242,78,.65)}
+  .wordmark b{color:var(--signal)}
   .navlinks{display:flex;gap:34px;align-items:center}
   .navlinks a{font-size:14.5px;color:var(--muted);font-weight:500;transition:color .2s}
   .navlinks a:hover{color:var(--text)}
@@ -419,3 +424,237 @@
     .dtop .search{width:auto}
     .table-wrap{overflow-x:auto}
   }
+
+  /* ============================================================
+     THEME TOGGLE BUTTON
+  ============================================================ */
+  .theme-tg{
+    width:36px;height:36px;border-radius:9px;
+    background:transparent;border:1px solid var(--line-2);
+    color:var(--muted);cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    transition:border-color .2s,color .2s,background .2s;
+    flex-shrink:0;
+  }
+  .theme-tg:hover{border-color:var(--signal);color:var(--signal);background:var(--signal-soft)}
+  .theme-tg svg{width:17px;height:17px;display:block;transition:transform .4s}
+  .theme-tg:hover svg{transform:rotate(22deg)}
+
+  /* ============================================================
+     LIGHT THEME — warm, airy, natural
+     Philosophy: warm off-white page, pure white cards with soft
+     shadows for elevation, no blue tints, olive for brand text.
+     --signal stays #C8F24E so buttons are identical in both modes.
+  ============================================================ */
+  [data-theme="light"]{
+    --ink:#F5F4EE;          /* warm off-white — no blue tint */
+    --ink-2:#FFFFFF;         /* pure white — elevated cards/panels */
+    --ink-3:#ECEAE3;         /* warm subtle surface — inputs, inset areas */
+    --panel:#FFFFFF;         /* all panel elements become white cards */
+    --line:rgba(0,0,0,.07);  /* very soft borders */
+    --line-2:rgba(0,0,0,.13);
+    --mint:#00736A;          /* dark teal — readable on light */
+    --text:#111318;
+    --muted:#52606E;
+    --muted-2:#7E8C9A;
+  }
+
+  /* Body warm bg */
+  [data-theme="light"] body{background:var(--ink)}
+
+  /* Ambient — very faint warm glows, no harsh blobs */
+  [data-theme="light"] .grain{opacity:.015}
+  [data-theme="light"] .glow.a{
+    background:radial-gradient(circle,rgba(200,242,78,.1),transparent 65%);
+    opacity:.5;top:-80px;right:-60px;width:480px;height:480px;filter:blur(90px)
+  }
+  [data-theme="light"] .glow.b{
+    background:radial-gradient(circle,rgba(0,115,106,.06),transparent 65%);
+    opacity:.5;filter:blur(90px)
+  }
+
+  /* Header — warm frosted glass */
+  [data-theme="light"] header{background:rgba(245,244,238,.82);border-bottom-color:transparent}
+  [data-theme="light"] header.scrolled{background:rgba(245,244,238,.95);border-bottom-color:var(--line)}
+
+  /* Hero chart card — white card, soft shadow */
+  [data-theme="light"] .panel{
+    background:#fff;border-color:rgba(0,0,0,.07);
+    box-shadow:0 4px 6px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.07)
+  }
+  [data-theme="light"] .panel::before{background:
+    linear-gradient(transparent 95%,rgba(0,0,0,.02) 95%) 0 0/100% 28px,
+    linear-gradient(90deg,transparent 95%,rgba(0,0,0,.02) 95%) 0 0/28px 100%}
+  [data-theme="light"] .tick{
+    background:rgba(255,255,255,.92);border-color:rgba(0,0,0,.09);color:var(--muted)
+  }
+  [data-theme="light"] .cone{fill:rgba(200,242,78,.1)}
+
+  /* Stats block — white card with lift */
+  [data-theme="light"] .stats{
+    background:#fff;border-color:rgba(0,0,0,.07);
+    box-shadow:0 1px 3px rgba(0,0,0,.04),0 6px 20px rgba(0,0,0,.05)
+  }
+  [data-theme="light"] .stat{border-right-color:rgba(0,0,0,.07)}
+
+  /* Capability cards — white with subtle lift */
+  [data-theme="light"] .card{
+    background:#fff;border-color:rgba(0,0,0,.07);
+    box-shadow:0 1px 3px rgba(0,0,0,.04),0 4px 14px rgba(0,0,0,.05)
+  }
+  [data-theme="light"] .card:hover{
+    background:#fff;border-color:rgba(0,0,0,.12);
+    box-shadow:0 4px 6px rgba(0,0,0,.06),0 12px 32px rgba(0,0,0,.08);
+    transform:translateY(-5px)
+  }
+
+  /* Brain network diagram */
+  [data-theme="light"] .brain{
+    background:radial-gradient(circle at 50% 45%,#F8F7F2,#EDECEA);
+    border-color:rgba(0,0,0,.07);
+    box-shadow:0 4px 6px rgba(0,0,0,.04),0 12px 40px rgba(0,0,0,.07)
+  }
+  [data-theme="light"] .node{fill:#fff;stroke:rgba(0,0,0,.1)}
+  [data-theme="light"] .node-lab{fill:var(--muted)}
+  [data-theme="light"] .core{stroke:#5A9200;fill:rgba(200,242,78,.12)}
+  [data-theme="light"] .edge{stroke:rgba(0,0,0,.1)}
+  [data-theme="light"] .pkt{fill:#5A9200}
+
+  /* Industry links */
+  [data-theme="light"] .ind a{
+    background:#fff;border-color:rgba(0,0,0,.07);
+    box-shadow:0 1px 3px rgba(0,0,0,.04)
+  }
+  [data-theme="light"] .ind a:hover{
+    background:#fff;border-color:#C8F24E;
+    box-shadow:0 4px 16px rgba(200,242,78,.2)
+  }
+  [data-theme="light"] .ind a:hover .ar{color:#5A9200}
+
+  /* How it works step bars */
+  [data-theme="light"] .step .bar{background:rgba(0,0,0,.08)}
+
+  /* Quote — white card */
+  [data-theme="light"] .quote{
+    background:#fff;border-color:rgba(0,0,0,.07);
+    box-shadow:0 2px 4px rgba(0,0,0,.04),0 8px 28px rgba(0,0,0,.06)
+  }
+  [data-theme="light"] .quote .mark{color:#5A9200}
+
+  /* CTA band — white with lime glow top */
+  [data-theme="light"] .cta-band{
+    background:radial-gradient(ellipse at 50% -20%,rgba(200,242,78,.18),transparent 55%),#fff;
+    border-color:rgba(0,0,0,.07);
+    box-shadow:0 2px 4px rgba(0,0,0,.04),0 8px 28px rgba(0,0,0,.06)
+  }
+
+  /* Selection */
+  [data-theme="light"] ::selection{background:#C8F24E;color:#0A0E15}
+
+  /* Logos strip */
+  [data-theme="light"] .logos{border-color:rgba(0,0,0,.07)}
+  [data-theme="light"] .logo-row span{color:var(--muted)}
+
+  /* Feat list dividers */
+  [data-theme="light"] .feat-list li{border-top-color:rgba(0,0,0,.07)}
+
+  /* Login modal */
+  [data-theme="light"] .modal{background:rgba(10,14,20,.38)}
+  [data-theme="light"] .login-card{
+    background:#fff;border-color:rgba(0,0,0,.09);
+    box-shadow:0 20px 60px rgba(0,0,0,.12),0 4px 12px rgba(0,0,0,.06)
+  }
+  [data-theme="light"] .field input{background:var(--ink-3);border-color:rgba(0,0,0,.1)}
+  [data-theme="light"] .field input:focus{background:#fff}
+
+  /* Dashboard shell */
+  [data-theme="light"] #dashboard{background:var(--ink)}
+  [data-theme="light"] .dside{background:#fff;border-right-color:rgba(0,0,0,.07)}
+  [data-theme="light"] .dtop{
+    background:rgba(255,255,255,.9);border-bottom-color:rgba(0,0,0,.07)
+  }
+  [data-theme="light"] .dtop .search{background:var(--ink-3);border-color:rgba(0,0,0,.09)}
+  [data-theme="light"] .kpi{
+    background:#fff;border-color:rgba(0,0,0,.07);
+    box-shadow:0 1px 3px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.04)
+  }
+  [data-theme="light"] .dcard{
+    background:#fff;border-color:rgba(0,0,0,.07);
+    box-shadow:0 1px 3px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.04)
+  }
+  [data-theme="light"] .dcard .ch .seg{background:var(--ink-3);border-color:rgba(0,0,0,.08)}
+  [data-theme="light"] .dtable th{border-bottom-color:rgba(0,0,0,.08)}
+  [data-theme="light"] .dtable td{border-bottom-color:rgba(0,0,0,.06)}
+  [data-theme="light"] .dtable tr:hover td{background:rgba(0,0,0,.02)}
+  [data-theme="light"] .movers li{border-top-color:rgba(0,0,0,.06)}
+  [data-theme="light"] .report-drop{
+    background:#fff;border-color:rgba(0,0,0,.1);
+    box-shadow:0 8px 24px rgba(0,0,0,.1),0 2px 6px rgba(0,0,0,.06)
+  }
+  [data-theme="light"] .dnav li:hover{background:rgba(0,0,0,.04)}
+  [data-theme="light"] .dnav li.active{background:rgba(200,242,78,.18);color:#5A9200}
+  [data-theme="light"] .dside .signout{border-color:rgba(0,0,0,.1);color:var(--muted)}
+
+  /* Chart tooltip */
+  [data-theme="light"] .fc-tip{
+    background:#fff;border-color:rgba(0,0,0,.1);
+    box-shadow:0 4px 16px rgba(0,0,0,.1)
+  }
+  [data-theme="light"] .fc-tip .wk{color:var(--muted)}
+
+  /* In-dashboard AI chatbot */
+  [data-theme="light"] .cb-panel{background:#fff;border-color:rgba(0,0,0,.09)}
+  [data-theme="light"] .cb-head{background:#fafaf8;border-bottom-color:rgba(0,0,0,.07)}
+  [data-theme="light"] .cb-msg.bot{background:var(--ink-3);border-color:rgba(0,0,0,.08);color:var(--text)}
+  [data-theme="light"] .cb-typing{background:var(--ink-3);border-color:rgba(0,0,0,.08)}
+  [data-theme="light"] .cb-input{border-top-color:rgba(0,0,0,.07)}
+  [data-theme="light"] .cb-input input{background:var(--ink-3);border-color:rgba(0,0,0,.1);color:var(--text)}
+  [data-theme="light"] .cb-chips button{background:#fff;border-color:rgba(0,0,0,.1);color:var(--muted)}
+  [data-theme="light"] .cb-chips button:hover{border-color:#5A9200;color:#5A9200}
+
+  /* Ghost button */
+  [data-theme="light"] .btn-ghost{border-color:rgba(0,0,0,.2);color:var(--text)}
+  [data-theme="light"] .btn-ghost:hover{border-color:#5A9200;color:#5A9200;background:rgba(200,242,78,.08)}
+
+  /* Theme toggle hover */
+  [data-theme="light"] .theme-tg:hover{border-color:#5A9200;color:#5A9200;background:rgba(200,242,78,.08)}
+
+  /* Pills */
+  [data-theme="light"] .pill.ok{color:#5A9200;border-color:rgba(130,180,0,.35);background:rgba(200,242,78,.14)}
+  [data-theme="light"] .pill.warn{color:#8B6000}
+  [data-theme="light"] .pill.risk{color:#C0392B}
+
+  /* Bar mini */
+  [data-theme="light"] .bar-mini{background:rgba(0,0,0,.08)}
+
+  /* ── Brand colour in text/icon contexts → dark olive ──────────────
+     #C8F24E (lime) as text on warm white = ~1.2:1 contrast, invisible.
+     Every color:var(--signal) use in light mode gets dark olive instead.
+  ──────────────────────────────────────────────────────────────────── */
+  [data-theme="light"] .wordmark{border-color:rgba(0,0,0,.18)}
+  [data-theme="light"] .wordmark:hover{border-color:rgba(0,0,0,.35)}
+  [data-theme="light"] .wordmark b{color:#5A9200}
+  [data-theme="light"] .logo b,
+  [data-theme="light"] h1 .em,
+  [data-theme="light"] .kicker,
+  [data-theme="light"] .ic,
+  [data-theme="light"] .stat .num,
+  [data-theme="light"] .step .n,
+  [data-theme="light"] .feat-list li .ck,
+  [data-theme="light"] .quote blockquote .hl,
+  [data-theme="light"] .dgreet .hl,
+  [data-theme="light"] .kpi .d.up,
+  [data-theme="light"] .movers .chg.up,
+  [data-theme="light"] .dtable .skucell,
+  [data-theme="light"] .selbar .selwape b,
+  [data-theme="light"] .login-note .demo,
+  [data-theme="light"] .movers li:hover .nmx,
+  [data-theme="light"] .fcol a:hover,
+  [data-theme="light"] .dcard .ch .seg button.on,
+  [data-theme="light"] .report-drop button:hover,
+  [data-theme="light"] .cb-msg .lk { color:#5A9200 }
+
+  [data-theme="light"] .eyebrow{color:#5A9200;border-color:rgba(130,180,0,.28);background:rgba(200,242,78,.1)}
+  [data-theme="light"] .ic{background:rgba(200,242,78,.12);border-color:rgba(130,180,0,.2)}
+  [data-theme="light"] .report-drop button:hover{background:rgba(200,242,78,.12)}
+  [data-theme="light"] .sku-search input{background:var(--ink-3);border-color:rgba(0,0,0,.1);color:var(--text)}

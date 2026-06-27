@@ -1,0 +1,1269 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>APRABot — AWS Infrastructure Cost Analysis</title>
+<link href="https://fonts.googleapis.com/css2?family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --signal: #C8F24E;
+    --teal: #54E6C4;
+    --ink: #0a0a0a;
+    --ink-2: #111;
+    --text: #1a1a1a;
+    --muted: #555;
+    --line: #ddd;
+    --orange: #FF9900;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: 'Hanken Grotesk', system-ui, sans-serif;
+    font-size: 11pt;
+    color: var(--text);
+    background: #fff;
+    line-height: 1.6;
+  }
+
+  /* ── Cover page ── */
+  .cover {
+    background: var(--ink);
+    color: #fff;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 60px 64px;
+    page-break-after: always;
+  }
+  .cover-logo {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .cover-logo svg { width: 36px; height: 36px; }
+  .cover-logo span {
+    font-size: 20px;
+    font-weight: 700;
+    color: #fff;
+    letter-spacing: -.02em;
+  }
+  .cover-logo span b { color: var(--signal); }
+  .cover-body { padding: 80px 0 60px; }
+  .cover-tag {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9pt;
+    color: var(--signal);
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    margin-bottom: 24px;
+  }
+  .cover-title {
+    font-size: 38pt;
+    font-weight: 700;
+    line-height: 1.05;
+    letter-spacing: -.03em;
+    margin-bottom: 20px;
+  }
+  .cover-title span { color: var(--signal); }
+  .cover-sub {
+    font-size: 13pt;
+    color: #aaa;
+    max-width: 480px;
+    line-height: 1.6;
+  }
+  .cover-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    border-top: 1px solid #222;
+    padding-top: 24px;
+  }
+  .cover-footer p { font-size: 9pt; color: #666; }
+  .cover-footer .conf {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8pt;
+    color: #444;
+    letter-spacing: .1em;
+    text-transform: uppercase;
+  }
+
+  /* ── Content pages ── */
+  .page {
+    padding: 52px 64px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    border-bottom: 2px solid var(--ink);
+    padding-bottom: 12px;
+    margin-bottom: 36px;
+  }
+  .page-header h1 {
+    font-size: 18pt;
+    font-weight: 700;
+    letter-spacing: -.02em;
+  }
+  .page-header .pg {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 9pt;
+    color: var(--muted);
+  }
+
+  h2 {
+    font-size: 13pt;
+    font-weight: 700;
+    letter-spacing: -.01em;
+    margin: 32px 0 10px;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  h2::before {
+    content: '';
+    display: inline-block;
+    width: 4px;
+    height: 16px;
+    background: var(--signal);
+    border-radius: 2px;
+  }
+  h3 {
+    font-size: 10.5pt;
+    font-weight: 600;
+    margin: 20px 0 6px;
+    color: #333;
+  }
+
+  p { margin-bottom: 10px; color: #333; }
+
+  .note {
+    background: #f8f8f4;
+    border-left: 3px solid var(--signal);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    margin: 14px 0;
+    font-size: 9.5pt;
+    color: #444;
+  }
+  .note strong { color: var(--ink); }
+
+  .warn {
+    background: #fff8f0;
+    border-left: 3px solid var(--orange);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    margin: 14px 0;
+    font-size: 9.5pt;
+    color: #554400;
+  }
+
+  /* ── Tables ── */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin: 12px 0 20px;
+    font-size: 9.5pt;
+  }
+  thead tr {
+    background: var(--ink);
+    color: #fff;
+  }
+  thead th {
+    padding: 8px 12px;
+    text-align: left;
+    font-weight: 600;
+    font-size: 8.5pt;
+    letter-spacing: .04em;
+    text-transform: uppercase;
+  }
+  tbody tr:nth-child(even) { background: #f8f8f8; }
+  tbody td {
+    padding: 7px 12px;
+    border-bottom: 1px solid #eee;
+    vertical-align: top;
+  }
+  tbody tr:last-child td { border-bottom: none; }
+  .num { text-align: right; font-family: 'JetBrains Mono', monospace; font-size: 9pt; }
+  .total-row td {
+    background: #f0f9e0 !important;
+    font-weight: 700;
+    border-top: 2px solid #c0e04a;
+  }
+  .sub-row td { color: #777; font-size: 9pt; padding-left: 24px; }
+
+  /* ── Summary boxes ── */
+  .summary-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .summary-box {
+    border: 1.5px solid var(--line);
+    border-radius: 8px;
+    padding: 16px;
+    text-align: center;
+  }
+  .summary-box .label {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5pt;
+    color: var(--muted);
+    letter-spacing: .1em;
+    text-transform: uppercase;
+    margin-bottom: 6px;
+  }
+  .summary-box .value {
+    font-size: 20pt;
+    font-weight: 700;
+    color: var(--ink);
+    line-height: 1;
+  }
+  .summary-box .sub { font-size: 8pt; color: var(--muted); margin-top: 4px; }
+  .summary-box.highlight { border-color: var(--signal); background: #f8fde8; }
+  .summary-box.highlight .value { color: #3a5a00; }
+
+  /* ── Bar chart ── */
+  .bar-chart { margin: 16px 0; }
+  .bar-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 8px;
+  }
+  .bar-label {
+    font-size: 8.5pt;
+    width: 180px;
+    flex-shrink: 0;
+    color: #333;
+  }
+  .bar-track {
+    flex: 1;
+    background: #f0f0f0;
+    border-radius: 3px;
+    height: 14px;
+    overflow: hidden;
+  }
+  .bar-fill {
+    height: 100%;
+    border-radius: 3px;
+    background: var(--ink);
+  }
+  .bar-fill.accent { background: var(--signal); }
+  .bar-fill.orange { background: var(--orange); }
+  .bar-fill.teal { background: var(--teal); }
+  .bar-fill.muted { background: #bbb; }
+  .bar-val {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8pt;
+    width: 80px;
+    text-align: right;
+    color: var(--muted);
+  }
+
+  /* ── Code / mono blocks ── */
+  .mono {
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 8.5pt;
+    background: #f4f4f4;
+    border-radius: 4px;
+    padding: 10px 14px;
+    margin: 10px 0;
+    color: #333;
+    line-height: 1.7;
+  }
+
+  .chip {
+    display: inline-block;
+    background: var(--ink);
+    color: #fff;
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 7.5pt;
+    padding: 2px 8px;
+    border-radius: 4px;
+    margin: 2px;
+    letter-spacing: .03em;
+  }
+  .chip.green { background: #2d5a00; }
+  .chip.orange { background: #884400; }
+
+  /* ── Page breaks ── */
+  .pb { page-break-before: always; }
+  .pba { page-break-after: always; }
+
+  hr { border: none; border-top: 1px solid #eee; margin: 24px 0; }
+
+  footer.doc-footer {
+    border-top: 1px solid #eee;
+    padding: 16px 64px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 8pt;
+    color: #aaa;
+    font-family: 'JetBrains Mono', monospace;
+  }
+
+  @media print {
+    body { font-size: 10pt; }
+    .cover { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .bar-fill, thead tr, .total-row td, .summary-box.highlight,
+    h2::before, .note, .warn, .chip {
+      -webkit-print-color-adjust: exact;
+      print-color-adjust: exact;
+    }
+    .page { padding: 40px 52px; }
+    a { text-decoration: none; color: inherit; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ================================================================
+     COVER
+================================================================ -->
+<div class="cover">
+  <div class="cover-logo">
+    <svg viewBox="0 0 32 32" fill="none">
+      <rect x="1" y="1" width="30" height="30" rx="8" stroke="#C8F24E" stroke-width="1.5"/>
+            <!-- outer spinning ring -->
+            <circle cx="16" cy="16" r="11" stroke="#C8F24E" stroke-width="1.5" stroke-dasharray="5 3">
+              <animateTransform attributeName="transform" type="rotate" from="0 16 16" to="360 16 16" dur="8s" repeatCount="indefinite"/>
+            </circle>
+            <!-- middle pulsing ring -->
+            <circle cx="16" cy="16" r="6.5" stroke="#54E6C4" stroke-width="1.5">
+              <animate attributeName="opacity" values="0.35;1;0.35" dur="2.4s" repeatCount="indefinite"/>
+            </circle>
+            <!-- inner breathing dot -->
+            <circle cx="16" cy="16" r="2.5" fill="#C8F24E">
+              <animate attributeName="r" values="2.5;3.3;2.5" dur="2.4s" repeatCount="indefinite"/>
+              <animate attributeName="opacity" values="1;0.7;1" dur="2.4s" repeatCount="indefinite"/>
+            </circle>
+    </svg>
+    <span>APRA<b>Bot</b></span>
+  </div>
+
+  <div class="cover-body">
+    <div class="cover-tag">Infrastructure Cost Analysis · AWS</div>
+    <div class="cover-title">Per-Client Hosting<br>Cost Model<br><span>at Scale</span></div>
+    <div class="cover-sub">
+      Full cost breakdown for serving one enterprise client on the APRABot
+      AI forecasting platform — 20,000 SKUs × 20,000 zipcodes,
+      2 years of historical weekly data.
+    </div>
+  </div>
+
+  <div class="cover-footer">
+    <div>
+      <p style="color:#666;font-size:9pt">Prepared by APRABot Engineering</p>
+      <p style="color:#444;font-size:9pt">June 2026 · v1.0 · Internal Use</p>
+    </div>
+    <div class="conf">Confidential</div>
+  </div>
+</div>
+
+
+<!-- ================================================================
+     PAGE 1 — ASSUMPTIONS
+================================================================ -->
+<div class="page pba">
+  <div class="page-header">
+    <h1>Assumptions &amp; Scope</h1>
+    <span class="pg">Page 1 of 7</span>
+  </div>
+
+  <h2>Client Profile</h2>
+  <table>
+    <thead><tr><th>Parameter</th><th>Value</th><th>Notes</th></tr></thead>
+    <tbody>
+      <tr><td>SKUs per client</td><td class="num">20,000</td><td>Unique product identifiers</td></tr>
+      <tr><td>Zipcodes per client</td><td class="num">20,000</td><td>US zip code coverage</td></tr>
+      <tr><td>Time series (SKU × Zipcode)</td><td class="num">400,000,000</td><td>Full cross product</td></tr>
+      <tr><td>Active / non-sparse series</td><td class="num">~20–80 M</td><td>5–20% of combos have actual sales history</td></tr>
+      <tr><td>Historical data window</td><td class="num">2 years (104 weeks)</td><td>Weekly granularity</td></tr>
+      <tr><td>Total data points</td><td class="num">~41.6 billion</td><td>400M series × 104 weeks</td></tr>
+      <tr><td>Active users per client</td><td class="num">5–20</td><td>Demand planners + finance</td></tr>
+      <tr><td>Agent query sessions / month</td><td class="num">~200</td><td>NL Q&amp;A via portal chatbot</td></tr>
+      <tr><td>Athena queries / month</td><td class="num">~100</td><td>Structured forecast data lookups</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Infrastructure Assumptions</h2>
+  <table>
+    <thead><tr><th>Component</th><th>Assumption</th></tr></thead>
+    <tbody>
+      <tr><td><strong>SageMaker Batch Inference</strong></td><td>Runs weekly (4×/month) on Spot instances. XGBoost + LightGBM ensemble. Instance type: ml.m5.12xlarge (48 vCPUs). Throughput ~100M records/hr per instance. Two parallel instances for dual-model ensemble.</td></tr>
+      <tr><td><strong>S3 Storage</strong></td><td>Parquet format with Snappy compression (5–10× ratio). Partitioned by company / SKU-prefix / run_date. S3 Intelligent-Tiering applied. Lifecycle: 18-month active window then Glacier.</td></tr>
+      <tr><td><strong>AWS Glue ETL</strong></td><td>One-time historical backfill (one-off cost). Incremental weekly delta loads thereafter (~400M rows/run). 10 G.1X DPUs with Spark. Runs weekly, triggered by EventBridge.</td></tr>
+      <tr><td><strong>Amazon Athena</strong></td><td>Serverless SQL over S3 Parquet. Partition pruning on company / SKU-prefix / date limits scans to &lt;500 MB per query. Billed at $5/TB scanned.</td></tr>
+      <tr><td><strong>Amazon Bedrock Agents</strong></td><td>4-agent system (Query, Orchestrator, Executor, Analysis). Model: Claude 3 Haiku (most cost-efficient). Avg ~20K tokens per end-to-end agent session.</td></tr>
+      <tr><td><strong>Bedrock Knowledge Base</strong></td><td>OpenSearch Serverless. 2 OCU indexing + 2 OCU search = 4 OCU minimum. Fixed monthly cost <strong>shared across all clients</strong> (domain-level KB).</td></tr>
+      <tr><td><strong>AWS Transfer Family</strong></td><td>Shared SFTP server across all clients. Fixed hourly cost amortised by client count (assumed 10+ clients).</td></tr>
+      <tr><td><strong>Cognito / API GW / Lambda</strong></td><td>Negligible at this query volume (&lt;10K API calls/month per client).</td></tr>
+      <tr><td><strong>CloudFront</strong></td><td>Portal CDN. Minimal cost at &lt;5K page loads/month.</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Pricing Basis</h2>
+  <div class="mono">
+AWS US-East-1 on-demand pricing · June 2026
+SageMaker ml.m5.12xlarge  : $2.304 / hr on-demand  →  $0.691 / hr Spot (~70% off)
+S3 Standard               : $0.023 / GB / month
+S3 Intelligent-Tiering    : $0.023 (hot) / $0.0125 (IA) / $0.004 (archive)
+Glue G.1X DPU             : $0.44 / DPU-hr
+Athena                    : $5.00 / TB scanned
+Bedrock Claude 3 Haiku    : $0.25 / 1M input tokens · $1.25 / 1M output tokens
+OpenSearch Serverless     : $0.24 / OCU-hr
+Transfer Family (SFTP)    : $0.30 / hr + $0.04 / GB transferred
+  </div>
+
+  <div class="note">
+    <strong>Spot Instance Risk:</strong> SageMaker Batch Transform with Spot instances
+    enables automatic checkpointing and retry. Interruption rate for ml.m5.12xlarge
+    is historically &lt;5% in US-East-1. All cost projections default to Spot pricing.
+  </div>
+</div>
+
+
+<!-- ================================================================
+     PAGE 2 — PRICE SUMMARY
+================================================================ -->
+<div class="page pba">
+  <div class="page-header">
+    <h1>Price Summary</h1>
+    <span class="pg">Page 2 of 7</span>
+  </div>
+
+  <h2>All-In Monthly Cost Per Client</h2>
+  <p>Based on 20,000 SKUs × 20,000 zipcodes (400M time series), 2 years of weekly history, weekly batch inference, and 200 agent sessions/month.</p>
+
+  <table>
+    <thead><tr><th>Scenario</th><th>What it means</th><th>$/client/mo</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Optimized</strong> <span class="chip green">Recommended</span></td>
+        <td>Spot instances · Shared KB · Sparse filter · Partition pruning · 10+ clients</td>
+        <td class="num"><strong>$60–90</strong></td>
+      </tr>
+      <tr>
+        <td><strong>Standard</strong></td>
+        <td>Spot instances · Shared KB · No sparse filter · 5–10 clients</td>
+        <td class="num">$90–140</td>
+      </tr>
+      <tr>
+        <td><strong>On-Demand</strong></td>
+        <td>On-demand compute · Dedicated KB · 1–3 clients (launch phase)</td>
+        <td class="num">$150–250</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Cost by AWS Service Category</h2>
+  <table>
+    <thead><tr><th>#</th><th>Service</th><th>Category</th><th>Optimized</th><th>Standard</th><th>On-Demand</th></tr></thead>
+    <tbody>
+      <tr><td>1</td><td>Amazon S3</td><td>Storage</td><td class="num">$10–15</td><td class="num">$10–15</td><td class="num">$10–15</td></tr>
+      <tr><td>2</td><td>AWS Glue ETL</td><td>Data pipeline</td><td class="num">$18–20</td><td class="num">$18–20</td><td class="num">$18–20</td></tr>
+      <tr><td>3</td><td>SageMaker Batch</td><td>ML inference</td><td class="num">$3–15</td><td class="num">$20–45</td><td class="num">$55–110</td></tr>
+      <tr><td>4</td><td>Amazon Athena</td><td>Query layer</td><td class="num">~$0.25</td><td class="num">~$0.25</td><td class="num">~$0.25</td></tr>
+      <tr><td>5</td><td>Bedrock Agents</td><td>AI / NL queries</td><td class="num">$6–12</td><td class="num">$6–12</td><td class="num">$6–12</td></tr>
+      <tr><td>6</td><td>Bedrock KB (shared)</td><td>Knowledge base</td><td class="num">$7–35</td><td class="num">$7–35</td><td class="num">$35–70</td></tr>
+      <tr><td>7</td><td>Transfer Family</td><td>Data ingestion</td><td class="num">$5–15</td><td class="num">$5–15</td><td class="num">$15–22</td></tr>
+      <tr><td>8</td><td>API GW · Lambda · Cognito · CloudFront</td><td>Portal infra</td><td class="num">~$3.50</td><td class="num">~$3.50</td><td class="num">~$3.50</td></tr>
+      <tr class="total-row">
+        <td colspan="2"><strong>Total</strong></td><td></td>
+        <td class="num"><strong>$53–116</strong></td>
+        <td class="num"><strong>$70–146</strong></td>
+        <td class="num"><strong>$143–253</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Suggested SaaS Pricing &amp; Gross Margin</h2>
+  <table>
+    <thead><tr><th>SaaS Price Tier</th><th>Price / client / mo</th><th>Infra cost (optimized)</th><th>Gross Margin</th></tr></thead>
+    <tbody>
+      <tr><td>Starter</td><td class="num">$500</td><td class="num">$53–116</td><td class="num">77–89%</td></tr>
+      <tr><td>Growth</td><td class="num">$1,000</td><td class="num">$53–116</td><td class="num">88–95%</td></tr>
+      <tr><td>Enterprise</td><td class="num">$2,500</td><td class="num">$53–116</td><td class="num">95–98%</td></tr>
+    </tbody>
+  </table>
+  <div class="note"><strong>Industry benchmark:</strong> Top-quartile AI SaaS companies operate at 75–85% gross margin. APRABot's unit economics comfortably exceed this at all price tiers above $500/mo.</div>
+
+  <h2>Chatbot Conversation Cost Per Query</h2>
+  <p>Each user query triggers all four Bedrock agents in sequence (Query → Orchestrator → Executor → Analysis) plus one Athena SQL call. Cost depends on the model chosen and conversation length.</p>
+
+  <h3>Token Breakdown — Single Query</h3>
+  <table>
+    <thead><tr><th>Agent</th><th>Role</th><th>Input tokens</th><th>Output tokens</th></tr></thead>
+    <tbody>
+      <tr><td>Query Agent</td><td>Parses user intent, extracts filters</td><td class="num">~480</td><td class="num">~120</td></tr>
+      <tr><td>Orchestrator Agent</td><td>Plans task, retrieves KB context, delegates</td><td class="num">~3,200</td><td class="num">~250</td></tr>
+      <tr><td>Executor Agent</td><td>Builds &amp; runs Athena SQL, returns results</td><td class="num">~1,550</td><td class="num">~150</td></tr>
+      <tr><td>Analysis Agent</td><td>Interprets results, writes S&amp;OP commentary</td><td class="num">~3,900</td><td class="num">~600</td></tr>
+      <tr class="total-row"><td><strong>Total per query</strong></td><td></td><td class="num"><strong>~9,130</strong></td><td class="num"><strong>~1,120</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h3>Cost Per Query by Model</h3>
+  <table>
+    <thead><tr><th>Model</th><th>Input price</th><th>Output price</th><th>Bedrock cost / query</th><th>+ Athena</th><th><strong>Total / query</strong></th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Claude 3 Haiku <span class="chip green">Recommended</span></td>
+        <td class="num">$0.25 / 1M</td><td class="num">$1.25 / 1M</td>
+        <td class="num">$0.0037</td><td class="num">$0.0025</td>
+        <td class="num"><strong>~$0.006</strong></td>
+      </tr>
+      <tr>
+        <td>Claude 3.5 Sonnet</td>
+        <td class="num">$3.00 / 1M</td><td class="num">$15.00 / 1M</td>
+        <td class="num">$0.0440</td><td class="num">$0.0025</td>
+        <td class="num"><strong>~$0.047</strong></td>
+      </tr>
+      <tr>
+        <td>Claude 3 Opus</td>
+        <td class="num">$15.00 / 1M</td><td class="num">$75.00 / 1M</td>
+        <td class="num">$0.2210</td><td class="num">$0.0025</td>
+        <td class="num"><strong>~$0.224</strong></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note"><strong>Athena cost per query</strong> assumes 500 MB scanned with partition pruning at $5/TB = $0.0025. Without partitioning a full scan (440 GB) would cost $2.20 per query — a 880× difference.</div>
+
+  <h3>Cost Per Session (Avg 3 Turns)</h3>
+  <p>A session is a multi-turn conversation. Context grows with each turn (~1.5× average token overhead), so session cost ≈ 2.8× single-query cost.</p>
+  <table>
+    <thead><tr><th>Model</th><th>Cost / single query</th><th>Cost / session (3 turns)</th><th>200 sessions / mo</th><th>1,000 sessions / mo</th></tr></thead>
+    <tbody>
+      <tr><td>Claude 3 Haiku</td><td class="num">~$0.006</td><td class="num">~$0.017</td><td class="num"><strong>$3–4</strong></td><td class="num">$17–20</td></tr>
+      <tr><td>Claude 3.5 Sonnet</td><td class="num">~$0.047</td><td class="num">~$0.13</td><td class="num"><strong>$26–28</strong></td><td class="num">$130–140</td></tr>
+      <tr><td>Claude 3 Opus</td><td class="num">~$0.224</td><td class="num">~$0.63</td><td class="num"><strong>$126–130</strong></td><td class="num">$630–650</td></tr>
+    </tbody>
+  </table>
+
+  <div class="summary-grid" style="grid-template-columns:repeat(3,1fr);margin-top:12px">
+    <div class="summary-box highlight">
+      <div class="label">Cost / query · Haiku</div>
+      <div class="value" style="font-size:18pt">$0.006</div>
+      <div class="sub">recommended model</div>
+    </div>
+    <div class="summary-box">
+      <div class="label">Cost / session · Haiku</div>
+      <div class="value" style="font-size:18pt">$0.017</div>
+      <div class="sub">avg 3 turns per session</div>
+    </div>
+    <div class="summary-box">
+      <div class="label">200 sessions / mo · Haiku</div>
+      <div class="value" style="font-size:18pt">$3–4</div>
+      <div class="sub">well within $6–12 budget line</div>
+    </div>
+  </div>
+
+  <h2>Cost Per Time Series — Quick Reference</h2>
+  <div class="summary-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="summary-box highlight">
+      <div class="label">Per 1M TS / mo</div>
+      <div class="value" style="font-size:16pt">$0.08</div>
+      <div class="sub">variable infra only</div>
+    </div>
+    <div class="summary-box">
+      <div class="label">Per 1M TS / yr</div>
+      <div class="value" style="font-size:16pt">$0.93</div>
+      <div class="sub">storage + ETL + inference</div>
+    </div>
+    <div class="summary-box">
+      <div class="label">Per run / 1M TS</div>
+      <div class="value" style="font-size:16pt">$0.01</div>
+      <div class="sub">weekly · Spot instances</div>
+    </div>
+    <div class="summary-box">
+      <div class="label">Min viable price</div>
+      <div class="value" style="font-size:16pt">$500</div>
+      <div class="sub">per client / mo · 77% margin</div>
+    </div>
+  </div>
+
+  <h2>Cost Trajectory as Client Count Grows</h2>
+  <div class="bar-chart" style="margin-top:8px">
+    <div class="bar-row">
+      <div class="bar-label">1 client</div>
+      <div class="bar-track"><div class="bar-fill" style="width:100%"></div></div>
+      <div class="bar-val">~$150–250/mo</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">5 clients</div>
+      <div class="bar-track"><div class="bar-fill" style="width:72%"></div></div>
+      <div class="bar-val">~$100–160/mo</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">10 clients</div>
+      <div class="bar-track"><div class="bar-fill accent" style="width:50%"></div></div>
+      <div class="bar-val">~$70–110/mo</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">25 clients</div>
+      <div class="bar-track"><div class="bar-fill accent" style="width:36%"></div></div>
+      <div class="bar-val">~$60–90/mo</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">50+ clients</div>
+      <div class="bar-track"><div class="bar-fill teal" style="width:28%"></div></div>
+      <div class="bar-val">~$53–75/mo</div>
+    </div>
+  </div>
+  <p style="font-size:8.5pt;color:#888;margin-top:8px">Fixed infrastructure (OpenSearch KB, Transfer Family) amortises across clients — marginal cost per new client stabilises at ~$50–65/mo at 25+ clients.</p>
+</div>
+
+
+<!-- ================================================================
+     PAGE 3 — COMPONENT BREAKDOWN
+================================================================ -->
+<div class="page pba">
+  <div class="page-header">
+    <h1>Component Cost Breakdown</h1>
+    <span class="pg">Page 3 of 7</span>
+  </div>
+
+  <h2>Data Storage — Amazon S3</h2>
+  <table>
+    <thead><tr><th>Data Set</th><th>Raw Size</th><th>Compressed (Parquet)</th><th>$/mo</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Historical time series<br><span style="color:#888;font-size:8.5pt">400M series × 104 weeks × ~24 bytes/record</span></td>
+        <td class="num">~998 GB</td><td class="num">~200 GB</td><td class="num">$4.60</td>
+      </tr>
+      <tr>
+        <td>Feature store (lags, rolling stats, static features)<br><span style="color:#888;font-size:8.5pt">400M rows × 50 features × 4 bytes</span></td>
+        <td class="num">~800 GB</td><td class="num">~160 GB</td><td class="num">$3.68</td>
+      </tr>
+      <tr>
+        <td>Forecast output<br><span style="color:#888;font-size:8.5pt">400M × 13 future weeks × P50/P80/P95 quantiles</span></td>
+        <td class="num">~250 GB</td><td class="num">~60 GB</td><td class="num">$1.38</td>
+      </tr>
+      <tr>
+        <td>Glue catalog + metadata + model artifacts</td>
+        <td class="num">~20 GB</td><td class="num">~20 GB</td><td class="num">$0.46</td>
+      </tr>
+      <tr class="total-row">
+        <td><strong>S3 Total</strong></td>
+        <td class="num"><strong>~2 TB raw</strong></td>
+        <td class="num"><strong>~440 GB</strong></td>
+        <td class="num"><strong>$10–15 / mo</strong></td>
+      </tr>
+    </tbody>
+  </table>
+  <div class="note"><strong>S3 Intelligent-Tiering</strong> moves data older than 30 days to Infrequent Access ($0.0125/GB) and 90+ days to Archive ($0.004/GB), reducing effective storage cost by ~40% on the historical dataset.</div>
+
+  <h2>ML Inference — SageMaker Batch Transform</h2>
+  <table>
+    <thead><tr><th>Parameter</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Records to score per run</td><td class="num">400,000,000</td></tr>
+      <tr><td>Instance type</td><td>ml.m5.12xlarge (48 vCPUs, 192 GB RAM)</td></tr>
+      <tr><td>Throughput (XGBoost)</td><td class="num">~100M records / hr / instance</td></tr>
+      <tr><td>Instances in parallel</td><td class="num">2 (one per model in ensemble)</td></tr>
+      <tr><td>Estimated wall time / run</td><td class="num">~2 hrs (I/O + inference)</td></tr>
+      <tr><td>On-demand cost / run</td><td class="num">2 × $2.304 × 2 hrs = $9.22</td></tr>
+      <tr><td>Spot cost / run (~70% off)</td><td class="num"><strong>$2.77</strong></td></tr>
+      <tr><td>Runs per month</td><td class="num">4 (weekly)</td></tr>
+      <tr class="total-row"><td><strong>SageMaker Total (Spot)</strong></td><td class="num"><strong>~$11–15 / mo</strong></td></tr>
+    </tbody>
+  </table>
+  <div class="warn"><strong>Sparse filtering optimization:</strong> Skipping zero-history SKU×zip combos before inference reduces input to 20–80M active series (5–20% of 700M), cutting inference time and cost by up to 80%. Recommended for production.</div>
+
+  <h2>ETL — AWS Glue</h2>
+  <table>
+    <thead><tr><th>Job</th><th>Frequency</th><th>DPUs</th><th>Duration</th><th>Cost</th></tr></thead>
+    <tbody>
+      <tr><td>Historical backfill (one-time)</td><td>Once</td><td>10</td><td>~7 hrs</td><td class="num">$30.80 one-time</td></tr>
+      <tr><td>Incremental weekly delta</td><td>4×/mo</td><td>10</td><td>~0.5 hr</td><td class="num">$8.80 / mo</td></tr>
+      <tr><td>Feature engineering</td><td>4×/mo</td><td>10</td><td>~0.5 hr</td><td class="num">$8.80 / mo</td></tr>
+      <tr class="total-row"><td><strong>Glue Total</strong></td><td></td><td></td><td></td><td class="num"><strong>~$18–20 / mo</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Query Layer — Amazon Athena</h2>
+  <table>
+    <thead><tr><th>Scenario</th><th>Data Scanned / Query</th><th>100 Queries / mo</th></tr></thead>
+    <tbody>
+      <tr><td>✅ With partition pruning (recommended)</td><td class="num">~500 MB</td><td class="num"><strong>$0.25 / mo</strong></td></tr>
+      <tr><td>⚠️ Without partitioning (full scan)</td><td class="num">~440 GB</td><td class="num">$220 / mo</td></tr>
+    </tbody>
+  </table>
+
+  <h2>AI Agents — Amazon Bedrock</h2>
+  <table>
+    <thead><tr><th>Component</th><th>Detail</th><th>Cost / mo</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Agent calls (4 agents × 200 sessions)</td>
+        <td>~20K tokens/session avg (input + output)<br>Model: Claude 3 Haiku</td>
+        <td class="num">$6–12</td>
+      </tr>
+      <tr>
+        <td>Bedrock Knowledge Base<br><span style="color:#888;font-size:8.5pt">OpenSearch Serverless — shared across clients</span></td>
+        <td>4 OCU minimum × $0.24/hr × 730 hrs<br>÷ 10 clients (shared)</td>
+        <td class="num">$70 shared pool<br>→ $7–35 / client</td>
+      </tr>
+      <tr class="total-row">
+        <td><strong>Bedrock Total</strong></td><td></td><td class="num"><strong>$13–47 / mo</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Other AWS Services</h2>
+  <table>
+    <thead><tr><th>Service</th><th>Usage</th><th>Cost / mo</th></tr></thead>
+    <tbody>
+      <tr><td>AWS Transfer Family (SFTP)</td><td>Shared server ÷ 10 clients</td><td class="num">$5–22</td></tr>
+      <tr><td>Amazon Cognito</td><td>5–20 MAUs/client</td><td class="num">~$0</td></tr>
+      <tr><td>API Gateway + Lambda</td><td>&lt;10K calls/mo</td><td class="num">~$1</td></tr>
+      <tr><td>CloudFront</td><td>Portal CDN, &lt;5K loads/mo</td><td class="num">~$0.50</td></tr>
+      <tr><td>EventBridge</td><td>4 scheduled rules/mo</td><td class="num">~$0</td></tr>
+      <tr><td>CloudWatch Logs + Metrics</td><td>Basic monitoring</td><td class="num">~$2</td></tr>
+      <tr class="total-row"><td><strong>Other Total</strong></td><td></td><td class="num"><strong>$8–26 / mo</strong></td></tr>
+    </tbody>
+  </table>
+</div>
+
+
+<!-- ================================================================
+     PAGE 4 — SUMMARY & SCENARIOS
+================================================================ -->
+<div class="page pba">
+  <div class="page-header">
+    <h1>Cost Summary &amp; Scenarios</h1>
+    <span class="pg">Page 4 of 7</span>
+  </div>
+
+  <h2>Monthly Cost Summary (Per Client)</h2>
+  <table>
+    <thead><tr><th>AWS Component</th><th>Optimized (Spot + shared)</th><th>Standard</th><th>On-Demand</th></tr></thead>
+    <tbody>
+      <tr><td>S3 Storage (440 GB compressed)</td><td class="num">$10–15</td><td class="num">$10–15</td><td class="num">$10–15</td></tr>
+      <tr><td>SageMaker Batch Inference</td><td class="num">$11–15</td><td class="num">$30–50</td><td class="num">$74–110</td></tr>
+      <tr><td>AWS Glue ETL</td><td class="num">$18–20</td><td class="num">$18–20</td><td class="num">$18–20</td></tr>
+      <tr><td>Amazon Athena</td><td class="num">~$0.25</td><td class="num">~$0.25</td><td class="num">~$0.25</td></tr>
+      <tr><td>Amazon Bedrock (Agents + KB)</td><td class="num">$13–47</td><td class="num">$13–47</td><td class="num">$13–47</td></tr>
+      <tr><td>Transfer Family + Other</td><td class="num">$8–26</td><td class="num">$8–26</td><td class="num">$8–26</td></tr>
+      <tr class="total-row">
+        <td><strong>Total Per Client / Month</strong></td>
+        <td class="num"><strong>$60–123</strong></td>
+        <td class="num"><strong>$79–158</strong></td>
+        <td class="num"><strong>$123–218</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Cost Distribution (Optimized Scenario)</h2>
+  <div class="bar-chart">
+    <div class="bar-row">
+      <div class="bar-label">SageMaker Batch</div>
+      <div class="bar-track"><div class="bar-fill" style="width:18%"></div></div>
+      <div class="bar-val">$11–15 (18%)</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">AWS Glue ETL</div>
+      <div class="bar-track"><div class="bar-fill accent" style="width:22%"></div></div>
+      <div class="bar-val">$18–20 (22%)</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Bedrock Agents + KB</div>
+      <div class="bar-track"><div class="bar-fill orange" style="width:32%"></div></div>
+      <div class="bar-val">$13–47 (32%)</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">S3 Storage</div>
+      <div class="bar-track"><div class="bar-fill teal" style="width:15%"></div></div>
+      <div class="bar-val">$10–15 (15%)</div>
+    </div>
+    <div class="bar-row">
+      <div class="bar-label">Transfer + Other</div>
+      <div class="bar-track"><div class="bar-fill muted" style="width:18%"></div></div>
+      <div class="bar-val">$8–26 (18%)</div>
+    </div>
+  </div>
+
+  <h2>Scaling Scenarios</h2>
+  <table>
+    <thead><tr><th>Clients</th><th>Cost / Client / mo</th><th>Total Infra / mo</th><th>Key Effect</th></tr></thead>
+    <tbody>
+      <tr><td>1 client</td><td class="num">$90–123</td><td class="num">$90–123</td><td>Full fixed cost burden (KB, Transfer Family)</td></tr>
+      <tr><td>5 clients</td><td class="num">$75–105</td><td class="num">$375–525</td><td>OpenSearch + SFTP fixed costs split 5 ways</td></tr>
+      <tr><td>10 clients</td><td class="num">$60–90</td><td class="num">$600–900</td><td>Fixed overhead becomes &lt;15% of per-client cost</td></tr>
+      <tr><td>25 clients</td><td class="num">$55–80</td><td class="num">$1,375–2,000</td><td>Marginal cost ~$50–65/client</td></tr>
+      <tr class="total-row"><td>50+ clients</td><td class="num"><strong>$50–70</strong></td><td class="num"><strong>$2,500–3,500</strong></td><td>Fixed infra &lt;5%, SageMaker Savings Plans kick in</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Key Cost Sensitivities</h2>
+  <table>
+    <thead><tr><th>Variable</th><th>Impact if Changed</th><th>Δ Cost / mo</th></tr></thead>
+    <tbody>
+      <tr>
+        <td>Sparse filtering before inference<br><span style="color:#888;font-size:8.5pt">Score only active SKU×zip combos (20M vs 400M)</span></td>
+        <td>Reduces SageMaker runtime by up to 80%</td>
+        <td class="num" style="color:green"><strong>−$9–80 saved</strong></td>
+      </tr>
+      <tr>
+        <td>SageMaker Spot → On-Demand</td>
+        <td>3× higher compute cost</td>
+        <td class="num" style="color:red">+$60–95</td>
+      </tr>
+      <tr>
+        <td>Athena without partition pruning</td>
+        <td>Full table scan per query</td>
+        <td class="num" style="color:red">+$220</td>
+      </tr>
+      <tr>
+        <td>Dedicated OpenSearch KB (not shared)</td>
+        <td>Full $700/mo charged to single client</td>
+        <td class="num" style="color:red">+$630–665</td>
+      </tr>
+      <tr>
+        <td>S3 Intelligent-Tiering</td>
+        <td>~40% reduction on historical data cost</td>
+        <td class="num" style="color:green">−$4–6 saved</td>
+      </tr>
+      <tr>
+        <td>SageMaker Savings Plans (1-yr commit)</td>
+        <td>~40% off on-demand, ~15% off Spot effective</td>
+        <td class="num" style="color:green">−$10–45 saved</td>
+      </tr>
+      <tr>
+        <td>Agent query volume doubles (400 sessions)</td>
+        <td>Bedrock token cost doubles</td>
+        <td class="num" style="color:red">+$6–12</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="summary-grid" style="margin-top:24px">
+    <div class="summary-box highlight">
+      <div class="label">Optimized / Client</div>
+      <div class="value">$60–90</div>
+      <div class="sub">per month · 10+ clients</div>
+    </div>
+    <div class="summary-box">
+      <div class="label">Break-even SaaS price</div>
+      <div class="value">~$500</div>
+      <div class="sub">per client/mo at 6× margin</div>
+    </div>
+    <div class="summary-box">
+      <div class="label">Gross Margin Target</div>
+      <div class="value">80%+</div>
+      <div class="sub">typical SaaS AI infra benchmark</div>
+    </div>
+  </div>
+</div>
+
+
+<!-- ================================================================
+     PAGE 5 — OPTIMIZATIONS & RECOMMENDATIONS
+================================================================ -->
+<div class="page">
+  <div class="page-header">
+    <h1>Optimization Recommendations</h1>
+    <span class="pg">Page 5 of 7</span>
+  </div>
+
+  <h2>Immediate Wins (Day 1)</h2>
+
+  <h3>1 — Sparse Filtering Before SageMaker Inference</h3>
+  <p>Before every batch run, pre-filter the 400M SKU×zip combinations to only those with non-zero demand history. Typically 5–20% are active, reducing inference input from 400M to 20–80M records.</p>
+  <div class="mono">
+# Pre-inference filter (Athena query, runs in seconds)
+SELECT sku_id, zipcode
+FROM demand_history
+WHERE run_date >= CURRENT_DATE - INTERVAL '13' WEEK
+  AND total_units > 0
+GROUP BY sku_id, zipcode
+-- Result: 20–80M rows instead of 700M → 70–95% cost reduction on inference
+  </div>
+  <p><strong>Estimated savings: $9–80/client/mo on SageMaker.</strong></p>
+
+  <h3>2 — Athena Partition Strategy</h3>
+  <p>Partition S3 data as <code>company={id}/sku_prefix={2-char}/run_date={date}/</code>. Every Athena query filters by company and date, pruning 99%+ of the dataset.</p>
+  <div class="note">Without partitioning, a single query scanning 440 GB costs $2.20. With partitioning scanning 500 MB, it costs $0.0025 — 880× cheaper.</div>
+
+  <h3>3 — Share Bedrock Knowledge Base Across Clients</h3>
+  <p>The OpenSearch Serverless cluster runs at a minimum of 7 OCUs regardless of client count. With one shared KB domain (with per-client namespace isolation via metadata filters), the $700/mo fixed cost is divided across all clients.</p>
+  <table>
+    <thead><tr><th>Clients on shared KB</th><th>Cost allocated / client</th></tr></thead>
+    <tbody>
+      <tr><td>1 (dedicated)</td><td class="num">$700 / mo</td></tr>
+      <tr><td>5</td><td class="num">$140 / mo</td></tr>
+      <tr><td>10</td><td class="num">$70 / mo</td></tr>
+      <tr><td>20</td><td class="num">$35 / mo</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Medium-Term (3–6 Months)</h2>
+
+  <h3>4 — Replace AWS Transfer Family with S3 Pre-Signed URLs</h3>
+  <p>Transfer Family costs $0.30/hr always-on ($216/mo). For partners that can use REST APIs, pre-signed S3 URLs eliminate the SFTP server entirely. Keep Transfer Family only for partners requiring SFTP compliance.</p>
+  <p><strong>Estimated savings: $150–200/mo on shared infrastructure.</strong></p>
+
+  <h3>5 — SageMaker Savings Plans</h3>
+  <p>Once inference patterns are stable, commit to a 1-year SageMaker Savings Plan. This provides ~40% discount on on-demand price (effectively ~15% additional discount vs Spot for covered usage).</p>
+
+  <h3>6 — S3 Intelligent-Tiering Lifecycle Policy</h3>
+  <p>Historical data older than 30 days rarely needs immediate access. Intelligent-Tiering automatically moves it to Infrequent Access ($0.0125/GB) and Archive ($0.004/GB) tiers, reducing effective storage cost by 40–80% on the historical dataset.</p>
+
+  <h2>Architecture Cost Summary</h2>
+  <table>
+    <thead><tr><th>Stack Layer</th><th>AWS Service</th><th>Optimization Applied</th><th>$/client/mo</th></tr></thead>
+    <tbody>
+      <tr><td>Storage</td><td>S3 + Intelligent-Tiering</td><td>Parquet + lifecycle</td><td class="num">$10–15</td></tr>
+      <tr><td>Ingestion</td><td>Transfer Family (shared)</td><td>Shared ÷ 10 clients</td><td class="num">$5–22</td></tr>
+      <tr><td>ETL</td><td>Glue Spark</td><td>Incremental delta only</td><td class="num">$18–20</td></tr>
+      <tr><td>Scheduling</td><td>EventBridge</td><td>—</td><td class="num">~$0</td></tr>
+      <tr><td>ML Inference</td><td>SageMaker Batch</td><td>Spot + sparse filter</td><td class="num">$3–15</td></tr>
+      <tr><td>Query layer</td><td>Athena</td><td>Partition pruning</td><td class="num">~$0.25</td></tr>
+      <tr><td>AI Agents</td><td>Bedrock Agents</td><td>Claude 3 Haiku</td><td class="num">$6–12</td></tr>
+      <tr><td>Knowledge Base</td><td>OpenSearch Serverless</td><td>Shared KB</td><td class="num">$7–35</td></tr>
+      <tr><td>Auth</td><td>Cognito</td><td>—</td><td class="num">~$0</td></tr>
+      <tr><td>API</td><td>API GW + Lambda</td><td>—</td><td class="num">~$1</td></tr>
+      <tr><td>Portal CDN</td><td>CloudFront</td><td>—</td><td class="num">~$0.50</td></tr>
+      <tr><td>Observability</td><td>CloudWatch</td><td>Basic tier</td><td class="num">~$2</td></tr>
+      <tr class="total-row"><td colspan="3"><strong>Total (fully optimized, 10+ clients)</strong></td><td class="num"><strong>$52–122 / mo</strong></td></tr>
+    </tbody>
+  </table>
+
+  <div class="note" style="margin-top:24px">
+    <strong>Recommendation:</strong> At launch with 1–3 clients, expect $100–180/client/mo due to fixed infrastructure.
+    At 10+ clients the fixed costs amortise and per-client cost stabilises at <strong>$60–90/mo</strong>.
+    Pricing clients at $500–1,500/mo delivers 75–90% gross margin at scale — consistent with top-quartile AI SaaS benchmarks.
+  </div>
+
+  <hr>
+  <p style="font-size:8.5pt;color:#888;margin-top:20px">
+    This analysis is based on AWS US-East-1 pricing as of June 2026. Actual costs may vary based on data sparsity,
+    query patterns, Spot availability, and negotiated Enterprise Discount Program (EDP) rates.
+    AWS EDP agreements at $500K+/yr commitments typically yield an additional 10–25% discount across all services.
+    All figures are estimates and should be validated against actual usage in a staging environment.
+  </p>
+</div>
+
+<!-- ================================================================
+     PAGE 6 — COST PER TIME SERIES
+================================================================ -->
+<div class="page pb">
+  <div class="page-header">
+    <h1>Cost Per Time Series</h1>
+    <span class="pg">Page 6 of 7</span>
+  </div>
+
+  <h2>Cost Classification</h2>
+  <p>Not all costs scale with the number of time series. It is important to separate <strong>variable costs</strong> (scale linearly with TS count) from <strong>session/fixed costs</strong> (scale with usage or are amortised across all clients).</p>
+
+  <table>
+    <thead><tr><th>Component</th><th>Cost Type</th><th>Scales With</th><th>$/mo</th></tr></thead>
+    <tbody>
+      <tr><td>S3 Storage</td><td><span class="chip green">Variable</span></td><td># time series × history depth</td><td class="num">$10–15</td></tr>
+      <tr><td>SageMaker Batch Inference</td><td><span class="chip green">Variable</span></td><td># active time series × runs</td><td class="num">$3–15</td></tr>
+      <tr><td>AWS Glue ETL</td><td><span class="chip green">Variable</span></td><td># records processed</td><td class="num">$18–20</td></tr>
+      <tr><td>Amazon Athena</td><td><span class="chip green">Variable</span></td><td># queries × data scanned</td><td class="num">~$0.25</td></tr>
+      <tr class="total-row"><td><strong>Variable subtotal</strong></td><td></td><td></td><td class="num"><strong>$31–50 / mo</strong></td></tr>
+      <tr><td>Bedrock Agents</td><td><span class="chip orange">Session</span></td><td># agent query sessions</td><td class="num">$6–47</td></tr>
+      <tr><td>Transfer Family + Other</td><td><span class="chip" style="background:#555">Fixed</span></td><td>Shared / amortised</td><td class="num">$8–25</td></tr>
+      <tr class="total-row"><td><strong>Fixed + session subtotal</strong></td><td></td><td></td><td class="num"><strong>$14–72 / mo</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Per Time Series — Variable Costs Only</h2>
+  <p>Using 400M total time series (full SKU × Zipcode matrix) as denominator.</p>
+
+  <table>
+    <thead><tr><th>Component</th><th>Monthly Cost</th><th>Per TS / mo</th><th>Per 1M TS / mo</th><th>Per 1M TS / yr</th></tr></thead>
+    <tbody>
+      <tr><td>S3 Storage</td><td class="num">$10–15</td><td class="num">$0.000000025–0.000000038</td><td class="num">$0.025–$0.038</td><td class="num">$0.30–$0.45</td></tr>
+      <tr><td>SageMaker Inference (Spot, 4×/mo)</td><td class="num">$3–15</td><td class="num">$0.000000008–0.000000038</td><td class="num">$0.008–$0.038</td><td class="num">$0.09–$0.45</td></tr>
+      <tr><td>AWS Glue ETL</td><td class="num">$18–20</td><td class="num">$0.000000045–0.000000050</td><td class="num">$0.045–$0.050</td><td class="num">$0.54–$0.60</td></tr>
+      <tr><td>Amazon Athena</td><td class="num">~$0.25</td><td class="num">~$0.000000001</td><td class="num">~$0.001</td><td class="num">~$0.008</td></tr>
+      <tr class="total-row">
+        <td><strong>Variable total</strong></td>
+        <td class="num"><strong>$31–50</strong></td>
+        <td class="num"><strong>~$0.000000078–0.000000125</strong></td>
+        <td class="num"><strong>$0.078–$0.125</strong></td>
+        <td class="num"><strong>$0.93–$1.50</strong></td>
+      </tr>
+    </tbody>
+  </table>
+
+  <div class="note">
+    <strong>Reading this table:</strong> Serving 1 million time series costs roughly <strong>$0.08–$0.13/month</strong> in variable infrastructure — or under <strong>$1.50/year per million series</strong>. The unit economics are extremely efficient at scale.
+  </div>
+
+  <h2>Per Active Time Series (Sparse Filter Applied)</h2>
+  <p>When sparse filtering is applied before inference, only active series (those with non-zero demand history) are scored. At 10% active rate: <strong>40M active out of 400M total</strong>.</p>
+
+  <table>
+    <thead><tr><th>Scenario</th><th>Active TS</th><th>Variable Cost / mo</th><th>Per active TS / mo</th><th>Per 1M active TS / mo</th></tr></thead>
+    <tbody>
+      <tr><td>5% active (sparse catalogue)</td><td class="num">20M</td><td class="num">$25–35</td><td class="num">$0.0000013–0.0000018</td><td class="num">$1.25–$1.75</td></tr>
+      <tr><td>10% active (typical)</td><td class="num">40M</td><td class="num">$31–45</td><td class="num">$0.00000078–0.0000011</td><td class="num">$0.78–$1.13</td></tr>
+      <tr><td>20% active (dense catalogue)</td><td class="num">80M</td><td class="num">$40–55</td><td class="num">$0.0000005–0.00000069</td><td class="num">$0.50–$0.69</td></tr>
+    </tbody>
+  </table>
+
+  <h2>Per Inference Run Per Time Series</h2>
+  <p>How much does a single weekly forecast cost per time series?</p>
+
+  <table>
+    <thead><tr><th>Metric</th><th>All 400M TS</th><th>40M active TS</th></tr></thead>
+    <tbody>
+      <tr><td>SageMaker cost per run (Spot)</td><td class="num">$2.77–5.00</td><td class="num">$0.28–0.50</td></tr>
+      <tr><td>Cost per time series per run</td><td class="num">$0.000000007–$0.000000013</td><td class="num">$0.000000007–$0.000000013</td></tr>
+      <tr><td>Cost per 1M TS per run</td><td class="num">$0.0069–$0.013</td><td class="num">$0.007–$0.013</td></tr>
+      <tr class="total-row"><td><strong>Cost per 1M TS per year (52 runs)</strong></td><td class="num"><strong>$0.36–$0.65</strong></td><td class="num"><strong>$0.36–$0.65</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Per Data Point Stored</h2>
+  <table>
+    <thead><tr><th>Metric</th><th>Value</th></tr></thead>
+    <tbody>
+      <tr><td>Total data points (400M TS × 104 weeks)</td><td class="num">41.6 billion</td></tr>
+      <tr><td>S3 cost per month</td><td class="num">$10–15</td></tr>
+      <tr><td>Cost per data point per month</td><td class="num">$0.00000000024–$0.00000000036</td></tr>
+      <tr><td>Cost per billion data points per month</td><td class="num">$0.24–$0.36</td></tr>
+      <tr class="total-row"><td><strong>Cost per billion data points per year</strong></td><td class="num"><strong>$2.88–$4.32</strong></td></tr>
+    </tbody>
+  </table>
+
+  <h2>Scale Sensitivity — Variable Cost vs TS Count</h2>
+  <p>How does variable cost change if a client has fewer time series?</p>
+  <table>
+    <thead><tr><th>Time Series Count</th><th>Variable Cost / mo</th><th>vs 400M baseline</th><th>Implied client size</th></tr></thead>
+    <tbody>
+      <tr><td class="num">10,000,000 (10M)</td><td class="num">$0.78–$1.25</td><td class="num">2.5% of baseline</td><td>Small: 1K SKU × 10K zip</td></tr>
+      <tr><td class="num">50,000,000 (50M)</td><td class="num">$3.90–$6.25</td><td class="num">12.5%</td><td>Mid: 5K SKU × 10K zip</td></tr>
+      <tr><td class="num">100,000,000 (100M)</td><td class="num">$7.80–$12.50</td><td class="num">25%</td><td>Large: 10K SKU × 10K zip</td></tr>
+      <tr><td class="num">200,000,000 (200M)</td><td class="num">$15.60–$25.00</td><td class="num">50%</td><td>Enterprise: 20K SKU × 10K zip</td></tr>
+      <tr class="total-row"><td class="num"><strong>400,000,000 (400M)</strong></td><td class="num"><strong>$31–$50</strong></td><td class="num">100%</td><td>Max: 20K SKU × 20K zip</td></tr>
+    </tbody>
+  </table>
+
+  <div class="note" style="margin-top:16px">
+    <strong>Key insight:</strong> Variable costs scale near-linearly with TS count. Fixed/session costs ($14–72/mo) are the floor — a client with 10M time series pays almost the same in fixed costs as one with 400M. This means <strong>larger clients have dramatically better unit economics</strong> since fixed overhead is amortised over more series.
+  </div>
+
+  <h2>Summary — Cost Per Time Series at a Glance</h2>
+  <div class="summary-grid" style="grid-template-columns:repeat(4,1fr)">
+    <div class="summary-box highlight">
+      <div class="label">Per 1M TS / mo</div>
+      <div class="value" style="font-size:16pt">$0.08</div>
+      <div class="sub">variable costs only</div>
+    </div>
+    <div class="summary-box">
+      <div class="label">Per 1M TS / yr</div>
+      <div class="value" style="font-size:16pt">$0.93</div>
+      <div class="sub">storage + ETL + inference</div>
+    </div>
+    <div class="summary-box">
+      <div class="label">Per run / 1M TS</div>
+      <div class="value" style="font-size:16pt">$0.01</div>
+      <div class="sub">weekly inference · Spot</div>
+    </div>
+    <div class="summary-box">
+      <div class="label">Per billion points</div>
+      <div class="value" style="font-size:16pt">$0.30</div>
+      <div class="sub">S3 storage per month</div>
+    </div>
+  </div>
+
+  <p style="font-size:8.5pt;color:#888;margin-top:24px">
+    All per-TS figures derived from optimized scenario (Spot instances, partition pruning, shared KB, 10+ clients).
+    Actual costs depend on data sparsity, query patterns, and negotiated AWS pricing.
+  </p>
+</div>
+
+<!-- ================================================================
+     PAGE 7 — GLOSSARY
+================================================================ -->
+<div class="page pb">
+  <div class="page-header">
+    <h1>Glossary</h1>
+    <span class="pg">Page 7 of 7</span>
+  </div>
+
+  <h2>AWS Services</h2>
+  <table>
+    <thead><tr><th style="width:200px">Term</th><th>Definition</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Amazon S3</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">Simple Storage Service</span></td>
+        <td>Object storage service used to store raw data lake files, compressed Parquet datasets, forecast outputs, and model artifacts. Billed per GB stored and per request.</td>
+      </tr>
+      <tr>
+        <td><strong>S3 Intelligent-Tiering</strong></td>
+        <td>Automatic S3 storage class that moves objects between Frequent Access ($0.023/GB), Infrequent Access ($0.0125/GB), and Archive tiers ($0.004/GB) based on access patterns. Reduces cost on ageing historical data with no performance penalty on retrieval.</td>
+      </tr>
+      <tr>
+        <td><strong>Amazon SageMaker</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">Batch Transform</span></td>
+        <td>Managed ML service used to run large-scale batch inference jobs. Batch Transform reads input data from S3, distributes inference across a fleet of instances, and writes predictions back to S3. Billed per instance-hour while the job runs.</td>
+      </tr>
+      <tr>
+        <td><strong>AWS Glue</strong></td>
+        <td>Serverless ETL (Extract, Transform, Load) service built on Apache Spark. Used to ingest partner data, compute lag and rolling features, and write partitioned Parquet files to S3. Billed per DPU-hour consumed.</td>
+      </tr>
+      <tr>
+        <td><strong>Amazon Athena</strong></td>
+        <td>Serverless, interactive SQL query engine that runs directly over files stored in S3. Requires no cluster setup. Billed at $5 per TB of data scanned — partition pruning is critical to keeping costs near zero.</td>
+      </tr>
+      <tr>
+        <td><strong>Amazon Bedrock</strong></td>
+        <td>Fully managed service for accessing foundation models (Claude, Titan, Llama, etc.) via API. APRABot uses Bedrock to power the multi-agent system (Query, Orchestrator, Executor, Analysis agents) and the Knowledge Base. Billed per input/output token.</td>
+      </tr>
+      <tr>
+        <td><strong>Amazon Bedrock Knowledge Base</strong></td>
+        <td>Managed RAG (Retrieval-Augmented Generation) service that indexes documents into a vector store (OpenSearch Serverless) and retrieves context at query time. Stores forecast schema, S&amp;OP glossary, SKU taxonomy, and model metadata.</td>
+      </tr>
+      <tr>
+        <td><strong>Amazon OpenSearch Serverless</strong></td>
+        <td>Serverless vector search engine backing the Bedrock Knowledge Base. Billed per OpenSearch Compute Unit (OCU) per hour with a minimum of 2 OCUs for indexing and 2 OCUs for search. Fixed cost regardless of query volume.</td>
+      </tr>
+      <tr>
+        <td><strong>Amazon EventBridge</strong></td>
+        <td>Serverless event bus and scheduler. Used to trigger the weekly SageMaker inference pipeline on a cron schedule. Essentially free at this usage level.</td>
+      </tr>
+      <tr>
+        <td><strong>AWS Transfer Family</strong></td>
+        <td>Managed SFTP/FTPS/FTP service that allows partner companies to deliver data files directly into S3 using standard file-transfer protocols. Billed at $0.30/hour for the server endpoint plus $0.04/GB transferred.</td>
+      </tr>
+      <tr>
+        <td><strong>Amazon Cognito</strong></td>
+        <td>User identity and access management service. Handles planner authentication (user pools), MFA, SSO/SAML federation, and per-tenant isolation. Billed per Monthly Active User (MAU) above the 50,000 free tier.</td>
+      </tr>
+      <tr>
+        <td><strong>Amazon API Gateway + Lambda</strong></td>
+        <td>REST API layer and serverless compute. API Gateway routes incoming user queries from the portal to the Orchestrator Agent and returns analysis responses. Lambda functions handle routing logic. Both near-free at &lt;10K calls/month.</td>
+      </tr>
+      <tr>
+        <td><strong>Amazon CloudFront</strong></td>
+        <td>Content delivery network (CDN) used to serve the APRABot portal globally with low latency. Caches static assets at edge locations. Billed per GB transferred and per HTTPS request.</td>
+      </tr>
+      <tr>
+        <td><strong>Amazon CloudWatch</strong></td>
+        <td>Monitoring and observability service. Collects logs from Lambda, SageMaker, Glue, and Bedrock; triggers alerts on pipeline failures; tracks inference latency and cost metrics.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Technical Terms</h2>
+  <table>
+    <thead><tr><th style="width:200px">Term</th><th>Definition</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Time Series</strong></td>
+        <td>A sequence of values recorded at regular time intervals for a single (SKU, Zipcode) combination. In this model, each time series contains 104 weekly demand observations spanning 2 years. The full client dataset contains up to 400 million distinct time series.</td>
+      </tr>
+      <tr>
+        <td><strong>SKU</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">Stock Keeping Unit</span></td>
+        <td>A unique identifier for a distinct product variant (e.g. a specific size, colour, and pack format of a product). Each client has up to 20,000 SKUs. Forecasts are generated at the SKU level, disaggregated by zipcode.</td>
+      </tr>
+      <tr>
+        <td><strong>Zipcode</strong></td>
+        <td>A US postal code used as the geographic demand unit. Each client covers up to 20,000 zipcodes. Combining 20K SKUs × 20K zipcodes produces a 400M-cell demand matrix.</td>
+      </tr>
+      <tr>
+        <td><strong>Parquet</strong></td>
+        <td>A columnar binary file format optimised for analytical workloads. Parquet stores data column-by-column (versus row-by-row in CSV), enabling Athena and Spark to read only the columns needed for a query. Combined with Snappy compression, achieves 5–10× size reduction over raw CSV.</td>
+      </tr>
+      <tr>
+        <td><strong>Snappy Compression</strong></td>
+        <td>A fast, lossless compression algorithm used with Parquet files. Prioritises compression/decompression speed over maximum ratio — typically 5–10× for time series data. Results in smaller S3 files and faster Athena scans.</td>
+      </tr>
+      <tr>
+        <td><strong>Partition Pruning</strong></td>
+        <td>An Athena / Spark optimisation where queries skip entire S3 prefixes (partitions) that cannot match the WHERE clause. For example, partitioning by <code>run_date</code> means a query for last week's forecasts scans only 1/104th of the dataset, reducing cost by ~99%.</td>
+      </tr>
+      <tr>
+        <td><strong>Sparse Filtering</strong></td>
+        <td>Pre-inference step that removes SKU×zipcode combinations with zero sales history from the batch inference input. Reduces the 400M-series full matrix to the 5–20% of combinations that have actual demand, cutting SageMaker compute cost by up to 80%.</td>
+      </tr>
+      <tr>
+        <td><strong>Spot Instances</strong></td>
+        <td>Spare AWS EC2/SageMaker capacity offered at 60–70% discount versus on-demand pricing. Can be interrupted with 2 minutes' notice if AWS needs the capacity back. Safe for SageMaker Batch Transform because jobs checkpoint progress and resume automatically on interruption.</td>
+      </tr>
+      <tr>
+        <td><strong>ETL</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">Extract, Transform, Load</span></td>
+        <td>The data pipeline process of extracting raw partner data (via SFTP or REST), transforming it (cleaning, normalising, computing features), and loading the result into S3 in the format required by the ML model.</td>
+      </tr>
+      <tr>
+        <td><strong>DPU</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">Data Processing Unit</span></td>
+        <td>AWS Glue billing unit. One G.1X DPU provides 4 vCPUs and 16 GB RAM. Billed at $0.44/DPU-hour. A typical Glue ETL job uses 10 DPUs, consuming 4.4 DPU-hours in a 26-minute run.</td>
+      </tr>
+      <tr>
+        <td><strong>OCU</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">OpenSearch Compute Unit</span></td>
+        <td>OpenSearch Serverless billing unit representing a unit of indexing or search capacity. Minimum 2 OCUs for indexing + 2 OCUs for search (4 OCUs total) at $0.24/OCU-hour = ~$700/month fixed cost regardless of usage, shared across all clients.</td>
+      </tr>
+      <tr>
+        <td><strong>XGBoost</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">eXtreme Gradient Boosting</span></td>
+        <td>A gradient-boosted decision tree algorithm widely used in tabular ML. One of two models in APRABot's ensemble. Scores ~100M records per hour per ml.m5.12xlarge instance. Outputs demand point estimates.</td>
+      </tr>
+      <tr>
+        <td><strong>LightGBM</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">Light Gradient Boosting Machine</span></td>
+        <td>A fast gradient boosting framework from Microsoft. The second model in APRABot's ensemble. Complementary to XGBoost — together they reduce forecast error versus either model alone. Ensemble predictions are blended (e.g. average or stacked) before storage.</td>
+      </tr>
+      <tr>
+        <td><strong>Ensemble</strong></td>
+        <td>A forecasting strategy that combines predictions from multiple models (here XGBoost + LightGBM) to produce a final forecast. Ensembles consistently outperform single models by reducing variance and bias, at the cost of running both models in parallel.</td>
+      </tr>
+      <tr>
+        <td><strong>RAG</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">Retrieval-Augmented Generation</span></td>
+        <td>A technique where an LLM's response is grounded in retrieved documents rather than relying solely on its training data. The Bedrock Knowledge Base retrieves relevant forecast schema, glossary, and SKU context before the Analysis Agent generates its response, reducing hallucinations.</td>
+      </tr>
+      <tr>
+        <td><strong>WAPE</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">Weighted Absolute Percentage Error</span></td>
+        <td>The primary forecast accuracy metric used in APRABot. Defined as sum(|actual − forecast|) ÷ sum(actual). Volume-weighted, so high-volume SKUs drive the metric more than low-volume ones. Lower is better; industry benchmark is 20–35% for weekly SKU-level demand.</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <h2>Business Terms</h2>
+  <table>
+    <thead><tr><th style="width:200px">Term</th><th>Definition</th></tr></thead>
+    <tbody>
+      <tr>
+        <td><strong>Gross Margin</strong></td>
+        <td>Revenue minus cost of goods sold (COGS), expressed as a percentage of revenue. For SaaS, COGS is primarily cloud infrastructure. A 85% gross margin means $85 of every $100 in revenue remains after paying AWS bills. Top-quartile AI SaaS companies target 75–85%.</td>
+      </tr>
+      <tr>
+        <td><strong>SaaS</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">Software as a Service</span></td>
+        <td>A subscription software delivery model where the vendor hosts and maintains the product. Customers pay a recurring monthly or annual fee rather than a one-time licence. APRABot operates as a SaaS with per-client monthly pricing.</td>
+      </tr>
+      <tr>
+        <td><strong>MAU</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">Monthly Active User</span></td>
+        <td>A unique user who logs into the platform at least once in a calendar month. Cognito bills per MAU above the 50,000 free tier. At 5–20 users per client, Cognito cost is negligible.</td>
+      </tr>
+      <tr>
+        <td><strong>S&amp;OP</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">Sales &amp; Operations Planning</span></td>
+        <td>A cross-functional business process that aligns supply chain, finance, and sales around a single demand plan. APRABot's portal supports the S&amp;OP cycle with AI-generated commentary, scenario planning, and override workflows.</td>
+      </tr>
+      <tr>
+        <td><strong>EDP</strong><br><span style="font-family:'JetBrains Mono',monospace;font-size:8pt;color:#888">Enterprise Discount Program</span></td>
+        <td>A private pricing agreement between AWS and customers who commit to a minimum annual spend (typically $500K+). EDP typically provides 10–25% discount across all AWS services, applied on top of Spot and Savings Plan discounts.</td>
+      </tr>
+      <tr>
+        <td><strong>Savings Plans</strong></td>
+        <td>AWS commitment-based discount model. SageMaker Savings Plans offer ~40% off on-demand compute in exchange for a 1- or 3-year commitment to a minimum hourly spend. Recommended once inference patterns are stable and predictable.</td>
+      </tr>
+    </tbody>
+  </table>
+</div>
+
+<footer class="doc-footer">
+  <span>APRABot, Inc. · Confidential · June 2026</span>
+  <span>AWS Infrastructure Cost Model v1.0</span>
+</footer>
+
+</body>
+</html>

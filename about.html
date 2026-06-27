@@ -1,9 +1,10 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+<script>document.documentElement.dataset.theme=localStorage.getItem('apraTheme')||'dark'</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>About — VenturLyft</title>
+<title>About — APRABot</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -42,7 +43,18 @@
   .story .sec-kicker{font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;
     color:var(--signal);margin-bottom:14px;display:block}
   .story h2{font-family:var(--display);font-weight:600;font-size:clamp(1.6rem,2.8vw,2.2rem);
-    letter-spacing:-.025em;margin-bottom:20px;line-height:1.1;max-width:600px}
+    letter-spacing:-.025em;margin-bottom:36px;line-height:1.1;max-width:600px}
+  .timeline{position:relative;padding-left:28px}
+  .timeline::before{content:"";position:absolute;left:6px;top:6px;bottom:6px;width:1px;background:var(--line)}
+  .titem{position:relative;padding-bottom:40px}
+  .titem:last-child{padding-bottom:0}
+  .titem::before{content:"";position:absolute;left:-25px;top:6px;width:10px;height:10px;
+    border-radius:50%;background:var(--ink);border:2px solid var(--line-2)}
+  .titem.hl::before{background:var(--signal);border-color:var(--signal);
+    box-shadow:0 0 10px rgba(200,242,78,.5)}
+  .titem .yr{font-family:var(--mono);font-size:11.5px;color:var(--signal);letter-spacing:.08em;margin-bottom:6px}
+  .titem h3{font-family:var(--display);font-weight:600;font-size:1.1rem;letter-spacing:-.015em;margin-bottom:6px}
+  .titem p{color:var(--muted);font-size:.95rem;line-height:1.7;margin:0;max-width:560px}
 
   /* values */
   .values{padding:72px 0;border-top:1px solid var(--line)}
@@ -60,6 +72,23 @@
     position:absolute;top:16px;right:18px;line-height:1;font-weight:600}
   .val h3{font-family:var(--display);font-weight:600;font-size:1.1rem;letter-spacing:-.015em;margin-bottom:10px}
   .val p{color:var(--muted);font-size:.93rem;line-height:1.65;margin:0}
+
+  /* team */
+  .team{padding:72px 0;border-top:1px solid var(--line)}
+  .team h2{font-family:var(--display);font-weight:600;font-size:clamp(1.6rem,2.8vw,2.2rem);
+    letter-spacing:-.025em;margin-bottom:10px;line-height:1.1}
+  .team .sub{color:var(--muted);font-size:1rem;margin-bottom:40px}
+  .team-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:18px}
+  @media(max-width:780px){.team-grid{grid-template-columns:1fr 1fr}}
+  @media(max-width:480px){.team-grid{grid-template-columns:1fr}}
+  .member{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:28px}
+  .member .av{width:56px;height:56px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    font-family:var(--display);font-weight:700;font-size:1.3rem;color:#0A0E15;margin-bottom:16px}
+  .member h3{font-family:var(--display);font-weight:600;font-size:1.05rem;letter-spacing:-.01em;margin-bottom:4px}
+  .member .role{font-family:var(--mono);font-size:11.5px;color:var(--signal);letter-spacing:.06em;
+    text-transform:uppercase;margin-bottom:12px;display:block}
+  .member p{color:var(--muted);font-size:.9rem;line-height:1.65;margin:0}
 
   /* cta */
   .about-cta{background:radial-gradient(circle at 50% 0%,rgba(200,242,78,.1),transparent 60%),var(--ink-2);
@@ -79,15 +108,7 @@
   <div class="wrap">
     <nav>
       <div class="logo">
-        <span class="mk">
-          <svg viewBox="0 0 32 32" fill="none">
-            <rect x="1" y="1" width="30" height="30" rx="8" stroke="#C8F24E" stroke-width="1.5"/>
-            <path d="M6 22 L12 16 L17 19 L26 8" stroke="#54E6C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <path d="M21 8 H26 V13" stroke="#C8F24E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-            <circle cx="12" cy="16" r="1.8" fill="#C8F24E"/>
-          </svg>
-        </span>
-        <a href="index.html" style="display:contents"><span>Ventur<b>Lyft</b></span></a>
+        <a href="index.html" class="wordmark">APRA<b>Bot</b></a>
       </div>
       <div class="navlinks">
         <a href="index.html#platform">Platform</a>
@@ -104,9 +125,9 @@
 
 <section class="about-hero">
   <div class="wrap">
-    <span class="kicker">About VenturLyft</span>
+    <span class="kicker">About APRABot</span>
     <h1>We built the forecast we <span>always wished</span> we had.</h1>
-    <p>VenturLyft was founded by supply chain and AI practitioners who spent years watching good companies make bad decisions because their demand signal was broken. We set out to fix that — permanently.</p>
+    <p>APRABot was founded by supply chain and AI practitioners who spent years watching good companies make bad decisions because their demand signal was broken. We set out to fix that — permanently.</p>
   </div>
 </section>
 
@@ -118,7 +139,7 @@
       <div>
         <h2>Our mission is to make <span>demand visible</span> before it becomes a problem.</h2>
         <p>Supply chains break at the edges — when demand shifts faster than the plan, when inventory is in the wrong place at the wrong time, when finance and operations are arguing about a number instead of a decision.</p>
-        <p>VenturLyft exists to eliminate that gap. We give every team — from the warehouse floor to the boardroom — a single, trusted, continuously updated picture of what demand will do next. So plans are built on signal, not gut feel.</p>
+        <p>APRABot exists to eliminate that gap. We give every team — from the warehouse floor to the boardroom — a single, trusted, continuously updated picture of what demand will do next. So plans are built on signal, not gut feel.</p>
       </div>
       <div class="mission-nums">
         <div class="mnum"><div class="v">98.2%</div><div class="l">SKU-level forecast accuracy</div></div>
@@ -131,10 +152,34 @@
     <!-- Story -->
     <div class="story">
       <span class="sec-kicker">Our story</span>
-      <h2>Deep roots in forecasting at scale.</h2>
-      <p style="color:var(--muted);font-size:1.05rem;line-height:1.78;max-width:680px">
-        VenturLyft's founders bring hands-on experience building and running demand forecasting systems at Amazon — one of the most complex and data-intensive supply chains in the world. That background shaped everything: the obsession with accuracy at the SKU level, the focus on explainability for planners, and the belief that a great forecast only creates value when it's connected to a decision. VenturLyft was built to bring that level of forecasting precision to every business, not just the ones with Amazon-scale engineering teams.
-      </p>
+      <h2>From a frustration to a platform.</h2>
+      <div class="timeline">
+        <div class="titem">
+          <div class="yr">2021</div>
+          <h3>The problem becomes personal</h3>
+          <p>Our founders, working across supply chain consulting and ML engineering, watch a mid-size CPG company lose $18M in a single quarter to a forecasting failure that a better model would have caught three weeks earlier. The decision to build begins.</p>
+        </div>
+        <div class="titem">
+          <div class="yr">2022</div>
+          <h3>First model, first customer</h3>
+          <p>The initial ensemble model — combining XGBoost and LightGBM with external signal ingestion — is validated in a 6-month pilot with a regional grocery chain. Forecast error drops by 44% vs. their existing statistical approach.</p>
+        </div>
+        <div class="titem">
+          <div class="yr">2023</div>
+          <h3>Platform takes shape</h3>
+          <p>The forecasting engine is wrapped in a full S&OP workflow — collaborative overrides, audit trails, scenario planning, and a finance bridge. The product expands beyond forecasting into end-to-end demand-driven planning.</p>
+        </div>
+        <div class="titem">
+          <div class="yr">2024</div>
+          <h3>Lyra — AI analyst — launches</h3>
+          <p>We ship the first version of Lyra, our embedded AI analyst that lets planners query the forecast in natural language, understand driver attribution, and surface anomalies before they become surprises.</p>
+        </div>
+        <div class="titem hl">
+          <div class="yr">2025 — now</div>
+          <h3>Multi-agent forecasting engine</h3>
+          <p>APRABot evolves into a multi-agent architecture — specialized agents for sensing, forecasting, scenario planning, and inventory optimisation operating in concert. Over $2.4B in annual demand now runs through the platform.</p>
+        </div>
+      </div>
     </div>
 
     <!-- Values -->
@@ -150,7 +195,7 @@
         <div class="val">
           <span class="vn">02</span>
           <h3>Explainability earns trust</h3>
-          <p>A black-box model doesn't get adopted. Every VenturLyft forecast comes with driver attribution — planners need to know why, not just what, before they'll stake a plan on it.</p>
+          <p>A black-box model doesn't get adopted. Every APRABot forecast comes with driver attribution — planners need to know why, not just what, before they'll stake a plan on it.</p>
         </div>
         <div class="val">
           <span class="vn">03</span>
@@ -175,8 +220,34 @@
       </div>
     </div>
 
+    <!-- Team -->
+    <div class="team">
+      <span style="font-family:var(--mono);font-size:11px;letter-spacing:.16em;text-transform:uppercase;color:var(--signal);margin-bottom:14px;display:block">The team</span>
+      <h2>Built by practitioners, not theorists.</h2>
+      <p class="sub">Our team combines deep supply chain domain expertise with production ML engineering — the two things you need to actually solve this problem.</p>
+      <div class="team-grid">
+        <div class="member">
+          <div class="av" style="background:linear-gradient(135deg,var(--signal),var(--mint))">A</div>
+          <h3>Apurv Singh</h3>
+          <span class="role">Founder &amp; CEO</span>
+          <p>Former supply chain consultant and ML engineer. Led demand forecasting transformations across CPG, retail, and manufacturing before founding APRABot.</p>
+        </div>
+        <div class="member">
+          <div class="av" style="background:linear-gradient(135deg,var(--mint),#7AA2FF)">ML</div>
+          <h3>ML Research Team</h3>
+          <span class="role">Forecasting &amp; AI</span>
+          <p>PhD-level researchers and engineers specialising in gradient boosting, time-series forecasting, and multi-agent AI systems for structured supply chain data.</p>
+        </div>
+        <div class="member">
+          <div class="av" style="background:linear-gradient(135deg,#7AA2FF,var(--signal))">SC</div>
+          <h3>Supply Chain Team</h3>
+          <span class="role">Domain &amp; Product</span>
+          <p>Practitioners with hands-on experience in S&OP, inventory management, and demand planning across Fortune 500 and high-growth companies.</p>
+        </div>
+      </div>
+    </div>
 
-<div class="about-cta">
+    <div class="about-cta">
       <h2>Want to work on hard problems with us?</h2>
       <p>We're always looking for people who care about accuracy, explainability, and making supply chains smarter.</p>
       <div class="btns">
@@ -193,15 +264,7 @@
     <div class="foot-grid">
       <div>
         <div class="logo">
-          <span class="mk">
-            <svg viewBox="0 0 32 32" fill="none">
-              <rect x="1" y="1" width="30" height="30" rx="8" stroke="#C8F24E" stroke-width="1.5"/>
-              <path d="M6 22 L12 16 L17 19 L26 8" stroke="#54E6C4" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <path d="M21 8 H26 V13" stroke="#C8F24E" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
-              <circle cx="12" cy="16" r="1.8" fill="#C8F24E"/>
-            </svg>
-          </span>
-          <span>Ventur<b>Lyft</b></span>
+          <span class="wordmark">APRA<b>Bot</b></span>
         </div>
         <p>AI-native demand forecasting that aligns supply chain, finance, and sales on one trusted number.</p>
       </div>
@@ -227,7 +290,7 @@
       </div>
     </div>
     <div class="foot-bot">
-      <span>© 2026 VenturLyft, Inc. All rights reserved.</span>
+      <span>© 2026 APRABot, Inc. All rights reserved.</span>
       <span>Privacy · Terms · SOC 2 Type II</span>
     </div>
   </div>
@@ -236,5 +299,7 @@
   const hdr = document.getElementById('hdr');
   addEventListener('scroll', () => hdr.classList.toggle('scrolled', scrollY > 20));
 </script>
+<script src="js/theme.js"></script>
+<script src="js/apy.js"></script>
 </body>
 </html>

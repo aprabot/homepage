@@ -376,7 +376,7 @@
       const lab=r.wape<=30?'Strong':r.wape<=45?'Fair':'High error';
       return `<tr><td class="mono">${r.a}</td><td>${tn(r.vol)}</td><td>${r.wape.toFixed(1)}%</td><td>${a2.toFixed(0)}%</td><td><span class="pill ${cls}">${lab}</span></td></tr>`;};
     const li=r=>`<li><span class="mono">${r.a}</span><b>${r.wape.toFixed(1)}%</b></li>`;
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>VenturLyft — Forecast Accuracy Report</title>
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>APRABot — Forecast Accuracy Report</title>
     <style>
       *{box-sizing:border-box;margin:0;padding:0}
       body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1c2330;background:#eef1f5;line-height:1.55}
@@ -413,12 +413,12 @@
     <div class="toolbar"><button onclick="window.print()">Save as PDF / Print</button><button class="sec" onclick="window.close()">Close</button></div>
     <div class="page">
       <div class="hd">
-        <div><div class="logo">Ventur<b>Lyft</b></div><h1>Demand Forecast Accuracy Report</h1></div>
+        <div><div class="logo">APRA<b>Bot</b></div><h1>Demand Forecast Accuracy Report</h1></div>
         <div class="meta">2024 Weekly Backtest<br>Generated ${dt}<br>Prepared for: ${user}</div>
       </div>
       <div class="body">
         <h2>Executive Summary</h2>
-        <p class="lead">Out-of-sample evaluation of the VenturLyft demand model across the full catalog. The model was trained on 2022–2023 history and used to forecast shipped units one week ahead for every week of 2024. Accuracy is reported as WAPE (weighted absolute percentage error), so high-volume products dominate the headline figure.</p>
+        <p class="lead">Out-of-sample evaluation of the APRABot demand model across the full catalog. The model was trained on 2022–2023 history and used to forecast shipped units one week ahead for every week of 2024. Accuracy is reported as WAPE (weighted absolute percentage error), so high-volume products dominate the headline figure.</p>
         <div class="cards" style="margin-top:18px">
           ${card('Overall WAPE',DATA.overallWape.toFixed(2)+'%','volume-weighted error')}
           ${card('Volume-wtd Accuracy',acc+'%','100 − WAPE')}
@@ -450,7 +450,7 @@
     else{ // popup blocked → download instead
       const blob=new Blob([html],{type:'text/html'});
       const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-      a.download='VenturLyft_Forecast_Report.html';a.click();URL.revokeObjectURL(a.href);
+      a.download='APRABot_Forecast_Report.html';a.click();URL.revokeObjectURL(a.href);
     }
   }
 
@@ -464,7 +464,7 @@
     });
     const blob=new Blob([csv],{type:'text/csv'});
     const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-    a.download='VenturLyft_forecast_summary.csv';a.click();URL.revokeObjectURL(a.href);
+    a.download='APRABot_forecast_summary.csv';a.click();URL.revokeObjectURL(a.href);
   }
 
   // esc closes login
