@@ -313,68 +313,115 @@
   .rv{opacity:0;transform:translateY(18px);transition:opacity .65s cubic-bezier(.16,1,.3,1),transform .65s cubic-bezier(.16,1,.3,1)}
   .rv.in{opacity:1;transform:none}
 
-  /* mobile nav drawer */
-  .mobile-nav{display:none;flex-direction:column;gap:0;
-    background:rgba(10,14,21,.97);backdrop-filter:blur(16px);
-    border-bottom:1px solid var(--line);padding:8px 0 20px;
+  /* ── mobile nav drawer ──
+     Use max-height for animation so the element has 0 height when
+     closed (no blank gap under header). Display:none only on desktop. */
+  .mobile-nav{
+    display:flex;flex-direction:column;
+    background:rgba(10,14,21,.96);backdrop-filter:blur(16px);
+    border-bottom:1px solid var(--line);
     position:sticky;top:76px;z-index:49;
-    transform:translateY(-8px);opacity:0;
-    transition:opacity .22s ease,transform .22s ease;pointer-events:none}
-  .mobile-nav.open{opacity:1;transform:none;pointer-events:auto}
-  .mnav-link{display:block;padding:14px 28px;font-size:16px;font-weight:500;
+    max-height:0;overflow:hidden;
+    transition:max-height .3s cubic-bezier(.4,0,.2,1)}
+  .mobile-nav.open{max-height:400px}
+  .mnav-link{display:block;padding:15px 24px;font-size:16px;font-weight:500;
     color:var(--muted);border-bottom:1px solid var(--line);transition:color .18s}
-  .mnav-link:last-of-type{border-bottom:none}
-  .mnav-link:hover{color:var(--text)}
-  .mnav-cta{display:flex;flex-direction:column;gap:10px;padding:16px 28px 0}
+  .mnav-link:active{color:var(--signal)}
+  .mnav-cta{display:flex;flex-direction:column;gap:10px;padding:14px 24px 20px}
   [data-theme="light"] .mobile-nav{background:rgba(245,244,238,.97)}
+  /* hide entirely on desktop */
+  @media(min-width:921px){.mobile-nav{display:none}}
 
+  /* ── ≤920px  tablet / large phone ── */
   @media(max-width:920px){
-    .mobile-nav{display:flex}
-    .hero-grid,.split{grid-template-columns:1fr;gap:36px}
+    .navlinks{display:none}
+    .menu-tg{display:inline-block}
+    .nav-cta .btn-pri{display:none}   /* in drawer instead */
+    .hero{padding:52px 0 44px}
+    .sec{padding:68px 0}
+    footer{margin-top:52px;padding:48px 0 28px}
+    /* layouts */
+    .hero-grid,.split{grid-template-columns:1fr;gap:32px}
+    .cards{grid-template-columns:1fr 1fr;gap:14px}
+    .ind{grid-template-columns:1fr 1fr;gap:10px}
     .stats{grid-template-columns:repeat(2,1fr)}
     .stat:nth-child(2){border-right:none}
     .stat:nth-child(1),.stat:nth-child(2){border-bottom:1px solid var(--line)}
-    .cards,.ind{grid-template-columns:1fr 1fr}
-    .flow{grid-template-columns:1fr 1fr;gap:30px}
+    /* flow: grid-based numbered list */
+    .flow{display:flex;flex-direction:column;gap:0}
+    .step{display:grid;grid-template-columns:28px 1fr;gap:4px 14px;
+      padding:18px 0;border-bottom:1px solid var(--line);position:relative}
+    .step:last-child{border-bottom:none}
+    .step .n{grid-column:1;grid-row:1;position:static;font-size:12px;
+      padding-top:3px;align-self:start}
     .step .bar{display:none}
-    .foot-grid{grid-template-columns:1fr 1fr}
-    .navlinks{display:none}
-    .menu-tg{display:inline-block}
-    .hero{padding:56px 0 48px}
-    .sec{padding:72px 0}
+    .step h3{grid-column:2;grid-row:1;font-size:1.1rem;margin-bottom:4px}
+    .step p{grid-column:2;grid-row:2;font-size:.9rem}
+    /* brain */
+    .brain{max-height:300px}
+    /* footer */
+    .foot-grid{grid-template-columns:1fr 1fr;gap:32px}
   }
 
-  @media(max-width:580px){
-    .wrap{padding:0 18px}
-    .hero{padding:40px 0 36px}
-    .sec{padding:56px 0}
-    .stats,.cards,.ind,.flow{grid-template-columns:1fr}
-    .stat{border-right:none;border-bottom:1px solid var(--line)}
-    .quote{padding:32px 22px}
-    .foot-grid{grid-template-columns:1fr 1fr}
-    .nav-cta .btn-pri{display:none}
-    /* hero CTA: stack buttons */
-    .hero-cta{flex-direction:column;align-items:stretch}
-    .hero-cta .btn{justify-content:center;text-align:center}
-    /* trust badges: wrap, hide separators */
-    .trust{flex-wrap:wrap;gap:8px 14px}
+  /* ── ≤600px  phones ── */
+  @media(max-width:600px){
+    .wrap{padding:0 16px}
+    .hero{padding:36px 0 32px}
+    .sec{padding:52px 0}
+    footer{margin-top:36px;padding:40px 0 24px}
+    /* typography */
+    h1{font-size:2.1rem;letter-spacing:-.025em;line-height:1.08}
+    h2{font-size:1.75rem}
+    .lead{font-size:1rem;margin-bottom:24px}
+    .sec-head{margin-bottom:28px}
+    /* hero buttons: stack full-width */
+    .hero-cta{flex-direction:column;align-items:stretch;gap:10px;margin-bottom:28px}
+    .hero-cta .btn{justify-content:center}
+    /* trust badges */
+    .trust{gap:6px 12px}
     .trust .sep{display:none}
+    /* hero panel: shorter chart */
+    .panel{padding:16px}
+    .panel-head .v{font-size:1.3rem}
+    .panel-head .v small{font-size:.8rem}
+    .chart{height:160px}
+    /* stats: stay 2-col but smaller */
+    .stat{padding:22px 16px}
+    .stat .num{font-size:2.3rem}
+    .stat .lab{font-size:.85rem}
+    /* cards/industries: single col */
+    .cards{grid-template-columns:1fr}
+    .ind{grid-template-columns:1fr}
+    .ind a{padding:16px 18px;font-size:1rem}
+    /* quote */
+    .quote{padding:28px 20px}
+    .quote .mark{font-size:5rem;top:-8px;left:14px}
+    .quote blockquote{font-size:1.15rem}
     /* invitation card */
-    .cta-band{padding:24px 16px}
-    .inv-frame{padding:18px 14px}
-    .inv-h2{font-size:1.45rem}
-    .inv-body{font-size:.9rem}
-    /* section head */
-    .sec-head{margin-bottom:36px}
+    .cta-band{padding:20px 14px}
+    .inv-frame{padding:16px 12px}
+    .inv-h2{font-size:1.35rem}
+    .inv-body{font-size:.88rem}
+    .cta-band .hero-cta{flex-direction:column;align-items:stretch}
+    /* footer */
+    .foot-grid{grid-template-columns:1fr 1fr}
+    .fcol a{padding:10px 0}  /* larger touch targets */
   }
 
-  @media(max-width:440px){
-    h1{font-size:2.15rem}
-    .hero-cta{gap:10px}
-    .foot-grid{grid-template-columns:1fr}
-    .panel{padding:20px 16px}
-    .cta-band{padding:20px 12px}
-    .inv-frame{padding:14px 10px}
+  /* ── ≤400px  small phones ── */
+  @media(max-width:400px){
+    .wrap{padding:0 14px}
+    h1{font-size:1.85rem}
+    h2{font-size:1.55rem}
+    .stats,.foot-grid{grid-template-columns:1fr}
+    .stat:nth-child(2){border-right:none;border-bottom:1px solid var(--line)}
+    .stat{padding:18px 14px}
+    .stat .num{font-size:2rem}
+    .brain{max-height:220px}
+    .node-lab{font-size:7px}
+    .cta-band{padding:16px 10px}
+    .inv-frame{padding:12px 8px}
+    .inv-h2{font-size:1.2rem}
   }
 
   /* ===== LOGIN MODAL ===== */
