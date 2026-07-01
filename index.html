@@ -35,8 +35,20 @@
   </div>
 </header>
 
+<!-- mobile nav drawer -->
+<div id="mobile-nav" class="mobile-nav" aria-hidden="true">
+  <a href="#platform" class="mnav-link">Platform</a>
+  <a href="#how" class="mnav-link">How it works</a>
+  <a href="#industries" class="mnav-link">Industries</a>
+  <div class="mnav-cta">
+    <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="openLogin();closeMobileNav()">Sign in</button>
+    <a href="#demo" class="btn btn-pri" style="width:100%;justify-content:center" onclick="closeMobileNav()">Book a demo →</a>
+  </div>
+</div>
+
 <!-- HERO -->
 <section class="hero">
+
   <div class="wrap">
     <div class="hero-grid">
       <div>
@@ -224,19 +236,31 @@
 
 
 <!-- CTA -->
-<section class="sec" id="demo" style="padding-top:0">
+<section class="sec" id="demo" style="padding-top:48px;padding-bottom:72px">
   <div class="wrap">
     <div class="cta-band rv">
-      <span class="kicker">Get started</span>
-      <h2>Stop guessing demand. Start forecasting it.</h2>
-      <p>See APRABot run on a slice of your own data. A 30-minute working session, no slideware.</p>
-      <div class="hero-cta">
-        <a href="mailto:contact@aprabot.com" class="btn btn-pri">Book your demo →</a>
-        <a href="tel:+919260901921" class="btn btn-ghost">Talk to sales</a>
+
+      <!-- corner ornaments -->
+      <svg class="inv-corn tl" viewBox="0 0 48 48" fill="none"><path d="M4 44 L4 4 L44 4" stroke="rgba(200,242,78,.3)" stroke-width="1.5"/><circle cx="4" cy="4" r="2.5" fill="#C8F24E" opacity=".35"/><line x1="4" y1="18" x2="11" y2="18" stroke="rgba(200,242,78,.15)" stroke-width="1"/><line x1="18" y1="4" x2="18" y2="11" stroke="rgba(200,242,78,.15)" stroke-width="1"/></svg>
+      <svg class="inv-corn tr" viewBox="0 0 48 48" fill="none"><path d="M44 44 L44 4 L4 4" stroke="rgba(200,242,78,.3)" stroke-width="1.5"/><circle cx="44" cy="4" r="2.5" fill="#C8F24E" opacity=".35"/><line x1="44" y1="18" x2="37" y2="18" stroke="rgba(200,242,78,.15)" stroke-width="1"/><line x1="30" y1="4" x2="30" y2="11" stroke="rgba(200,242,78,.15)" stroke-width="1"/></svg>
+      <svg class="inv-corn bl" viewBox="0 0 48 48" fill="none"><path d="M4 4 L4 44 L44 44" stroke="rgba(200,242,78,.3)" stroke-width="1.5"/><circle cx="4" cy="44" r="2.5" fill="#C8F24E" opacity=".35"/><line x1="4" y1="30" x2="11" y2="30" stroke="rgba(200,242,78,.15)" stroke-width="1"/><line x1="18" y1="44" x2="18" y2="37" stroke="rgba(200,242,78,.15)" stroke-width="1"/></svg>
+      <svg class="inv-corn br" viewBox="0 0 48 48" fill="none"><path d="M44 4 L44 44 L4 44" stroke="rgba(200,242,78,.3)" stroke-width="1.5"/><circle cx="44" cy="44" r="2.5" fill="#C8F24E" opacity=".35"/><line x1="44" y1="30" x2="37" y2="30" stroke="rgba(200,242,78,.15)" stroke-width="1"/><line x1="30" y1="44" x2="30" y2="37" stroke="rgba(200,242,78,.15)" stroke-width="1"/></svg>
+
+      <!-- inner border frame -->
+      <div class="inv-frame">
+
+        <div class="inv-div"><span></span><span class="inv-gem">◆</span><span></span></div>
+
+        <span class="kicker inv-eyebrow">You are cordially invited</span>
+        <h2 class="inv-h2">Stop guessing demand. <span class="em">Start forecasting it.</span></h2>
+        <p class="inv-body">See APRABot run on your data — a 30-minute working session, no slideware.</p>
+
+        <div class="hero-cta" style="justify-content:center;margin-top:28px">
+          <a href="mailto:contact@aprabot.com" class="btn btn-pri">Book your demo →</a>
+          <a href="tel:+919260901921" class="btn btn-ghost">Talk to sales</a>
+        </div>
+
       </div>
-      <p style="margin-top:18px;font-family:var(--mono);font-size:12.5px;color:var(--muted)">
-        ✉ contact@aprabot.com &nbsp;·&nbsp; 📞 +91 92609 01921
-      </p>
     </div>
   </div>
 </section>

@@ -65,9 +65,27 @@
     updateBtn(current());
   }
 
+  /* ── Scroll progress bar ── */
+  function injectProgress() {
+    if (document.getElementById('scroll-progress')) return;
+    const bar = document.createElement('div');
+    bar.id = 'scroll-progress';
+    document.body.prepend(bar);
+
+    function update() {
+      const scrolled = window.scrollY;
+      const total    = document.documentElement.scrollHeight - window.innerHeight;
+      bar.style.width = total > 0 ? (scrolled / total * 100) + '%' : '0%';
+    }
+
+    window.addEventListener('scroll', update, { passive: true });
+    update();
+  }
+
   if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', inject);
+    document.addEventListener('DOMContentLoaded', function () { inject(); injectProgress(); });
   } else {
     inject();
+    injectProgress();
   }
 })();
