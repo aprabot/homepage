@@ -424,6 +424,28 @@
     .inv-h2{font-size:1.2rem}
   }
 
+  /* ── Platform cards slider (≤768 px) ── */
+  @media(max-width:768px){
+    .cards{
+      display:flex;flex-direction:row;
+      overflow-x:auto;scroll-snap-type:x mandatory;
+      -webkit-overflow-scrolling:touch;scrollbar-width:none;
+      gap:12px;padding:4px 16px 8px;margin:0 -16px;
+      cursor:grab
+    }
+    .cards::-webkit-scrollbar{display:none}
+    .cards:active{cursor:grabbing}
+    .card{flex:0 0 calc(100vw - 64px);max-width:340px;scroll-snap-align:start}
+  }
+
+  /* slider dot indicators — hidden on desktop */
+  .cards-dots{display:none;justify-content:center;align-items:center;gap:7px;margin-top:16px}
+  @media(max-width:768px){.cards-dots{display:flex}}
+  .cdot{width:7px;height:7px;border-radius:50%;background:var(--line-2);
+    border:none;cursor:pointer;padding:0;flex-shrink:0;
+    transition:background .25s,width .25s,border-radius .25s}
+  .cdot.on{background:var(--signal);width:20px;border-radius:4px}
+
   /* ===== LOGIN MODAL ===== */
   .modal{position:fixed;inset:0;z-index:200;display:none;align-items:center;justify-content:center;padding:24px;
     background:rgba(6,9,14,.72);backdrop-filter:blur(8px);animation:mfade .3s ease}

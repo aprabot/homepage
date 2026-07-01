@@ -520,3 +520,44 @@
       card.style.setProperty('--my',((e.clientY-r.top)/r.height*100).toFixed(1)+'%');
     });
   });
+
+  // Platform cards → horizontal slider with dot indicators on mobile
+  function initCardSlider(){
+    const cards=document.querySelector('.cards');
+    if(!cards)return;
+    document.querySelectorAll('.cards-dots').forEach(el=>el.remove());
+    if(window.innerWidth>768)return;
+
+    const items=[...cards.querySelectorAll('.card')];
+    const wrap=document.createElement('div');
+    wrap.className='cards-dots';
+    const dots=items.map((_,i)=>{
+      const b=document.createElement('button');
+      b.className='cdot'+(i===0?' on':'');
+      b.setAttribute('aria-label','Feature '+(i+1));
+      b.addEventListener('click',()=>{
+        cards.scrollTo({left:items[i].offsetLeft-16,behavior:'smooth'});
+      });
+      wrap.appendChild(b);
+      return b;
+    });
+    cards.after(wrap);
+
+    // update active dot as user swipes
+    const io=new IntersectionObserver(es=>{
+      es.forEach(e=>{
+        if(!e.isIntersecting)return;
+        const idx=items.indexOf(e.target);
+        if(idx<0)return;
+        dots.forEach((d,i)=>d.classList.toggle('on',i===idx));
+      });
+    },{root:cards,threshold:.55});
+    items.forEach(c=>io.observe(c));
+  }
+
+  initCardSlider();
+  let _sliderTimer;
+  window.addEventListener('resize',()=>{
+    clearTimeout(_sliderTimer);
+    _sliderTimer=setTimeout(initCardSlider,200);
+  },{passive:true});
