@@ -571,8 +571,9 @@
   }
   function initMobCollapse(){
     const isMob=window.innerWidth<=768;
-    [[document.getElementById('how'),  '#how .sec-head'],
-     [document.getElementById('decision-engine'), '.de-head']
+    [[document.getElementById('how'),             '#how .sec-head'],
+     [document.getElementById('decision-engine'), '.de-head'],
+     [document.getElementById('industries'),      '#industries .sec-head'],
     ].forEach(([sec,sel])=>{
       if(!sec)return;
       const head=sec.querySelector(sel);
