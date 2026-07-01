@@ -440,30 +440,25 @@
 
   /* ── Mobile expand/collapse: How It Works + Decision Engine ── */
   @media(max-width:768px){
-    /* toggle header row */
-    #how .sec-head,.de-head{
+    /* toggle header: inner <div> holds kicker+h2; chevron appended by JS */
+    #how .sec-head, #industries .sec-head, .de-head{
       cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;
-      display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
-      border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:0
+      display:flex;align-items:center;justify-content:space-between;gap:12px;
+      margin:0 -16px;padding:12px 16px;border-radius:10px;
+      transition:background .18s;margin-bottom:0
     }
-    #how .sec-head:active,.de-head:active{opacity:.75}
+    #how .sec-head:active, #industries .sec-head:active, .de-head:active{
+      background:var(--panel)
+    }
     .mob-chev{
-      flex-shrink:0;width:20px;height:20px;color:var(--muted);
-      margin-top:6px;transition:transform .35s ease
+      flex-shrink:0;width:22px;height:22px;color:var(--muted);
+      transition:transform .35s ease
     }
     .mob-chev svg{display:block;width:100%;height:100%}
     .mob-open .mob-chev{transform:rotate(180deg)}
 
-    /* toggle header — shared by How It Works, Decision Engine, Industries */
-    #industries .sec-head{
-      cursor:pointer;-webkit-tap-highlight-color:transparent;user-select:none;
-      display:flex;align-items:flex-start;justify-content:space-between;gap:10px;
-      border-bottom:1px solid var(--line);padding-bottom:16px;margin-bottom:0
-    }
-    #industries .sec-head:active{opacity:.75}
-
-    /* collapsible bodies — collapsed by default */
-    #how .flow,.split-detail,#decision-engine .brain,#industries .ind{
+    /* collapsible bodies — hidden by default */
+    #how .flow, .split-detail, #decision-engine .brain, #industries .ind{
       max-height:0;overflow:hidden;opacity:0;
       transition:max-height .5s cubic-bezier(.4,0,.2,1),opacity .35s ease
     }
@@ -473,11 +468,11 @@
     #decision-engine.mob-open .brain{max-height:420px;opacity:1;margin-top:20px}
     #industries.mob-open .ind{max-height:600px;opacity:1;padding-top:16px}
 
-    /* collapse gap between .rv and .brain when brain is hidden */
+    /* remove grid gap when brain is collapsed */
     #decision-engine:not(.mob-open) .split{gap:0}
 
-    /* section padding reduction since heading is now the visual anchor */
-    #how,.sec#decision-engine,#industries{padding-bottom:32px}
+    /* compact bottom padding for collapsed sections */
+    #how, .sec#decision-engine, #industries{padding-bottom:12px}
   }
 
   /* slider dot indicators — hidden on desktop */
