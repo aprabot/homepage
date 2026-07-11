@@ -421,15 +421,34 @@
     window.location.replace('/');
   }
 
-  /* fetch live forecast from API; fall back to bundled data.js if unavailable */
-  var FORECAST_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/forecast';
-  fetch(FORECAST_API)
-    .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
-    .then(function(d){ window.DATA = d; })
-    .catch(function(){ /* DATA already set by data.js — use it as fallback */ })
-    .then(function(){
-      if(typeof initDashboard==='function') initDashboard();
-    });
+  /* fetch live forecast from API with 5-min localStorage cache to reduce S3 reads */
+  var FORECAST_API  = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/forecast';
+  var CACHE_KEY     = 'apra_forecast_cache';
+  var CACHE_TTL     = 5 * 60 * 1000; /* 5 minutes in ms */
+
+  function loadForecast() {
+    try {
+      var cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+      if (cached && (Date.now() - cached.ts) < CACHE_TTL) {
+        window.DATA = cached.data;
+        if (typeof initDashboard === 'function') initDashboard();
+        return;
+      }
+    } catch(e) {}
+
+    fetch(FORECAST_API)
+      .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
+      .then(function(d){
+        window.DATA = d;
+        try { localStorage.setItem(CACHE_KEY, JSON.stringify({ts: Date.now(), data: d})); } catch(e) {}
+      })
+      .catch(function(){ /* DATA already set by data.js — use it as fallback */ })
+      .then(function(){
+        if (typeof initDashboard === 'function') initDashboard();
+      });
+  }
+
+  loadForecast();
 
   /* user chip dropdown */
   var uChip = document.getElementById('uChip');
