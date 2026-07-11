@@ -168,6 +168,15 @@
       </div>
     </div>
 
+    <!-- Coming soon panel (Scenarios / Inventory) -->
+    <div class="dbody" id="comingSoonPanel" style="display:none">
+      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px;text-align:center">
+        <svg viewBox="0 0 24 24" fill="none" stroke="var(--signal)" stroke-width="1.5" width="48" height="48"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <h2 id="comingSoonTitle" style="font-size:1.6rem;font-weight:700;color:var(--text);margin:0"></h2>
+        <p style="color:var(--muted);font-size:.95rem;max-width:340px;margin:0">This section is under development and will be available soon.</p>
+      </div>
+    </div>
+
     <!-- Settings panel (hidden by default) -->
     <div class="settings-body" id="settingsPanel" style="display:none">
       <h1>Settings</h1>
@@ -321,6 +330,8 @@
       'Forecasts': document.getElementById('forecastsPanel'),
       'Settings':  document.getElementById('settingsPanel')
     };
+    var comingSoon      = document.getElementById('comingSoonPanel');
+    var comingSoonTitle = document.getElementById('comingSoonTitle');
     var search = document.querySelector('.dtop .search');
     var report = document.querySelector('.dtop .report-menu');
     var navItems = document.querySelectorAll('.dnav li');
@@ -332,11 +343,15 @@
         navItems.forEach(function(x){ x.classList.remove('active'); });
         li.classList.add('active');
 
+        var isComingSoon = (name === 'Scenarios' || name === 'Inventory');
+        var isSettings   = name === 'Settings';
+
         Object.keys(panels).forEach(function(k){
           if(panels[k]) panels[k].style.display = (k === name) ? '' : 'none';
         });
+        comingSoon.style.display = isComingSoon ? '' : 'none';
+        if(isComingSoon) comingSoonTitle.textContent = name + ' — Coming Soon';
 
-        var isSettings = name === 'Settings';
         search.style.display = isSettings ? 'none' : '';
         report.style.display = isSettings ? 'none' : '';
 
