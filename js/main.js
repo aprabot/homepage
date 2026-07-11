@@ -81,31 +81,7 @@
   },{threshold:.5});
   document.querySelectorAll('.num [data-to],.num[data-to]').forEach(el=>counters.observe(el));
 
-  /* ===== AUTH FLOW (static demo — any credentials work) ===== */
-  function openLogin(){document.getElementById('loginModal').classList.add('open');
-    setTimeout(()=>document.getElementById('uid').focus(),60);}
-  function closeLogin(){document.getElementById('loginModal').classList.remove('open');}
-
-  function doLogin(e){
-    e.preventDefault();
-    let uid=document.getElementById('uid').value.trim();
-    if(!uid)uid='planner';                       // any/empty id accepted in demo
-    const name=uid;                              // show exactly what was entered
-    document.getElementById('userName').textContent=name;
-    document.getElementById('greetName').textContent=name;
-    document.getElementById('userAvatar').textContent=name.charAt(0).toUpperCase();
-    closeLogin();
-    document.getElementById('uid').value='';document.getElementById('pwd').value='';
-    document.getElementById('dashboard').classList.add('open');
-    document.body.style.overflow='hidden';
-    initDashboard();
-  }
-
-  function logout(){
-    document.getElementById('dashboard').classList.remove('open');
-    document.body.style.overflow='';
-    window.scrollTo(0,0);
-  }
+  /* auth functions live in auth.js — loaded after this file */
 
   // dashboard sidebar active state
   document.querySelectorAll('.dnav li').forEach(li=>{
