@@ -116,6 +116,13 @@
         <div class="kpi"><div class="t">Backtest horizon</div><div class="v">52<span style="font-size:1rem;color:var(--muted)"> wks</span></div><div class="d up">1-week-ahead, out-of-sample</div></div>
       </div>
 
+    </div>
+
+    <!-- Forecasts panel -->
+    <div class="dbody" id="forecastsPanel" style="display:none">
+      <h1 class="dgreet">Forecasts</h1>
+      <p class="dsubtle">Shipped-units forecast accuracy — <b>2024 weekly backtest</b>, trained on 2022–2023, 1-week-ahead model.</p>
+
       <div class="dgrid">
         <div class="dcard">
           <div class="ch" style="flex-wrap:wrap;gap:12px">
@@ -309,17 +316,30 @@
 
   /* nav panel switching */
   (function(){
-    var overview = document.querySelector('.dbody');
-    var settings = document.getElementById('settingsPanel');
-    var search   = document.querySelector('.dtop .search');
-    var report   = document.querySelector('.dtop .report-menu');
-    document.querySelectorAll('.dnav li').forEach(function(li){
+    var panels = {
+      'Overview':  document.querySelector('.dbody'),
+      'Forecasts': document.getElementById('forecastsPanel'),
+      'Settings':  document.getElementById('settingsPanel')
+    };
+    var search = document.querySelector('.dtop .search');
+    var report = document.querySelector('.dtop .report-menu');
+    var navItems = document.querySelectorAll('.dnav li');
+
+    navItems.forEach(function(li){
       li.addEventListener('click', function(){
-        var isSettings = li.textContent.trim() === 'Settings';
-        overview.style.display = isSettings ? 'none' : '';
-        settings.style.display = isSettings ? '' : 'none';
-        search.style.display   = isSettings ? 'none' : '';
-        report.style.display   = isSettings ? 'none' : '';
+        var name = li.textContent.trim();
+
+        navItems.forEach(function(x){ x.classList.remove('active'); });
+        li.classList.add('active');
+
+        Object.keys(panels).forEach(function(k){
+          if(panels[k]) panels[k].style.display = (k === name) ? '' : 'none';
+        });
+
+        var isSettings = name === 'Settings';
+        search.style.display = isSettings ? 'none' : '';
+        report.style.display = isSettings ? 'none' : '';
+
         if(isSettings) syncSettingsPanel();
       });
     });
