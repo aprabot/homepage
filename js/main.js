@@ -335,7 +335,8 @@
     d.querySelectorAll('.lk').forEach(l=>l.onclick=()=>cbChart(l.dataset.sku));
     return d;
   }
-  const LM_STUDIO_URL = 'http://localhost:1234/v1/chat/completions';
+  const LM_STUDIO_DEFAULT = 'http://localhost:1234/v1/chat/completions';
+  function getLmUrl(){ return localStorage.getItem('lm_studio_url') || LM_STUDIO_DEFAULT; }
   let cbHistory = [];
 
   function cbMd(text){
@@ -382,7 +383,7 @@
     const messages=[{role:'system',content:buildSystemPrompt()}]
       .concat(cbHistory.slice(-8));
 
-    fetch(LM_STUDIO_URL,{
+    fetch(getLmUrl(),{
       method:'POST',
       headers:{'Content-Type':'application/json'},
       body:JSON.stringify({model:'local-model',messages:messages,max_tokens:512,temperature:0.3,stream:false})

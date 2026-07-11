@@ -23,6 +23,26 @@
 <style>
   html,body{height:100%;overflow:hidden}
   #dashboard{display:flex!important;position:static!important;z-index:auto!important}
+
+  /* Settings panel */
+  .settings-body{padding:28px 32px;overflow-y:auto;flex:1}
+  .settings-body h1{font-size:1.5rem;font-weight:700;color:var(--text);margin-bottom:6px}
+  .settings-body>.dsubtle{margin-bottom:28px}
+  .scard{background:var(--ink-2);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:16px}
+  .scard h4{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:16px}
+  .srow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0}
+  .srow+.srow{border-top:1px solid var(--line)}
+  .srow-label{font-size:.9rem;font-weight:600;color:var(--text);margin-bottom:2px}
+  .srow-desc{font-size:.78rem;color:var(--muted)}
+  .sinput{flex:1;background:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:9px 13px;font-size:.85rem;color:var(--text);font-family:inherit;outline:none}
+  .sinput:focus{border-color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
+  .stest-msg{font-size:.8rem;margin-top:10px;min-height:18px}
+  .stest-msg.ok{color:#54E6C4}.stest-msg.err{color:#ff6b6b}
+
+  /* Theme pill toggle */
+  .theme-pill{display:flex;background:var(--ink);border:1px solid var(--line-2);border-radius:100px;padding:3px;gap:3px}
+  .theme-pill button{border:none;background:none;color:var(--muted);font-size:.8rem;font-family:inherit;padding:5px 14px;border-radius:100px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px}
+  .theme-pill button.active{background:var(--ink-3);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25)}
 </style>
 </head>
 <body>
@@ -140,6 +160,59 @@
         </div>
       </div>
     </div>
+
+    <!-- Settings panel (hidden by default) -->
+    <div class="settings-body" id="settingsPanel" style="display:none">
+      <h1>Settings</h1>
+      <p class="dsubtle">Manage your preferences and integrations.</p>
+
+      <!-- Appearance -->
+      <div class="scard">
+        <h4>Appearance</h4>
+        <div class="srow">
+          <div>
+            <div class="srow-label">Theme</div>
+            <div class="srow-desc">Choose your interface colour scheme</div>
+          </div>
+          <div class="theme-pill" id="settingsThemePill">
+            <button id="sDarkBtn" onclick="setTheme('dark')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>Dark
+            </button>
+            <button id="sLightBtn" onclick="setTheme('light')">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><circle cx="12" cy="12" r="4.5"/><line x1="12" y1="2" x2="12" y2="5"/><line x1="12" y1="19" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="6.7" y2="6.7"/><line x1="17.3" y1="17.3" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="5" y2="12"/><line x1="19" y1="12" x2="22" y2="12"/></svg>Light
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- AI Analyst -->
+      <div class="scard">
+        <h4>AI Analyst — Lyra</h4>
+        <div class="srow">
+          <div>
+            <div class="srow-label">LM Studio server URL</div>
+            <div class="srow-desc">OpenAI-compatible local inference endpoint</div>
+          </div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:4px;align-items:center">
+          <input id="lmUrlInput" class="sinput" placeholder="http://localhost:1234/v1/chat/completions">
+          <button class="dbtn" onclick="testLmUrl()">Test</button>
+          <button class="dbtn" style="background:var(--signal);color:#0A0E15;border-color:var(--signal)" onclick="saveLmUrl()">Save</button>
+        </div>
+        <p class="stest-msg" id="lmTestMsg"></p>
+      </div>
+
+      <!-- Account -->
+      <div class="scard">
+        <h4>Account</h4>
+        <div class="srow">
+          <div>
+            <div class="srow-label">Email</div>
+            <div class="srow-desc" id="settingsEmail">—</div>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- AI Analyst chatbot -->
@@ -187,6 +260,72 @@
       var av=document.getElementById('userAvatar');if(av)av.textContent=display.charAt(0).toUpperCase();
     }catch(e){}
   })();
+
+  /* nav panel switching */
+  (function(){
+    var overview = document.querySelector('.dbody');
+    var settings = document.getElementById('settingsPanel');
+    document.querySelectorAll('.dnav li').forEach(function(li){
+      li.addEventListener('click', function(){
+        var isSettings = li.textContent.trim() === 'Settings';
+        overview.style.display = isSettings ? 'none' : '';
+        settings.style.display = isSettings ? '' : 'none';
+        if(isSettings) syncSettingsPanel();
+      });
+    });
+  })();
+
+  /* settings panel helpers */
+  function syncSettingsPanel(){
+    var isDark = document.documentElement.dataset.theme !== 'light';
+    document.getElementById('sDarkBtn').classList.toggle('active', isDark);
+    document.getElementById('sLightBtn').classList.toggle('active', !isDark);
+    document.getElementById('lmUrlInput').value =
+      localStorage.getItem('lm_studio_url') || 'http://localhost:1234/v1/chat/completions';
+    var emailEl = document.getElementById('settingsEmail');
+    var nameEl  = document.getElementById('userName');
+    if(emailEl && nameEl) emailEl.textContent = nameEl.textContent || '—';
+  }
+
+  function setTheme(t){
+    document.documentElement.dataset.theme = t;
+    localStorage.setItem('apraTheme', t);
+    syncSettingsPanel();
+    /* also sync dropdown label */
+    var label = document.getElementById('themeLabel');
+    var icon  = document.getElementById('themeIcon');
+    var SUN='<circle cx="12" cy="12" r="4.5"/><line x1="12" y1="2" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="6.7" y2="6.7"/><line x1="17.3" y1="17.3" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="6.7" y2="17.3"/><line x1="17.3" y1="6.7" x2="19.07" y2="4.93"/>';
+    var MOON='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+    if(label) label.textContent = t==='dark'?'Light mode':'Dark mode';
+    if(icon)  icon.innerHTML    = t==='dark'?SUN:MOON;
+  }
+
+  function saveLmUrl(){
+    var url = document.getElementById('lmUrlInput').value.trim();
+    if(!url){return;}
+    localStorage.setItem('lm_studio_url', url);
+    var msg = document.getElementById('lmTestMsg');
+    msg.className='stest-msg ok'; msg.textContent='Saved.';
+    setTimeout(function(){msg.textContent='';},2000);
+  }
+
+  function testLmUrl(){
+    var url = document.getElementById('lmUrlInput').value.trim() ||
+              'http://localhost:1234/v1/chat/completions';
+    var msg = document.getElementById('lmTestMsg');
+    msg.className='stest-msg'; msg.textContent='Testing…';
+    fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({model:'local-model',messages:[{role:'user',content:[{text:'ping'}]}],max_tokens:5,stream:false})
+    })
+    .then(function(r){
+      msg.className='stest-msg ok';
+      msg.textContent='Connected — LM Studio is reachable (HTTP '+r.status+').';
+    })
+    .catch(function(){
+      msg.className='stest-msg err';
+      msg.textContent='Cannot reach server. Make sure LM Studio is running with CORS enabled.';
+    });
+  }
 
   /* theme toggle wired to the dropdown item */
   (function(){
