@@ -564,8 +564,23 @@
   .dside .signout{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:9px;color:var(--muted);
     font-weight:500;font-size:14.5px;cursor:pointer;border:1px solid var(--line);transition:border-color .2s,color .2s}
   .dside .signout:hover{border-color:#ff6b6b;color:#ff8585}
-  .signout-btn{color:#ff8585!important;border-color:rgba(255,107,107,.3)!important;gap:6px}
-  .signout-btn:hover{background:rgba(255,107,107,.1)!important;border-color:#ff6b6b!important}
+  .uchip{position:relative}
+  .uchip-caret{color:var(--muted);transition:transform .2s;flex-shrink:0}
+  .uchip.open .uchip-caret{transform:rotate(180deg)}
+  .uchip-drop{
+    position:absolute;top:calc(100% + 10px);right:0;min-width:180px;
+    background:var(--ink-2);border:1px solid var(--line-2);border-radius:10px;
+    box-shadow:0 8px 32px rgba(0,0,0,.35);padding:6px;
+    opacity:0;visibility:hidden;transform:translateY(-6px);
+    transition:opacity .18s,transform .18s,visibility .18s;z-index:50}
+  .uchip.open .uchip-drop{opacity:1;visibility:visible;transform:none}
+  .udrop-name{padding:8px 10px 6px;font-size:13px;font-weight:600;color:var(--text)}
+  .udrop-sep{border:none;border-top:1px solid var(--line);margin:4px 0}
+  .udrop-item{display:flex;align-items:center;gap:9px;width:100%;padding:9px 10px;
+    background:none;border:none;border-radius:7px;font-size:13.5px;color:var(--muted);
+    cursor:pointer;text-align:left;transition:background .15s,color .15s}
+  .udrop-item:hover{background:var(--panel);color:var(--text)}
+  .udrop-signout:hover{color:#ff8585!important}
   .dmain{overflow-y:auto;height:100vh}
   .dtop{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;
     padding:18px 32px;border-bottom:1px solid var(--line);background:rgba(10,14,21,.85);backdrop-filter:blur(12px)}

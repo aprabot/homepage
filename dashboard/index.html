@@ -64,14 +64,19 @@
           </div>
         </div>
         <span class="bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-        <div class="uchip">
+        <div class="uchip" id="uChip">
           <div class="av" id="userAvatar">U</div>
           <div><div class="nm" id="userName">User</div><div class="rl">Demand Planner</div></div>
+          <svg class="uchip-caret" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="13" height="13"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <div class="uchip-drop" id="uDrop">
+            <div class="udrop-name" id="uDropName">User</div>
+            <hr class="udrop-sep">
+            <button class="udrop-item udrop-signout" onclick="logout()">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="15" height="15"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Sign out
+            </button>
+          </div>
         </div>
-        <button class="dbtn signout-btn" onclick="logout()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          Sign out
-        </button>
       </div>
     </div>
 
@@ -174,7 +179,7 @@
     try{
       var p=JSON.parse(decodeURIComponent(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')).split('').map(function(c){return'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join('')));
       var display=(p.email||'User').split('@')[0];
-      ['userName','greetName'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=display;});
+      ['userName','greetName','uDropName'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=display;});
       var av=document.getElementById('userAvatar');if(av)av.textContent=display.charAt(0).toUpperCase();
     }catch(e){}
   })();
@@ -187,6 +192,17 @@
   }
 
   if(typeof initDashboard==='function') initDashboard();
+
+  /* user chip dropdown */
+  var uChip = document.getElementById('uChip');
+  var uDrop = document.getElementById('uDrop');
+  uChip.addEventListener('click', function(e){
+    e.stopPropagation();
+    uChip.classList.toggle('open');
+  });
+  document.addEventListener('click', function(){
+    uChip.classList.remove('open');
+  });
 </script>
 </body>
 </html>
