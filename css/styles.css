@@ -767,7 +767,12 @@
     --text:#111318;
     --muted:#52606E;
     --muted-2:#7E8C9A;
+    --signal:#5A9200;        /* dark olive — readable on light backgrounds */
+    --signal-soft:rgba(90,146,0,.1);
   }
+  /* Keep lime-green for button/pill backgrounds in light mode */
+  [data-theme="light"] .btn-pri{background:#C8F24E}
+  [data-theme="light"] .dbtn{background:#C8F24E}
 
   /* Body warm bg */
   [data-theme="light"] body{background:var(--ink)}
