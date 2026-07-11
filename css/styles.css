@@ -544,11 +544,11 @@
   .field input:focus{outline:none;border-color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
   .login-card .btn-pri{width:100%;justify-content:center;margin-top:8px;padding:13px}
   .auth-error{min-height:18px;font-size:.85rem;color:#ff6b6b;margin:0 0 6px;line-height:1.4}
-  .pwd-reqs{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
-  .req{font-size:.72rem;font-weight:500;color:var(--muted);
-    background:var(--ink);border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;transition:all .2s}
+  .pwd-reqs{list-style:none;margin:10px 0 0;padding:10px 12px;display:flex;flex-wrap:wrap;gap:6px 18px;
+    background:var(--ink);border:1px solid var(--line-2);border-radius:8px}
+  .req{font-size:.72rem;font-weight:500;color:var(--muted);transition:color .2s}
   .req::before{content:"· ";opacity:.5}
-  .req.ok{color:#54E6C4;background:rgba(84,230,196,.07);border-color:rgba(84,230,196,.3)}
+  .req.ok{color:#54E6C4}
   .req.ok::before{content:"✓ ";opacity:1}
   .login-switch{margin-top:18px;text-align:center;font-size:.88rem;color:var(--muted)}
   .link-btn{background:none;border:none;color:var(--signal);cursor:pointer;font-size:inherit;padding:0;text-decoration:underline;text-underline-offset:2px}
