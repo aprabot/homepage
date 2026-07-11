@@ -870,6 +870,8 @@
   }
   [data-theme="light"] .field input{background:var(--ink-3);border-color:rgba(0,0,0,.1)}
   [data-theme="light"] .field input:focus{background:#fff}
+  [data-theme="light"] .req{color:#5C3A1E}
+  [data-theme="light"] .req.ok{color:#2E7D32}
 
   /* Dashboard shell */
   [data-theme="light"] #dashboard{background:var(--ink)}
