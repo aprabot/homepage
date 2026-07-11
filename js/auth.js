@@ -74,7 +74,7 @@ var APRA_AUTH = (function () {
     applyUser(email);
     var modal = document.getElementById('loginModal');
     if (modal) modal.classList.remove('open');
-    window.location.href = 'dashboard/';
+    window.location.href = '/dashboard';
   }
 
   /* restore session on load — redirect to dashboard if already signed in */
@@ -82,7 +82,7 @@ var APRA_AUTH = (function () {
   if (_stored) {
     var _p = parseJwt(_stored);
     if (_p.exp && _p.exp * 1000 > Date.now()) {
-      window.location.replace('dashboard/');
+      window.location.replace('/dashboard');
     } else {
       clearSession();
     }

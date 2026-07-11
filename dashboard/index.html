@@ -6,11 +6,11 @@
 <script>
 (function(){
   var t=localStorage.getItem('apra_id');
-  if(!t){window.location.replace('../');return;}
+  if(!t){window.location.replace('/');return;}
   try{
     var p=JSON.parse(decodeURIComponent(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')).split('').map(function(c){return'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join('')));
-    if(!p.exp||p.exp*1000<=Date.now()){localStorage.removeItem('apra_access');localStorage.removeItem('apra_id');localStorage.removeItem('apra_refresh');window.location.replace('../');}
-  }catch(e){window.location.replace('../');}
+    if(!p.exp||p.exp*1000<=Date.now()){localStorage.removeItem('apra_access');localStorage.removeItem('apra_id');localStorage.removeItem('apra_refresh');window.location.replace('/');}
+  }catch(e){window.location.replace('/');}
 })();
 </script>
 <meta charset="UTF-8">
@@ -179,7 +179,7 @@
     localStorage.removeItem('apra_access');
     localStorage.removeItem('apra_id');
     localStorage.removeItem('apra_refresh');
-    window.location.replace('../');
+    window.location.replace('/');
   }
 
   if(typeof initDashboard==='function') initDashboard();
