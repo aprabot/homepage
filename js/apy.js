@@ -6,6 +6,15 @@
 (function () {
   'use strict';
 
+  /* Hide on any page where the user is already signed in */
+  try {
+    var _t = localStorage.getItem('apra_id');
+    if (_t) {
+      var _p = JSON.parse(atob(_t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')));
+      if (_p.exp && _p.exp * 1000 > Date.now()) return;
+    }
+  } catch(e) {}
+
   /* ── Knowledge base ── */
   const KB = [
     {
