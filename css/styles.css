@@ -545,14 +545,11 @@
   .login-card .btn-pri{width:100%;justify-content:center;margin-top:8px;padding:13px}
   .auth-error{min-height:18px;font-size:.85rem;color:#ff6b6b;margin:0 0 6px;line-height:1.4}
   .pwd-reqs{list-style:none;margin:10px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:6px}
-  .req{font-size:.72rem;font-weight:500;color:var(--muted);display:flex;align-items:center;gap:6px;
-    background:var(--ink);border:1px solid var(--line-2);border-radius:7px;padding:6px 9px;transition:all .2s}
-  .req::before{content:"";display:inline-block;width:14px;height:14px;flex-shrink:0;border-radius:50%;
-    border:1.5px solid var(--line-2);background:none;transition:all .2s}
-  .req.ok{color:#54E6C4;background:rgba(84,230,196,.07);border-color:rgba(84,230,196,.25)}
-  .req.ok::before{background:#54E6C4;border-color:#54E6C4;
-    background-image:url("data:image/svg+xml,%3Csvg viewBox='0 0 12 12' fill='none' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M2.5 6l2.5 2.5 4.5-5' stroke='%230A0E15' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
-    background-size:10px;background-repeat:no-repeat;background-position:center}
+  .req{font-size:.72rem;font-weight:500;color:var(--muted);
+    background:var(--ink);border:1px solid var(--line-2);border-radius:6px;padding:5px 10px;transition:all .2s}
+  .req::before{content:"· ";opacity:.5}
+  .req.ok{color:#54E6C4;background:rgba(84,230,196,.07);border-color:rgba(84,230,196,.3)}
+  .req.ok::before{content:"✓ ";opacity:1}
   .login-switch{margin-top:18px;text-align:center;font-size:.88rem;color:var(--muted)}
   .link-btn{background:none;border:none;color:var(--signal);cursor:pointer;font-size:inherit;padding:0;text-decoration:underline;text-underline-offset:2px}
   .link-btn:hover{opacity:.8}
