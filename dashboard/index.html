@@ -71,6 +71,11 @@
           <div class="uchip-drop" id="uDrop">
             <div class="udrop-name" id="uDropName">User</div>
             <hr class="udrop-sep">
+            <button class="udrop-item" id="themeToggleBtn" onclick="toggleDashTheme()">
+              <svg id="themeIcon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="15" height="15"><circle cx="12" cy="12" r="4.5"/><line x1="12" y1="2" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="6.7" y2="6.7"/><line x1="17.3" y1="17.3" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="6.7" y2="17.3"/><line x1="17.3" y1="6.7" x2="19.07" y2="4.93"/></svg>
+              <span id="themeLabel">Light mode</span>
+            </button>
+            <hr class="udrop-sep">
             <button class="udrop-item udrop-signout" onclick="logout()">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="15" height="15"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke-linecap="round" stroke-linejoin="round"/></svg>
               Sign out
@@ -181,6 +186,26 @@
       ['userName','greetName','uDropName'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=display;});
       var av=document.getElementById('userAvatar');if(av)av.textContent=display.charAt(0).toUpperCase();
     }catch(e){}
+  })();
+
+  /* theme toggle wired to the dropdown item */
+  (function(){
+    var SUN_SVG='<circle cx="12" cy="12" r="4.5"/><line x1="12" y1="2" x2="12" y2="4.5"/><line x1="12" y1="19.5" x2="12" y2="22"/><line x1="4.93" y1="4.93" x2="6.7" y2="6.7"/><line x1="17.3" y1="17.3" x2="19.07" y2="19.07"/><line x1="2" y1="12" x2="4.5" y2="12"/><line x1="19.5" y1="12" x2="22" y2="12"/><line x1="4.93" y1="19.07" x2="6.7" y2="17.3"/><line x1="17.3" y1="6.7" x2="19.07" y2="4.93"/>';
+    var MOON_SVG='<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>';
+    function syncThemeBtn(){
+      var isDark=document.documentElement.dataset.theme!=='light';
+      var icon=document.getElementById('themeIcon');
+      var label=document.getElementById('themeLabel');
+      if(icon) icon.innerHTML=isDark?SUN_SVG:MOON_SVG;
+      if(label) label.textContent=isDark?'Light mode':'Dark mode';
+    }
+    window.toggleDashTheme=function(){
+      var next=document.documentElement.dataset.theme==='light'?'dark':'light';
+      document.documentElement.dataset.theme=next;
+      localStorage.setItem('apraTheme',next);
+      syncThemeBtn();
+    };
+    syncThemeBtn();
   })();
 
   function logout(){
