@@ -311,11 +311,15 @@
   (function(){
     var overview = document.querySelector('.dbody');
     var settings = document.getElementById('settingsPanel');
+    var search   = document.querySelector('.dtop .search');
+    var report   = document.querySelector('.dtop .report-menu');
     document.querySelectorAll('.dnav li').forEach(function(li){
       li.addEventListener('click', function(){
         var isSettings = li.textContent.trim() === 'Settings';
         overview.style.display = isSettings ? 'none' : '';
         settings.style.display = isSettings ? '' : 'none';
+        search.style.display   = isSettings ? 'none' : '';
+        report.style.display   = isSettings ? 'none' : '';
         if(isSettings) syncSettingsPanel();
       });
     });
