@@ -74,22 +74,15 @@ var APRA_AUTH = (function () {
     applyUser(email);
     var modal = document.getElementById('loginModal');
     if (modal) modal.classList.remove('open');
-    document.getElementById('uid').value = '';
-    document.getElementById('pwd').value = '';
-    document.getElementById('dashboard').classList.add('open');
-    document.body.style.overflow = 'hidden';
-    if (typeof initDashboard === 'function') initDashboard();
+    window.location.href = 'dashboard/';
   }
 
-  /* restore session on load */
+  /* restore session on load — redirect to dashboard if already signed in */
   var _stored = localStorage.getItem('apra_id');
   if (_stored) {
     var _p = parseJwt(_stored);
     if (_p.exp && _p.exp * 1000 > Date.now()) {
-      applyUser(_p.email || '');
-      var _dash = document.getElementById('dashboard');
-      if (_dash) { _dash.classList.add('open'); document.body.style.overflow = 'hidden'; }
-      if (typeof initDashboard === 'function') initDashboard();
+      window.location.replace('dashboard/');
     } else {
       clearSession();
     }
@@ -153,9 +146,7 @@ function doLogin(e) {
 
 function logout() {
   APRA_AUTH.clearSession();
-  document.getElementById('dashboard').classList.remove('open');
-  document.body.style.overflow = '';
-  window.scrollTo(0, 0);
+  window.location.replace('./');
 }
 
 /* ── Sign-up ── */

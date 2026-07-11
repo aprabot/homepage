@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>document.documentElement.dataset.theme=localStorage.getItem('apraTheme')||'dark'</script>
+<!-- session guard: redirect to homepage if no valid token -->
+<script>
+(function(){
+  var t=localStorage.getItem('apra_id');
+  if(!t){window.location.replace('../');return;}
+  try{
+    var p=JSON.parse(decodeURIComponent(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')).split('').map(function(c){return'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join('')));
+    if(!p.exp||p.exp*1000<=Date.now()){localStorage.removeItem('apra_access');localStorage.removeItem('apra_id');localStorage.removeItem('apra_refresh');window.location.replace('../');}
+  }catch(e){window.location.replace('../');}
+})();
+</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Dashboard — APRABot</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/styles.css">
+<style>
+  html,body{height:100%;overflow:hidden}
+  #dashboard{display:flex!important;position:static!important;z-index:auto!important}
+</style>
+</head>
+<body>
+
+<div id="dashboard">
+  <aside class="dside">
+    <div class="logo">
+      <span class="wordmark">APRA<b>Bot</b></span>
+    </div>
+    <ul class="dnav">
+      <li class="active"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>Overview</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7" stroke-linecap="round" stroke-linejoin="round"/></svg>Forecasts</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round" stroke-linejoin="round"/></svg>Scenarios</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 7h18M3 12h18M3 17h18" stroke-linecap="round"/></svg>Inventory</li>
+      <li><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.3-2.5h-4l-.3 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5c.1-.3.1-.6.1-1Z" stroke-linejoin="round"/></svg>Settings</li>
+    </ul>
+    <div class="signout" onclick="logout()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      Sign out
+    </div>
+  </aside>
+
+  <div class="dmain">
+    <div class="dtop">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
+        <input type="text" placeholder="Search SKUs, regions, scenarios…">
+      </div>
+      <div class="right">
+        <div class="report-menu">
+          <button class="dbtn" id="genReport">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-linejoin="round"/><path d="M14 2v6h6M8 13h8M8 17h6" stroke-linecap="round"/></svg>
+            Generate report
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="13" height="13"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </button>
+          <div class="report-drop" id="reportDrop">
+            <button data-act="pdf"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="15" height="15"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-linejoin="round"/><path d="M14 2v6h6" stroke-linejoin="round"/></svg>Forecast report (PDF)</button>
+            <button data-act="csv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="15" height="15"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke-linecap="round" stroke-linejoin="round"/></svg>Export data (CSV)</button>
+          </div>
+        </div>
+        <span class="bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div class="uchip" onclick="logout()">
+          <div class="av" id="userAvatar">U</div>
+          <div><div class="nm" id="userName">User</div><div class="rl">Demand Planner</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="dbody">
+      <h1 class="dgreet">Welcome back, <span class="hl" id="greetName">there</span>.</h1>
+      <p class="dsubtle">Shipped-units forecast accuracy — <b>2024 weekly backtest</b>, trained on 2022–2023, 1-week-ahead model.</p>
+
+      <div class="kpis">
+        <div class="kpi"><div class="t">Overall WAPE</div><div class="v" id="kpiWape">—</div><div class="d up">volume-weighted error · lower is better</div></div>
+        <div class="kpi"><div class="t">SKUs forecasted</div><div class="v" id="kpiSkus">—</div><div class="d up">across the full catalog</div></div>
+        <div class="kpi"><div class="t">Units forecasted</div><div class="v" id="kpiUnits">—</div><div class="d up">total shipped (52 wks)</div></div>
+        <div class="kpi"><div class="t">Backtest horizon</div><div class="v">52<span style="font-size:1rem;color:var(--muted)"> wks</span></div><div class="d up">1-week-ahead, out-of-sample</div></div>
+      </div>
+
+      <div class="dgrid">
+        <div class="dcard">
+          <div class="ch" style="flex-wrap:wrap;gap:12px">
+            <h4>Forecast vs actuals — shipped units</h4>
+            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+              <div class="sku-search">
+                <input id="skuInput" list="skuList" placeholder="Search SKU… (blank = all)">
+                <datalist id="skuList"></datalist>
+              </div>
+              <div class="seg" id="periodSeg">
+                <button data-w="12">12W</button><button data-w="26">26W</button><button class="on" data-w="52">52W</button>
+              </div>
+            </div>
+          </div>
+          <div class="selbar">
+            <span id="selName">All SKUs</span>
+            <span class="selwape">selection WAPE&nbsp;<b id="selWape">—</b></span>
+          </div>
+          <div class="dchart" id="forecastChart">
+            <canvas id="fcCanvas"></canvas>
+            <div class="fc-tip" id="fcTip"></div>
+          </div>
+          <div class="chart-legend">
+            <span><i style="background:#54E6C4"></i>Actual</span>
+            <span><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>Forecast</span>
+            <span><i style="background:#7AA2FF"></i>WAPE %</span>
+          </div>
+        </div>
+        <div class="dcard">
+          <div class="ch"><h4>Highest-volume SKUs</h4></div>
+          <ul class="movers" id="moversList"></ul>
+        </div>
+      </div>
+
+      <div class="dcard">
+        <div class="ch"><h4>SKU forecast detail — top by volume</h4><span class="dsubtle" style="margin:0;font-size:.8rem">click a row to chart it</span></div>
+        <div class="table-wrap">
+          <table class="dtable">
+            <thead><tr><th>SKU</th><th>Total units</th><th>Avg forecast / wk</th><th>WAPE</th><th>Accuracy</th><th>Status</th></tr></thead>
+            <tbody id="skuBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- AI Analyst chatbot -->
+  <button class="cb-launch" id="cbLaunch" aria-label="Open AI analyst">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" stroke-linejoin="round"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" stroke-linejoin="round"/></svg>
+  </button>
+
+  <div class="cb-panel" id="cbPanel" aria-hidden="true">
+    <div class="cb-head">
+      <div class="cb-id">
+        <span class="cb-orb"></span>
+        <div><b>Lyra</b><span>AI demand analyst</span></div>
+      </div>
+      <button class="cb-x" id="cbClose" aria-label="Close">×</button>
+    </div>
+    <div class="cb-body" id="cbBody"></div>
+    <div class="cb-chips" id="cbChips">
+      <button>What's our overall accuracy?</button>
+      <button>Top selling SKUs</button>
+      <button>Which SKUs forecast best?</button>
+      <button>Worst week for error</button>
+      <button>Is the model biased?</button>
+    </div>
+    <form class="cb-input" id="cbForm">
+      <input id="cbText" placeholder="Ask about the forecast data…" autocomplete="off">
+      <button type="submit" aria-label="Send">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      </button>
+    </form>
+  </div>
+</div>
+
+<script src="../js/data.js"></script>
+<script src="../js/main.js"></script>
+<script src="../js/theme.js"></script>
+<script src="../js/apy.js"></script>
+<script>
+  /* dashboard page auth: apply user from token + wire logout */
+  (function(){
+    var t=localStorage.getItem('apra_id');
+    if(!t)return;
+    try{
+      var p=JSON.parse(decodeURIComponent(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')).split('').map(function(c){return'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join('')));
+      var display=(p.email||'User').split('@')[0];
+      ['userName','greetName'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=display;});
+      var av=document.getElementById('userAvatar');if(av)av.textContent=display.charAt(0).toUpperCase();
+    }catch(e){}
+  })();
+
+  function logout(){
+    localStorage.removeItem('apra_access');
+    localStorage.removeItem('apra_id');
+    localStorage.removeItem('apra_refresh');
+    window.location.replace('../');
+  }
+
+  if(typeof initDashboard==='function') initDashboard();
+</script>
+</body>
+</html>
