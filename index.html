@@ -28,7 +28,8 @@
       </div>
       <div class="nav-cta">
         <button class="btn btn-ghost" onclick="openLogin()">Sign in</button>
-        <a href="#demo" class="btn btn-pri">Book a demo</a>
+        <button class="btn btn-pri" onclick="openSignup()">Create account</button>
+        <a href="#demo" class="btn btn-ghost nav-demo">Book a demo</a>
         <button class="menu-tg" aria-label="Menu">☰</button>
       </div>
     </nav>
@@ -65,7 +66,8 @@
     </a>
   </div>
   <div class="mob-sb-foot">
-    <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="openLogin();closeMobSidebar()">Sign in →</button>
+    <button class="btn btn-pri" style="width:100%;justify-content:center;margin-bottom:10px" onclick="openSignup();closeMobSidebar()">Create account →</button>
+    <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="openLogin();closeMobSidebar()">Sign in</button>
   </div>
 </nav>
 
@@ -356,6 +358,55 @@
       <p id="auth-error" class="auth-error"></p>
       <button type="submit" class="btn btn-pri">Sign in →</button>
     </form>
+    <p class="login-switch">No account? <button class="link-btn" onclick="closeLogin();openSignup()">Create one free →</button></p>
+  </div>
+</div>
+
+<!-- ===== SIGN-UP MODAL ===== -->
+<div class="modal" id="signupModal" onclick="if(event.target===this)closeSignup()">
+  <div class="login-card">
+    <button class="x" onclick="closeSignup()" aria-label="Close">×</button>
+    <div class="lg-logo">
+      <span class="wordmark">APRA<b>Bot</b></span>
+    </div>
+
+    <!-- Step 1: register -->
+    <div id="su-step1">
+      <h3>Create your account</h3>
+      <p class="sub">Start forecasting smarter in minutes.</p>
+      <form onsubmit="doSignup(event)">
+        <div class="field">
+          <label for="su-email">Work email</label>
+          <input id="su-email" type="email" placeholder="you@company.com" autocomplete="email">
+        </div>
+        <div class="field">
+          <label for="su-pwd">Password</label>
+          <input id="su-pwd" type="password" placeholder="Min 8 chars, 1 uppercase, 1 number" autocomplete="new-password">
+        </div>
+        <div class="field">
+          <label for="su-pwd2">Confirm password</label>
+          <input id="su-pwd2" type="password" placeholder="••••••••" autocomplete="new-password">
+        </div>
+        <p id="su-error" class="auth-error"></p>
+        <button type="submit" class="btn btn-pri">Create account →</button>
+      </form>
+      <p class="login-switch">Already have an account? <button class="link-btn" onclick="closeSignup();openLogin()">Sign in →</button></p>
+    </div>
+
+    <!-- Step 2: verify email -->
+    <div id="su-step2" style="display:none">
+      <h3>Check your email</h3>
+      <p class="sub">We sent a 6-digit code to <strong id="su-sent-to"></strong>. Enter it below to verify your account.</p>
+      <form onsubmit="doVerify(event)">
+        <div class="field">
+          <label for="su-code">Verification code</label>
+          <input id="su-code" type="text" inputmode="numeric" placeholder="123456" maxlength="6" autocomplete="one-time-code">
+        </div>
+        <p id="su-verify-error" class="auth-error"></p>
+        <button type="submit" class="btn btn-pri">Verify & sign in →</button>
+      </form>
+      <p class="login-switch"><button class="link-btn" onclick="resendCode()">Resend code</button></p>
+    </div>
   </div>
 </div>
 

@@ -128,6 +128,112 @@
     window.scrollTo(0, 0);
   };
 
+  /* ── Sign-up flow ── */
+  var _signupEmail = '';
+
+  window.openSignup = function () {
+    var modal = document.getElementById('signupModal');
+    if (!modal) return;
+    modal.classList.add('open');
+    document.getElementById('su-step1').style.display = '';
+    document.getElementById('su-step2').style.display = 'none';
+    document.getElementById('su-error').textContent = '';
+    setTimeout(function () {
+      var f = document.getElementById('su-email');
+      if (f) f.focus();
+    }, 60);
+  };
+
+  window.closeSignup = function () {
+    var modal = document.getElementById('signupModal');
+    if (modal) modal.classList.remove('open');
+  };
+
+  window.doSignup = function (e) {
+    e.preventDefault();
+    var email  = (document.getElementById('su-email').value  || '').trim();
+    var pwd    = (document.getElementById('su-pwd').value    || '');
+    var pwd2   = (document.getElementById('su-pwd2').value   || '');
+    var errEl  = document.getElementById('su-error');
+    var btn    = e.target.querySelector('button[type=submit]');
+
+    if (!email || !pwd) { errEl.textContent = 'Please fill in all fields.'; return; }
+    if (pwd !== pwd2)   { errEl.textContent = 'Passwords do not match.';    return; }
+    if (pwd.length < 8) { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+
+    btn.disabled    = true;
+    btn.textContent = 'Creating account…';
+    errEl.textContent = '';
+
+    cognitoPost('SignUp', {
+      ClientId: CLIENT_ID,
+      Username: email,
+      Password: pwd,
+      UserAttributes: [{ Name: 'email', Value: email }]
+    }).then(function () {
+      _signupEmail = email;
+      document.getElementById('su-sent-to').textContent = email;
+      document.getElementById('su-step1').style.display = 'none';
+      document.getElementById('su-step2').style.display = '';
+      setTimeout(function () {
+        var f = document.getElementById('su-code');
+        if (f) f.focus();
+      }, 60);
+    }).catch(function (err) {
+      var msg = err.message;
+      if (/UsernameExistsException|already exists/i.test(msg))
+        msg = 'An account with that email already exists. Try signing in.';
+      errEl.textContent = msg;
+      btn.disabled    = false;
+      btn.textContent = 'Create account →';
+    });
+  };
+
+  window.doVerify = function (e) {
+    e.preventDefault();
+    var code  = (document.getElementById('su-code').value || '').trim();
+    var errEl = document.getElementById('su-verify-error');
+    var btn   = e.target.querySelector('button[type=submit]');
+
+    if (!code) { errEl.textContent = 'Please enter the verification code.'; return; }
+
+    btn.disabled    = true;
+    btn.textContent = 'Verifying…';
+    errEl.textContent = '';
+
+    cognitoPost('ConfirmSignUp', {
+      ClientId:         CLIENT_ID,
+      Username:         _signupEmail,
+      ConfirmationCode: code
+    }).then(function () {
+      window.closeSignup();
+      window.openLogin();
+      document.getElementById('uid').value = _signupEmail;
+      setTimeout(function () {
+        var f = document.getElementById('pwd');
+        if (f) f.focus();
+      }, 80);
+    }).catch(function (err) {
+      var msg = err.message;
+      if (/CodeMismatch/i.test(msg))  msg = 'Incorrect code. Please try again.';
+      if (/ExpiredCode/i.test(msg))   msg = 'Code expired. Click "Resend code" to get a new one.';
+      errEl.textContent = msg;
+      btn.disabled    = false;
+      btn.textContent = 'Verify & sign in →';
+    });
+  };
+
+  window.resendCode = function () {
+    cognitoPost('ResendConfirmationCode', {
+      ClientId: CLIENT_ID,
+      Username: _signupEmail
+    }).then(function () {
+      document.getElementById('su-verify-error').textContent = 'Code resent — check your inbox.';
+    }).catch(function (err) {
+      document.getElementById('su-verify-error').textContent = err.message;
+    });
+  };
+
   /* ── restore session on page load ── */
   var idToken = localStorage.getItem('apra_id');
   if (idToken) {
