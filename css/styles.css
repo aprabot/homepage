@@ -568,12 +568,11 @@
   .uchip-caret{color:var(--muted);transition:transform .2s;flex-shrink:0}
   .uchip.open .uchip-caret{transform:rotate(180deg)}
   .uchip-drop{
+    display:none;
     position:absolute;top:calc(100% + 10px);right:0;min-width:180px;
     background:var(--ink-2);border:1px solid var(--line-2);border-radius:10px;
-    box-shadow:0 8px 32px rgba(0,0,0,.35);padding:6px;
-    opacity:0;visibility:hidden;transform:translateY(-6px);
-    transition:opacity .18s,transform .18s,visibility .18s;z-index:50}
-  .uchip.open .uchip-drop{opacity:1;visibility:visible;transform:none}
+    box-shadow:0 8px 32px rgba(0,0,0,.35);padding:6px;z-index:50}
+  .uchip.open .uchip-drop{display:block}
   .udrop-name{padding:8px 10px 6px;font-size:13px;font-weight:600;color:var(--text)}
   .udrop-sep{border:none;border-top:1px solid var(--line);margin:4px 0}
   .udrop-item{display:flex;align-items:center;gap:9px;width:100%;padding:9px 10px;

@@ -335,13 +335,41 @@
     d.querySelectorAll('.lk').forEach(l=>l.onclick=()=>cbChart(l.dataset.sku));
     return d;
   }
+  const CHAT_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/chat';
+  let cbHistory = [];
+
+  function cbMd(text){
+    return text
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+      .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
+      .replace(/\n\n+/g,'<br><br>')
+      .replace(/\n/g,'<br>');
+  }
+
   function cbAsk(q){
     if(!q.trim())return;
     cbPush(q.replace(/</g,'&lt;'),'user');
+    cbHistory.push({role:'user',content:q});
+
     const typ=document.createElement('div'); typ.className='cb-typing'; typ.innerHTML='<i></i><i></i><i></i>';
     cbBody().appendChild(typ); cbBody().scrollTop=cbBody().scrollHeight;
-    const r=cbAnswer(q);
-    setTimeout(()=>{typ.remove(); cbPush(r.html,'bot'); if(r.action)r.action();}, 480);
+
+    fetch(CHAT_API,{
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({message:q, history:cbHistory.slice(0,-1)})
+    })
+    .then(function(r){return r.json();})
+    .then(function(d){
+      typ.remove();
+      const reply=d.reply||'Sorry, something went wrong — please try again.';
+      cbPush(cbMd(reply),'bot');
+      cbHistory.push({role:'assistant',content:reply});
+    })
+    .catch(function(){
+      typ.remove();
+      cbPush('Connection error — please try again.','bot');
+    });
   }
   function cbOpen(){
     document.getElementById('cbPanel').classList.add('open');
