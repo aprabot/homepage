@@ -580,7 +580,7 @@
     cursor:pointer;text-align:left;transition:background .15s,color .15s}
   .udrop-item:hover{background:var(--panel);color:var(--text)}
   .udrop-signout:hover{color:#ff8585!important}
-  .dmain{overflow-y:auto;height:100vh}
+  .dmain{display:flex;flex-direction:column;overflow:hidden;height:100vh}
   .dtop{position:sticky;top:0;z-index:10;display:flex;align-items:center;justify-content:space-between;
     padding:18px 32px;border-bottom:1px solid var(--line);background:rgba(10,14,21,.85);backdrop-filter:blur(12px)}
   .dtop .search{display:flex;align-items:center;gap:10px;background:var(--ink-2);border:1px solid var(--line);
@@ -607,7 +607,7 @@
     display:flex;align-items:center;justify-content:center;font-weight:700;color:#0A0E15;font-size:14px}
   .uchip .nm{font-size:14px;font-weight:600;line-height:1.1}
   .uchip .rl{font-size:11.5px;color:var(--muted);font-family:var(--mono)}
-  .dbody{padding:30px 32px 60px}
+  .dbody{padding:30px 32px 60px;flex:1;overflow-y:auto;min-height:0}
   .dgreet{font-family:var(--display);font-weight:600;font-size:1.9rem;letter-spacing:-.025em;margin-bottom:4px}
   .dgreet .hl{color:var(--signal)}
   .dsubtle{color:var(--muted);font-size:.97rem;margin-bottom:28px}
