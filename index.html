@@ -381,7 +381,13 @@
         </div>
         <div class="field">
           <label for="su-pwd">Password</label>
-          <input id="su-pwd" type="password" placeholder="Min 8 chars, 1 uppercase, 1 number" autocomplete="new-password">
+          <input id="su-pwd" type="password" placeholder="••••••••" autocomplete="new-password">
+          <ul class="pwd-reqs" id="pwdReqs">
+            <li id="req-len"  class="req">At least 8 characters</li>
+            <li id="req-upper" class="req">One uppercase letter</li>
+            <li id="req-num"  class="req">One number</li>
+            <li id="req-spec" class="req">One special character (!@#$%^&*)</li>
+          </ul>
         </div>
         <div class="field">
           <label for="su-pwd2">Confirm password</label>

@@ -159,6 +159,19 @@ function openSignup() {
   var err = document.getElementById('su-error');
   if (err) err.textContent = '';
   setTimeout(function () { var f = document.getElementById('su-email'); if (f) f.focus(); }, 60);
+
+  var pwdInput = document.getElementById('su-pwd');
+  if (pwdInput && !pwdInput._reqsBound) {
+    pwdInput._reqsBound = true;
+    pwdInput.addEventListener('input', function () {
+      var v = pwdInput.value;
+      function set(id, ok) { var el = document.getElementById(id); if (el) el.classList.toggle('ok', ok); }
+      set('req-len',   v.length >= 8);
+      set('req-upper', /[A-Z]/.test(v));
+      set('req-num',   /[0-9]/.test(v));
+      set('req-spec',  /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(v));
+    });
+  }
 }
 
 function closeSignup() {
@@ -174,9 +187,12 @@ function doSignup(e) {
   var errEl =  document.getElementById('su-error');
   var btn   =  e.target.querySelector('button[type=submit]');
 
-  if (!email || !pwd)  { errEl.textContent = 'Please fill in all fields.'; return; }
-  if (pwd !== pwd2)    { errEl.textContent = 'Passwords do not match.'; return; }
-  if (pwd.length < 8)  { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+  if (!email || !pwd)            { errEl.textContent = 'Please fill in all fields.'; return; }
+  if (pwd !== pwd2)              { errEl.textContent = 'Passwords do not match.'; return; }
+  if (pwd.length < 8)            { errEl.textContent = 'Password must be at least 8 characters.'; return; }
+  if (!/[A-Z]/.test(pwd))        { errEl.textContent = 'Password must contain an uppercase letter.'; return; }
+  if (!/[0-9]/.test(pwd))        { errEl.textContent = 'Password must contain a number.'; return; }
+  if (!/[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(pwd)) { errEl.textContent = 'Password must contain a special character.'; return; }
 
   btn.disabled = true; btn.textContent = 'Creating account…';
   errEl.textContent = '';
