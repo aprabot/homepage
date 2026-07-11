@@ -346,16 +346,16 @@
     <p class="sub">Sign in to your demand planning workspace.</p>
     <form onsubmit="doLogin(event)">
       <div class="field">
-        <label for="uid">User ID</label>
-        <input id="uid" type="text" placeholder="e.g. dana.w" autocomplete="username">
+        <label for="uid">Email</label>
+        <input id="uid" type="email" placeholder="you@company.com" autocomplete="email">
       </div>
       <div class="field">
         <label for="pwd">Password</label>
         <input id="pwd" type="password" placeholder="••••••••" autocomplete="current-password">
       </div>
+      <p id="auth-error" class="auth-error"></p>
       <button type="submit" class="btn btn-pri">Sign in →</button>
     </form>
-    <p class="login-note"><span class="demo">Demo mode</span> · any user ID and password will sign you in.</p>
   </div>
 </div>
 
@@ -495,5 +495,6 @@
 <script src="js/main.js"></script>
 <script src="js/theme.js"></script>
 <script src="js/apy.js"></script>
+<script src="js/auth.js"></script>
 </body>
 </html>

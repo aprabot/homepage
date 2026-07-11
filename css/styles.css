@@ -543,8 +543,7 @@
     padding:13px 14px;color:var(--text);font-family:var(--body);font-size:15px;transition:border-color .2s,box-shadow .2s}
   .field input:focus{outline:none;border-color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
   .login-card .btn-pri{width:100%;justify-content:center;margin-top:8px;padding:13px}
-  .login-note{margin-top:18px;text-align:center;font-family:var(--mono);font-size:11.5px;color:var(--muted-2);line-height:1.6}
-  .login-note .demo{color:var(--signal)}
+  .auth-error{min-height:18px;font-size:.85rem;color:#ff6b6b;margin:0 0 6px;line-height:1.4}
 
   /* ===== DASHBOARD ===== */
   #dashboard{display:none;position:fixed;inset:0;z-index:150;background:var(--ink);overflow:hidden}
