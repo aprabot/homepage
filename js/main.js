@@ -335,7 +335,7 @@
     d.querySelectorAll('.lk').forEach(l=>l.onclick=()=>cbChart(l.dataset.sku));
     return d;
   }
-  const CHAT_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/chat';
+  const LM_STUDIO_URL = 'http://localhost:1234/v1/chat/completions';
   let cbHistory = [];
 
   function cbMd(text){
@@ -346,6 +346,31 @@
       .replace(/\n/g,'<br>');
   }
 
+  function buildSystemPrompt(){
+    const d=window.DATA;
+    if(!d) return 'You are Lyra, an AI demand analyst. Answer questions about demand forecasting.';
+    const skuLines=Object.keys(d.skus).map(function(id){
+      const o=d.skus[id];
+      const vol=o.a.reduce(function(s,x){return s+(x||0);},0);
+      const num=o.a.reduce(function(s,x,i){return s+Math.abs(x-(o.f[i]||0));},0);
+      const den=o.a.reduce(function(s,x){return s+(x||0);},0);
+      const wape=den?(100*num/den).toFixed(1):'?';
+      return id+': '+vol.toLocaleString()+' units shipped, '+wape+'% WAPE';
+    }).join('\n');
+    const totA=d.all.a.reduce(function(s,x){return s+(x||0);},0);
+    const totF=d.all.f.reduce(function(s,x){return s+(x||0);},0);
+    const bias=totA?((100*(totF-totA)/totA).toFixed(1)):'0';
+    return 'You are Lyra, an AI demand analyst inside APRABot.\n'+
+      'Answer questions about this 2024 weekly forecast backtest. Be concise and precise.\n'+
+      'Use **bold** for key numbers. Keep replies to 2-4 sentences unless detail is asked for.\n\n'+
+      '=== FORECAST DATA ===\n'+
+      'Period: '+d.weeks[0]+' to '+d.weeks[d.weeks.length-1]+' ('+d.weeks.length+' weeks, 1-week-ahead)\n'+
+      'Overall WAPE: '+d.overallWape+'%\n'+
+      'Total actual: '+totA.toLocaleString()+' units | Forecast: '+totF.toLocaleString()+' | Bias: '+(bias>0?'+':'')+bias+'%\n'+
+      'SKUs: '+Object.keys(d.skus).length+'\n\n'+
+      'SKU DETAIL:\n'+skuLines;
+  }
+
   function cbAsk(q){
     if(!q.trim())return;
     cbPush(q.replace(/</g,'&lt;'),'user');
@@ -354,21 +379,25 @@
     const typ=document.createElement('div'); typ.className='cb-typing'; typ.innerHTML='<i></i><i></i><i></i>';
     cbBody().appendChild(typ); cbBody().scrollTop=cbBody().scrollHeight;
 
-    fetch(CHAT_API,{
+    const messages=[{role:'system',content:buildSystemPrompt()}]
+      .concat(cbHistory.slice(-8));
+
+    fetch(LM_STUDIO_URL,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({message:q, history:cbHistory.slice(0,-1)})
+      body:JSON.stringify({model:'local-model',messages:messages,max_tokens:512,temperature:0.3,stream:false})
     })
     .then(function(r){return r.json();})
     .then(function(d){
       typ.remove();
-      const reply=d.reply||'Sorry, something went wrong — please try again.';
+      const reply=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)
+        ||'Sorry, something went wrong — please try again.';
       cbPush(cbMd(reply),'bot');
       cbHistory.push({role:'assistant',content:reply});
     })
     .catch(function(){
       typ.remove();
-      cbPush('Connection error — please try again.','bot');
+      cbPush('Cannot reach LM Studio — make sure it\'s running on port 1234 with CORS enabled.','bot');
     });
   }
   function cbOpen(){
