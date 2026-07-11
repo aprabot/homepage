@@ -87,6 +87,9 @@ var APRA_AUTH = (function () {
     var _p = parseJwt(_stored);
     if (_p.exp && _p.exp * 1000 > Date.now()) {
       applyUser(_p.email || '');
+      var _dash = document.getElementById('dashboard');
+      if (_dash) { _dash.classList.add('open'); document.body.style.overflow = 'hidden'; }
+      if (typeof initDashboard === 'function') initDashboard();
     } else {
       clearSession();
     }
