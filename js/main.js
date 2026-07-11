@@ -383,16 +383,29 @@
     const messages=[{role:'system',content:buildSystemPrompt()}]
       .concat(cbHistory.slice(-8));
 
-    var lParams={
-      temperature:  parseFloat(localStorage.getItem('lyra_temp')   ||'0.3'),
-      top_p:        parseFloat(localStorage.getItem('lyra_top_p')  ||'0.9'),
-      repeat_penalty:parseFloat(localStorage.getItem('lyra_rep')   ||'1.1'),
-      max_tokens:   parseInt(localStorage.getItem('lyra_max_tok')  ||'512')
-    };
+    var styleMap ={quick:{max_tokens:200,temperature:0.2},balanced:{max_tokens:512,temperature:0.35},detailed:{max_tokens:1024,temperature:0.45}};
+    var toneMap  ={precise:{temperature:0.15},conversational:{temperature:0.35},creative:{temperature:0.7}};
+    var focusHint={general:'',accuracy:'Focus primarily on WAPE metrics, accuracy percentages, and forecast quality.',
+                   trends:'Focus on patterns, seasonality, and trends over the 52-week period.',
+                   anomalies:'Highlight outliers, unusual spikes, and weeks or SKUs with abnormally high error.'};
+    var langHint ={simple:'Use plain, jargon-free language. Avoid acronyms — explain them if you must use them.',
+                   technical:'You may use supply chain and ML terminology freely.'};
+    var style=localStorage.getItem('lyra_style')||'balanced';
+    var tone =localStorage.getItem('lyra_tone') ||'conversational';
+    var focus=localStorage.getItem('lyra_focus')||'general';
+    var lang =localStorage.getItem('lyra_lang') ||'technical';
+    var sp=styleMap[style]||styleMap.balanced;
+    var tp=toneMap[tone]  ||toneMap.conversational;
+    var extraHint=([focusHint[focus],langHint[lang]].filter(Boolean).join(' ')).trim();
+    if(extraHint){
+      messages=[{role:'system',content:buildSystemPrompt()+'\n\nADDITIONAL INSTRUCTIONS: '+extraHint}]
+               .concat(cbHistory.slice(-8));
+    }
+    var lParams={temperature:tp.temperature,max_tokens:sp.max_tokens,stream:false};
     fetch(getLmUrl(),{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(Object.assign({model:'local-model',messages:messages,stream:false},lParams))
+      body:JSON.stringify(Object.assign({model:'local-model',messages:messages},lParams))
     })
     .then(function(r){return r.json();})
     .then(function(d){
