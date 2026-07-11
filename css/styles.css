@@ -544,8 +544,7 @@
   .field input:focus{outline:none;border-color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
   .login-card .btn-pri{width:100%;justify-content:center;margin-top:8px;padding:13px}
   .auth-error{min-height:18px;font-size:.85rem;color:#ff6b6b;margin:0 0 6px;line-height:1.4}
-  .pwd-reqs{list-style:none;margin:10px 0 0;padding:10px 12px;display:flex;flex-wrap:wrap;gap:6px 18px;
-    background:var(--ink-2);border:1px dashed var(--line-2);border-radius:8px}
+  .pwd-reqs{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:4px 16px}
   .req{font-size:.72rem;font-weight:500;color:var(--muted);transition:color .2s}
   .req::before{content:"· ";opacity:.5}
   .req.ok{color:#54E6C4}
