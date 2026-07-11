@@ -185,21 +185,61 @@
         </div>
       </div>
 
-      <!-- AI Analyst -->
+      <!-- Lyra parameters -->
       <div class="scard">
-        <h4>AI Analyst — Lyra</h4>
-        <div class="srow">
-          <div>
-            <div class="srow-label">LM Studio server URL</div>
-            <div class="srow-desc">OpenAI-compatible local inference endpoint</div>
+        <h4>Lyra — AI Analyst</h4>
+
+        <!-- Temperature -->
+        <div class="srow" style="flex-wrap:wrap;gap:12px">
+          <div style="flex:1;min-width:160px">
+            <div class="srow-label">Temperature <span id="tempVal" style="color:var(--signal);font-variant-numeric:tabular-nums">0.3</span></div>
+            <div class="srow-desc">Lower = more factual &amp; precise · Higher = more creative</div>
+          </div>
+          <input type="range" id="lyraTemp" min="0" max="1" step="0.05" value="0.3"
+            style="width:180px;accent-color:var(--signal);cursor:pointer"
+            oninput="document.getElementById('tempVal').textContent=parseFloat(this.value).toFixed(2)">
+        </div>
+
+        <!-- Max tokens -->
+        <div class="srow" style="flex-wrap:wrap;gap:12px">
+          <div style="flex:1;min-width:160px">
+            <div class="srow-label">Response length</div>
+            <div class="srow-desc">Maximum tokens Lyra will generate per reply</div>
+          </div>
+          <div class="theme-pill">
+            <button id="tokShort" onclick="setMaxTokens(256,this)">Short</button>
+            <button id="tokMed"   onclick="setMaxTokens(512,this)" class="active">Medium</button>
+            <button id="tokLong"  onclick="setMaxTokens(1024,this)">Long</button>
           </div>
         </div>
-        <div style="display:flex;gap:10px;margin-top:4px;align-items:center">
-          <input id="lmUrlInput" class="sinput" placeholder="http://localhost:1234/v1/chat/completions">
-          <button class="dbtn" onclick="testLmUrl()">Test</button>
-          <button class="dbtn" style="background:var(--signal);color:#0A0E15;border-color:var(--signal)" onclick="saveLmUrl()">Save</button>
+
+        <!-- Top-p -->
+        <div class="srow" style="flex-wrap:wrap;gap:12px">
+          <div style="flex:1;min-width:160px">
+            <div class="srow-label">Top-p <span id="topPVal" style="color:var(--signal);font-variant-numeric:tabular-nums">0.9</span></div>
+            <div class="srow-desc">Nucleus sampling — trim unlikely tokens from consideration</div>
+          </div>
+          <input type="range" id="lyraTopP" min="0.1" max="1" step="0.05" value="0.9"
+            style="width:180px;accent-color:var(--signal);cursor:pointer"
+            oninput="document.getElementById('topPVal').textContent=parseFloat(this.value).toFixed(2)">
         </div>
-        <p class="stest-msg" id="lmTestMsg"></p>
+
+        <!-- Repeat penalty -->
+        <div class="srow" style="flex-wrap:wrap;gap:12px">
+          <div style="flex:1;min-width:160px">
+            <div class="srow-label">Repetition penalty <span id="repVal" style="color:var(--signal);font-variant-numeric:tabular-nums">1.1</span></div>
+            <div class="srow-desc">Penalise repeating the same words (&gt;1 = stronger penalty)</div>
+          </div>
+          <input type="range" id="lyraRep" min="1" max="1.5" step="0.05" value="1.1"
+            style="width:180px;accent-color:var(--signal);cursor:pointer"
+            oninput="document.getElementById('repVal').textContent=parseFloat(this.value).toFixed(2)">
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
+          <button class="dbtn" onclick="resetLyraParams()">Reset defaults</button>
+          <button class="dbtn" style="background:var(--signal);color:#0A0E15;border-color:var(--signal)" onclick="saveLyraParams()">Save</button>
+        </div>
+        <p class="stest-msg" id="lyraParamMsg"></p>
       </div>
 
       <!-- Account -->
@@ -280,8 +320,18 @@
     var isDark = document.documentElement.dataset.theme !== 'light';
     document.getElementById('sDarkBtn').classList.toggle('active', isDark);
     document.getElementById('sLightBtn').classList.toggle('active', !isDark);
-    document.getElementById('lmUrlInput').value =
-      localStorage.getItem('lm_studio_url') || 'http://localhost:1234/v1/chat/completions';
+    /* Lyra params */
+    var temp   = parseFloat(localStorage.getItem('lyra_temp')   || '0.3');
+    var topp   = parseFloat(localStorage.getItem('lyra_top_p')  || '0.9');
+    var rep    = parseFloat(localStorage.getItem('lyra_rep')    || '1.1');
+    var tokens = parseInt(localStorage.getItem('lyra_max_tok')  || '512');
+    document.getElementById('lyraTemp').value  = temp;  document.getElementById('tempVal').textContent  = temp.toFixed(2);
+    document.getElementById('lyraTopP').value  = topp;  document.getElementById('topPVal').textContent  = topp.toFixed(2);
+    document.getElementById('lyraRep').value   = rep;   document.getElementById('repVal').textContent   = rep.toFixed(2);
+    ['tokShort','tokMed','tokLong'].forEach(function(id){document.getElementById(id).classList.remove('active');});
+    var tokId = tokens<=256?'tokShort':tokens>=1024?'tokLong':'tokMed';
+    document.getElementById(tokId).classList.add('active');
+    /* email */
     var emailEl = document.getElementById('settingsEmail');
     var nameEl  = document.getElementById('userName');
     if(emailEl && nameEl) emailEl.textContent = nameEl.textContent || '—';
@@ -300,31 +350,30 @@
     if(icon)  icon.innerHTML    = t==='dark'?SUN:MOON;
   }
 
-  function saveLmUrl(){
-    var url = document.getElementById('lmUrlInput').value.trim();
-    if(!url){return;}
-    localStorage.setItem('lm_studio_url', url);
-    var msg = document.getElementById('lmTestMsg');
-    msg.className='stest-msg ok'; msg.textContent='Saved.';
-    setTimeout(function(){msg.textContent='';},2000);
+  var _lyraMaxTok = 512;
+  function setMaxTokens(n, btn){
+    _lyraMaxTok = n;
+    ['tokShort','tokMed','tokLong'].forEach(function(id){document.getElementById(id).classList.remove('active');});
+    btn.classList.add('active');
   }
 
-  function testLmUrl(){
-    var url = document.getElementById('lmUrlInput').value.trim() ||
-              'http://localhost:1234/v1/chat/completions';
-    var msg = document.getElementById('lmTestMsg');
-    msg.className='stest-msg'; msg.textContent='Testing…';
-    fetch(url,{method:'POST',headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'local-model',messages:[{role:'user',content:[{text:'ping'}]}],max_tokens:5,stream:false})
-    })
-    .then(function(r){
-      msg.className='stest-msg ok';
-      msg.textContent='Connected — LM Studio is reachable (HTTP '+r.status+').';
-    })
-    .catch(function(){
-      msg.className='stest-msg err';
-      msg.textContent='Cannot reach server. Make sure LM Studio is running with CORS enabled.';
-    });
+  function saveLyraParams(){
+    localStorage.setItem('lyra_temp',    document.getElementById('lyraTemp').value);
+    localStorage.setItem('lyra_top_p',   document.getElementById('lyraTopP').value);
+    localStorage.setItem('lyra_rep',     document.getElementById('lyraRep').value);
+    localStorage.setItem('lyra_max_tok', String(_lyraMaxTok));
+    var msg=document.getElementById('lyraParamMsg');
+    msg.className='stest-msg ok'; msg.textContent='Saved — Lyra will use these settings on the next message.';
+    setTimeout(function(){msg.textContent='';},3000);
+  }
+
+  function resetLyraParams(){
+    localStorage.removeItem('lyra_temp'); localStorage.removeItem('lyra_top_p');
+    localStorage.removeItem('lyra_rep');  localStorage.removeItem('lyra_max_tok');
+    _lyraMaxTok=512; syncSettingsPanel();
+    var msg=document.getElementById('lyraParamMsg');
+    msg.className='stest-msg ok'; msg.textContent='Reset to defaults.';
+    setTimeout(function(){msg.textContent='';},2000);
   }
 
   /* theme toggle wired to the dropdown item */

@@ -383,10 +383,16 @@
     const messages=[{role:'system',content:buildSystemPrompt()}]
       .concat(cbHistory.slice(-8));
 
+    var lParams={
+      temperature:  parseFloat(localStorage.getItem('lyra_temp')   ||'0.3'),
+      top_p:        parseFloat(localStorage.getItem('lyra_top_p')  ||'0.9'),
+      repeat_penalty:parseFloat(localStorage.getItem('lyra_rep')   ||'1.1'),
+      max_tokens:   parseInt(localStorage.getItem('lyra_max_tok')  ||'512')
+    };
     fetch(getLmUrl(),{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify({model:'local-model',messages:messages,max_tokens:512,temperature:0.3,stream:false})
+      body:JSON.stringify(Object.assign({model:'local-model',messages:messages,stream:false},lParams))
     })
     .then(function(r){return r.json();})
     .then(function(d){
