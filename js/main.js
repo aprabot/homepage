@@ -380,9 +380,6 @@
     const typ=document.createElement('div'); typ.className='cb-typing'; typ.innerHTML='<i></i><i></i><i></i>';
     cbBody().appendChild(typ); cbBody().scrollTop=cbBody().scrollHeight;
 
-    const messages=[{role:'system',content:buildSystemPrompt()}]
-      .concat(cbHistory.slice(-8));
-
     var styleMap ={quick:{max_tokens:200,temperature:0.2},balanced:{max_tokens:512,temperature:0.35},detailed:{max_tokens:1024,temperature:0.45}};
     var toneMap  ={precise:{temperature:0.15},conversational:{temperature:0.35},creative:{temperature:0.7}};
     var focusHint={general:'',accuracy:'Focus primarily on WAPE metrics, accuracy percentages, and forecast quality.',
@@ -397,10 +394,8 @@
     var sp=styleMap[style]||styleMap.balanced;
     var tp=toneMap[tone]  ||toneMap.conversational;
     var extraHint=([focusHint[focus],langHint[lang]].filter(Boolean).join(' ')).trim();
-    if(extraHint){
-      messages=[{role:'system',content:buildSystemPrompt()+'\n\nADDITIONAL INSTRUCTIONS: '+extraHint}]
-               .concat(cbHistory.slice(-8));
-    }
+    var sysContent=buildSystemPrompt()+(extraHint?'\n\nADDITIONAL INSTRUCTIONS: '+extraHint:'');
+    var messages=[{role:'system',content:sysContent}].concat(cbHistory.slice(-8));
     var lParams={temperature:tp.temperature,max_tokens:sp.max_tokens,stream:false};
     fetch(getLmUrl(),{
       method:'POST',
