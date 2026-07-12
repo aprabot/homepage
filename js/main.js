@@ -335,8 +335,7 @@
     d.querySelectorAll('.lk').forEach(l=>l.onclick=()=>cbChart(l.dataset.sku));
     return d;
   }
-  const LM_STUDIO_DEFAULT = 'http://localhost:1234/v1/chat/completions';
-  function getLmUrl(){ return localStorage.getItem('lm_studio_url') || LM_STUDIO_DEFAULT; }
+  const CHAT_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/chat';
   let cbHistory = [];
 
   function cbMd(text){
@@ -345,31 +344,6 @@
       .replace(/\*\*(.+?)\*\*/g,'<strong>$1</strong>')
       .replace(/\n\n+/g,'<br><br>')
       .replace(/\n/g,'<br>');
-  }
-
-  function buildSystemPrompt(){
-    const d=window.DATA;
-    if(!d) return 'You are Lyra, an AI demand analyst. Answer questions about demand forecasting.';
-    const skuLines=Object.keys(d.skus).map(function(id){
-      const o=d.skus[id];
-      const vol=o.a.reduce(function(s,x){return s+(x||0);},0);
-      const num=o.a.reduce(function(s,x,i){return s+Math.abs(x-(o.f[i]||0));},0);
-      const den=o.a.reduce(function(s,x){return s+(x||0);},0);
-      const wape=den?(100*num/den).toFixed(1):'?';
-      return id+': '+vol.toLocaleString()+' units shipped, '+wape+'% WAPE';
-    }).join('\n');
-    const totA=d.all.a.reduce(function(s,x){return s+(x||0);},0);
-    const totF=d.all.f.reduce(function(s,x){return s+(x||0);},0);
-    const bias=totA?((100*(totF-totA)/totA).toFixed(1)):'0';
-    return 'You are Lyra, an AI demand analyst inside APRABot.\n'+
-      'Answer questions about this 2024 weekly forecast backtest. Be concise and precise.\n'+
-      'Use **bold** for key numbers. Keep replies to 2-4 sentences unless detail is asked for.\n\n'+
-      '=== FORECAST DATA ===\n'+
-      'Period: '+d.weeks[0]+' to '+d.weeks[d.weeks.length-1]+' ('+d.weeks.length+' weeks, 1-week-ahead)\n'+
-      'Overall WAPE: '+d.overallWape+'%\n'+
-      'Total actual: '+totA.toLocaleString()+' units | Forecast: '+totF.toLocaleString()+' | Bias: '+(bias>0?'+':'')+bias+'%\n'+
-      'SKUs: '+Object.keys(d.skus).length+'\n\n'+
-      'SKU DETAIL:\n'+skuLines;
   }
 
   function cbAsk(q){
@@ -394,25 +368,28 @@
     var sp=styleMap[style]||styleMap.balanced;
     var tp=toneMap[tone]  ||toneMap.conversational;
     var extraHint=([focusHint[focus],langHint[lang]].filter(Boolean).join(' ')).trim();
-    var sysContent=buildSystemPrompt()+(extraHint?'\n\nADDITIONAL INSTRUCTIONS: '+extraHint:'');
-    var messages=[{role:'system',content:sysContent}].concat(cbHistory.slice(-8));
-    var lParams={temperature:tp.temperature,max_tokens:sp.max_tokens,stream:false};
-    fetch(getLmUrl(),{
+
+    fetch(CHAT_API,{
       method:'POST',
       headers:{'Content-Type':'application/json'},
-      body:JSON.stringify(Object.assign({model:'local-model',messages:messages},lParams))
+      body:JSON.stringify({
+        message: q,
+        history: cbHistory.slice(0,-1).slice(-8),
+        extra_instructions: extraHint,
+        temperature: tp.temperature,
+        max_tokens: sp.max_tokens
+      })
     })
     .then(function(r){return r.json();})
     .then(function(d){
       typ.remove();
-      const reply=(d.choices&&d.choices[0]&&d.choices[0].message&&d.choices[0].message.content)
-        ||'Sorry, something went wrong — please try again.';
+      const reply=d.reply||'Sorry, something went wrong — please try again.';
       cbPush(cbMd(reply),'bot');
       cbHistory.push({role:'assistant',content:reply});
     })
     .catch(function(){
       typ.remove();
-      cbPush('Cannot reach LM Studio — make sure it\'s running on port 1234 with CORS enabled.','bot');
+      cbPush('Connection error — please try again.','bot');
     });
   }
   function cbOpen(){
