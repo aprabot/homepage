@@ -419,6 +419,7 @@
     navItems.forEach(function(li){
       li.addEventListener('click', function(){
         var name = li.textContent.trim();
+        try { localStorage.setItem('apra_dashboard_panel', name); } catch(e) {}
 
         navItems.forEach(function(x){ x.classList.remove('active'); });
         li.classList.add('active');
@@ -437,6 +438,20 @@
 
         if(isSettings) syncSettingsPanel();
       });
+    });
+
+    /* restore the panel the user was on before a refresh. Deferred to
+       DOMContentLoaded (and registered after scenarios.js's own listener,
+       since it's loaded earlier in the page) so a restored click into
+       Scenarios still triggers that panel's lazy data load. */
+    document.addEventListener('DOMContentLoaded', function(){
+      var saved;
+      try { saved = localStorage.getItem('apra_dashboard_panel'); } catch(e) {}
+      if(!saved || saved === 'Overview') return;
+      var target = Array.prototype.filter.call(navItems, function(li){
+        return li.textContent.trim() === saved;
+      })[0];
+      if(target) target.click();
     });
   })();
 
