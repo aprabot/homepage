@@ -168,12 +168,43 @@
       </div>
     </div>
 
-    <!-- Coming soon panel (Scenarios / Inventory) -->
+    <!-- Coming soon panel (Inventory) -->
     <div class="dbody" id="comingSoonPanel" style="display:none">
       <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px;text-align:center">
         <svg viewBox="0 0 24 24" fill="none" stroke="var(--signal)" stroke-width="1.5" width="48" height="48"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round" stroke-linejoin="round"/></svg>
         <h2 id="comingSoonTitle" style="font-size:1.6rem;font-weight:700;color:var(--text);margin:0"></h2>
         <p style="color:var(--muted);font-size:.95rem;max-width:340px;margin:0">This section is under development and will be available soon.</p>
+      </div>
+    </div>
+
+    <!-- Scenarios panel -->
+    <div class="dbody" id="scenariosPanel" style="display:none">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <h1 class="dgreet">Scenarios</h1>
+          <p class="dsubtle" style="margin-bottom:0">Run forecast variants against the real pipeline, compare results, and approve which one powers Overview &amp; Forecasts.</p>
+        </div>
+        <button class="dbtn" onclick="openRunForecastModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="15" height="15"><polygon points="6,4 20,12 6,20"/></svg>
+          Run new forecast
+        </button>
+      </div>
+
+      <div class="dcard" style="margin-top:24px">
+        <div class="ch">
+          <h4>Revision history</h4>
+          <button class="dbtn" id="compareBtn" style="display:none;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" onclick="openCompareModal()">Compare selected (2)</button>
+        </div>
+        <div class="table-wrap">
+          <table class="dtable">
+            <thead><tr>
+              <th style="width:30px"></th><th>Scenario</th><th>Requested by</th><th>Config</th>
+              <th>WAPE</th><th>Volume error</th><th>Status</th><th>Created</th><th></th>
+            </tr></thead>
+            <tbody id="scenariosBody"></tbody>
+          </table>
+        </div>
+        <p class="dsubtle" id="scenariosEmpty" style="margin:32px 0 12px;text-align:center;display:none">No scenarios yet — run your first forecast above.</p>
       </div>
     </div>
 
@@ -277,6 +308,53 @@
     </div>
   </div>
 
+  <!-- Run new forecast modal -->
+  <div class="modal" id="runForecastModal" onclick="if(event.target===this)closeRunForecastModal()">
+    <div class="login-card" style="max-width:440px;text-align:left">
+      <button class="x" onclick="closeRunForecastModal()" aria-label="Close">×</button>
+      <h3>Run new forecast</h3>
+      <p class="sub">Configure the run — these map to the real <code>forecast.py</code> pipeline flags.</p>
+      <form onsubmit="submitRunForecast(event)">
+        <div class="field">
+          <label for="rf-label">Scenario name</label>
+          <input id="rf-label" type="text" placeholder="e.g. No calibration test" maxlength="80">
+        </div>
+        <div class="srow">
+          <div><div class="srow-label">Known prices</div><div class="srow-desc">Feed actual test-period prices as a known promo calendar</div></div>
+          <div class="theme-pill" id="rf-known-prices"><button type="button" data-v="1" class="active">On</button><button type="button" data-v="0">Off</button></div>
+        </div>
+        <div class="srow">
+          <div><div class="srow-label">Weather signal</div><div class="srow-desc">Add temperature/precipitation as exogenous features</div></div>
+          <div class="theme-pill" id="rf-weather"><button type="button" data-v="1" class="active">On</button><button type="button" data-v="0">Off</button></div>
+        </div>
+        <div class="srow">
+          <div><div class="srow-label">Rolling calibration</div><div class="srow-desc">Leakage-free bias correction each refresh block</div></div>
+          <div class="theme-pill" id="rf-calibrate"><button type="button" data-v="1" class="active">On</button><button type="button" data-v="0">Off</button></div>
+        </div>
+        <div class="srow">
+          <div><div class="srow-label">Refresh cadence</div><div class="srow-desc">How often lags re-seed with real actuals</div></div>
+          <div class="theme-pill" id="rf-refresh">
+            <button type="button" data-v="7">7d</button>
+            <button type="button" data-v="14">14d</button>
+            <button type="button" data-v="28" class="active">28d</button>
+          </div>
+        </div>
+        <p id="rf-error" class="auth-error"></p>
+        <button type="submit" class="btn btn-pri" style="width:100%;justify-content:center;margin-top:10px">Start run →</button>
+      </form>
+      <p class="stest-msg" style="margin-top:12px;color:var(--muted)">Trains the real LightGBM pipeline on live data — takes ~3 minutes.</p>
+    </div>
+  </div>
+
+  <!-- Compare scenarios modal -->
+  <div class="modal" id="compareModal" onclick="if(event.target===this)closeCompareModal()">
+    <div class="login-card" style="max-width:640px;text-align:left">
+      <button class="x" onclick="closeCompareModal()" aria-label="Close">×</button>
+      <h3>Compare scenarios</h3>
+      <div id="compareBody" style="margin-top:8px"></div>
+    </div>
+  </div>
+
   <!-- AI Analyst chatbot -->
   <button class="cb-launch" id="cbLaunch" aria-label="Open AI analyst">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" stroke-linejoin="round"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" stroke-linejoin="round"/></svg>
@@ -310,6 +388,7 @@
 <script src="../js/data.js"></script>
 <script src="../js/main.js"></script>
 <script src="../js/theme.js"></script>
+<script src="../js/scenarios.js"></script>
 <script>
   /* dashboard page auth: apply user from token + wire logout */
   (function(){
@@ -328,6 +407,7 @@
     var panels = {
       'Overview':  document.querySelector('.dbody'),
       'Forecasts': document.getElementById('forecastsPanel'),
+      'Scenarios': document.getElementById('scenariosPanel'),
       'Settings':  document.getElementById('settingsPanel')
     };
     var comingSoon      = document.getElementById('comingSoonPanel');
@@ -343,7 +423,7 @@
         navItems.forEach(function(x){ x.classList.remove('active'); });
         li.classList.add('active');
 
-        var isComingSoon = (name === 'Scenarios' || name === 'Inventory');
+        var isComingSoon = (name === 'Inventory');
         var isSettings   = name === 'Settings';
 
         Object.keys(panels).forEach(function(k){
