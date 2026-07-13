@@ -257,7 +257,59 @@
       }).join('') +
       '</div>';
 
+    html += '<div class="dcard" style="margin-top:20px;padding:16px">' +
+      '<div class="ch"><h4>Weekly actual vs. each scenario\'s forecast</h4></div>' +
+      '<div class="dchart" style="height:220px"><canvas id="cmpCanvas"></canvas></div>' +
+      '<div class="chart-legend">' +
+      '<span><i style="background:#54E6C4"></i>Actual</span>' +
+      '<span><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>' + escapeHtml(metas[0].label) + '</span>' +
+      '<span><i style="background:#7AA2FF;border-radius:0;height:0;border-top:2px dashed #7AA2FF"></i>' + escapeHtml(metas[1].label) + '</span>' +
+      '</div></div>';
+
     body.innerHTML = html;
+    drawCompareChart(results[0].weeks, results[0].all.a, results[0].all.f, results[1].all.f);
+  }
+
+  function drawCompareChart(weeks, actual, forecastA, forecastB) {
+    var cv = document.getElementById('cmpCanvas');
+    if (!cv) return;
+    var box = cv.parentElement;
+    var cw = box.clientWidth || 680, ch = box.clientHeight || 220, dpr = window.devicePixelRatio || 1;
+    cv.width = cw * dpr; cv.height = ch * dpr;
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cw, ch);
+
+    var padL = 54, padR = 12, padT = 12, padB = 22;
+    var N = weeks.length;
+    var uMax = Math.max.apply(null, actual.concat(forecastA, forecastB)) * 1.12 || 1;
+    var X = function (i) { return padL + i * (cw - padL - padR) / (N - 1 || 1); };
+    var Y = function (v) { return padT + (ch - padT - padB) * (1 - v / uMax); };
+
+    ctx.font = '10px JetBrains Mono';
+    for (var g = 0; g <= 3; g++) {
+      var y = padT + (ch - padT - padB) * g / 3;
+      ctx.strokeStyle = 'rgba(255,255,255,.06)';
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(cw - padR, y); ctx.stroke();
+      ctx.fillStyle = '#5C6878'; ctx.textAlign = 'right';
+      ctx.fillText(Math.round(uMax * (1 - g / 3)).toLocaleString(), padL - 8, y + 3);
+    }
+    ctx.fillStyle = '#5C6878'; ctx.textAlign = 'center';
+    var step = Math.max(1, Math.round(N / 6));
+    for (var i = 0; i < N; i += step) { ctx.fillText(weeks[i].slice(5), X(i), ch - 6); }
+
+    function line(arr, color, dash, width) {
+      ctx.strokeStyle = color; ctx.lineWidth = width || 2; ctx.setLineDash(dash || []);
+      ctx.beginPath();
+      arr.forEach(function (v, i) {
+        var x = X(i), y = Y(v);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    line(actual, '#54E6C4', null, 2.4);
+    line(forecastA, '#C8F24E', [7, 5]);
+    line(forecastB, '#7AA2FF', [2, 3]);
   }
 
   /* ── Scenario detail ── */
