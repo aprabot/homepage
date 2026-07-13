@@ -26,13 +26,14 @@
     return Math.round(hrs / 24) + 'd ago';
   }
 
-  function configBadges(s) {
-    var bits = [];
-    bits.push(s.known_prices ? 'KP' : 'no-KP');
-    bits.push(s.weather ? 'WX' : 'no-WX');
-    bits.push(s.calibrate ? 'CAL' : 'no-CAL');
-    bits.push(s.refresh_days + 'd');
-    return bits.join(' · ');
+  function configDescription(s) {
+    var parts = [
+      s.known_prices ? 'known prices' : 'no known prices',
+      s.weather ? 'weather signal' : 'no weather signal',
+      s.calibrate ? 'calibrated' : 'not calibrated',
+      s.refresh_days + '-day refresh',
+    ];
+    return parts.join(', ');
   }
 
   function statusPill(s) {
@@ -65,7 +66,7 @@
         '<td>' + (canCompare ? '<input type="checkbox" ' + checked + ' onclick="event.stopPropagation()" onchange="toggleCompareSelect(\'' + s.id + '\',this.checked)">' : '') + '</td>' +
         '<td style="font-weight:600">' + escapeHtml(s.label || 'Untitled') + '</td>' +
         '<td class="dsubtle" style="margin:0">' + escapeHtml((s.requested_by || '').split('@')[0]) + '</td>' +
-        '<td class="dsubtle" style="margin:0;font-family:var(--mono);font-size:11px">' + configBadges(s) + '</td>' +
+        '<td class="dsubtle" style="margin:0">' + configDescription(s) + '</td>' +
         '<td>' + (s.wape != null ? s.wape.toFixed(2) + '%' : '—') + '</td>' +
         '<td>' + (s.volume_error != null ? (s.volume_error > 0 ? '+' : '') + s.volume_error.toFixed(2) + '%' : '—') + '</td>' +
         '<td>' + statusPill(s) + '</td>' +
@@ -226,7 +227,7 @@
   function renderCompare(metas, results) {
     var body = document.getElementById('compareBody');
     var rows = [
-      ['Config', metas.map(configBadges)],
+      ['Config', metas.map(configDescription)],
       ['Overall WAPE', results.map(function (r) { return r.overallWape.toFixed(2) + '%'; })],
       ['Weeks', results.map(function (r) { return r.weeks.length; })],
       ['SKUs', results.map(function (r) { return Object.keys(r.skus).length; })],
@@ -363,7 +364,7 @@
       'Requested by ' + escapeHtml((meta.requested_by || '').split('@')[0]) +
       ' · Created ' + fmtRelative(meta.created_at) +
       (meta.completed_at ? ' · Completed ' + fmtRelative(meta.completed_at) : '') +
-      ' · Config: <span style="font-family:var(--mono)">' + configBadges(meta) + '</span>' +
+      ' · Config: ' + configDescription(meta) +
       '</div>';
 
     if (meta.status === 'running') {
