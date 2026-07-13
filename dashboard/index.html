@@ -168,15 +168,6 @@
       </div>
     </div>
 
-    <!-- Coming soon panel (AI Insights) -->
-    <div class="dbody" id="comingSoonPanel" style="display:none">
-      <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:16px;text-align:center">
-        <svg viewBox="0 0 24 24" fill="none" stroke="var(--signal)" stroke-width="1.5" width="48" height="48"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-        <h2 id="comingSoonTitle" style="font-size:1.6rem;font-weight:700;color:var(--text);margin:0"></h2>
-        <p style="color:var(--muted);font-size:.95rem;max-width:340px;margin:0">This section is under development and will be available soon.</p>
-      </div>
-    </div>
-
     <!-- Scenarios panel -->
     <div class="dbody" id="scenariosPanel" style="display:none">
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
@@ -205,6 +196,42 @@
           </table>
         </div>
         <p class="dsubtle" id="scenariosEmpty" style="margin:32px 0 12px;text-align:center;display:none">No scenarios yet — run your first forecast above.</p>
+      </div>
+    </div>
+
+    <!-- AI Insights panel -->
+    <div class="dbody" id="insightsPanel" style="display:none">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <h1 class="dgreet">AI Insights</h1>
+          <p class="dsubtle" id="insightsSubtitle" style="margin-bottom:0">Lyra's read on the current forecast — generated from the live, approved data.</p>
+        </div>
+      </div>
+
+      <div id="insightsLoading" class="dcard" style="margin-top:24px;text-align:center;color:var(--muted);padding:40px 22px">Loading insights…</div>
+      <p id="insightsError" class="dsubtle" style="margin:32px 0 12px;text-align:center;display:none"></p>
+
+      <div id="insightsContent" style="display:none">
+        <div class="dcard" style="margin-top:24px">
+          <div class="ch"><h4 id="insightsHeadline" style="font-size:1.3rem"></h4></div>
+          <p class="dsubtle" id="insightsSummary" style="margin-bottom:0"></p>
+        </div>
+
+        <div class="dcard" style="margin-top:20px">
+          <div class="ch"><h4>Key findings</h4></div>
+          <ul class="movers" id="insightsFindings"></ul>
+        </div>
+
+        <div class="dgrid" style="margin-top:20px">
+          <div class="dcard">
+            <div class="ch"><h4>Risks</h4></div>
+            <ul class="movers" id="insightsRisks"></ul>
+          </div>
+          <div class="dcard">
+            <div class="ch"><h4>Opportunities</h4></div>
+            <ul class="movers" id="insightsOpportunities"></ul>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -397,6 +424,7 @@
 <script src="../js/main.js"></script>
 <script src="../js/theme.js"></script>
 <script src="../js/scenarios.js"></script>
+<script src="../js/insights.js"></script>
 <script>
   /* dashboard page auth: apply user from token + wire logout */
   (function(){
@@ -413,13 +441,12 @@
   /* nav panel switching */
   (function(){
     var panels = {
-      'Overview':  document.querySelector('.dbody'),
-      'Forecasts': document.getElementById('forecastsPanel'),
-      'Scenarios': document.getElementById('scenariosPanel'),
-      'Settings':  document.getElementById('settingsPanel')
+      'Overview':    document.querySelector('.dbody'),
+      'Forecasts':   document.getElementById('forecastsPanel'),
+      'Scenarios':   document.getElementById('scenariosPanel'),
+      'AI Insights': document.getElementById('insightsPanel'),
+      'Settings':    document.getElementById('settingsPanel')
     };
-    var comingSoon      = document.getElementById('comingSoonPanel');
-    var comingSoonTitle = document.getElementById('comingSoonTitle');
     var search = document.querySelector('.dtop .search');
     var report = document.querySelector('.dtop .report-menu');
     var navItems = document.querySelectorAll('.dnav li');
@@ -432,19 +459,17 @@
         navItems.forEach(function(x){ x.classList.remove('active'); });
         li.classList.add('active');
 
-        var isComingSoon = (name === 'AI Insights');
-        var isSettings   = name === 'Settings';
+        var isSettings = name === 'Settings';
 
         Object.keys(panels).forEach(function(k){
           if(panels[k]) panels[k].style.display = (k === name) ? '' : 'none';
         });
-        comingSoon.style.display = isComingSoon ? '' : 'none';
-        if(isComingSoon) comingSoonTitle.textContent = name + ' — Coming Soon';
 
         search.style.display = isSettings ? 'none' : '';
         report.style.display = isSettings ? 'none' : '';
 
         if(isSettings) syncSettingsPanel();
+        if(name === 'AI Insights' && window.loadInsights) window.loadInsights();
       });
     });
 
