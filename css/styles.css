@@ -676,12 +676,17 @@
   .dtable tbody tr{cursor:pointer}
 
   /* ===== AI ANALYST CHATBOT ===== */
-  .cb-launch{position:fixed;bottom:26px;right:26px;z-index:170;width:58px;height:58px;border-radius:50%;
+  .cb-launch{position:fixed;bottom:26px;right:26px;z-index:170;height:58px;border-radius:100px;
     border:none;cursor:pointer;background:linear-gradient(135deg,var(--signal),var(--mint));color:#0A0E15;
-    display:flex;align-items:center;justify-content:center;box-shadow:0 16px 40px -10px rgba(200,242,78,.5);
-    transition:transform .25s,box-shadow .25s;overflow:hidden}
-  .cb-launch svg{width:50px;height:50px;border-radius:50%}
-  .cb-launch:hover{transform:translateY(-3px) scale(1.05);box-shadow:0 22px 50px -10px rgba(200,242,78,.65)}
+    display:flex;align-items:center;gap:10px;padding:5px 20px 5px 5px;
+    box-shadow:0 16px 40px -10px rgba(200,242,78,.5);
+    transition:transform .25s,box-shadow .25s;font-family:var(--display);letter-spacing:-.01em}
+  .cb-launch-icon{width:48px;height:48px;flex-shrink:0;border-radius:50%;overflow:hidden;display:block}
+  .cb-launch-icon svg{width:48px;height:48px;display:block}
+  .cb-launch-label{line-height:1.2;text-align:left;font-weight:700;font-size:14px;white-space:nowrap}
+  .cb-launch-sub{display:block;font-family:var(--mono);font-size:10px;font-weight:500;
+    color:rgba(10,14,21,.62);letter-spacing:.02em;margin-top:1px}
+  .cb-launch:hover{transform:translateY(-3px) scale(1.03);box-shadow:0 22px 50px -10px rgba(200,242,78,.65)}
   .cb-launch.hide{transform:scale(0);opacity:0;pointer-events:none}
   .cb-panel{position:fixed;bottom:26px;right:26px;z-index:171;width:380px;max-width:calc(100vw - 32px);
     height:560px;max-height:calc(100vh - 52px);background:linear-gradient(180deg,var(--ink-2),var(--ink));
@@ -725,7 +730,8 @@
   .cb-input button svg{width:19px;height:19px}
   .cb-input button:hover{transform:scale(1.06)}
   @media(max-width:560px){.cb-panel{height:calc(100vh - 40px);bottom:20px;right:16px;left:16px;max-width:none;width:auto}
-    .cb-launch{bottom:20px;right:20px}}
+    .cb-launch{bottom:20px;right:20px;padding:5px;width:58px}
+    .cb-launch-label{display:none}}
 
   @media(max-width:880px){
     #dashboard.open{grid-template-columns:1fr}
