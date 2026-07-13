@@ -702,6 +702,7 @@
   .cb-orb{width:32px;height:32px;border-radius:50%;background:var(--ink);overflow:hidden;
     flex:0 0 auto;position:relative;box-shadow:0 0 0 0 rgba(200,242,78,.5);animation:orb 2.4s infinite}
   .cb-orb svg{width:32px;height:32px;display:block}
+  .cb-orb.cb-thinking{animation:orb 2.4s infinite,cb-think-bounce 1s ease-in-out infinite}
   @keyframes orb{0%{box-shadow:0 0 0 0 rgba(200,242,78,.4)}70%{box-shadow:0 0 0 9px rgba(200,242,78,0)}100%{box-shadow:0 0 0 0 rgba(200,242,78,0)}}
   .cb-x{background:none;border:none;color:var(--muted);font-size:24px;line-height:1;cursor:pointer;transition:color .2s}
   .cb-x:hover{color:var(--text)}
@@ -717,6 +718,13 @@
   .cb-typing i{width:6px;height:6px;border-radius:50%;background:var(--muted);animation:bounce 1.2s infinite}
   .cb-typing i:nth-child(2){animation-delay:.15s}.cb-typing i:nth-child(3){animation-delay:.3s}
   @keyframes bounce{0%,60%,100%{transform:translateY(0);opacity:.4}30%{transform:translateY(-5px);opacity:1}}
+  .cb-typing-row{display:flex;align-items:flex-end;gap:8px;align-self:flex-start;animation:cbin .3s ease}
+  .cb-avatar-sm{width:28px;height:28px;border-radius:50%;background:var(--ink);flex-shrink:0;position:relative;overflow:hidden}
+  .cb-avatar-sm svg{width:28px;height:28px;display:block}
+  .cb-avatar-sm.cb-thinking{animation:cb-think-bounce 1s ease-in-out infinite;overflow:visible}
+  @keyframes cb-think-bounce{0%,100%{transform:translateY(0) rotate(0deg)}25%{transform:translateY(-3px) rotate(-6deg)}75%{transform:translateY(-3px) rotate(6deg)}}
+  .cb-think-badge{position:absolute;top:-4px;right:-4px;font-size:11px;line-height:1;opacity:0;animation:cb-think-fade 1.6s ease-in-out infinite}
+  @keyframes cb-think-fade{0%,100%{opacity:0;transform:translateY(2px) scale(.7)}50%{opacity:1;transform:translateY(-3px) scale(1)}}
   .cb-chips{display:flex;gap:7px;padding:10px 14px 0;flex-wrap:wrap;overflow-x:auto}
   .cb-chips button{flex:0 0 auto;background:var(--panel);border:1px solid var(--line);color:var(--muted);
     font-family:var(--body);font-size:12px;padding:7px 12px;border-radius:100px;cursor:pointer;transition:.2s;white-space:nowrap}

@@ -338,6 +338,28 @@
     document.getElementById('forecastChart').scrollIntoView({behavior:'smooth',block:'center'});
   }
 
+  const LYRA_AVATAR_SVG = '<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">'
+    + '<ellipse cx="16" cy="14.5" rx="9" ry="7.6" fill="#2B2118"/>'
+    + '<circle cx="16" cy="6.3" r="3.6" fill="#2B2118"/>'
+    + '<ellipse cx="16" cy="19" rx="7.8" ry="9" fill="#E8B685"/>'
+    + '<rect x="6" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>'
+    + '<rect x="19" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>'
+    + '<line x1="13" y1="18.6" x2="19" y2="18.6" stroke="#54E6C4" stroke-width="1.3" stroke-linecap="round"/>'
+    + '<line x1="6" y1="18" x2="4" y2="17" stroke="#54E6C4" stroke-width="1.1" stroke-linecap="round"/>'
+    + '<line x1="26" y1="18" x2="28" y2="17" stroke="#54E6C4" stroke-width="1.1" stroke-linecap="round"/>'
+    + '<ellipse cx="9.4" cy="18.8" rx="1.4" ry="1.6" fill="#1a1a2e"/>'
+    + '<ellipse cx="22.6" cy="18.8" rx="1.4" ry="1.6" fill="#1a1a2e"/>'
+    + '<circle cx="10.1" cy="18.1" r="0.5" fill="white"/>'
+    + '<circle cx="23.3" cy="18.1" r="0.5" fill="white"/>'
+    + '<circle cx="10.5" cy="22" r="0.35" fill="#c47a5a" opacity=".5"/>'
+    + '<circle cx="12" cy="22.6" r="0.35" fill="#c47a5a" opacity=".5"/>'
+    + '<circle cx="20" cy="22.6" r="0.35" fill="#c47a5a" opacity=".5"/>'
+    + '<circle cx="21.5" cy="22" r="0.35" fill="#c47a5a" opacity=".5"/>'
+    + '<path d="M13 24.5 Q16 27 19 24.5" stroke="#a5623f" stroke-width="1.2" stroke-linecap="round" fill="none"/>'
+    + '<rect x="23.7" y="9.5" width="1.5" height="7.5" rx="0.6" fill="#C8F24E" transform="rotate(20 23.7 9.5)"/>'
+    + '<path d="M9 31 Q13 28 16 27.5 Q19 28 23 31" fill="#7AA2FF" opacity="0.65"/>'
+    + '</svg>';
+
   const cbBody=()=>document.getElementById('cbBody');
   function cbPush(text,who){
     const d=document.createElement('div'); d.className='cb-msg '+who; d.innerHTML=text;
@@ -361,8 +383,11 @@
     cbPush(q.replace(/</g,'&lt;'),'user');
     cbHistory.push({role:'user',content:q});
 
-    const typ=document.createElement('div'); typ.className='cb-typing'; typ.innerHTML='<i></i><i></i><i></i>';
+    const typ=document.createElement('div'); typ.className='cb-typing-row';
+    typ.innerHTML='<span class="cb-avatar-sm cb-thinking">'+LYRA_AVATAR_SVG+'<span class="cb-think-badge">\u{1F4AD}</span></span>'
+      +'<div class="cb-typing"><i></i><i></i><i></i></div>';
     cbBody().appendChild(typ); cbBody().scrollTop=cbBody().scrollHeight;
+    const cbOrbEl=document.querySelector('.cb-orb'); if(cbOrbEl) cbOrbEl.classList.add('cb-thinking');
 
     var styleMap ={quick:{max_tokens:200,temperature:0.2},balanced:{max_tokens:512,temperature:0.35},detailed:{max_tokens:1024,temperature:0.45}};
     var toneMap  ={precise:{temperature:0.15},conversational:{temperature:0.35},creative:{temperature:0.7}};
@@ -392,13 +417,13 @@
     })
     .then(function(r){return r.json();})
     .then(function(d){
-      typ.remove();
+      typ.remove(); if(cbOrbEl) cbOrbEl.classList.remove('cb-thinking');
       const reply=d.reply||'Sorry, something went wrong — please try again.';
       cbPush(cbMd(reply),'bot');
       cbHistory.push({role:'assistant',content:reply});
     })
     .catch(function(){
-      typ.remove();
+      typ.remove(); if(cbOrbEl) cbOrbEl.classList.remove('cb-thinking');
       cbPush('Connection error — please try again.','bot');
     });
   }

@@ -191,9 +191,24 @@
       width:28px; height:28px; border-radius:50%;
       background:#0e0820; border:1px solid #2a1a50;
       display:flex; align-items:center; justify-content:center; flex-shrink:0;
-      overflow:hidden;
+      overflow:hidden; position:relative;
     }
     .apy-avatar-sm svg { width:28px; height:28px; }
+    .apy-avatar-sm.apy-thinking { animation:apy-think-bounce 1s ease-in-out infinite; overflow:visible; }
+    @keyframes apy-think-bounce {
+      0%,100% { transform:translateY(0) rotate(0deg); }
+      25%     { transform:translateY(-3px) rotate(-6deg); }
+      75%     { transform:translateY(-3px) rotate(6deg); }
+    }
+    .apy-think-badge {
+      position:absolute; top:-5px; right:-5px; font-size:11px; line-height:1;
+      opacity:0; animation:apy-think-fade 1.6s ease-in-out infinite;
+    }
+    @keyframes apy-think-fade {
+      0%,100% { opacity:0; transform:translateY(2px) scale(.7); }
+      50%     { opacity:1; transform:translateY(-3px) scale(1); }
+    }
+    .apy-head-icon.apy-thinking svg { animation:apy-think-bounce 1s ease-in-out infinite; }
 
     .apy-bubble {
       padding:10px 13px; border-radius:16px; font-size:13px; line-height:1.55;
@@ -460,15 +475,19 @@
     t.className = 'apy-msg bot';
     t.id = 'apy-typing';
     t.innerHTML = `
-      <div class="apy-avatar-sm">${logoSvg(16)}</div>
+      <div class="apy-avatar-sm apy-thinking">${logoSvg(16)}<span class="apy-think-badge">💭</span></div>
       <div class="apy-bubble apy-typing"><span></span><span></span><span></span></div>`;
     msgs.appendChild(t);
     scrollBottom();
+    const headIcon = document.querySelector('.apy-head-icon');
+    if (headIcon) headIcon.classList.add('apy-thinking');
   }
 
   function removeTyping() {
     const t = document.getElementById('apy-typing');
     if (t) t.remove();
+    const headIcon = document.querySelector('.apy-head-icon');
+    if (headIcon) headIcon.classList.remove('apy-thinking');
   }
 
   function hideChips() {
