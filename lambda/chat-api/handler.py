@@ -1,14 +1,17 @@
 import json
+import re
 import boto3
 import os
 
 BEDROCK_REGION = os.environ.get('BEDROCK_REGION', 'us-west-2')
 bedrock = boto3.client('bedrock-runtime', region_name=BEDROCK_REGION)
-s3     = boto3.client('s3')
+s3      = boto3.client('s3')
+lam     = boto3.client('lambda')
 
-BUCKET = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
-KEY    = os.environ.get('FORECAST_KEY', 'forecast/latest.json')
-MODEL  = os.environ.get('MODEL_ID',    'amazon.nova-lite-v1:0')
+BUCKET         = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
+KEY            = os.environ.get('FORECAST_KEY', 'forecast/latest.json')
+MODEL          = os.environ.get('MODEL_ID',    'amazon.nova-lite-v1:0')
+SCENARIOS_API_FUNCTION = os.environ.get('SCENARIOS_API_FUNCTION', 'aprabot-scenarios-api')
 
 CORS = {
     'Access-Control-Allow-Origin':  '*',
@@ -83,9 +86,125 @@ Rules:
 • If a SKU is not in the data, say so.
 • Never fabricate numbers. Only quote figures that appear in the data below.
 • The forward forecast has no actuals yet — never quote a WAPE or accuracy % for those weeks.
+• You can actually start a new forecast pipeline run using the run_scenario tool, and check on a
+  run's progress with check_scenario_status. Use run_scenario when the user asks you to run, start,
+  or kick off a new forecast/scenario. A run takes ~3-5 minutes — tell the user that, and mention
+  they can ask you for a status update or check the Scenarios tab. Only the settings the user
+  specifies should differ from the defaults (known_prices=true, weather=true, calibrate=true,
+  refresh_days=28) — don't ask clarifying questions for settings they didn't mention, just use
+  the defaults and say so in your reply.
 
 {data}
 """
+
+TOOL_CONFIG = {
+    "tools": [
+        {
+            "toolSpec": {
+                "name": "run_scenario",
+                "description": (
+                    "Start a real forecast pipeline run (the actual LightGBM model, not a "
+                    "simulation). Takes about 3-5 minutes. Use when the user asks to run, "
+                    "start, kick off, or try a new forecast/scenario."
+                ),
+                "inputSchema": {"json": {
+                    "type": "object",
+                    "properties": {
+                        "label":        {"type": "string",  "description": "Short name for this run, e.g. 'No calibration test'."},
+                        "known_prices": {"type": "boolean", "description": "Feed actual test-period prices as a known promo calendar. Default true."},
+                        "weather":      {"type": "boolean", "description": "Add temperature/precipitation as exogenous features. Default true."},
+                        "calibrate":    {"type": "boolean", "description": "Leakage-free rolling bias correction each refresh block. Default true."},
+                        "refresh_days": {"type": "integer", "description": "How often lags re-seed with real actuals: 7, 14, or 28. Default 28."},
+                    },
+                }},
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "check_scenario_status",
+                "description": (
+                    "Check the status/result of a scenario run. If scenario_id is omitted, "
+                    "checks the most recently requested scenario for this user."
+                ),
+                "inputSchema": {"json": {
+                    "type": "object",
+                    "properties": {
+                        "scenario_id": {"type": "string", "description": "e.g. scn-1234567890-abcdef. Omit to check the most recent one."},
+                    },
+                }},
+            }
+        },
+    ]
+}
+
+
+def _claims(event):
+    try:
+        return event['requestContext']['authorizer']['jwt']['claims']
+    except (KeyError, TypeError):
+        return {}
+
+
+def _invoke_scenarios_api(method, path, claims, body=None):
+    fake_event = {
+        'requestContext': {'http': {'method': method, 'path': path},
+                            'authorizer': {'jwt': {'claims': claims}}},
+        'body': json.dumps(body) if body is not None else None,
+    }
+    resp = lam.invoke(FunctionName=SCENARIOS_API_FUNCTION, InvocationType='RequestResponse',
+                       Payload=json.dumps(fake_event).encode('utf-8'))
+    payload = json.loads(resp['Payload'].read())
+    status = payload.get('statusCode', 500)
+    try:
+        result_body = json.loads(payload.get('body') or '{}')
+    except json.JSONDecodeError:
+        result_body = {'error': 'bad response from scenarios-api'}
+    return status, result_body
+
+
+def execute_tool(name, inputs, claims):
+    if name == 'run_scenario':
+        body = {
+            'label':        inputs.get('label') or 'Started by Lyra',
+            'known_prices': inputs.get('known_prices', True),
+            'weather':      inputs.get('weather', True),
+            'calibrate':    inputs.get('calibrate', True),
+            'refresh_days': inputs.get('refresh_days', 28),
+        }
+        status, result = _invoke_scenarios_api('POST', '/scenarios', claims, body)
+        if status != 202:
+            return {'error': result.get('error', 'failed to start the scenario run')}
+        return {'started': True, 'scenario_id': result['scenario_id'], 'config': body}
+
+    if name == 'check_scenario_status':
+        status, result = _invoke_scenarios_api('GET', '/scenarios', claims)
+        if status != 200:
+            return {'error': result.get('error', 'failed to list scenarios')}
+        scenarios = result.get('scenarios', [])
+
+        sid = (inputs.get('scenario_id') or '').strip()
+        if sid:
+            match = next((s for s in scenarios if s['id'] == sid), None)
+            return match or {'error': f'no scenario found with id {sid}'}
+
+        email = claims.get('email')
+        mine = [s for s in scenarios if s.get('requested_by') == email]
+        if not mine:
+            return {'message': 'No scenarios found for this user yet.'}
+        return mine[0]  # list_scenarios already sorts newest-first
+
+    return {'error': f'unknown tool {name}'}
+
+
+def _text_of(message):
+    for block in message.get('content', []):
+        if 'text' in block:
+            # Nova sometimes emits a <thinking>...</thinking> preamble inline
+            # in the text block rather than as separate reasoning content —
+            # strip it, it's not meant for the end user.
+            return re.sub(r'<thinking>.*?</thinking>\s*', '', block['text'], flags=re.DOTALL).strip()
+    return ''
+
 
 def handler(event, context):
     method = (event.get('requestContext') or {}).get('http', {}).get('method', 'POST')
@@ -123,18 +242,35 @@ def handler(event, context):
         temp = max(0.0, min(1.0, float(temperature))) if isinstance(temperature, (int, float)) else 0.3
         toks = max(64, min(1500, int(max_tokens))) if isinstance(max_tokens, (int, float)) else 512
 
-        resp   = bedrock.invoke_model(
-            modelId=MODEL,
-            body=json.dumps({
-                'system':          [{'text': system}],
-                'messages':        messages,
-                'inferenceConfig': {'maxTokens': toks, 'temperature': temp},
-            }),
-            contentType='application/json',
-            accept='application/json',
+        claims = _claims(event)
+        inference_config = {'maxTokens': toks, 'temperature': temp}
+
+        resp = bedrock.converse(
+            modelId=MODEL, system=[{'text': system}], messages=messages,
+            inferenceConfig=inference_config, toolConfig=TOOL_CONFIG,
         )
-        result = json.loads(resp['body'].read())
-        reply  = result['output']['message']['content'][0]['text']
+        output_message = resp['output']['message']
+
+        if resp.get('stopReason') == 'tool_use':
+            messages.append(output_message)
+            tool_result_blocks = []
+            for block in output_message.get('content', []):
+                if 'toolUse' in block:
+                    tu = block['toolUse']
+                    result = execute_tool(tu['name'], tu.get('input') or {}, claims)
+                    tool_result_blocks.append({'toolResult': {
+                        'toolUseId': tu['toolUseId'],
+                        'content': [{'json': result}],
+                    }})
+            messages.append({'role': 'user', 'content': tool_result_blocks})
+
+            resp2 = bedrock.converse(
+                modelId=MODEL, system=[{'text': system}], messages=messages,
+                inferenceConfig=inference_config, toolConfig=TOOL_CONFIG,
+            )
+            reply = _text_of(resp2['output']['message'])
+        else:
+            reply = _text_of(output_message)
 
         return {
             'statusCode': 200,

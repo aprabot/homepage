@@ -404,9 +404,10 @@
     var tp=toneMap[tone]  ||toneMap.conversational;
     var extraHint=([focusHint[focus],langHint[lang]].filter(Boolean).join(' ')).trim();
 
+    var cbToken=localStorage.getItem('apra_id');
     fetch(CHAT_API,{
       method:'POST',
-      headers:{'Content-Type':'application/json'},
+      headers:Object.assign({'Content-Type':'application/json'}, cbToken?{'Authorization':'Bearer '+cbToken}:{}),
       body:JSON.stringify({
         message: q,
         history: cbHistory.slice(0,-1).slice(-8),
