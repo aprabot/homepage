@@ -97,11 +97,19 @@
   }
 
   function loadScenarios() {
-    fetch(SCENARIOS_API, { headers: authHeaders() })
+    return fetch(SCENARIOS_API, { headers: authHeaders() })
       .then(function (r) { return r.json(); })
       .then(function (d) { render(d.scenarios || []); })
       .catch(function () { /* leave table as-is on transient error */ });
   }
+
+  window.refreshScenarios = function (btn) {
+    var icon = btn && btn.querySelector('svg');
+    if (icon) icon.classList.add('spin');
+    loadScenarios().then(function () {
+      if (icon) icon.classList.remove('spin');
+    });
+  };
 
   function ensurePolling() {
     var hasRunning = lastScenarios.some(function (s) { return s.status === 'running'; });
