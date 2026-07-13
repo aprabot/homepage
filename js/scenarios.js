@@ -232,8 +232,12 @@
       ['SKUs', results.map(function (r) { return Object.keys(r.skus).length; })],
     ];
     var totals = results.map(function (r) {
-      var a = r.all.a.reduce(function (s, x) { return s + x; }, 0);
-      var f = r.all.f.reduce(function (s, x) { return s + x; }, 0);
+      // Sum only over the backtest portion — r.all.f may extend past r.all.a
+      // into the forward-forecast weeks, and mixing those in would inflate
+      // "Forecast units" against actuals that don't cover the same weeks.
+      var bw = r.backtestWeeks != null ? r.backtestWeeks : r.weeks.length;
+      var a = r.all.a.slice(0, bw).reduce(function (s, x) { return s + x; }, 0);
+      var f = r.all.f.slice(0, bw).reduce(function (s, x) { return s + x; }, 0);
       return { a: a, f: f, err: a ? (100 * (f - a) / a) : 0 };
     });
     rows.push(['Actual units', totals.map(function (t) { return t.a.toLocaleString(); })]);
@@ -267,10 +271,10 @@
       '</div></div>';
 
     body.innerHTML = html;
-    drawCompareChart(results[0].weeks, results[0].all.a, results[0].all.f, results[1].all.f);
+    drawCompareChart(results[0].weeks, results[0].all.a, results[0].all.f, results[1].all.f, results[0].backtestWeeks);
   }
 
-  function drawCompareChart(weeks, actual, forecastA, forecastB) {
+  function drawCompareChart(weeks, actual, forecastA, forecastB, backtestWeeks) {
     var cv = document.getElementById('cmpCanvas');
     if (!cv) return;
     var box = cv.parentElement;
@@ -282,7 +286,8 @@
 
     var padL = 54, padR = 12, padT = 12, padB = 22;
     var N = weeks.length;
-    var uMax = Math.max.apply(null, actual.concat(forecastA, forecastB)) * 1.12 || 1;
+    var nonNull = function (arr) { return arr.filter(function (v) { return v != null; }); };
+    var uMax = Math.max.apply(null, nonNull(actual).concat(nonNull(forecastA), nonNull(forecastB))) * 1.12 || 1;
     var X = function (i) { return padL + i * (cw - padL - padR) / (N - 1 || 1); };
     var Y = function (v) { return padT + (ch - padT - padB) * (1 - v / uMax); };
 
@@ -300,16 +305,25 @@
 
     function line(arr, color, dash, width) {
       ctx.strokeStyle = color; ctx.lineWidth = width || 2; ctx.setLineDash(dash || []);
-      ctx.beginPath();
+      ctx.beginPath(); var started = false;
       arr.forEach(function (v, i) {
+        if (v == null) return;
         var x = X(i), y = Y(v);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
       });
       ctx.stroke(); ctx.setLineDash([]);
     }
     line(actual, '#54E6C4', null, 2.4);
     line(forecastA, '#C8F24E', [7, 5]);
     line(forecastB, '#7AA2FF', [2, 3]);
+
+    if (backtestWeeks != null && backtestWeeks > 0 && backtestWeeks < N) {
+      var bx = X(backtestWeeks - 0.5);
+      ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(bx, padT); ctx.lineTo(bx, ch - padB); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#5C6878'; ctx.font = '9px JetBrains Mono'; ctx.textAlign = 'left';
+      ctx.fillText('FORECAST →', bx + 4, padT + 10);
+    }
   }
 
   /* ── Scenario detail ── */
@@ -368,9 +382,6 @@
       return;
     }
 
-    var totA = result.all.a.reduce(function (s, x) { return s + x; }, 0);
-    var totF = result.all.f.reduce(function (s, x) { return s + x; }, 0);
-
     html += '<div class="kpis" style="margin-bottom:20px">' +
       '<div class="kpi"><div class="t">Overall WAPE</div><div class="v">' + result.overallWape.toFixed(2) + '%</div></div>' +
       '<div class="kpi"><div class="t">Volume error</div><div class="v">' + (meta.volume_error > 0 ? '+' : '') + (meta.volume_error != null ? meta.volume_error.toFixed(2) : '0') + '%</div></div>' +
@@ -387,8 +398,12 @@
 
     var topSkus = Object.keys(result.skus).map(function (id) {
       var o = result.skus[id];
-      var vol = o.a.reduce(function (s, x) { return s + (x || 0); }, 0);
-      var num = o.a.reduce(function (s, x, i) { return s + Math.abs(x - (o.f[i] || 0)); }, 0);
+      var vol = 0, num = 0;
+      o.a.forEach(function (x, i) {
+        if (x == null) return; // skip forward-forecast weeks — no actual to score against
+        vol += x;
+        num += Math.abs(x - (o.f[i] || 0));
+      });
       var wape = vol ? (100 * num / vol) : 0;
       return { id: id, vol: vol, wape: wape };
     }).sort(function (a, b) { return b.vol - a.vol; }).slice(0, 8);
@@ -402,10 +417,10 @@
       '</tbody></table></div></div>';
 
     body.innerHTML = html;
-    drawScenarioChart(result.weeks, result.all.a, result.all.f);
+    drawScenarioChart(result.weeks, result.all.a, result.all.f, result.backtestWeeks);
   }
 
-  function drawScenarioChart(weeks, a, f) {
+  function drawScenarioChart(weeks, a, f, backtestWeeks) {
     var cv = document.getElementById('sdCanvas');
     if (!cv) return;
     var box = cv.parentElement;
@@ -417,7 +432,8 @@
 
     var padL = 50, padR = 12, padT = 12, padB = 22;
     var N = weeks.length;
-    var uMax = Math.max.apply(null, a.concat(f)) * 1.12 || 1;
+    var nonNull = function (arr) { return arr.filter(function (v) { return v != null; }); };
+    var uMax = Math.max.apply(null, nonNull(a).concat(nonNull(f))) * 1.12 || 1;
     var X = function (i) { return padL + i * (cw - padL - padR) / (N - 1 || 1); };
     var Y = function (v) { return padT + (ch - padT - padB) * (1 - v / uMax); };
 
@@ -435,15 +451,25 @@
 
     function line(arr, color, dash) {
       ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash(dash || []);
-      ctx.beginPath();
+      ctx.beginPath(); var started = false;
       arr.forEach(function (v, i) {
+        if (v == null) return;
         var x = X(i), y = Y(v);
-        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+        if (!started) { ctx.moveTo(x, y); started = true; } else ctx.lineTo(x, y);
       });
       ctx.stroke(); ctx.setLineDash([]);
     }
+
     line(a, '#54E6C4');
     line(f, '#C8F24E', [7, 5]);
+
+    if (backtestWeeks != null && backtestWeeks > 0 && backtestWeeks < N) {
+      var bx = X(backtestWeeks - 0.5);
+      ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.setLineDash([3, 3]);
+      ctx.beginPath(); ctx.moveTo(bx, padT); ctx.lineTo(bx, ch - padB); ctx.stroke(); ctx.setLineDash([]);
+      ctx.fillStyle = '#5C6878'; ctx.font = '9px JetBrains Mono'; ctx.textAlign = 'left';
+      ctx.fillText('FORECAST →', bx + 4, padT + 10);
+    }
   }
 
   /* ── init when the Scenarios nav item is first opened ── */

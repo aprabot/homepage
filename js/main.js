@@ -216,6 +216,16 @@
     line(w,Yw,'#7AA2FF');                 // wape (right axis)
     line(a,Yu,'#54E6C4');                 // actual
     line(f,Yu,'#C8F24E',[7,5]);           // forecast (dashed)
+    // "today" divider — backtest ends, forward-only forecast begins (skip if data has no forward portion, e.g. older cached format)
+    const backtestTotal=DATA.backtestWeeks||DATA.weeks.length;
+    const boundary=backtestTotal-st;
+    if(boundary>0&&boundary<N){
+      const bx=X(boundary-0.5);
+      ctx.strokeStyle='rgba(255,255,255,.18)';ctx.setLineDash([3,3]);
+      ctx.beginPath();ctx.moveTo(bx,padT);ctx.lineTo(bx,ch-padB);ctx.stroke();ctx.setLineDash([]);
+      ctx.fillStyle='#5C6878';ctx.font='9px JetBrains Mono';ctx.textAlign='left';
+      ctx.fillText('FORECAST →',bx+4,padT+10);
+    }
     fcGeom={weeks,a,f,w,X,Yu,Yw,N,padL,padR,cw,ch,padT,padB};
   }
 
