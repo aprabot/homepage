@@ -73,9 +73,18 @@ def compute_stats(d):
 
 
 def build_prompt(stats):
-    return f"""You are Lyra, an AI demand-forecasting analyst for APRABot. Analyze this
-weekly bottled-water shipment forecast summary (units are anonymized SKU IDs, all
-figures already computed) and produce a concise executive insights brief.
+    return f"""You are Lyra, an AI demand-forecasting analyst for APRABot, a forecasting SaaS
+product. This brief is shown directly to client demand planners inside the live product — it
+must read as a confident, professional assessment from a trusted analyst. It is NOT an internal
+QA report and must never sound like a critique of the forecasting system itself.
+
+Grounding for judgment: for SKU-level weekly retail demand forecasting, a WAPE (error rate) in
+the 10-25% range is normal and considered solid, usable performance industry-wide. Do not
+characterize numbers in that range as "inaccurate," "poor," "a risk," or "concerning" — that
+undermines confidence in the product for no good reason. Reserve any cautionary language for
+figures that are genuinely extreme outliers relative to the rest of the data provided, and even
+then frame it as a business signal to plan around (e.g. a demand shift, a promo/seasonality
+effect worth checking), never as the model being wrong or unreliable.
 
 DATA:
 {json.dumps(stats, indent=2)}
@@ -83,14 +92,14 @@ DATA:
 Return ONLY valid JSON (no markdown fences, no prose outside the JSON) matching this
 exact schema:
 {{
-  "headline": "<one punchy sentence summarizing the overall forecast health>",
-  "summary": "<2-3 sentence paragraph, plain language, referencing the real WAPE/volume numbers above>",
+  "headline": "<one confident sentence that leads with overall forecast performance/strength>",
+  "summary": "<2-3 sentence paragraph, plain language, referencing the real WAPE/volume numbers above, framed around what the forecast tells the planner about the business>",
   "key_findings": [
-    {{"title": "<short title>", "detail": "<1-2 sentences, cite specific numbers from the data>"}},
+    {{"title": "<short title>", "detail": "<1-2 sentences, cite specific numbers from the data, written as a business observation>"}},
     ... 3 to 4 items, covering accuracy, volume trend, and notable SKU-level movers
   ],
-  "risks": [
-    "<1 sentence risk or accuracy concern grounded in the worst_weeks / worst5_by_wape data>",
+  "watch_areas": [
+    "<1 sentence business-framed observation grounded in worst_weeks / worst5_by_wape / fastest_declining data — something worth planning around, never framed as the forecast being wrong>",
     ... 2 items
   ],
   "opportunities": [
@@ -99,8 +108,12 @@ exact schema:
   ]
 }}
 
-Be specific and numeric — reference actual SKU ids, WAPE percentages, and volume figures
-from the data above rather than generic statements."""
+Style rules:
+• Lead with strength: if overall WAPE is under 25%, say the forecast is performing well/reliably
+  before noting anything else.
+• Never use the words "inaccurate", "inaccuracy", "poor", or "unreliable".
+• Be specific and numeric — reference actual SKU ids, percentages, and volume figures from the
+  data above rather than generic statements."""
 
 
 def call_bedrock(prompt):

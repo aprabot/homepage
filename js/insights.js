@@ -38,9 +38,9 @@
     findings.innerHTML = '';
     (data.key_findings || []).forEach(function (f) { findings.appendChild(findingLi(f)); });
 
-    var risks = document.getElementById('insightsRisks');
-    risks.innerHTML = '';
-    (data.risks || []).forEach(function (r) { risks.appendChild(li(r)); });
+    var watch = document.getElementById('insightsWatch');
+    watch.innerHTML = '';
+    (data.watch_areas || data.risks || []).forEach(function (r) { watch.appendChild(li(r)); });
 
     var opps = document.getElementById('insightsOpportunities');
     opps.innerHTML = '';
