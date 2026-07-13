@@ -348,28 +348,28 @@
       <path d="M26.5 17 Q27 23 23.5 28.5" stroke="#8B1010" stroke-width="0.9" stroke-linecap="round" fill="none" opacity="0.45"/>
       <!-- Side-swept fringe -->
       <path d="M6.3 11.3 Q9.8 4 16 5 Q12.8 8.2 12 13.3 Q9 11.1 6.3 11.3 Z" fill="#8B1010" opacity="0.85"/>
-      <!-- Face -->
-      <ellipse cx="16" cy="18.5" rx="8" ry="9.4" fill="#FFD4A3"/>
+      <!-- Face (thin) -->
+      <ellipse cx="16" cy="18.5" rx="6.8" ry="9.8" fill="#FFD4A3"/>
       <!-- Sleek brows -->
-      <path d="M7.6 15.4 Q9.6 14.3 11.7 15.1" stroke="#8B1010" stroke-width="0.9" stroke-linecap="round" fill="none"/>
-      <path d="M20.3 15.1 Q22.4 14.3 24.4 15.4" stroke="#8B1010" stroke-width="0.9" stroke-linecap="round" fill="none"/>
+      <path d="M8.9 15.4 Q10.6 14.3 12.3 15.1" stroke="#8B1010" stroke-width="0.9" stroke-linecap="round" fill="none"/>
+      <path d="M19.7 15.1 Q21.4 14.3 23.1 15.4" stroke="#8B1010" stroke-width="0.9" stroke-linecap="round" fill="none"/>
       <!-- Eyes with lash flick -->
-      <ellipse cx="9.6" cy="17.7" rx="1.6" ry="1.8" fill="#1a1a2e"/>
-      <ellipse cx="22.4" cy="17.7" rx="1.6" ry="1.8" fill="#1a1a2e"/>
-      <path d="M7.9 16.7 L7 15.9" stroke="#1a1a2e" stroke-width="0.7" stroke-linecap="round"/>
-      <path d="M24.1 16.7 L25 15.9" stroke="#1a1a2e" stroke-width="0.7" stroke-linecap="round"/>
-      <circle cx="10.3" cy="17" r="0.55" fill="white"/>
-      <circle cx="23.1" cy="17" r="0.55" fill="white"/>
+      <ellipse cx="10.6" cy="17.7" rx="1.5" ry="1.8" fill="#1a1a2e"/>
+      <ellipse cx="21.4" cy="17.7" rx="1.5" ry="1.8" fill="#1a1a2e"/>
+      <path d="M9.1 16.7 L8.3 15.9" stroke="#1a1a2e" stroke-width="0.7" stroke-linecap="round"/>
+      <path d="M22.9 16.7 L23.7 15.9" stroke="#1a1a2e" stroke-width="0.7" stroke-linecap="round"/>
+      <circle cx="11.2" cy="17" r="0.5" fill="white"/>
+      <circle cx="22.0" cy="17" r="0.5" fill="white"/>
       <!-- Hoop earrings -->
-      <circle cx="6.3" cy="20.2" r="1.1" stroke="#C8F24E" stroke-width="0.8" fill="none"/>
-      <circle cx="25.7" cy="20.2" r="1.1" stroke="#C8F24E" stroke-width="0.8" fill="none"/>
+      <circle cx="7.8" cy="20.2" r="1.1" stroke="#C8F24E" stroke-width="0.8" fill="none"/>
+      <circle cx="24.2" cy="20.2" r="1.1" stroke="#C8F24E" stroke-width="0.8" fill="none"/>
       <!-- Tiny nose -->
-      <path d="M15.2 20.7 Q16 21.7 16.8 20.7" stroke="#c47a5a" stroke-width="0.9" stroke-linecap="round" fill="none" opacity="0.6"/>
+      <path d="M15.3 20.7 Q16 21.7 16.7 20.7" stroke="#c47a5a" stroke-width="0.9" stroke-linecap="round" fill="none" opacity="0.6"/>
       <!-- Bold lip smile -->
-      <path d="M12.7 23.3 Q16 25.9 19.3 23.3" stroke="#D6336C" stroke-width="1.7" stroke-linecap="round" fill="none"/>
+      <path d="M13.2 23.3 Q16 25.9 18.8 23.3" stroke="#D6336C" stroke-width="1.7" stroke-linecap="round" fill="none"/>
       <!-- Blush -->
-      <ellipse cx="9" cy="21.6" rx="1.9" ry="1.1" fill="#ffaaa0" opacity="0.4"/>
-      <ellipse cx="23" cy="21.6" rx="1.9" ry="1.1" fill="#ffaaa0" opacity="0.4"/>
+      <ellipse cx="10.1" cy="21.6" rx="1.6" ry="1" fill="#ffaaa0" opacity="0.4"/>
+      <ellipse cx="21.9" cy="21.6" rx="1.6" ry="1" fill="#ffaaa0" opacity="0.4"/>
       <!-- Collar hint (teal shirt) -->
       <path d="M10 31 Q13 28.5 16 28 Q19 28.5 22 31" fill="#54E6C4" opacity="0.65"/>
     </svg>`;
