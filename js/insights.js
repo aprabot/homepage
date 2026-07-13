@@ -66,7 +66,7 @@
     var errorEl = document.getElementById('insightsError');
     var contentEl = document.getElementById('insightsContent');
     loadingEl.style.display = '';
-    loadingEl.textContent = 'Loading insights…';
+    document.getElementById('insightsLoadingText').textContent = 'Loading insights…';
     errorEl.style.display = 'none';
     contentEl.style.display = 'none';
 

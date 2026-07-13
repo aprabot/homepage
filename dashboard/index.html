@@ -217,7 +217,12 @@
         </div>
       </div>
 
-      <div id="insightsLoading" class="dcard" style="margin-top:24px;text-align:center;color:var(--muted);padding:40px 22px">Loading insights…</div>
+      <div id="insightsLoading" class="dcard" style="margin-top:24px;text-align:center;color:var(--muted);padding:40px 22px">
+        <svg class="ins-load-spark" viewBox="0 0 24 24" width="28" height="28" style="display:block;margin:0 auto 12px">
+          <path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" fill="#C8F24E"/>
+        </svg>
+        <span id="insightsLoadingText">Loading insights…</span>
+      </div>
       <p id="insightsError" class="dsubtle" style="margin:32px 0 12px;text-align:center;display:none"></p>
 
       <div id="insightsContent" style="display:none">

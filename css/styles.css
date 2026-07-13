@@ -632,6 +632,19 @@
   .dcard .ch .seg button{background:none;border:none;color:var(--muted);font-family:var(--mono);font-size:11px;
     padding:5px 10px;border-radius:6px;cursor:pointer;transition:.2s}
   .dcard .ch .seg button.on{background:var(--signal-soft);color:var(--signal)}
+
+  /* AI Insights — loading pulse + staggered reveal */
+  .ins-load-spark{animation:insPulse 1.3s ease-in-out infinite}
+  @keyframes insPulse{0%,100%{transform:scale(1) rotate(0deg);opacity:.55}50%{transform:scale(1.18) rotate(18deg);opacity:1}}
+  #insightsContent>.dcard{animation:insightIn .5s ease both}
+  #insightsContent>.dcard:nth-of-type(2){animation-delay:.1s}
+  #insightsContent>.dgrid>.dcard:nth-child(1){animation-delay:.2s}
+  #insightsContent>.dgrid>.dcard:nth-child(2){animation-delay:.28s}
+  @keyframes insightIn{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+  #insightsFindings li,#insightsWatch li,#insightsOpportunities li{animation:insightIn .4s ease both;animation-delay:.3s}
+  #insightsFindings li:nth-child(2),#insightsWatch li:nth-child(2),#insightsOpportunities li:nth-child(2){animation-delay:.37s}
+  #insightsFindings li:nth-child(3){animation-delay:.44s}
+  #insightsFindings li:nth-child(4){animation-delay:.51s}
   .dchart{width:100%;height:260px}
   .dchart svg{width:100%;height:100%;overflow:visible}
   .movers{list-style:none}
