@@ -59,10 +59,10 @@
       var canCompare = s.status === 'completed';
       var checked = selectedForCompare.indexOf(s.id) > -1 ? 'checked' : '';
       var approveBtn = (s.status === 'completed' && !s.approved)
-        ? '<button class="dbtn" style="padding:6px 12px;font-size:12px" onclick="approveScenario(\'' + s.id + '\')">Approve</button>'
+        ? '<button class="dbtn" style="padding:6px 12px;font-size:12px" onclick="event.stopPropagation();approveScenario(\'' + s.id + '\')">Approve</button>'
         : '';
-      return '<tr>' +
-        '<td>' + (canCompare ? '<input type="checkbox" ' + checked + ' onchange="toggleCompareSelect(\'' + s.id + '\',this.checked)">' : '') + '</td>' +
+      return '<tr onclick="viewScenario(\'' + s.id + '\')" style="cursor:pointer">' +
+        '<td>' + (canCompare ? '<input type="checkbox" ' + checked + ' onclick="event.stopPropagation()" onchange="toggleCompareSelect(\'' + s.id + '\',this.checked)">' : '') + '</td>' +
         '<td style="font-weight:600">' + escapeHtml(s.label || 'Untitled') + '</td>' +
         '<td class="dsubtle" style="margin:0">' + escapeHtml((s.requested_by || '').split('@')[0]) + '</td>' +
         '<td class="dsubtle" style="margin:0;font-family:var(--mono);font-size:11px">' + configBadges(s) + '</td>' +
@@ -258,6 +258,140 @@
       '</div>';
 
     body.innerHTML = html;
+  }
+
+  /* ── Scenario detail ── */
+  window.viewScenario = function (id) {
+    var meta = lastScenarios.find(function (s) { return s.id === id; });
+    if (!meta) return;
+    var body = document.getElementById('scenarioDetailBody');
+    body.innerHTML = '<p class="dsubtle">Loading…</p>';
+    document.getElementById('scenarioDetailModal').classList.add('open');
+
+    if (meta.status !== 'completed') {
+      renderScenarioDetail(meta, null);
+      return;
+    }
+    fetch(SCENARIOS_API + '/' + id + '/result', { headers: authHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (result) { renderScenarioDetail(meta, result); })
+      .catch(function () {
+        body.innerHTML = '<p class="auth-error">Could not load this scenario\'s result.</p>';
+      });
+  };
+  window.closeScenarioDetail = function () {
+    document.getElementById('scenarioDetailModal').classList.remove('open');
+  };
+
+  function renderScenarioDetail(meta, result) {
+    var body = document.getElementById('scenarioDetailBody');
+    var approveBtn = (meta.status === 'completed' && !meta.approved)
+      ? '<button class="dbtn" onclick="approveScenario(\'' + meta.id + '\');closeScenarioDetail()">Approve</button>'
+      : '';
+
+    var html = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:4px">' +
+      '<div><h3 style="margin-bottom:4px">' + escapeHtml(meta.label || 'Untitled') + '</h3>' +
+      statusPill(meta) + '</div>' + approveBtn + '</div>';
+
+    html += '<div class="dsubtle" style="margin:12px 0 20px">' +
+      'Requested by ' + escapeHtml((meta.requested_by || '').split('@')[0]) +
+      ' · Created ' + fmtRelative(meta.created_at) +
+      (meta.completed_at ? ' · Completed ' + fmtRelative(meta.completed_at) : '') +
+      ' · Config: <span style="font-family:var(--mono)">' + configBadges(meta) + '</span>' +
+      '</div>';
+
+    if (meta.status === 'running') {
+      html += '<p class="dsubtle">Still training — this view will show results once it completes. Close and reopen in a minute.</p>';
+      body.innerHTML = html;
+      return;
+    }
+    if (meta.status === 'failed') {
+      html += '<p class="auth-error">' + escapeHtml(meta.error || 'Run failed.') + '</p>';
+      body.innerHTML = html;
+      return;
+    }
+    if (!result) {
+      html += '<p class="dsubtle">No result available.</p>';
+      body.innerHTML = html;
+      return;
+    }
+
+    var totA = result.all.a.reduce(function (s, x) { return s + x; }, 0);
+    var totF = result.all.f.reduce(function (s, x) { return s + x; }, 0);
+
+    html += '<div class="kpis" style="margin-bottom:20px">' +
+      '<div class="kpi"><div class="t">Overall WAPE</div><div class="v">' + result.overallWape.toFixed(2) + '%</div></div>' +
+      '<div class="kpi"><div class="t">Volume error</div><div class="v">' + (meta.volume_error > 0 ? '+' : '') + (meta.volume_error != null ? meta.volume_error.toFixed(2) : '0') + '%</div></div>' +
+      '<div class="kpi"><div class="t">SKUs</div><div class="v">' + Object.keys(result.skus).length + '</div></div>' +
+      '<div class="kpi"><div class="t">Weeks</div><div class="v">' + result.weeks.length + '</div></div>' +
+      '</div>';
+
+    html += '<div class="dcard" style="padding:16px">' +
+      '<div class="ch"><h4>Forecast vs actuals — all SKUs</h4></div>' +
+      '<div class="dchart" style="height:200px"><canvas id="sdCanvas"></canvas></div>' +
+      '<div class="chart-legend"><span><i style="background:#54E6C4"></i>Actual</span>' +
+      '<span><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>Forecast</span></div>' +
+      '</div>';
+
+    var topSkus = Object.keys(result.skus).map(function (id) {
+      var o = result.skus[id];
+      var vol = o.a.reduce(function (s, x) { return s + (x || 0); }, 0);
+      var num = o.a.reduce(function (s, x, i) { return s + Math.abs(x - (o.f[i] || 0)); }, 0);
+      var wape = vol ? (100 * num / vol) : 0;
+      return { id: id, vol: vol, wape: wape };
+    }).sort(function (a, b) { return b.vol - a.vol; }).slice(0, 8);
+
+    html += '<div class="dcard" style="margin-top:16px;padding:16px">' +
+      '<div class="ch"><h4>Top SKUs by volume</h4></div>' +
+      '<div class="table-wrap"><table class="dtable"><thead><tr><th>SKU</th><th>Units</th><th>WAPE</th></tr></thead><tbody>' +
+      topSkus.map(function (r) {
+        return '<tr><td class="skucell">' + r.id + '</td><td>' + r.vol.toLocaleString() + '</td><td>' + r.wape.toFixed(1) + '%</td></tr>';
+      }).join('') +
+      '</tbody></table></div></div>';
+
+    body.innerHTML = html;
+    drawScenarioChart(result.weeks, result.all.a, result.all.f);
+  }
+
+  function drawScenarioChart(weeks, a, f) {
+    var cv = document.getElementById('sdCanvas');
+    if (!cv) return;
+    var box = cv.parentElement;
+    var cw = box.clientWidth || 680, ch = box.clientHeight || 200, dpr = window.devicePixelRatio || 1;
+    cv.width = cw * dpr; cv.height = ch * dpr;
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cw, ch);
+
+    var padL = 50, padR = 12, padT = 12, padB = 22;
+    var N = weeks.length;
+    var uMax = Math.max.apply(null, a.concat(f)) * 1.12 || 1;
+    var X = function (i) { return padL + i * (cw - padL - padR) / (N - 1 || 1); };
+    var Y = function (v) { return padT + (ch - padT - padB) * (1 - v / uMax); };
+
+    ctx.font = '10px JetBrains Mono';
+    for (var g = 0; g <= 3; g++) {
+      var y = padT + (ch - padT - padB) * g / 3;
+      ctx.strokeStyle = 'rgba(255,255,255,.06)';
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(cw - padR, y); ctx.stroke();
+      ctx.fillStyle = '#5C6878'; ctx.textAlign = 'right';
+      ctx.fillText(Math.round(uMax * (1 - g / 3)).toLocaleString(), padL - 8, y + 3);
+    }
+    ctx.fillStyle = '#5C6878'; ctx.textAlign = 'center';
+    var step = Math.max(1, Math.round(N / 6));
+    for (var i = 0; i < N; i += step) { ctx.fillText(weeks[i].slice(5), X(i), ch - 6); }
+
+    function line(arr, color, dash) {
+      ctx.strokeStyle = color; ctx.lineWidth = 2; ctx.setLineDash(dash || []);
+      ctx.beginPath();
+      arr.forEach(function (v, i) {
+        var x = X(i), y = Y(v);
+        if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+      });
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+    line(a, '#54E6C4');
+    line(f, '#C8F24E', [7, 5]);
   }
 
   /* ── init when the Scenarios nav item is first opened ── */

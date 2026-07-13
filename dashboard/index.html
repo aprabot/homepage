@@ -355,6 +355,14 @@
     </div>
   </div>
 
+  <!-- Scenario detail modal -->
+  <div class="modal" id="scenarioDetailModal" onclick="if(event.target===this)closeScenarioDetail()">
+    <div class="login-card" style="max-width:780px;text-align:left;max-height:86vh;overflow-y:auto">
+      <button class="x" onclick="closeScenarioDetail()" aria-label="Close">×</button>
+      <div id="scenarioDetailBody"></div>
+    </div>
+  </div>
+
   <!-- AI Analyst chatbot -->
   <button class="cb-launch" id="cbLaunch" aria-label="Open AI analyst">
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" stroke-linejoin="round"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" stroke-linejoin="round"/></svg>
