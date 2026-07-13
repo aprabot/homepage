@@ -87,7 +87,14 @@
             <button data-act="csv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" width="15" height="15"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3" stroke-linecap="round" stroke-linejoin="round"/></svg>Export data (CSV)</button>
           </div>
         </div>
-        <span class="bell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+        <div class="notif-menu">
+          <span class="bell" id="notifBell"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="20" height="20"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
+          <div class="notif-drop" id="notifDrop">
+            <div class="notif-head">Notifications</div>
+            <div id="notifList"></div>
+            <p class="dsubtle" id="notifEmpty" style="margin:18px 0;text-align:center;font-size:12.5px;display:none">No notifications yet.</p>
+          </div>
+        </div>
         <div class="uchip" id="uChip">
           <div class="av" id="userAvatar">U</div>
           <div><div class="nm" id="userName">User</div><div class="rl">Demand Planner</div></div>

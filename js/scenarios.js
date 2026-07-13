@@ -123,10 +123,64 @@
     }
   }
 
+  /* ── Notifications (bell) — derived from the same scenario list ── */
+  function notifKind(s) {
+    if (s.status === 'running') return 'running';
+    if (s.status === 'failed') return 'failed';
+    if (s.approved) return 'approved';
+    return 'completed';
+  }
+
+  function notifText(s) {
+    var label = escapeHtml(s.label || 'Untitled');
+    switch (notifKind(s)) {
+      case 'running':  return 'Scenario "' + label + '" is generating…';
+      case 'failed':   return 'Scenario "' + label + '" failed to generate';
+      case 'approved': return 'Scenario "' + label + '" was approved and is now live';
+      default:         return 'Scenario "' + label + '" has been generated';
+    }
+  }
+
+  function notifTime(s) {
+    return s.completed_at || s.created_at;
+  }
+
+  function renderNotifications(scenarios) {
+    var list = document.getElementById('notifList');
+    var empty = document.getElementById('notifEmpty');
+    var bell = document.getElementById('notifBell');
+    if (!list) return;
+
+    var items = scenarios.slice().sort(function (a, b) {
+      return new Date(notifTime(b) || 0) - new Date(notifTime(a) || 0);
+    }).slice(0, 8);
+
+    if (!items.length) {
+      list.innerHTML = '';
+      if (empty) empty.style.display = '';
+      if (bell) bell.classList.remove('has-unread');
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+
+    list.innerHTML = items.map(function (s) {
+      return '<div class="notif-item" onclick="viewScenario(\'' + s.id + '\')">' +
+        '<span class="notif-dot ' + notifKind(s) + '"></span>' +
+        '<div><span class="notif-text">' + notifText(s) + '</span>' +
+        '<span class="notif-time">' + fmtRelative(notifTime(s)) + '</span></div>' +
+        '</div>';
+    }).join('');
+
+    var latest = notifTime(items[0]);
+    var seen = localStorage.getItem('apra_notif_seen');
+    if (bell) bell.classList.toggle('has-unread', !!latest && (!seen || new Date(latest) > new Date(seen)));
+  }
+
   var _origRender = render;
   render = function (scenarios) {
     _origRender(scenarios);
     ensurePolling();
+    renderNotifications(scenarios);
   };
 
   /* ── Run new forecast modal ── */
@@ -481,16 +535,23 @@
     }
   }
 
-  /* ── init when the Scenarios nav item is first opened ── */
-  var _loaded = false;
+  /* ── init: load once on page load so the notification bell has data
+     immediately, regardless of which tab the user starts on ── */
   document.addEventListener('DOMContentLoaded', function () {
-    document.querySelectorAll('.dnav li').forEach(function (li) {
-      li.addEventListener('click', function () {
-        if (li.textContent.trim() === 'Scenarios' && !_loaded) {
-          _loaded = true;
-          loadScenarios();
+    loadScenarios();
+
+    var bell = document.getElementById('notifBell');
+    var drop = document.getElementById('notifDrop');
+    if (bell && drop) {
+      bell.addEventListener('click', function (e) {
+        e.stopPropagation();
+        drop.classList.toggle('open');
+        if (drop.classList.contains('open')) {
+          localStorage.setItem('apra_notif_seen', new Date().toISOString());
+          bell.classList.remove('has-unread');
         }
       });
-    });
+      document.addEventListener('click', function () { drop.classList.remove('open'); });
+    }
   });
 })();

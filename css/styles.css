@@ -608,7 +608,22 @@
   .report-drop button:hover{background:var(--signal-soft);color:var(--signal)}
   .report-drop button svg{color:var(--muted);flex:0 0 auto}
   .report-drop button:hover svg{color:var(--signal)}
-  .dtop .bell::after{content:"";position:absolute;top:-1px;right:-1px;width:7px;height:7px;border-radius:50%;background:var(--signal)}
+  .dtop .bell.has-unread::after{content:"";position:absolute;top:-1px;right:-1px;width:7px;height:7px;border-radius:50%;background:var(--signal)}
+  .notif-menu{position:relative}
+  .notif-drop{position:absolute;top:calc(100% + 8px);right:-8px;background:var(--ink-3);border:1px solid var(--line-2);
+    border-radius:11px;padding:8px;min-width:300px;max-width:340px;max-height:360px;overflow-y:auto;box-shadow:0 24px 50px -18px rgba(0,0,0,.8);z-index:30;
+    opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .2s,transform .2s}
+  .notif-drop.open{opacity:1;transform:none;pointer-events:auto}
+  .notif-head{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);padding:8px 10px 10px}
+  .notif-item{display:flex;gap:10px;align-items:flex-start;padding:10px;border-radius:8px;cursor:pointer;transition:background .15s}
+  .notif-item:hover{background:var(--signal-soft)}
+  .notif-dot{width:7px;height:7px;border-radius:50%;flex:0 0 auto;margin-top:6px}
+  .notif-dot.running{background:#ffcf5c}
+  .notif-dot.completed{background:#7AA2FF}
+  .notif-dot.approved{background:var(--signal)}
+  .notif-dot.failed{background:#ff8585}
+  .notif-text{font-size:13px;line-height:1.4;color:var(--text)}
+  .notif-time{font-family:var(--mono);font-size:11px;color:var(--muted);margin-top:2px;display:block}
   .uchip{display:flex;align-items:center;gap:10px;cursor:pointer}
   .uchip .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--signal),var(--mint));
     display:flex;align-items:center;justify-content:center;font-weight:700;color:#0A0E15;font-size:14px}
@@ -929,6 +944,10 @@
   [data-theme="light"] .dtable tr:hover td{background:rgba(0,0,0,.02)}
   [data-theme="light"] .movers li{border-top-color:rgba(0,0,0,.06)}
   [data-theme="light"] .report-drop{
+    background:#fff;border-color:rgba(0,0,0,.1);
+    box-shadow:0 8px 24px rgba(0,0,0,.1),0 2px 6px rgba(0,0,0,.06)
+  }
+  [data-theme="light"] .notif-drop{
     background:#fff;border-color:rgba(0,0,0,.1);
     box-shadow:0 8px 24px rgba(0,0,0,.1),0 2px 6px rgba(0,0,0,.06)
   }
