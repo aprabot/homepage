@@ -337,40 +337,34 @@
   /* ── Logo SVG (matches site logo) ── */
   function logoSvg(size) {
     return `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
+      <!-- Sleek ponytail sweep -->
+      <path d="M23.5 10 Q28 13.5 26.8 20.5 Q25.6 26.5 21 27.5 L19 24.3 Q23 22 23 17 Q23 12.5 19 9.3 Z" fill="#C42020"/>
       <!-- Hair back -->
-      <ellipse cx="16" cy="14" rx="9.5" ry="7.5" fill="#C42020"/>
-      <!-- Buns -->
-      <circle cx="8" cy="8.5" r="4.2" fill="#C42020"/>
-      <circle cx="24" cy="8.5" r="4.2" fill="#C42020"/>
-      <!-- Hair highlight on buns -->
-      <circle cx="6.8" cy="7.2" r="1.2" fill="#8B1010" opacity="0.7"/>
-      <circle cx="22.8" cy="7.2" r="1.2" fill="#8B1010" opacity="0.7"/>
+      <ellipse cx="16" cy="13.2" rx="9.5" ry="7.6" fill="#C42020"/>
+      <!-- Side-swept fringe -->
+      <path d="M6 11.5 Q9.5 4 16 5 Q12.8 8.2 12 13.3 Q8.8 11.2 6 11.5 Z" fill="#8B1010" opacity="0.85"/>
       <!-- Face -->
-      <ellipse cx="16" cy="18.5" rx="8.2" ry="9.5" fill="#FFD4A3"/>
-      <!-- Glasses left lens -->
-      <rect x="5.2" y="14.8" width="7.2" height="5.8" rx="2.3" stroke="#C8F24E" stroke-width="1.35" fill="rgba(200,242,78,0.07)"/>
-      <!-- Glasses right lens -->
-      <rect x="14.6" y="14.8" width="7.2" height="5.8" rx="2.3" stroke="#C8F24E" stroke-width="1.35" fill="rgba(200,242,78,0.07)"/>
-      <!-- Bridge -->
-      <line x1="12.4" y1="17.5" x2="14.6" y2="17.5" stroke="#C8F24E" stroke-width="1.35" stroke-linecap="round"/>
-      <!-- Temple arms -->
-      <line x1="5.2" y1="17" x2="3" y2="16" stroke="#C8F24E" stroke-width="1.2" stroke-linecap="round"/>
-      <line x1="21.8" y1="17" x2="24" y2="16" stroke="#C8F24E" stroke-width="1.2" stroke-linecap="round"/>
-      <!-- Eyes -->
-      <ellipse cx="8.8" cy="17.5" rx="1.7" ry="1.9" fill="#1a1a2e"/>
-      <ellipse cx="18.2" cy="17.5" rx="1.7" ry="1.9" fill="#1a1a2e"/>
-      <!-- Eye shine -->
-      <circle cx="9.6" cy="16.7" r="0.6" fill="white"/>
-      <circle cx="19" cy="16.7" r="0.6" fill="white"/>
+      <ellipse cx="16" cy="18.5" rx="8" ry="9.4" fill="#FFD4A3"/>
+      <!-- Sleek brows -->
+      <path d="M7.6 15.4 Q9.6 14.3 11.7 15.1" stroke="#8B1010" stroke-width="0.9" stroke-linecap="round" fill="none"/>
+      <path d="M20.3 15.1 Q22.4 14.3 24.4 15.4" stroke="#8B1010" stroke-width="0.9" stroke-linecap="round" fill="none"/>
+      <!-- Eyes with lash flick -->
+      <ellipse cx="9.6" cy="17.7" rx="1.6" ry="1.8" fill="#1a1a2e"/>
+      <ellipse cx="22.4" cy="17.7" rx="1.6" ry="1.8" fill="#1a1a2e"/>
+      <path d="M7.9 16.7 L7 15.9" stroke="#1a1a2e" stroke-width="0.7" stroke-linecap="round"/>
+      <path d="M24.1 16.7 L25 15.9" stroke="#1a1a2e" stroke-width="0.7" stroke-linecap="round"/>
+      <circle cx="10.3" cy="17" r="0.55" fill="white"/>
+      <circle cx="23.1" cy="17" r="0.55" fill="white"/>
+      <!-- Hoop earrings -->
+      <circle cx="6.3" cy="20.2" r="1.1" stroke="#C8F24E" stroke-width="0.8" fill="none"/>
+      <circle cx="25.7" cy="20.2" r="1.1" stroke="#C8F24E" stroke-width="0.8" fill="none"/>
       <!-- Tiny nose -->
-      <path d="M15.2 21 Q16 22 16.8 21" stroke="#c47a5a" stroke-width="0.9" stroke-linecap="round" fill="none" opacity="0.6"/>
-      <!-- Smile -->
-      <path d="M12.5 23 Q16 26.2 19.5 23" stroke="#c47a5a" stroke-width="1.3" stroke-linecap="round" fill="none"/>
+      <path d="M15.2 20.7 Q16 21.7 16.8 20.7" stroke="#c47a5a" stroke-width="0.9" stroke-linecap="round" fill="none" opacity="0.6"/>
+      <!-- Bold lip smile -->
+      <path d="M12.7 23.3 Q16 25.9 19.3 23.3" stroke="#D6336C" stroke-width="1.7" stroke-linecap="round" fill="none"/>
       <!-- Blush -->
-      <ellipse cx="9" cy="22" rx="1.9" ry="1.1" fill="#ffaaa0" opacity="0.4"/>
-      <ellipse cx="23" cy="22" rx="1.9" ry="1.1" fill="#ffaaa0" opacity="0.4"/>
-      <!-- Tiny tooth peek -->
-      <path d="M14 23.8 Q16 25.5 18 23.8" fill="white" opacity="0.5"/>
+      <ellipse cx="9" cy="21.6" rx="1.9" ry="1.1" fill="#ffaaa0" opacity="0.4"/>
+      <ellipse cx="23" cy="21.6" rx="1.9" ry="1.1" fill="#ffaaa0" opacity="0.4"/>
       <!-- Collar hint (teal shirt) -->
       <path d="M10 31 Q13 28.5 16 28 Q19 28.5 22 31" fill="#54E6C4" opacity="0.65"/>
     </svg>`;
