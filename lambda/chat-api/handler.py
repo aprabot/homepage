@@ -22,53 +22,67 @@ def build_data_summary():
     obj  = s3.get_object(Bucket=BUCKET, Key=KEY)
     data = json.loads(obj['Body'].read().decode('utf-8'))
 
+    # backtestWeeks marks where real actuals end and the forward-only
+    # forecast begins; older cached results may not have the field.
+    bt = data.get('backtestWeeks', len(data['weeks']))
+
     rows = []
     for sku, d in data['skus'].items():
-        vol = sum(a for a in d['a'] if a)
-        num = sum(abs(a - f) for a, f in zip(d['a'], d['f']) if a)
-        den = sum(a for a in d['a'] if a)
-        wape = round(100 * num / den, 2) if den else 0
-        rows.append({'sku': sku, 'vol': vol, 'wape': wape, 'acc': round(100 - wape, 1)})
+        vol = sum(a for a in d['a'] if a is not None)
+        num = sum(abs(a - f) for a, f in zip(d['a'], d['f']) if a is not None)
+        wape = round(100 * num / vol, 2) if vol else 0
+        fwd = sum(f for f in d['f'][bt:] if f is not None)
+        rows.append({'sku': sku, 'vol': vol, 'wape': wape, 'acc': round(100 - wape, 1), 'fwd': fwd})
     rows.sort(key=lambda x: -x['vol'])
 
-    tot_a = sum(data['all']['a'])
-    tot_f = sum(data['all']['f'])
-    bias  = round(100 * (tot_f - tot_a) / tot_a, 2) if tot_a else 0
+    tot_a          = sum(x for x in data['all']['a'] if x is not None)
+    tot_f_backtest = sum(x for x in data['all']['f'][:bt] if x is not None)
+    tot_f_forward  = sum(x for x in data['all']['f'][bt:] if x is not None)
+    bias = round(100 * (tot_f_backtest - tot_a) / tot_a, 2) if tot_a else 0
 
     lines = [
-        "=== 2024 WEEKLY FORECAST BACKTEST ===",
-        f"Period : {data['weeks'][0]}  →  {data['weeks'][-1]}  ({len(data['weeks'])} weeks, 1-week-ahead)",
-        f"Overall WAPE : {data['overallWape']}%   (lower is better)",
-        f"Actual units : {tot_a:,}  |  Forecast units : {tot_f:,}  |  Bias : {'+' if bias>=0 else ''}{bias}%",
+        "=== WEEKLY FORECAST BACKTEST + FORWARD FORECAST ===",
+        f"Backtest period : {data['weeks'][0]}  →  {data['weeks'][bt-1]}  ({bt} weeks, 1-week-ahead)",
+        f"Overall WAPE : {data['overallWape']}%   (lower is better, computed over the backtest only)",
+        f"Actual units (backtest) : {tot_a:,}  |  Forecast units (backtest) : {tot_f_backtest:,}  |  Bias : {'+' if bias>=0 else ''}{bias}%",
         f"SKUs forecasted : {len(rows)}",
+    ]
+    if bt < len(data['weeks']):
+        lines.append(
+            f"Forward forecast : {data['weeks'][bt]}  →  {data['weeks'][-1]}  "
+            f"({len(data['weeks']) - bt} weeks beyond the backtest, no actuals yet — do not quote a WAPE for these) "
+            f"— total forecast units {tot_f_forward:,}")
+    lines += [
         "",
-        "--- SKU DETAIL (volume-sorted) ---",
+        "--- SKU DETAIL (volume-sorted; vol/WAPE/acc are backtest-only, forward_fcst is the forecast beyond the backtest) ---",
     ]
     for r in rows:
-        lines.append(f"  {r['sku']:20s}  vol={r['vol']:>9,}  WAPE={r['wape']:.1f}%  acc={r['acc']:.1f}%")
+        lines.append(f"  {r['sku']:20s}  vol={r['vol']:>9,}  WAPE={r['wape']:.1f}%  acc={r['acc']:.1f}%  forward_fcst={r['fwd']:>8,}")
 
-    worst_wk = max(range(len(data['all']['w'])), key=lambda i: data['all']['w'][i])
-    best_wk  = min(range(len(data['all']['w'])), key=lambda i: data['all']['w'][i])
+    bt_weeks = [(i, w) for i, w in enumerate(data['all']['w'][:bt]) if w is not None]
+    worst_wk = max(bt_weeks, key=lambda x: x[1])[0]
+    best_wk  = min(bt_weeks, key=lambda x: x[1])[0]
     lines += [
         "",
         f"Worst week : {data['weeks'][worst_wk]}  WAPE={data['all']['w'][worst_wk]:.1f}%",
         f"Best week  : {data['weeks'][best_wk]}   WAPE={data['all']['w'][best_wk]:.1f}%",
         "",
-        "Weekly aggregate WAPE (each entry = one week):",
-        "  " + "  ".join(f"{w:.1f}%" for w in data['all']['w']),
+        "Weekly aggregate WAPE (backtest weeks only, one entry per week):",
+        "  " + "  ".join(f"{w:.1f}%" for w in data['all']['w'][:bt]),
     ]
     return "\n".join(lines)
 
 
 SYSTEM_TMPL = """\
 You are **Lyra**, an AI demand analyst inside APRABot.
-Answer questions about the 2024 forecast backtest below. Be concise and precise.
+Answer questions about the weekly forecast backtest and forward forecast below. Be concise and precise.
 
 Rules:
 • Use **bold** for key numbers (e.g. **2.81% WAPE**).
 • Default reply length: 2–4 sentences. Expand only if the user asks for details.
 • If a SKU is not in the data, say so.
 • Never fabricate numbers. Only quote figures that appear in the data below.
+• The forward forecast has no actuals yet — never quote a WAPE or accuracy % for those weeks.
 
 {data}
 """
