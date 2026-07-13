@@ -337,12 +337,17 @@
   /* ── Logo SVG (matches site logo) ── */
   function logoSvg(size) {
     return `<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg" width="${size}" height="${size}">
-      <!-- Sleek ponytail sweep -->
-      <path d="M23.5 10 Q28 13.5 26.8 20.5 Q25.6 26.5 21 27.5 L19 24.3 Q23 22 23 17 Q23 12.5 19 9.3 Z" fill="#C42020"/>
-      <!-- Hair back -->
-      <ellipse cx="16" cy="13.2" rx="9.5" ry="7.6" fill="#C42020"/>
+      <!-- Long hair flow - left -->
+      <path d="M7 10.5 Q2 15 2.6 21.5 Q3.2 27 7.5 30 L10 26 Q7.4 22.5 7.2 17.5 Q7 13.5 9.5 10.8 Z" fill="#C42020"/>
+      <!-- Long hair flow - right -->
+      <path d="M25 10.5 Q30 15 29.4 21.5 Q28.8 27 24.5 30 L22 26 Q24.6 22.5 24.8 17.5 Q25 13.5 22.5 10.8 Z" fill="#C42020"/>
+      <!-- Hair back (thick crown volume) -->
+      <ellipse cx="16" cy="13.2" rx="10" ry="8.2" fill="#C42020"/>
+      <!-- Strand shading for thickness -->
+      <path d="M5.5 17 Q5 23 8.5 28.5" stroke="#8B1010" stroke-width="0.9" stroke-linecap="round" fill="none" opacity="0.45"/>
+      <path d="M26.5 17 Q27 23 23.5 28.5" stroke="#8B1010" stroke-width="0.9" stroke-linecap="round" fill="none" opacity="0.45"/>
       <!-- Side-swept fringe -->
-      <path d="M6 11.5 Q9.5 4 16 5 Q12.8 8.2 12 13.3 Q8.8 11.2 6 11.5 Z" fill="#8B1010" opacity="0.85"/>
+      <path d="M6.3 11.3 Q9.8 4 16 5 Q12.8 8.2 12 13.3 Q9 11.1 6.3 11.3 Z" fill="#8B1010" opacity="0.85"/>
       <!-- Face -->
       <ellipse cx="16" cy="18.5" rx="8" ry="9.4" fill="#FFD4A3"/>
       <!-- Sleek brows -->
