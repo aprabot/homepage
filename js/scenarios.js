@@ -194,11 +194,28 @@
     if (bell) bell.classList.toggle('has-unread', !!latest && (!seen || new Date(latest) > new Date(seen)));
   }
 
+  // Resets the client-side forecast cache whenever the approved scenario
+  // changes — whether that change came from this tab's own approve click,
+  // another tab, or another user entirely. render() runs on every fetch
+  // (eager load, poll, manual refresh, or an explicit approve), so this
+  // catches an approval no matter where it happened.
+  var knownApprovedId; // undefined until the first observation
+  function checkApprovalChange(scenarios) {
+    var approved = scenarios.find(function (s) { return s.approved; });
+    var approvedId = approved ? approved.id : null;
+    if (knownApprovedId !== undefined && approvedId !== knownApprovedId) {
+      try { localStorage.removeItem('apra_forecast_cache'); } catch (e) {}
+      if (typeof loadForecast === 'function') loadForecast();
+    }
+    knownApprovedId = approvedId;
+  }
+
   var _origRender = render;
   render = function (scenarios) {
     _origRender(scenarios);
     ensurePolling();
     renderNotifications(scenarios);
+    checkApprovalChange(scenarios);
   };
 
   /* ── Run new forecast modal ── */
