@@ -71,10 +71,6 @@
 
   <div class="dmain">
     <div class="dtop">
-      <div class="search">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5" stroke-linecap="round"/></svg>
-        <input type="text" placeholder="Search SKUs, regions, scenarios…">
-      </div>
       <div class="right">
         <div class="report-menu">
           <button class="dbtn" id="genReport">
@@ -533,7 +529,6 @@
       'AI Insights': document.getElementById('insightsPanel'),
       'Settings':    document.getElementById('settingsPanel')
     };
-    var search = document.querySelector('.dtop .search');
     var report = document.querySelector('.dtop .report-menu');
     var navItems = document.querySelectorAll('.dnav li');
 
@@ -551,7 +546,6 @@
           if(panels[k]) panels[k].style.display = (k === name) ? '' : 'none';
         });
 
-        search.style.display = isSettings ? 'none' : '';
         report.style.display = isSettings ? 'none' : '';
 
         if(isSettings) syncSettingsPanel();
