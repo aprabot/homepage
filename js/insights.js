@@ -1,6 +1,27 @@
 (function () {
   var INSIGHTS_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/insights';
   var loaded = false;
+  var lastData = null;
+  var fetchPromise = null;
+
+  // Reusable by other features (e.g. the PDF report) that want the same
+  // insights payload without duplicating the fetch/cache logic.
+  window.fetchInsights = function () {
+    if (lastData) return Promise.resolve(lastData);
+    if (fetchPromise) return fetchPromise;
+    fetchPromise = fetch(INSIGHTS_API)
+      .then(function (r) {
+        if (!r.ok) throw new Error('HTTP ' + r.status);
+        return r.json();
+      })
+      .then(function (data) {
+        if (data.error) throw new Error(data.error);
+        lastData = data;
+        return data;
+      })
+      .finally(function () { fetchPromise = null; });
+    return fetchPromise;
+  };
 
   function fmtDate(iso) {
     if (!iso) return '';
@@ -62,6 +83,7 @@
 
   window.loadInsights = function (force) {
     if (loaded && !force) return;
+    if (force) lastData = null;
     var loadingEl = document.getElementById('insightsLoading');
     var errorEl = document.getElementById('insightsError');
     var contentEl = document.getElementById('insightsContent');
@@ -70,13 +92,8 @@
     errorEl.style.display = 'none';
     contentEl.style.display = 'none';
 
-    fetch(INSIGHTS_API)
-      .then(function (r) {
-        if (!r.ok) throw new Error('HTTP ' + r.status);
-        return r.json();
-      })
+    window.fetchInsights()
       .then(function (data) {
-        if (data.error) throw new Error(data.error);
         loaded = true;
         render(data);
       })

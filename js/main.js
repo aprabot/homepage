@@ -478,7 +478,28 @@
     return cv.toDataURL('image/png');
   }
 
-  function buildReportHTML(){
+  function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
+
+  function buildInsightsSection(insights){
+    if(!insights) return '';
+    const rowStyle='display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #f0f2f5;font-size:13px';
+    const findings=(insights.key_findings||[]).map(f=>
+      `<li style="${rowStyle}"><span style="font-weight:600">${escHtml(f.title)}</span><span style="text-align:right;max-width:65%;color:#3a4555">${escHtml(f.detail)}</span></li>`).join('');
+    const plainLi=t=>`<li style="${rowStyle}justify-content:flex-start"><span style="color:#3a4555">${escHtml(t)}</span></li>`;
+    const watch=(insights.watch_areas||insights.risks||[]).map(plainLi).join('');
+    const opps=(insights.opportunities||[]).map(plainLi).join('');
+    return `
+        <h2>AI Insights</h2>
+        <p class="lead" style="font-weight:600;color:#0A0E15">${escHtml(insights.headline)}</p>
+        <p class="lead" style="margin-top:8px">${escHtml(insights.summary)}</p>
+        ${findings?`<h3 style="font-size:12px;color:#6b7787;margin:16px 0 8px">Key findings</h3><ul style="list-style:none">${findings}</ul>`:''}
+        <div class="two" style="margin-top:16px">
+          <div><h3>Watch areas</h3><ul>${watch}</ul></div>
+          <div><h3>Opportunities</h3><ul>${opps}</ul></div>
+        </div>`;
+  }
+
+  function buildReportHTML(insights){
     const S=cbGetStats();
     const acc=(100-DATA.overallWape).toFixed(1);
     const user=document.getElementById('greetName').textContent||'—';
@@ -542,6 +563,7 @@
           ${card('Units Forecasted',tn(S.totA),'shipped, 52 weeks')}
           ${card('Backtest Horizon','52 wks','1-week-ahead')}
         </div>
+        ${buildInsightsSection(insights)}
         <h2>Forecast vs Actuals — Aggregate</h2>
         <img class="chart" src="${reportChartPNG()}" alt="Forecast vs actuals chart">
         <p class="lead" style="margin-top:10px;font-size:12px;color:#6b7787">Blue: actual units · Orange (dashed): forecast units · Green: weekly WAPE (%). Hardest week: ${DATA.weeks[S.worstWk.i]} (${S.worstWk.v.toFixed(1)}%). Best week: ${DATA.weeks[S.bestWk.i]} (${S.bestWk.v.toFixed(1)}%).</p>
@@ -559,14 +581,21 @@
   }
 
   function generateReport(){
-    const html=buildReportHTML();
+    // Open the window synchronously (within the click handler) so popup
+    // blockers don't intervene, then fill it in once insights are fetched.
     const w=window.open('','_blank');
-    if(w){w.document.open();w.document.write(html);w.document.close();}
-    else{ // popup blocked → download instead
-      const blob=new Blob([html],{type:'text/html'});
-      const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-      a.download='APRABot_Forecast_Report.html';a.click();URL.revokeObjectURL(a.href);
-    }
+    if(w){w.document.open();w.document.write('<!DOCTYPE html><title>Generating…</title><body style="font-family:sans-serif;padding:40px;color:#666">Generating report…</body>');w.document.close();}
+    const finish=insights=>{
+      const html=buildReportHTML(insights);
+      if(w && !w.closed){w.document.open();w.document.write(html);w.document.close();}
+      else{ // popup blocked or user closed the placeholder tab → download instead
+        const blob=new Blob([html],{type:'text/html'});
+        const a=document.createElement('a');a.href=URL.createObjectURL(blob);
+        a.download='APRABot_Forecast_Report.html';a.click();URL.revokeObjectURL(a.href);
+      }
+    };
+    if(window.fetchInsights) window.fetchInsights().then(finish).catch(()=>finish(null));
+    else finish(null);
   }
 
   function exportCSV(){
