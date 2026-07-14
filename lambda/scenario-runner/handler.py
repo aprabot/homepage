@@ -12,10 +12,12 @@ BUCKET = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
 
 RAW_INPUT   = '/tmp/With_Price.tsv'
 RAW_WEATHER = '/tmp/weather.tsv'
+CUSTOM_RAW  = '/tmp/custom_upload'
 OUTDIR      = '/tmp/out'
 FORECAST_PY = '/var/task/forecast.py'
 TRAIN_END   = '2024-12-31'
 FUTURE_HORIZON_DAYS = 56  # ~8 weeks beyond the last real data point
+BACKTEST_FRACTION = 0.2   # for custom uploads: last 20% of unique dates held out
 
 
 def _now():
@@ -54,6 +56,64 @@ def _update_index(scenario_id, patch):
         entry.update(patch)
         idx['scenarios'].append(entry)
     _write_json('scenarios/index.json', idx)
+
+
+REQUIRED_INPUT_COLS = {
+    'ship_day': {'ship_day'},
+    'asin': {'asin'},
+    'postal_code': {'postal_code'},
+    'shipped_units': {'shipped_units', 'shipment_units'},
+}
+
+
+def _validate_custom_input(path):
+    import pandas as pd
+    df = pd.read_csv(path, sep='\t', nrows=5)
+    cols_lower = {c.strip().lower() for c in df.columns}
+    missing = [label for label, opts in REQUIRED_INPUT_COLS.items() if not (opts & cols_lower)]
+    if missing:
+        raise ValueError(
+            f"Uploaded file is missing required column(s): {', '.join(missing)}. "
+            f"Expected at least: ship_day, asin, postal_code, shipped_units "
+            f"(see the input template).")
+
+
+def _download_custom_input(key):
+    """Download a user-uploaded input file (xlsx/csv/tsv), normalize it to the
+    tab-separated format forecast.py expects, and validate its columns."""
+    import pandas as pd
+
+    ext = os.path.splitext(key)[1].lower()
+    local_raw = CUSTOM_RAW + ext
+    s3.download_file(BUCKET, key, local_raw)
+
+    if ext == '.xlsx':
+        df = pd.read_excel(local_raw, sheet_name=0)
+        df.to_csv(RAW_INPUT, sep='\t', index=False)
+    elif ext == '.csv':
+        df = pd.read_csv(local_raw)
+        df.to_csv(RAW_INPUT, sep='\t', index=False)
+    else:  # .tsv / .txt — already tab-separated
+        os.replace(local_raw, RAW_INPUT)
+
+    _validate_custom_input(RAW_INPUT)
+
+
+def _dynamic_train_end(path, backtest_fraction=BACKTEST_FRACTION):
+    """Pick a train/backtest split for an arbitrary uploaded date range: the
+    last `backtest_fraction` of unique ship_day values become the backtest
+    window (and, with --forecast-future, the model also extrapolates beyond
+    the very last date in the file)."""
+    import pandas as pd
+    dates = pd.read_csv(path, sep='\t', usecols=lambda c: c.strip().lower() == 'ship_day')
+    col = dates.columns[0]
+    uniq = sorted(pd.to_datetime(dates[col], errors='coerce').dropna().dt.normalize().unique())
+    if len(uniq) < 20:
+        raise ValueError(
+            f"Uploaded file only has {len(uniq)} distinct date(s) — need at least "
+            f"20 days of history to train and backtest a model.")
+    cutoff_idx = max(1, min(int(len(uniq) * (1 - backtest_fraction)), len(uniq) - 2))
+    return pd.Timestamp(uniq[cutoff_idx]).strftime('%Y-%m-%d')
 
 
 def transform_to_weekly(tsv_path, future_tsv_path=None):
@@ -159,17 +219,23 @@ def handler(event, context):
     calibrate    = bool(event.get('calibrate', True))
     weather      = bool(event.get('weather', True))
     refresh_days = int(event.get('refresh_days', 28))
+    custom_input_key = event.get('custom_input_key')
 
     try:
         os.makedirs(OUTDIR, exist_ok=True)
-        s3.download_file(BUCKET, 'raw/With_Price.tsv', RAW_INPUT)
+        if custom_input_key:
+            _download_custom_input(custom_input_key)
+            train_end = _dynamic_train_end(RAW_INPUT)
+        else:
+            s3.download_file(BUCKET, 'raw/With_Price.tsv', RAW_INPUT)
+            train_end = TRAIN_END
         if weather:
             s3.download_file(BUCKET, 'raw/weather.tsv', RAW_WEATHER)
 
         args = [sys.executable, FORECAST_PY,
                 '--input', RAW_INPUT,
                 '--outdir', OUTDIR,
-                '--train-end', TRAIN_END,
+                '--train-end', train_end,
                 '--refresh-days', str(refresh_days),
                 '--forecast-future',
                 '--horizon', str(FUTURE_HORIZON_DAYS)]

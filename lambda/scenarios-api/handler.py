@@ -56,19 +56,52 @@ def list_scenarios():
     return _resp(200, {'scenarios': scenarios})
 
 
+ALLOWED_UPLOAD_EXT = {'.xlsx', '.tsv', '.csv', '.txt'}
+
+
+def create_upload_url(event):
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except json.JSONDecodeError:
+        return _resp(400, {'error': 'invalid JSON body'})
+
+    filename = (body.get('filename') or '').strip()
+    ext = os.path.splitext(filename)[1].lower()
+    if not filename or ext not in ALLOWED_UPLOAD_EXT:
+        return _resp(400, {'error': f'filename must end in one of {sorted(ALLOWED_UPLOAD_EXT)}'})
+
+    safe_name = re.sub(r'[^A-Za-z0-9_.-]', '_', filename)[:120]
+    key = f"uploads/{uuid.uuid4().hex}/{safe_name}"
+
+    content_type = {
+        '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    }.get(ext, 'text/tab-separated-values')
+
+    url = s3.generate_presigned_url(
+        'put_object',
+        Params={'Bucket': BUCKET, 'Key': key, 'ContentType': content_type},
+        ExpiresIn=300,
+    )
+    return _resp(200, {'upload_url': url, 'key': key, 'content_type': content_type})
+
+
 def create_scenario(event):
     try:
         body = json.loads(event.get('body') or '{}')
     except json.JSONDecodeError:
         return _resp(400, {'error': 'invalid JSON body'})
 
-    label        = (body.get('label') or 'Untitled scenario').strip()[:80]
-    known_prices = bool(body.get('known_prices', True))
-    calibrate    = bool(body.get('calibrate', True))
-    weather      = bool(body.get('weather', True))
-    refresh_days = int(body.get('refresh_days', 28))
+    label            = (body.get('label') or 'Untitled scenario').strip()[:80]
+    known_prices     = bool(body.get('known_prices', True))
+    calibrate        = bool(body.get('calibrate', True))
+    weather          = bool(body.get('weather', True))
+    refresh_days     = int(body.get('refresh_days', 28))
     if refresh_days not in (7, 14, 28):
         refresh_days = 28
+
+    custom_input_key = (body.get('custom_input_key') or '').strip()
+    if custom_input_key and not custom_input_key.startswith('uploads/'):
+        return _resp(400, {'error': 'invalid custom_input_key'})
 
     scenario_id = f"scn-{int(time.time())}-{uuid.uuid4().hex[:6]}"
     email = _claims(event).get('email', 'planner')
@@ -77,22 +110,30 @@ def create_scenario(event):
         'id': scenario_id, 'label': label, 'status': 'running',
         'known_prices': known_prices, 'calibrate': calibrate,
         'weather': weather, 'refresh_days': refresh_days,
+        'custom_input': bool(custom_input_key),
         'requested_by': email, 'created_at': _now(), 'approved': False,
     }
+    if custom_input_key:
+        config['custom_input_key'] = custom_input_key
     _write_json(f'scenarios/{scenario_id}/config.json', config)
 
     idx = _read_json('scenarios/index.json', default={'scenarios': []})
     idx['scenarios'].append({k: config[k] for k in
                               ('id', 'label', 'status', 'known_prices', 'calibrate',
-                               'weather', 'refresh_days', 'requested_by', 'created_at', 'approved')})
+                               'weather', 'refresh_days', 'custom_input',
+                               'requested_by', 'created_at', 'approved')})
     _write_json('scenarios/index.json', idx)
 
+    runner_payload = {
+        'scenario_id': scenario_id, 'label': label,
+        'known_prices': known_prices, 'calibrate': calibrate,
+        'weather': weather, 'refresh_days': refresh_days,
+    }
+    if custom_input_key:
+        runner_payload['custom_input_key'] = custom_input_key
+
     lam.invoke(FunctionName=RUNNER, InvocationType='Event',
-               Payload=json.dumps({
-                   'scenario_id': scenario_id, 'label': label,
-                   'known_prices': known_prices, 'calibrate': calibrate,
-                   'weather': weather, 'refresh_days': refresh_days,
-               }).encode('utf-8'))
+               Payload=json.dumps(runner_payload).encode('utf-8'))
 
     return _resp(202, {'scenario_id': scenario_id, 'status': 'running'})
 
@@ -143,6 +184,9 @@ def handler(event, context):
 
         if method == 'POST' and path == '/scenarios':
             return create_scenario(event)
+
+        if method == 'POST' and path == '/scenarios/upload-url':
+            return create_upload_url(event)
 
         return _resp(404, {'error': f'no route for {method} {path}'})
 

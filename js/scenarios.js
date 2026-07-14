@@ -33,6 +33,7 @@
       s.calibrate ? 'calibrated' : 'not calibrated',
       s.refresh_days + '-day refresh',
     ];
+    if (s.custom_input) parts.push('custom input file');
     return parts.join(', ');
   }
 
@@ -189,6 +190,14 @@
     if (m) m.classList.add('open');
     document.getElementById('rf-label').value = '';
     document.getElementById('rf-error').textContent = '';
+    document.getElementById('rf-upload-row').style.display = 'none';
+    document.getElementById('rf-upload-status').textContent = '';
+    var fileInput = document.getElementById('rf-file');
+    if (fileInput) fileInput.value = '';
+    var sourcePill = document.getElementById('rf-source');
+    if (sourcePill) {
+      sourcePill.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b.dataset.v === 'default'); });
+    }
   };
   window.closeRunForecastModal = function () {
     var m = document.getElementById('runForecastModal');
@@ -202,6 +211,9 @@
     var group = btn.parentElement;
     group.querySelectorAll('button').forEach(function (b) { b.classList.remove('active'); });
     btn.classList.add('active');
+    if (group.id === 'rf-source') {
+      document.getElementById('rf-upload-row').style.display = btn.dataset.v === 'custom' ? '' : 'none';
+    }
   });
 
   function pillValue(groupId) {
@@ -210,11 +222,44 @@
     return active ? active.dataset.v : null;
   }
 
+  function uploadCustomInput(file) {
+    var statusEl = document.getElementById('rf-upload-status');
+    statusEl.textContent = 'Requesting upload URL…';
+    return fetch(SCENARIOS_API + '/upload-url', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      body: JSON.stringify({ filename: file.name }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (res) {
+        if (!res.ok) throw new Error(res.d.error || 'Could not get an upload URL.');
+        statusEl.textContent = 'Uploading ' + file.name + '…';
+        return fetch(res.d.upload_url, {
+          method: 'PUT',
+          headers: { 'Content-Type': res.d.content_type },
+          body: file,
+        }).then(function (putRes) {
+          if (!putRes.ok) throw new Error('Upload failed (' + putRes.status + ').');
+          statusEl.textContent = 'Upload complete.';
+          return res.d.key;
+        });
+      });
+  }
+
   window.submitRunForecast = function (e) {
     e.preventDefault();
     var label = document.getElementById('rf-label').value.trim() || 'Untitled scenario';
     var errEl = document.getElementById('rf-error');
     var btn = e.target.querySelector('button[type=submit]');
+    var useCustom = pillValue('rf-source') === 'custom';
+    var fileInput = document.getElementById('rf-file');
+    var file = fileInput && fileInput.files && fileInput.files[0];
+
+    errEl.textContent = '';
+    if (useCustom && !file) {
+      errEl.textContent = 'Choose a file to upload, or switch back to the default dataset.';
+      return;
+    }
 
     var payload = {
       label: label,
@@ -225,14 +270,18 @@
     };
 
     btn.disabled = true;
-    btn.textContent = 'Starting…';
-    errEl.textContent = '';
+    btn.textContent = useCustom ? 'Uploading…' : 'Starting…';
 
-    fetch(SCENARIOS_API, {
-      method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
-      body: JSON.stringify(payload),
-    })
+    (useCustom ? uploadCustomInput(file) : Promise.resolve(null))
+      .then(function (customInputKey) {
+        if (customInputKey) payload.custom_input_key = customInputKey;
+        btn.textContent = 'Starting…';
+        return fetch(SCENARIOS_API, {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+          body: JSON.stringify(payload),
+        });
+      })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
         btn.disabled = false;
@@ -244,10 +293,10 @@
         window.closeRunForecastModal();
         loadScenarios();
       })
-      .catch(function () {
+      .catch(function (err) {
         btn.disabled = false;
         btn.textContent = 'Start run →';
-        errEl.textContent = 'Connection error — please try again.';
+        errEl.textContent = err.message || 'Connection error — please try again.';
       });
   };
 

@@ -367,6 +367,22 @@
           <label for="rf-label">Scenario name</label>
           <input id="rf-label" type="text" placeholder="e.g. No calibration test" maxlength="80">
         </div>
+        <div class="field">
+          <label>Input data</label>
+          <div class="theme-pill" id="rf-source">
+            <button type="button" data-v="default" class="active">Default dataset</button>
+            <button type="button" data-v="custom">Upload file</button>
+          </div>
+        </div>
+        <div id="rf-upload-row" style="display:none;margin-bottom:16px">
+          <input type="file" id="rf-file" accept=".xlsx,.csv,.tsv,.txt" style="display:block;width:100%;font-size:12.5px;color:var(--muted)">
+          <p class="stest-msg" style="margin-top:8px;color:var(--muted)">
+            Columns: <code>ship_day, asin, postal_code, shipped_units</code> (+ optional price columns).
+            One file covers both historical and forward-looking rows — see the template.
+            <a href="apra_forecast_input_template.xlsx" download style="color:var(--signal)">Download template →</a>
+          </p>
+          <p id="rf-upload-status" class="stest-msg" style="margin-top:4px"></p>
+        </div>
         <div class="srow">
           <div><div class="srow-label">Known prices</div><div class="srow-desc">Feed actual test-period prices as a known promo calendar</div></div>
           <div class="theme-pill" id="rf-known-prices"><button type="button" data-v="1" class="active">On</button><button type="button" data-v="0">Off</button></div>
