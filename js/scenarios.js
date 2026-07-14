@@ -9,10 +9,27 @@
   var pollTimer = null;
   var lastScenarios = [];
   var selectedForCompare = [];
+  var sdVisible = { a: true, f: true };
+  var cmpVisible = { a: true, fA: true, fB: true };
 
   function authHeaders() {
     var t = localStorage.getItem('apra_id');
     return t ? { 'Authorization': 'Bearer ' + t } : {};
+  }
+
+  // Wires click-to-toggle behavior onto a chart's legend items, reflecting
+  // (and mutating) the given visibility state object, then re-drawing.
+  function wireLegend(container, state, redraw) {
+    if (!container) return;
+    container.querySelectorAll('.lgd-item').forEach(function (el) {
+      var k = el.dataset.k;
+      el.classList.toggle('off', !state[k]);
+      el.onclick = function () {
+        state[k] = !state[k];
+        el.classList.toggle('off', !state[k]);
+        redraw();
+      };
+    });
   }
 
   function fmtRelative(iso) {
@@ -376,14 +393,18 @@
     html += '<div class="dcard" style="margin-top:20px;padding:16px">' +
       '<div class="ch"><h4>Weekly actual vs. each scenario\'s forecast</h4></div>' +
       '<div class="dchart" style="height:220px"><canvas id="cmpCanvas"></canvas></div>' +
-      '<div class="chart-legend">' +
-      '<span><i style="background:#54E6C4"></i>Actual</span>' +
-      '<span><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>' + escapeHtml(metas[0].label) + '</span>' +
-      '<span><i style="background:#7AA2FF;border-radius:0;height:0;border-top:2px dashed #7AA2FF"></i>' + escapeHtml(metas[1].label) + '</span>' +
+      '<div class="chart-legend" id="cmpLegend">' +
+      '<span class="lgd-item" data-k="a"><i style="background:#54E6C4"></i>Actual</span>' +
+      '<span class="lgd-item" data-k="fA"><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>' + escapeHtml(metas[0].label) + '</span>' +
+      '<span class="lgd-item" data-k="fB"><i style="background:#7AA2FF;border-radius:0;height:0;border-top:2px dashed #7AA2FF"></i>' + escapeHtml(metas[1].label) + '</span>' +
       '</div></div>';
 
     body.innerHTML = html;
-    drawCompareChart(results[0].weeks, results[0].all.a, results[0].all.f, results[1].all.f, results[0].backtestWeeks);
+    var redrawCmp = function () {
+      drawCompareChart(results[0].weeks, results[0].all.a, results[0].all.f, results[1].all.f, results[0].backtestWeeks);
+    };
+    redrawCmp();
+    wireLegend(document.getElementById('cmpLegend'), cmpVisible, redrawCmp);
   }
 
   function drawCompareChart(weeks, actual, forecastA, forecastB, backtestWeeks) {
@@ -425,9 +446,9 @@
       });
       ctx.stroke(); ctx.setLineDash([]);
     }
-    line(actual, '#54E6C4', null, 2.4);
-    line(forecastA, '#C8F24E', [7, 5]);
-    line(forecastB, '#7AA2FF', [2, 3]);
+    if (cmpVisible.a) line(actual, '#54E6C4', null, 2.4);
+    if (cmpVisible.fA) line(forecastA, '#C8F24E', [7, 5]);
+    if (cmpVisible.fB) line(forecastB, '#7AA2FF', [2, 3]);
 
     if (backtestWeeks != null && backtestWeeks > 0 && backtestWeeks < N) {
       var bx = X(backtestWeeks - 0.5);
@@ -504,8 +525,8 @@
     html += '<div class="dcard" style="padding:16px">' +
       '<div class="ch"><h4>Forecast vs actuals — all SKUs</h4></div>' +
       '<div class="dchart" style="height:200px"><canvas id="sdCanvas"></canvas></div>' +
-      '<div class="chart-legend"><span><i style="background:#54E6C4"></i>Actual</span>' +
-      '<span><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>Forecast</span></div>' +
+      '<div class="chart-legend" id="sdLegend"><span class="lgd-item" data-k="a"><i style="background:#54E6C4"></i>Actual</span>' +
+      '<span class="lgd-item" data-k="f"><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>Forecast</span></div>' +
       '</div>';
 
     var topSkus = Object.keys(result.skus).map(function (id) {
@@ -530,6 +551,9 @@
 
     body.innerHTML = html;
     drawScenarioChart(result.weeks, result.all.a, result.all.f, result.backtestWeeks);
+    wireLegend(document.getElementById('sdLegend'), sdVisible, function () {
+      drawScenarioChart(result.weeks, result.all.a, result.all.f, result.backtestWeeks);
+    });
   }
 
   function drawScenarioChart(weeks, a, f, backtestWeeks) {
@@ -572,8 +596,8 @@
       ctx.stroke(); ctx.setLineDash([]);
     }
 
-    line(a, '#54E6C4');
-    line(f, '#C8F24E', [7, 5]);
+    if (sdVisible.a) line(a, '#54E6C4');
+    if (sdVisible.f) line(f, '#C8F24E', [7, 5]);
 
     if (backtestWeeks != null && backtestWeeks > 0 && backtestWeeks < N) {
       var bx = X(backtestWeeks - 0.5);

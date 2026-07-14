@@ -95,6 +95,15 @@
 
   /* ===== REAL BACKTEST DASHBOARD (data from DATA in data.js) ===== */
   let dashReady=false, curSel='ALL', curWeeks=52, fcGeom=null;
+  const fcVisible={a:true,f:true,w:true};
+  document.querySelectorAll('#fcLegend .lgd-item').forEach(el=>{
+    el.addEventListener('click',()=>{
+      const k=el.dataset.k;
+      fcVisible[k]=!fcVisible[k];
+      el.classList.toggle('off',!fcVisible[k]);
+      drawChart();
+    });
+  });
 
   const nf=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':String(n);
   const nfFull=n=>Math.round(n).toLocaleString();
@@ -209,13 +218,15 @@
       arr.forEach((v,i)=>{if(v==null)return;const x=X(i),y=Y(v);if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);});
       ctx.stroke();ctx.setLineDash([]);};
     // area under actual
-    const grad=ctx.createLinearGradient(0,padT,0,ch-padB);
-    grad.addColorStop(0,'rgba(84,230,196,.22)');grad.addColorStop(1,'rgba(84,230,196,0)');
-    ctx.beginPath();let sx=null;a.forEach((v,i)=>{if(v==null)return;const x=X(i),y=Yu(v);if(sx===null){ctx.moveTo(x,y);sx=x;}else ctx.lineTo(x,y);});
-    if(sx!==null){ctx.lineTo(X(N-1),Yu(0));ctx.lineTo(sx,Yu(0));ctx.closePath();ctx.fillStyle=grad;ctx.fill();}
-    line(w,Yw,'#7AA2FF');                 // wape (right axis)
-    line(a,Yu,'#54E6C4');                 // actual
-    line(f,Yu,'#C8F24E',[7,5]);           // forecast (dashed)
+    if(fcVisible.a){
+      const grad=ctx.createLinearGradient(0,padT,0,ch-padB);
+      grad.addColorStop(0,'rgba(84,230,196,.22)');grad.addColorStop(1,'rgba(84,230,196,0)');
+      ctx.beginPath();let sx=null;a.forEach((v,i)=>{if(v==null)return;const x=X(i),y=Yu(v);if(sx===null){ctx.moveTo(x,y);sx=x;}else ctx.lineTo(x,y);});
+      if(sx!==null){ctx.lineTo(X(N-1),Yu(0));ctx.lineTo(sx,Yu(0));ctx.closePath();ctx.fillStyle=grad;ctx.fill();}
+    }
+    if(fcVisible.w) line(w,Yw,'#7AA2FF');                 // wape (right axis)
+    if(fcVisible.a) line(a,Yu,'#54E6C4');                 // actual
+    if(fcVisible.f) line(f,Yu,'#C8F24E',[7,5]);           // forecast (dashed)
     // "today" divider — backtest ends, forward-only forecast begins (skip if data has no forward portion, e.g. older cached format)
     const backtestTotal=DATA.backtestWeeks||DATA.weeks.length;
     const boundary=backtestTotal-st;
