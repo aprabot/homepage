@@ -94,7 +94,7 @@
   // segmented control toggle (period selector handled in initDashboard)
 
   /* ===== REAL BACKTEST DASHBOARD (data from DATA in data.js) ===== */
-  let dashReady=false, curSel='ALL', curWeeks=52, fcGeom=null, hideBacktest=false;
+  let dashReady=false, curSel='ALL', curWeeks=52, fcGeom=null, hideBacktest=true;
   const fcVisible={a:true,f:true,w:true};
   document.querySelectorAll('#fcLegend .lgd-item').forEach(el=>{
     el.addEventListener('click',()=>{
