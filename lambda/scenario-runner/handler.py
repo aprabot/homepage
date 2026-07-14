@@ -16,7 +16,7 @@ CUSTOM_RAW  = '/tmp/custom_upload'
 OUTDIR      = '/tmp/out'
 FORECAST_PY = '/var/task/forecast.py'
 TRAIN_END   = '2024-12-31'
-FUTURE_HORIZON_DAYS = 56  # ~8 weeks beyond the last real data point
+FUTURE_HORIZON_DAYS = 364  # 52 weeks beyond the last real data point
 BACKTEST_FRACTION = 0.2   # for custom uploads: last 20% of unique dates held out
 
 
