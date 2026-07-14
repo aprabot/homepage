@@ -119,9 +119,7 @@
     const r=seriesWape(o.a,o.f); return {a:o.a,f:o.f,w:r.w,name:sel,overall:r.overall};
   }
 
-  function initDashboard(){
-    if(dashReady){drawChart();return;}
-    dashReady=true;
+  function renderDashboardData(){
     // KPIs
     document.getElementById('kpiWape').textContent=DATA.overallWape.toFixed(2)+'%';
     document.getElementById('kpiSkus').textContent=Object.keys(DATA.skus).length.toLocaleString();
@@ -153,6 +151,12 @@
 
     // SKU datalist (capped so the picker stays snappy; free-text search still hits any SKU)
     document.getElementById('skuList').innerHTML=rows.slice(0,400).map(r=>`<option value="${r.a}">`).join('');
+  }
+
+  function initDashboard(){
+    renderDashboardData();
+    if(dashReady){drawChart();return;}
+    dashReady=true;
 
     // wire interactions
     const input=document.getElementById('skuInput');
