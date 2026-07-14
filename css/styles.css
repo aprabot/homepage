@@ -557,9 +557,14 @@
 
   /* ===== DASHBOARD ===== */
   #dashboard{display:none;position:fixed;inset:0;z-index:150;background:var(--ink);overflow:hidden}
-  #dashboard.open{display:grid;grid-template-columns:248px 1fr}
-  .dside{border-right:1px solid var(--line);background:var(--ink-2);display:flex;flex-direction:column;padding:22px 16px}
-  .dside .logo{padding:6px 10px 22px;font-size:19px}
+  #dashboard.open{display:grid;grid-template-columns:248px 1fr;transition:grid-template-columns .22s ease}
+  #dashboard.open.dside-collapsed{grid-template-columns:76px 1fr}
+  .dside{border-right:1px solid var(--line);background:var(--ink-2);display:flex;flex-direction:column;padding:22px 16px;overflow:hidden}
+  .dside .logo{padding:6px 10px 22px;font-size:19px;display:flex;align-items:center;justify-content:space-between;gap:6px}
+  .dside-toggle{flex:0 0 auto;width:26px;height:26px;border-radius:7px;border:1px solid var(--line-2);background:none;
+    color:var(--muted);cursor:pointer;display:flex;align-items:center;justify-content:center;transition:transform .22s ease,color .2s,border-color .2s}
+  .dside-toggle:hover{color:var(--text);border-color:var(--line)}
+  .dside-toggle svg{width:14px;height:14px}
   .dnav{list-style:none;flex:1}
   .dnav li{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:9px;color:var(--muted);
     font-weight:500;font-size:14.5px;cursor:pointer;margin-bottom:3px;transition:background .2s,color .2s}
@@ -569,6 +574,12 @@
   .dside .signout{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:9px;color:var(--muted);
     font-weight:500;font-size:14.5px;cursor:pointer;border:1px solid var(--line);transition:border-color .2s,color .2s}
   .dside .signout:hover{border-color:#ff6b6b;color:#ff8585}
+  .dside-collapsed .dside{padding:22px 10px}
+  .dside-collapsed .logo{justify-content:center}
+  .dside-collapsed .logo .wordmark{display:none}
+  .dside-collapsed .dside-toggle{transform:rotate(180deg)}
+  .dside-collapsed .dnav li,.dside-collapsed .dside .signout{justify-content:center;padding:11px 0}
+  .dside-collapsed .dnav li .lbl,.dside-collapsed .dside .signout .lbl{display:none}
   .uchip{position:relative}
   .uchip-caret{color:var(--muted);transition:transform .2s;flex-shrink:0}
   .uchip.open .uchip-caret{transform:rotate(180deg)}
@@ -780,7 +791,7 @@
     .cb-launch-label{display:none}}
 
   @media(max-width:880px){
-    #dashboard.open{grid-template-columns:1fr}
+    #dashboard.open,#dashboard.open.dside-collapsed{grid-template-columns:1fr}
     .dside{display:none}
     .kpis{grid-template-columns:1fr 1fr}
     .dgrid{grid-template-columns:1fr}
