@@ -159,12 +159,31 @@
     const apply=()=>selectSku(input.value.trim());
     input.addEventListener('change',apply);
     input.addEventListener('keydown',e=>{if(e.key==='Enter')apply();});
-    document.getElementById('periodSeg').querySelectorAll('button').forEach(b=>{
+    const periodSeg=document.getElementById('periodSeg');
+    const customBtn=document.getElementById('periodCustomBtn');
+    const customInput=document.getElementById('periodCustomInput');
+    periodSeg.querySelectorAll('button').forEach(b=>{
       b.addEventListener('click',()=>{
-        document.getElementById('periodSeg').querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+        if(b.dataset.w==='custom'){
+          customInput.style.display='';
+          customInput.focus();
+          return; // wait for a value — don't touch curWeeks or the 'on' state yet
+        }
+        customInput.style.display='none';
+        customBtn.textContent='Custom';
+        periodSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
         b.classList.add('on'); curWeeks=+b.dataset.w; drawChart();
       });
     });
+    function applyCustomWeeks(){
+      const v=parseInt(customInput.value,10);
+      if(!v||v<1){ customInput.style.display='none'; return; }
+      periodSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
+      customBtn.classList.add('on'); customBtn.textContent=v+'W';
+      curWeeks=v; customInput.style.display='none'; drawChart();
+    }
+    customInput.addEventListener('keydown',e=>{if(e.key==='Enter')applyCustomWeeks();});
+    customInput.addEventListener('blur',applyCustomWeeks);
     const hideBtBtn=document.getElementById('hideBacktestBtn');
     if(hideBtBtn && DATA.backtestWeeks!=null && DATA.backtestWeeks<DATA.weeks.length){
       hideBtBtn.style.display='';

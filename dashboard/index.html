@@ -144,7 +144,9 @@
               </div>
               <div class="seg" id="periodSeg">
                 <button data-w="12">12W</button><button data-w="26">26W</button><button class="on" data-w="52">52W</button>
+                <button data-w="custom" id="periodCustomBtn">Custom</button>
               </div>
+              <input type="number" id="periodCustomInput" min="1" max="1000" placeholder="Weeks" style="display:none;width:64px;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:5px 8px;color:var(--text);font-family:var(--mono);font-size:11px">
               <button class="dbtn on" id="hideBacktestBtn" style="display:none;padding:7px 12px;font-size:12.5px;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Show Backtest</button>
             </div>
           </div>
