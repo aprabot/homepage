@@ -662,6 +662,7 @@
   .dcard .ch .seg button{background:none;border:none;color:var(--muted);font-family:var(--mono);font-size:11px;
     padding:5px 10px;border-radius:6px;cursor:pointer;transition:.2s}
   .dcard .ch .seg button.on{background:var(--signal-soft);color:var(--signal)}
+  #hideBacktestBtn.on{background:var(--signal-soft);color:var(--signal);border-color:var(--signal)}
 
   /* AI Insights — loading pulse + staggered reveal */
   .ins-load-spark{animation:insPulse 1.3s ease-in-out infinite}

@@ -94,7 +94,7 @@
   // segmented control toggle (period selector handled in initDashboard)
 
   /* ===== REAL BACKTEST DASHBOARD (data from DATA in data.js) ===== */
-  let dashReady=false, curSel='ALL', curWeeks=52, fcGeom=null;
+  let dashReady=false, curSel='ALL', curWeeks=52, fcGeom=null, hideBacktest=false;
   const fcVisible={a:true,f:true,w:true};
   document.querySelectorAll('#fcLegend .lgd-item').forEach(el=>{
     el.addEventListener('click',()=>{
@@ -165,6 +165,16 @@
         b.classList.add('on'); curWeeks=+b.dataset.w; drawChart();
       });
     });
+    const hideBtBtn=document.getElementById('hideBacktestBtn');
+    if(hideBtBtn && DATA.backtestWeeks!=null && DATA.backtestWeeks<DATA.weeks.length){
+      hideBtBtn.style.display='';
+      hideBtBtn.addEventListener('click',()=>{
+        hideBacktest=!hideBacktest;
+        hideBtBtn.classList.toggle('on',hideBacktest);
+        hideBtBtn.textContent=hideBacktest?'Show Backtest':'Hide Backtest';
+        drawChart();
+      });
+    }
     document.getElementById('moversList').addEventListener('click',e=>{
       const li=e.target.closest('li'); if(li){input.value=li.dataset.sku;selectSku(li.dataset.sku);}});
     document.getElementById('skuBody').addEventListener('click',e=>{
@@ -191,7 +201,10 @@
 
   function drawChart(){
     const s=getSeries(curSel); if(!s)return;
-    const N=Math.min(curWeeks,s.a.length), st=s.a.length-N;
+    let N=Math.min(curWeeks,s.a.length), st=s.a.length-N;
+    if(hideBacktest && DATA.backtestWeeks!=null){
+      st=Math.max(st,DATA.backtestWeeks); N=s.a.length-st;
+    }
     const weeks=DATA.weeks.slice(st), a=s.a.slice(st), f=s.f.slice(st), w=s.w.slice(st);
     const box=document.getElementById('forecastChart'), cv=document.getElementById('fcCanvas');
     const cw=box.clientWidth||720, ch=box.clientHeight||260, dpr=window.devicePixelRatio||1;
