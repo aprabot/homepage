@@ -32,7 +32,7 @@
       </div>
       <div class="nav-cta">
         <button class="btn btn-ghost" onclick="openLogin()">Sign in</button>
-        <button class="btn btn-pri" onclick="openSignup()">Create account</button>
+        <button class="btn btn-pri" disabled title="Sign-ups are currently closed">Create account</button>
         <a href="#demo" class="btn btn-ghost nav-demo">Book a demo</a>
         <button class="menu-tg" aria-label="Menu">☰</button>
       </div>
@@ -70,7 +70,7 @@
     </a>
   </div>
   <div class="mob-sb-foot">
-    <button class="btn btn-pri" style="width:100%;justify-content:center;margin-bottom:10px" onclick="openSignup();closeMobSidebar()">Create account →</button>
+    <button class="btn btn-pri" style="width:100%;justify-content:center;margin-bottom:10px" disabled title="Sign-ups are currently closed">Create account →</button>
     <button class="btn btn-ghost" style="width:100%;justify-content:center" onclick="openLogin();closeMobSidebar()">Sign in</button>
   </div>
 </nav>
@@ -362,7 +362,7 @@
       <p id="auth-error" class="auth-error"></p>
       <button type="submit" class="btn btn-pri">Sign in →</button>
     </form>
-    <p class="login-switch">No account? <button class="link-btn" onclick="closeLogin();openSignup()">Create one free →</button></p>
+    <p class="login-switch">No account? <button class="link-btn" disabled title="Sign-ups are currently closed">Create one free →</button></p>
   </div>
 </div>
 

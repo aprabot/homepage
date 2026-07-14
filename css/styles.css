@@ -81,6 +81,8 @@
   .btn-pri:hover{transform:translateY(-2px);box-shadow:0 12px 34px -10px rgba(200,242,78,.5)}
   .btn-ghost{background:transparent;color:var(--text);border:1px solid var(--line-2)}
   .btn-ghost:hover{border-color:var(--signal);color:var(--signal)}
+  .btn:disabled{opacity:.4;cursor:not-allowed;pointer-events:none}
+  .link-btn:disabled{opacity:.4;cursor:not-allowed;text-decoration:none}
   .nav-cta{display:flex;gap:14px;align-items:center}
   .menu-tg{display:none;background:none;border:1px solid var(--line-2);border-radius:8px;color:var(--text);padding:9px 12px;cursor:pointer}
 
