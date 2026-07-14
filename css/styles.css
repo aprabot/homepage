@@ -665,6 +665,18 @@
     padding:5px 10px;border-radius:6px;cursor:pointer;transition:.2s}
   .dcard .ch .seg button.on{background:var(--signal-soft);color:var(--signal)}
   #hideBacktestBtn.on{background:var(--signal-soft);color:var(--signal);border-color:var(--signal)}
+  .qty-wrap{display:flex;align-items:stretch;background:var(--ink);border:1px solid var(--line);border-radius:8px;overflow:hidden}
+  .qty-wrap input{width:56px;background:none;border:none;padding:5px 0 5px 10px;color:var(--text);
+    font-family:var(--mono);font-size:12px;outline:none}
+  .qty-wrap input::-webkit-inner-spin-button,.qty-wrap input::-webkit-outer-spin-button{-webkit-appearance:none;margin:0}
+  .qty-wrap input{-moz-appearance:textfield}
+  .qty-wrap:focus-within{border-color:var(--signal)}
+  .qty-steppers{display:flex;flex-direction:column;border-left:1px solid var(--line)}
+  .qty-step{background:none;border:none;color:var(--muted);cursor:pointer;padding:0 6px;
+    display:flex;align-items:center;justify-content:center;transition:background .15s,color .15s}
+  .qty-step svg{width:10px;height:10px}
+  .qty-step:first-child{border-bottom:1px solid var(--line)}
+  .qty-step:hover{background:var(--signal-soft);color:var(--signal)}
 
   /* AI Insights — loading pulse + staggered reveal */
   .ins-load-spark{animation:insPulse 1.3s ease-in-out infinite}

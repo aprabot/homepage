@@ -146,7 +146,17 @@
                 <button data-w="12">12W</button><button data-w="26">26W</button><button class="on" data-w="52">52W</button>
                 <button data-w="custom" id="periodCustomBtn">Custom</button>
               </div>
-              <input type="number" id="periodCustomInput" min="1" max="1000" placeholder="Weeks" style="display:none;width:64px;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:5px 8px;color:var(--text);font-family:var(--mono);font-size:11px">
+              <div class="qty-wrap" id="periodCustomWrap" style="display:none">
+                <input type="number" id="periodCustomInput" min="1" max="1000" placeholder="Weeks">
+                <div class="qty-steppers">
+                  <button type="button" class="qty-step" id="periodCustomUp" aria-label="Increase weeks" tabindex="-1">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 15l6-6 6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <button type="button" class="qty-step" id="periodCustomDown" aria-label="Decrease weeks" tabindex="-1">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
+              </div>
               <button class="dbtn on" id="hideBacktestBtn" style="display:none;padding:7px 12px;font-size:12.5px;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Show Backtest</button>
             </div>
           </div>

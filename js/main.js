@@ -161,29 +161,42 @@
     input.addEventListener('keydown',e=>{if(e.key==='Enter')apply();});
     const periodSeg=document.getElementById('periodSeg');
     const customBtn=document.getElementById('periodCustomBtn');
+    const customWrap=document.getElementById('periodCustomWrap');
     const customInput=document.getElementById('periodCustomInput');
+    const customUp=document.getElementById('periodCustomUp');
+    const customDown=document.getElementById('periodCustomDown');
     periodSeg.querySelectorAll('button').forEach(b=>{
       b.addEventListener('click',()=>{
         if(b.dataset.w==='custom'){
-          customInput.style.display='';
+          customWrap.style.display='';
           customInput.focus();
           return; // wait for a value — don't touch curWeeks or the 'on' state yet
         }
-        customInput.style.display='none';
+        customWrap.style.display='none';
         customBtn.textContent='Custom';
         periodSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
         b.classList.add('on'); curWeeks=+b.dataset.w; drawChart();
       });
     });
-    function applyCustomWeeks(){
+    function commitCustomWeeks(keepOpen){
       const v=parseInt(customInput.value,10);
-      if(!v||v<1){ customInput.style.display='none'; return; }
+      if(!v||v<1){ customWrap.style.display='none'; return; }
       periodSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
       customBtn.classList.add('on'); customBtn.textContent=v+'W';
-      curWeeks=v; customInput.style.display='none'; drawChart();
+      curWeeks=v; drawChart();
+      if(!keepOpen) customWrap.style.display='none';
     }
-    customInput.addEventListener('keydown',e=>{if(e.key==='Enter')applyCustomWeeks();});
-    customInput.addEventListener('blur',applyCustomWeeks);
+    customInput.addEventListener('keydown',e=>{if(e.key==='Enter')commitCustomWeeks(false);});
+    customInput.addEventListener('blur',()=>commitCustomWeeks(false));
+    [customUp,customDown].forEach(b=>b.addEventListener('mousedown',e=>e.preventDefault()));
+    customUp.addEventListener('click',()=>{
+      customInput.value=Math.min(1000,(parseInt(customInput.value,10)||curWeeks)+1);
+      commitCustomWeeks(true);
+    });
+    customDown.addEventListener('click',()=>{
+      customInput.value=Math.max(1,(parseInt(customInput.value,10)||curWeeks)-1);
+      commitCustomWeeks(true);
+    });
     const hideBtBtn=document.getElementById('hideBacktestBtn');
     if(hideBtBtn && DATA.backtestWeeks!=null && DATA.backtestWeeks<DATA.weeks.length){
       hideBtBtn.style.display='';
