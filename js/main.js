@@ -485,7 +485,7 @@
     const rowStyle='display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #f0f2f5;font-size:13px';
     const findings=(insights.key_findings||[]).map(f=>
       `<li style="${rowStyle}"><span style="font-weight:600">${escHtml(f.title)}</span><span style="text-align:right;max-width:65%;color:#3a4555">${escHtml(f.detail)}</span></li>`).join('');
-    const plainLi=t=>`<li style="${rowStyle}justify-content:flex-start"><span style="color:#3a4555">${escHtml(t)}</span></li>`;
+    const plainLi=t=>`<li style="${rowStyle};justify-content:flex-start"><span style="color:#3a4555">${escHtml(t)}</span></li>`;
     const watch=(insights.watch_areas||insights.risks||[]).map(plainLi).join('');
     const opps=(insights.opportunities||[]).map(plainLi).join('');
     return `
