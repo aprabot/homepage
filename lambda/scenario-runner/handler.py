@@ -78,18 +78,71 @@ def _validate_custom_input(path):
             f"(see the input template).")
 
 
+def _strip_cols(df):
+    df.columns = [str(c).strip() for c in df.columns]
+    return df
+
+
+def _merge_exogenous_sheet(ship_df, other_df, key_candidates, required_keys, label):
+    """Left-join an optional exogenous sheet (Price) onto the Shipments sheet
+    using whichever of key_candidates are present in both. Skips (with a log
+    line, not an error) if the required subset of keys isn't there — an
+    unrecognized sheet shouldn't take down the whole run."""
+    other_df = _strip_cols(other_df).dropna(how='all')
+    if other_df.empty:
+        return ship_df
+    merge_keys = [c for c in key_candidates if c in ship_df.columns and c in other_df.columns]
+    if not required_keys.issubset(set(merge_keys)):
+        print(f"[custom_input] {label} sheet present but missing expected join columns "
+              f"(needs at least {sorted(required_keys)}, found {list(other_df.columns)}) — skipping.")
+        return ship_df
+    return ship_df.merge(other_df, on=merge_keys, how='left', suffixes=('', f'_{label.lower()}'))
+
+
 def _download_custom_input(key):
-    """Download a user-uploaded input file (xlsx/csv/tsv), normalize it to the
-    tab-separated format forecast.py expects, and validate its columns."""
+    """Download a user-uploaded input file and normalize it to the
+    tab-separated format forecast.py expects, validating required columns.
+
+    For .xlsx, reads separate Shipments / Price / Weather sheets — Price and
+    Weather are optional; an empty or missing sheet just means that signal
+    falls back to the platform default (no price features, or the default
+    weather.tsv). .csv/.tsv uploads are treated as a single Shipments sheet
+    with no separate exogenous data (that split is an xlsx-only feature).
+
+    Returns True if a custom weather file was written (RAW_WEATHER), so the
+    caller knows not to overwrite it with the default.
+    """
     import pandas as pd
 
     ext = os.path.splitext(key)[1].lower()
     local_raw = CUSTOM_RAW + ext
     s3.download_file(BUCKET, key, local_raw)
 
+    has_custom_weather = False
+
     if ext == '.xlsx':
-        df = pd.read_excel(local_raw, sheet_name=0)
-        df.to_csv(RAW_INPUT, sep='\t', index=False)
+        sheets = pd.read_excel(local_raw, sheet_name=None)
+        by_name = {str(k).strip().lower(): v for k, v in sheets.items()}
+
+        ship_df = by_name.get('shipments')
+        if ship_df is None:  # backward-compatible: no explicit "Shipments" tab
+            ship_df = next(iter(sheets.values()))
+        ship_df = _strip_cols(ship_df).dropna(how='all')
+
+        price_df = by_name.get('price')
+        if price_df is not None:
+            ship_df = _merge_exogenous_sheet(
+                ship_df, price_df, ['ship_day', 'asin', 'postal_code'],
+                {'ship_day', 'asin'}, 'Price')
+
+        weather_df = by_name.get('weather')
+        if weather_df is not None:
+            weather_df = _strip_cols(weather_df).dropna(how='all')
+            if not weather_df.empty:
+                weather_df.to_csv(RAW_WEATHER, sep='\t', index=False)
+                has_custom_weather = True
+
+        ship_df.to_csv(RAW_INPUT, sep='\t', index=False)
     elif ext == '.csv':
         df = pd.read_csv(local_raw)
         df.to_csv(RAW_INPUT, sep='\t', index=False)
@@ -97,6 +150,7 @@ def _download_custom_input(key):
         os.replace(local_raw, RAW_INPUT)
 
     _validate_custom_input(RAW_INPUT)
+    return has_custom_weather
 
 
 def _dynamic_train_end(path, backtest_fraction=BACKTEST_FRACTION):
@@ -223,13 +277,14 @@ def handler(event, context):
 
     try:
         os.makedirs(OUTDIR, exist_ok=True)
+        has_custom_weather = False
         if custom_input_key:
-            _download_custom_input(custom_input_key)
+            has_custom_weather = _download_custom_input(custom_input_key)
             train_end = _dynamic_train_end(RAW_INPUT)
         else:
             s3.download_file(BUCKET, 'raw/With_Price.tsv', RAW_INPUT)
             train_end = TRAIN_END
-        if weather:
+        if weather and not has_custom_weather:
             s3.download_file(BUCKET, 'raw/weather.tsv', RAW_WEATHER)
 
         args = [sys.executable, FORECAST_PY,

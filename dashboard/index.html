@@ -377,8 +377,9 @@
         <div id="rf-upload-row" style="display:none;margin-bottom:16px">
           <input type="file" id="rf-file" accept=".xlsx,.csv,.tsv,.txt" style="display:block;width:100%;font-size:12.5px;color:var(--muted)">
           <p class="stest-msg" style="margin-top:8px;color:var(--muted)">
-            Columns: <code>ship_day, asin, postal_code, shipped_units</code> (+ optional price columns).
-            One file covers both historical and forward-looking rows — see the template.
+            .xlsx with separate <b>Shipments</b> (required), <b>Price</b> and <b>Weather</b> sheets — leave
+            Price/Weather empty to fall back to platform defaults for that signal. Historical and
+            forward-looking rows go in the same Shipments sheet.
             <a href="apra_forecast_input_template.xlsx" download style="color:var(--signal)">Download template →</a>
           </p>
           <p id="rf-upload-status" class="stest-msg" style="margin-top:4px"></p>
