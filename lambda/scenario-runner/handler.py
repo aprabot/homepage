@@ -170,6 +170,39 @@ def _dynamic_train_end(path, backtest_fraction=BACKTEST_FRACTION):
     return pd.Timestamp(uniq[cutoff_idx]).strftime('%Y-%m-%d')
 
 
+def _trim_partial_trailing_week(path):
+    """Drop any trailing partial week from the input before forecasting.
+
+    Weeks are bucketed Mon-Sun (W-SUN). If the raw data's last date isn't a
+    Sunday, that final week is undercounted — e.g. data ending on a
+    Wednesday gives that week only 3 of 7 days of volume. Left in, it both
+    corrupts the last backtest week's reported accuracy AND, more
+    importantly, seeds the recursive forecast's very first lag/rolling
+    features with an artificially depressed "current level", which then
+    propagates through the entire forward horizon.
+    """
+    import pandas as pd
+    df = pd.read_csv(path, sep='\t')
+    date_col = next((c for c in df.columns if c.strip().lower() == 'ship_day'), None)
+    if not date_col:
+        return
+    dates = pd.to_datetime(df[date_col], errors='coerce')
+    max_date = dates.max()
+    if pd.isna(max_date):
+        return
+    days_since_sunday = (max_date.weekday() + 1) % 7  # Mon=0..Sun=6 -> 0 if already Sunday
+    if days_since_sunday == 0:
+        return
+    cutoff = max_date - pd.Timedelta(days=days_since_sunday)
+    keep = dates <= cutoff
+    dropped = int((~keep).sum())
+    if dropped:
+        print(f"[trim] dropping {dropped} row(s) from the incomplete trailing week "
+              f"(data ran through {max_date.date()}, trimmed to the last complete "
+              f"week ending {cutoff.date()})")
+        df[keep].to_csv(path, sep='\t', index=False)
+
+
 def transform_to_weekly(tsv_path, future_tsv_path=None):
     """Aggregate the daily SKU x ZIP backtest to weekly per-SKU totals, with
     ASINs replaced by rank-ordered SKU-### ids and postal codes dropped —
@@ -280,9 +313,11 @@ def handler(event, context):
         has_custom_weather = False
         if custom_input_key:
             has_custom_weather = _download_custom_input(custom_input_key)
+            _trim_partial_trailing_week(RAW_INPUT)
             train_end = _dynamic_train_end(RAW_INPUT)
         else:
             s3.download_file(BUCKET, 'raw/With_Price.tsv', RAW_INPUT)
+            _trim_partial_trailing_week(RAW_INPUT)
             train_end = TRAIN_END
         if weather and not has_custom_weather:
             s3.download_file(BUCKET, 'raw/weather.tsv', RAW_WEATHER)
