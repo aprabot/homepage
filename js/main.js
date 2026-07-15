@@ -540,6 +540,34 @@
 
   function escHtml(s){return String(s==null?'':s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');}
 
+  function computeForwardStats(){
+    const bt=DATA.backtestWeeks!=null?DATA.backtestWeeks:DATA.weeks.length;
+    const totalWeeks=DATA.weeks.length, fwdWeeks=totalWeeks-bt;
+    const sumRange=(arr,s,e)=>arr.slice(s,e).reduce((acc,x)=>acc+(x||0),0);
+    const trailWin=Math.min(fwdWeeks||1,bt)||1;
+
+    const hasForward=fwdWeeks>0;
+    const trailingActual=sumRange(DATA.all.a,Math.max(0,bt-trailWin),bt);
+    const forwardForecast=hasForward?sumRange(DATA.all.f,bt,totalWeeks):0;
+    const trendPct=(hasForward&&trailingActual)?100*(forwardForecast-trailingActual)/trailingActual:0;
+
+    const skuRows=Object.keys(DATA.skus).map(id=>{
+      const o=DATA.skus[id];
+      const backtestVol=sumRange(o.a,0,bt);
+      const fwdVol=hasForward?sumRange(o.f,bt,totalWeeks):0;
+      const trailVol=sumRange(o.a,Math.max(0,bt-trailWin),bt);
+      const trend=(hasForward&&trailVol)?100*(fwdVol-trailVol)/trailVol:null;
+      return {id,backtestVol,fwdVol,trend};
+    }).filter(r=>r.backtestVol>0);
+
+    const byFwdVol=[...skuRows].sort((x,y)=>y.fwdVol-x.fwdVol);
+    const withTrend=skuRows.filter(r=>r.trend!=null);
+    const growing=[...withTrend].sort((x,y)=>y.trend-x.trend).slice(0,5);
+    const declining=[...withTrend].sort((x,y)=>x.trend-y.trend).slice(0,5);
+
+    return {bt,totalWeeks,fwdWeeks,trailWin,trailingActual,forwardForecast,trendPct,byFwdVol,growing,declining};
+  }
+
   function buildInsightsSection(insights){
     if(!insights) return '';
     const rowStyle='display:flex;justify-content:space-between;gap:14px;padding:7px 0;border-bottom:1px solid #f0f2f5;font-size:13px';
@@ -561,18 +589,22 @@
 
   function buildReportHTML(insights){
     const S=cbGetStats();
+    const F=computeForwardStats();
     const acc=(100-DATA.overallWape).toFixed(1);
     const user=document.getElementById('greetName').textContent||'—';
     const dt=new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
-    const top=S.byVol.slice(0,15);
-    const best=S.byWapeAsc.slice(0,5), worst=S.byWapeAsc.slice(-5).reverse();
     const tn=n=>Math.round(n).toLocaleString();
     const card=(l,v,s)=>`<div class="mc"><div class="mc-l">${l}</div><div class="mc-v">${v}</div><div class="mc-s">${s||''}</div></div>`;
+    const smCard=(l,v,s)=>`<div class="mc sm"><div class="mc-l">${l}</div><div class="mc-v sm">${v}</div><div class="mc-s">${s||''}</div></div>`;
+    const trendPill=t=>{if(t==null)return '<span class="pill warn">n/a</span>';
+      const cls=t>=0?'ok':'risk'; return `<span class="pill ${cls}">${t>=0?'+':''}${t.toFixed(1)}%</span>`;};
+    const fwdRow=r=>`<tr><td class="mono">${r.id}</td><td>${tn(r.backtestVol)}</td><td>${tn(r.fwdVol)}</td><td>${trendPill(r.trend)}</td></tr>`;
+    const trendLi=r=>`<li><span class="mono">${r.id}</span><b style="color:${r.trend>=0?'#1aa179':'#d35454'}">${r.trend>=0?'+':''}${r.trend.toFixed(1)}%</b></li>`;
+    const top=S.byVol.slice(0,15);
     const trow=r=>{const a2=Math.max(0,100-r.wape);const cls=r.wape<=30?'ok':r.wape<=45?'warn':'risk';
       const lab=r.wape<=30?'Strong':r.wape<=45?'Fair':'High error';
       return `<tr><td class="mono">${r.a}</td><td>${tn(r.vol)}</td><td>${r.wape.toFixed(1)}%</td><td>${a2.toFixed(0)}%</td><td><span class="pill ${cls}">${lab}</span></td></tr>`;};
-    const li=r=>`<li><span class="mono">${r.a}</span><b>${r.wape.toFixed(1)}%</b></li>`;
-    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>APRABot — Forecast Accuracy Report</title>
+    return `<!DOCTYPE html><html><head><meta charset="utf-8"><title>APRABot — Demand Forecast Outlook</title>
     <style>
       *{box-sizing:border-box;margin:0;padding:0}
       body{font-family:-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#1c2330;background:#eef1f5;line-height:1.55}
@@ -584,10 +616,13 @@
       .body{padding:34px 40px}
       h2{font-size:13px;text-transform:uppercase;letter-spacing:.08em;color:#6b7787;margin:30px 0 14px;border-bottom:1px solid #e9edf2;padding-bottom:8px}
       h2:first-child{margin-top:0}
+      h2.sec{color:#0A0E15;border-bottom-color:#C8F24E}
       .cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}
       .mc{border:1px solid #e9edf2;border-radius:10px;padding:16px}
       .mc-l{font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#6b7787}
       .mc-v{font-size:26px;font-weight:700;color:#0A0E15;margin-top:4px}
+      .mc-v.sm{font-size:18px}
+      .mc.sm{padding:12px 14px}
       .mc-s{font-size:11px;color:#8b97a6;margin-top:3px}
       p.lead{font-size:14px;color:#3a4555}
       img.chart{width:100%;border:1px solid #e9edf2;border-radius:10px;margin-top:6px}
@@ -600,7 +635,9 @@
       .two{display:grid;grid-template-columns:1fr 1fr;gap:28px}
       .two h3{font-size:12px;color:#6b7787;margin-bottom:8px}
       .two ul{list-style:none}.two li{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px solid #f0f2f5;font-size:13px}
-      .foot{font-size:11px;color:#8b97a6;border-top:1px solid #e9edf2;margin-top:30px;padding-top:14px}
+      .refsec{background:#f7f8fa;border-radius:12px;padding:20px 22px;margin-top:34px}
+      .refsec h2{margin-top:0}
+      .foot{font-size:11px;color:#8b97a6;border-top:1px solid #e9edf2;margin-top:20px;padding-top:14px}
       .toolbar{position:fixed;top:14px;right:14px;display:flex;gap:8px}
       .toolbar button{background:#1b66d6;color:#fff;border:none;border-radius:7px;padding:10px 16px;font-size:13px;font-weight:600;cursor:pointer}
       .toolbar button.sec{background:#fff;color:#1b66d6;border:1px solid #c7ced8}
@@ -609,33 +646,43 @@
     <div class="toolbar"><button onclick="window.print()">Save as PDF / Print</button><button class="sec" onclick="window.close()">Close</button></div>
     <div class="page">
       <div class="hd">
-        <div><div class="logo">APRA<b>Bot</b></div><h1>Demand Forecast Accuracy Report</h1></div>
-        <div class="meta">2024 Weekly Backtest<br>Generated ${dt}<br>Prepared for: ${user}</div>
+        <div><div class="logo">APRA<b>Bot</b></div><h1>Demand Forecast Outlook</h1></div>
+        <div class="meta">${F.fwdWeeks}-week forward view<br>Generated ${dt}<br>Prepared for: ${user}</div>
       </div>
       <div class="body">
-        <h2>Executive Summary</h2>
-        <p class="lead">Out-of-sample evaluation of the APRABot demand model across the full catalog. The model was trained on 2022–2023 history and used to forecast shipped units one week ahead for every week of 2024. Accuracy is reported as WAPE (weighted absolute percentage error), so high-volume products dominate the headline figure.</p>
+        <h2 class="sec">Forward Outlook</h2>
+        <p class="lead">What we predict for the business over the next ${F.fwdWeeks} weeks, based on the full demand model across the catalog.</p>
         <div class="cards" style="margin-top:18px">
-          ${card('Overall WAPE',DATA.overallWape.toFixed(2)+'%','volume-weighted error')}
-          ${card('Volume-wtd Accuracy',acc+'%','100 − WAPE')}
-          ${card('Forecast Bias',(S.bias>0?'+':'')+S.bias.toFixed(1)+'%',S.bias<0?'under-forecast':'over-forecast')}
-          ${card('SKUs Forecasted',S.skuCount.toLocaleString(),'full catalog')}
-          ${card('Units Forecasted',tn(S.totA),'shipped, 52 weeks')}
-          ${card('Backtest Horizon','52 wks','1-week-ahead')}
+          ${card('Forecasted volume',tn(F.forwardForecast),`next ${F.fwdWeeks} wks, shipped units`)}
+          ${card('Volume trend',(F.trendPct>=0?'+':'')+F.trendPct.toFixed(1)+'%',`vs trailing ${F.trailWin} wks`)}
+          ${card('SKUs forecasted',S.skuCount.toLocaleString(),'full catalog')}
         </div>
         ${buildInsightsSection(insights)}
-        <h2>Forecast vs Actuals — Aggregate</h2>
-        <img class="chart" src="${reportChartPNG()}" alt="Forecast vs actuals chart">
-        <p class="lead" style="margin-top:10px;font-size:12px;color:#6b7787">Blue: actual units · Orange (dashed): forecast units · Green: weekly WAPE (%). Hardest week: ${DATA.weeks[S.worstWk.i]} (${S.worstWk.v.toFixed(1)}%). Best week: ${DATA.weeks[S.bestWk.i]} (${S.bestWk.v.toFixed(1)}%).</p>
-        <h2>Top 15 SKUs by Volume</h2>
-        <table><thead><tr><th>SKU</th><th>Total Units</th><th>WAPE</th><th>Accuracy</th><th>Status</th></tr></thead>
-        <tbody>${top.map(trow).join('')}</tbody></table>
-        <h2>Forecast Quality (high-volume SKUs)</h2>
+        <h2 class="sec">Forecast trend — shipped units</h2>
+        <img class="chart" src="${reportChartPNG()}" alt="Shipped units, historical and forecast">
+        <p class="lead" style="margin-top:10px;font-size:12px;color:#6b7787">Blue: actuals to date · Orange (dashed): forecast, including the ${F.fwdWeeks}-week forward view · Green: weekly model error (WAPE), for reference.</p>
+        <h2 class="sec">Top SKUs — forward volume</h2>
+        <table><thead><tr><th>SKU</th><th>Backtest volume</th><th>Forward forecast</th><th>Trend</th></tr></thead>
+        <tbody>${F.byFwdVol.slice(0,15).map(fwdRow).join('')}</tbody></table>
+        <h2 class="sec">Fastest movers</h2>
         <div class="two">
-          <div><h3>Best forecasted</h3><ul>${best.map(li).join('')}</ul></div>
-          <div><h3>Highest error</h3><ul>${worst.map(li).join('')}</ul></div>
+          <div><h3>Fastest growing</h3><ul>${F.growing.map(trendLi).join('')}</ul></div>
+          <div><h3>Fastest declining</h3><ul>${F.declining.map(trendLi).join('')}</ul></div>
         </div>
-        <div class="foot">Methodology: WAPE = Σ|actual − forecast| / Σactual, computed per week and aggregated by volume. Best/highest-error lists are restricted to SKUs with ≥5,000 units to exclude low-volume noise. This report is generated from a static backtest snapshot for demonstration purposes.</div>
+
+        <div class="refsec">
+          <h2>Model performance (reference)</h2>
+          <p class="lead" style="font-size:13px">Backtest accuracy behind this forecast — included for transparency, not the headline. WAPE is computed only over the historical backtest window; the forward view above carries no actuals to score against yet.</p>
+          <div class="cards" style="margin-top:14px">
+            ${smCard('Overall WAPE',DATA.overallWape.toFixed(2)+'%','volume-weighted error')}
+            ${smCard('Volume-wtd accuracy',acc+'%','100 − WAPE')}
+            ${smCard('Forecast bias',(S.bias>0?'+':'')+S.bias.toFixed(1)+'%',S.bias<0?'under-forecast':'over-forecast')}
+          </div>
+          <h3 style="font-size:12px;color:#6b7787;margin:16px 0 8px">Top 15 SKUs by backtest volume</h3>
+          <table><thead><tr><th>SKU</th><th>Total units</th><th>WAPE</th><th>Accuracy</th><th>Status</th></tr></thead>
+          <tbody>${top.map(trow).join('')}</tbody></table>
+        </div>
+        <div class="foot">Methodology: forward volume and trend come from the demand model's forecast beyond the backtest window, compared against the trailing ${F.trailWin}-week actuals. WAPE = Σ|actual − forecast| / Σactual, computed per week over the backtest only and aggregated by volume. This report is generated from a live scenario snapshot.</div>
       </div>
     </div></body></html>`;
   }
@@ -651,7 +698,7 @@
       else{ // popup blocked or user closed the placeholder tab → download instead
         const blob=new Blob([html],{type:'text/html'});
         const a=document.createElement('a');a.href=URL.createObjectURL(blob);
-        a.download='APRABot_Forecast_Report.html';a.click();URL.revokeObjectURL(a.href);
+        a.download='APRABot_Forecast_Outlook.html';a.click();URL.revokeObjectURL(a.href);
       }
     };
     if(window.fetchInsights) window.fetchInsights().then(finish).catch(()=>finish(null));
