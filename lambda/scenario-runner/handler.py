@@ -203,7 +203,116 @@ def _trim_partial_trailing_week(path):
         df[keep].to_csv(path, sep='\t', index=False)
 
 
-def transform_to_weekly(tsv_path, future_tsv_path=None):
+def _seasonal_index(raw_path):
+    """Per-ASIN week-of-year seasonal factor, averaged across ALL real
+    history in raw_path (typically 2-3 years) — more robust than the
+    1-year backtest alone. Each ASIN's factors average to ~1.0 across its
+    own weeks, so multiplying a flat forecast by these restores the
+    historical seasonal shape without changing the overall level.
+
+    Returns (per_asin_index, catalog_wide_index) — the second is a
+    fallback for ASIN/week-of-year combinations with too little signal.
+    """
+    import pandas as pd
+
+    df = pd.read_csv(raw_path, sep='\t', parse_dates=['ship_day'])
+    asin_col = 'asin' if 'asin' in df.columns else 'ASIN'
+    unit_col = 'shipped_units' if 'shipped_units' in df.columns else 'shipment_units'
+    df = df.rename(columns={asin_col: 'ASIN', unit_col: 'units'})
+    df['week'] = df['ship_day'].dt.to_period('W-SUN').dt.start_time
+    df['woy'] = df['week'].dt.isocalendar().week.astype(int)
+
+    wk = df.groupby(['ASIN', 'week', 'woy'], as_index=False)['units'].sum()
+    asin_mean = wk.groupby('ASIN')['units'].transform('mean')
+    wk = wk[asin_mean > 0].copy()
+    wk['rel'] = wk['units'] / asin_mean[asin_mean > 0]
+
+    per_asin = wk.groupby(['ASIN', 'woy'])['rel'].mean().to_dict()
+    catalog_wide = wk.groupby('woy')['rel'].mean().to_dict()
+    return per_asin, catalog_wide
+
+
+def _apply_seasonal_correction(future_wk_asin, per_asin_idx, catalog_idx, ramp_weeks=8):
+    """Blend the model's raw forward forecast toward a historical seasonal
+    shape as the horizon grows. The recursive model's own week-to-week
+    shape is trustworthy near-term (where this pipeline is validated) but
+    dampens badly beyond ~8 weeks out — the first `ramp_weeks` stay close
+    to the model's own numbers, then the seasonal index takes over,
+    rescaled to match the model's own average level so the correction
+    changes shape, not the model's implied overall volume.
+    """
+    import pandas as pd
+
+    future_wk_asin = future_wk_asin.sort_values(['ASIN', 'week']).copy()
+    future_wk_asin['woy'] = future_wk_asin['week'].dt.isocalendar().week.astype(int)
+    future_wk_asin['fwd_rank'] = future_wk_asin.groupby('ASIN').cumcount()
+
+    def factor(row):
+        f = per_asin_idx.get((row['ASIN'], row['woy']))
+        if f is None or f <= 0:
+            f = catalog_idx.get(row['woy'], 1.0)
+        return f if f and f > 0 else 1.0
+
+    future_wk_asin['seasonal_f'] = future_wk_asin.apply(factor, axis=1)
+    model_avg = future_wk_asin.groupby('ASIN')['f'].transform('mean')
+    seasonal_target = model_avg * future_wk_asin['seasonal_f']
+    blend = (future_wk_asin['fwd_rank'] / ramp_weeks).clip(0, 1)
+    future_wk_asin['f'] = future_wk_asin['f'] * (1 - blend) + seasonal_target * blend
+    return future_wk_asin.drop(columns=['woy', 'fwd_rank', 'seasonal_f'])
+
+
+def _confidence_weight(bt_vol_by_asin):
+    """Trust weight per ASIN by backtest-volume rank — same tiering as the
+    dashboard's High/Medium/Lower confidence badge, expressed as how much
+    to trust that ASIN's own long-horizon model average (vs. anchoring it
+    to a trusted trend applied to its real trailing level)."""
+    ranked = bt_vol_by_asin.sort_values(ascending=False)
+    n = len(ranked) or 1
+    weight = {}
+    for i, asin in enumerate(ranked.index):
+        pct = i / n
+        weight[asin] = 0.85 if pct < 0.15 else 0.5 if pct < 0.5 else 0.15
+    return weight
+
+
+def _apply_level_correction(future_wk_asin, wk_asin, trail_win):
+    """On top of the shape correction, also correct the overall LEVEL for
+    lower-volume SKUs. The shape fix only reshapes week-to-week variation
+    around whatever average the model landed on — for lower-volume SKUs
+    that average is itself still depressed by the same long-horizon
+    compounding. Blend each SKU's forward average toward (its own real
+    trailing level x a trusted trend factor computed only from
+    High-confidence SKUs), weighted by how much we trust that SKU's own
+    model average.
+    """
+    bt_vol = wk_asin.groupby('ASIN')['a'].sum()
+    trust = _confidence_weight(bt_vol)
+
+    all_weeks_sorted = sorted(wk_asin['week'].unique())
+    trail_weeks = set(all_weeks_sorted[-trail_win:]) if trail_win else set(all_weeks_sorted)
+    trailing_actual = wk_asin[wk_asin['week'].isin(trail_weeks)].groupby('ASIN')['a'].mean()
+
+    model_avg = future_wk_asin.groupby('ASIN')['f'].mean()
+
+    high_conf = [a for a, w in trust.items() if w >= 0.85]
+    hc_model_sum = model_avg[model_avg.index.isin(high_conf)].sum()
+    hc_trailing_sum = trailing_actual[trailing_actual.index.isin(high_conf)].sum()
+    trend_factor = (hc_model_sum / hc_trailing_sum) if hc_trailing_sum else 1.0
+
+    out = future_wk_asin.copy()
+    for asin, idx in out.groupby('ASIN').groups.items():
+        m_avg = model_avg.get(asin)
+        t_avg = trailing_actual.get(asin)
+        if not m_avg or m_avg <= 0 or t_avg is None or t_avg <= 0:
+            continue
+        corrected_avg = t_avg * trend_factor
+        w = trust.get(asin, 0.5)
+        final_avg = m_avg * w + corrected_avg * (1 - w)
+        out.loc[idx, 'f'] = out.loc[idx, 'f'] * (final_avg / m_avg)
+    return out
+
+
+def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
     """Aggregate the daily SKU x ZIP backtest to weekly per-SKU totals, with
     ASINs replaced by rank-ordered SKU-### ids and postal codes dropped —
     matches the anonymization policy used for forecast/latest.json.
@@ -241,6 +350,17 @@ def transform_to_weekly(tsv_path, future_tsv_path=None):
         # the data boundary. Keep the backtest's (real, complete) week.
         future_weeks = sorted(w for w in future_wk_asin['week'].unique() if w not in weeks_set)
         future_wk_asin = future_wk_asin[future_wk_asin['week'].isin(future_weeks)]
+
+        # The recursive forecast dampens seasonal amplitude badly beyond
+        # its validated ~8-week horizon (short-term lag/rolling features
+        # become fully self-referential). Correct the shape using a
+        # seasonal index from real multi-year history, blended in over the
+        # first ramp_weeks so the model's own near-term signal still leads.
+        if raw_history_path and os.path.exists(raw_history_path) and not future_wk_asin.empty:
+            per_asin_idx, catalog_idx = _seasonal_index(raw_history_path)
+            future_wk_asin = _apply_seasonal_correction(future_wk_asin, per_asin_idx, catalog_idx)
+            future_wk_asin = _apply_level_correction(
+                future_wk_asin, wk_asin, trail_win=min(len(future_weeks), len(weeks)))
 
     all_weeks = weeks + future_weeks
     week_strs = [w.strftime('%Y-%m-%d') for w in all_weeks]
@@ -342,7 +462,8 @@ def handler(event, context):
 
         result_json, volume_error = transform_to_weekly(
             os.path.join(OUTDIR, 'backtest_2025.tsv'),
-            os.path.join(OUTDIR, 'forecast_output.tsv'))
+            os.path.join(OUTDIR, 'forecast_output.tsv'),
+            raw_history_path=RAW_INPUT)
 
         _write_json(f'scenarios/{scenario_id}/result.json', result_json)
 
