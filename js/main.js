@@ -139,6 +139,10 @@
     }).join('');
 
     // table: top 12 by volume
+    const F=computeForwardStats();
+    const confPill=id=>{const c=F.confidenceOf[id];
+      const cls=c==='High'?'ok':c==='Medium'?'warn':'risk';
+      return `<span class="pill ${cls}" title="Forward-looking confidence, ranked by backtest volume — this pipeline's long-horizon forecast holds up best for top sellers">${c||'—'}</span>`;};
     document.getElementById('skuBody').innerHTML=rows.slice(0,12).map(r=>{
       const acc=Math.max(0,100-r.wape);
       const cls=r.wape<=30?'ok':r.wape<=45?'warn':'risk';
@@ -146,7 +150,7 @@
       return `<tr data-sku="${r.a}"><td class="skucell">${r.a}</td><td>${nfFull(r.vol)}</td>`+
         `<td>${nfFull(r.avgF)}</td><td>${r.wape.toFixed(1)}%</td>`+
         `<td><div class="bar-mini"><i style="width:${acc.toFixed(0)}%"></i></div></td>`+
-        `<td><span class="pill ${cls}">${lab}</span></td></tr>`;
+        `<td><span class="pill ${cls}">${lab}</span></td><td>${confPill(r.a)}</td></tr>`;
     }).join('');
 
     // SKU datalist (capped so the picker stays snappy; free-text search still hits any SKU)
@@ -560,12 +564,27 @@
       return {id,backtestVol,fwdVol,trend};
     }).filter(r=>r.backtestVol>0);
 
+    // Forward-looking confidence, ranked by backtest volume: this pipeline's
+    // recursive forecast is only validated at short horizons, and error
+    // compounds fastest for lower-volume/sparser series over a long horizon
+    // — high-volume SKUs hold up; the long tail drifts. Top ~15% by volume
+    // = High, next ~35% = Medium, the rest = Lower. Purely a volume-rank
+    // signal, not a model change.
+    const byBacktestVol=[...skuRows].sort((x,y)=>y.backtestVol-x.backtestVol);
+    const n=byBacktestVol.length||1;
+    const confidenceOf={};
+    byBacktestVol.forEach((r,i)=>{
+      const pct=i/n;
+      confidenceOf[r.id]=pct<0.15?'High':pct<0.5?'Medium':'Lower';
+    });
+    skuRows.forEach(r=>{ r.confidence=confidenceOf[r.id]; });
+
     const byFwdVol=[...skuRows].sort((x,y)=>y.fwdVol-x.fwdVol);
     const withTrend=skuRows.filter(r=>r.trend!=null);
     const growing=[...withTrend].sort((x,y)=>y.trend-x.trend).slice(0,5);
     const declining=[...withTrend].sort((x,y)=>x.trend-y.trend).slice(0,5);
 
-    return {bt,totalWeeks,fwdWeeks,trailWin,trailingActual,forwardForecast,trendPct,byFwdVol,growing,declining};
+    return {bt,totalWeeks,fwdWeeks,trailWin,trailingActual,forwardForecast,trendPct,byFwdVol,growing,declining,confidenceOf};
   }
 
   function buildInsightsSection(insights){
@@ -598,7 +617,9 @@
     const smCard=(l,v,s)=>`<div class="mc sm"><div class="mc-l">${l}</div><div class="mc-v sm">${v}</div><div class="mc-s">${s||''}</div></div>`;
     const trendPill=t=>{if(t==null)return '<span class="pill warn">n/a</span>';
       const cls=t>=0?'ok':'risk'; return `<span class="pill ${cls}">${t>=0?'+':''}${t.toFixed(1)}%</span>`;};
-    const fwdRow=r=>`<tr><td class="mono">${r.id}</td><td>${tn(r.backtestVol)}</td><td>${tn(r.fwdVol)}</td><td>${trendPill(r.trend)}</td></tr>`;
+    const confPill=id=>{const c=F.confidenceOf[id];
+      const cls=c==='High'?'ok':c==='Medium'?'warn':'risk'; return `<span class="pill ${cls}">${c||'—'}</span>`;};
+    const fwdRow=r=>`<tr><td class="mono">${r.id}</td><td>${tn(r.backtestVol)}</td><td>${tn(r.fwdVol)}</td><td>${trendPill(r.trend)}</td><td>${confPill(r.id)}</td></tr>`;
     const trendLi=r=>`<li><span class="mono">${r.id}</span><b style="color:${r.trend>=0?'#1aa179':'#d35454'}">${r.trend>=0?'+':''}${r.trend.toFixed(1)}%</b></li>`;
     const top=S.byVol.slice(0,15);
     const trow=r=>{const a2=Math.max(0,100-r.wape);const cls=r.wape<=30?'ok':r.wape<=45?'warn':'risk';
@@ -662,8 +683,9 @@
         <img class="chart" src="${reportChartPNG()}" alt="Shipped units, historical and forecast">
         <p class="lead" style="margin-top:10px;font-size:12px;color:#6b7787">Blue: actuals to date · Orange (dashed): forecast, including the ${F.fwdWeeks}-week forward view · Green: weekly model error (WAPE), for reference.</p>
         <h2 class="sec">Top SKUs — forward volume</h2>
-        <table><thead><tr><th>SKU</th><th>Backtest volume</th><th>Forward forecast</th><th>Trend</th></tr></thead>
+        <table><thead><tr><th>SKU</th><th>Backtest volume</th><th>Forward forecast</th><th>Trend</th><th>Confidence</th></tr></thead>
         <tbody>${F.byFwdVol.slice(0,15).map(fwdRow).join('')}</tbody></table>
+        <p class="lead" style="margin-top:8px;font-size:12px;color:#6b7787">Confidence is a volume rank, not a probability — this pipeline's long-horizon forecast is validated at high volume and holds up best for top sellers; long-tail SKUs compound more error over ${F.fwdWeeks} weeks and should be treated as directional.</p>
         <h2 class="sec">Fastest movers</h2>
         <div class="two">
           <div><h3>Fastest growing</h3><ul>${F.growing.map(trendLi).join('')}</ul></div>

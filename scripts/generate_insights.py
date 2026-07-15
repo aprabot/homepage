@@ -60,6 +60,16 @@ def compute_stats(d):
     by_wape_desc = sorted([s for s in sku_stats if s['wape'] is not None], key=lambda x: x['wape'], reverse=True)
     by_trend_desc = sorted([s for s in sku_stats if s['trend_pct'] is not None], key=lambda x: x['trend_pct'], reverse=True)
 
+    # Forward-looking confidence by backtest-volume rank: this pipeline's
+    # recursive forecast is only validated at short horizons, and error
+    # compounds fastest for lower-volume/sparser series over a long
+    # horizon — top sellers hold up, the long tail drifts. Top ~15% by
+    # volume = High, next ~35% = Medium, the rest = Lower.
+    n = len(by_volume) or 1
+    for i, s in enumerate(by_volume):
+        pct = i / n
+        s['confidence'] = 'High' if pct < 0.15 else 'Medium' if pct < 0.5 else 'Lower'
+
     return {
         'weeks_total': len(weeks), 'backtest_weeks': bt, 'forward_weeks': len(weeks) - bt,
         'overall_wape': d['overallWape'], 'backtest_volume': backtest_vol, 'forward_volume': future_vol,
@@ -85,6 +95,12 @@ undermines confidence in the product for no good reason. Reserve any cautionary 
 figures that are genuinely extreme outliers relative to the rest of the data provided, and even
 then frame it as a business signal to plan around (e.g. a demand shift, a promo/seasonality
 effect worth checking), never as the model being wrong or unreliable.
+
+Each SKU carries a "confidence" tier (High/Medium/Lower), ranked by backtest sales volume — the
+forward forecast holds up best for top sellers and gets less reliable for lower-volume SKUs over
+a long horizon. If you cite a steep decline for a Medium or Lower confidence SKU, briefly note
+that forward number is less certain for a smaller-volume SKU (still phrased as a normal caveat,
+not a flaw) rather than presenting it with the same certainty as a High-confidence SKU's number.
 
 DATA:
 {json.dumps(stats, indent=2)}
