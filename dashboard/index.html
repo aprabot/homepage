@@ -23,6 +23,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <link rel="stylesheet" href="../css/styles.css">
 <style>
   html,body{height:100%;overflow:hidden}
@@ -410,6 +411,67 @@
           <p class="dsubtle" style="margin-bottom:0">The chat button in the bottom corner is a real AI analyst grounded in your live forecast data — she can also kick off a new scenario run if you ask her to.</p>
         </div>
       </div>
+
+      <div class="dcard" style="margin-top:20px">
+        <div class="ch"><h4>Set up your forecast</h4></div>
+        <p class="dsubtle" style="margin-bottom:16px">Tell us your serviceable area and share your historical data — we'll prepare a model tailored to your business. Supports India and Japan.</p>
+
+        <div id="obSetupForm">
+          <div class="field">
+            <label>Country</label>
+            <div class="theme-pill" id="obCountry">
+              <button type="button" data-c="IN" class="active">India</button>
+              <button type="button" data-c="JP">Japan</button>
+            </div>
+          </div>
+
+          <div class="field" style="margin-top:16px">
+            <label for="obZipInput">Check a postal code</label>
+            <div style="display:flex;gap:8px">
+              <input id="obZipInput" type="text" placeholder="e.g. 560001" style="flex:1">
+              <button type="button" class="dbtn" id="obZipCheck">Show on map</button>
+            </div>
+            <p class="stest-msg" id="obZipStatus" style="margin-top:6px"></p>
+          </div>
+
+          <div class="field" style="margin-top:14px">
+            <label for="obAreaFile">Or upload your serviceable area — a list of postal codes (CSV or TXT, one per line)</label>
+            <input type="file" id="obAreaFile" accept=".csv,.txt">
+            <p class="stest-msg" id="obAreaStatus" style="margin-top:6px"></p>
+          </div>
+
+          <div id="obMap" style="height:320px;border-radius:12px;overflow:hidden;margin-top:14px;border:1px solid var(--line)"></div>
+
+          <div class="field" style="margin-top:20px">
+            <label for="obHistFile">Historical shipment data</label>
+            <input type="file" id="obHistFile" accept=".xlsx,.csv,.tsv,.txt">
+            <p class="stest-msg" style="margin-top:6px;color:var(--muted)">
+              .xlsx with a Shipments sheet (required), Price and Weather sheets (optional).
+              <a href="apra_forecast_input_template.xlsx" download style="color:var(--signal)">Download template →</a>
+            </p>
+            <p class="stest-msg" id="obHistStatus" style="margin-top:6px"></p>
+          </div>
+
+          <button type="button" class="btn btn-pri" id="obSubmit" style="margin-top:20px" disabled>Prepare my model →</button>
+        </div>
+
+        <div id="obPreparing" style="display:none;text-align:center;padding:40px 20px">
+          <svg class="ins-load-spark" viewBox="0 0 24 24" width="36" height="36" style="display:block;margin:0 auto 14px">
+            <path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" fill="#C8F24E"/>
+          </svg>
+          <h3 style="margin-bottom:6px">We're preparing the best model for you</h3>
+          <p class="dsubtle" style="margin-bottom:0">Analyzing your serviceable area and historical data — this usually takes a few minutes.</p>
+        </div>
+
+        <div id="obReady" style="display:none;text-align:center;padding:40px 20px">
+          <div style="width:48px;height:48px;border-radius:50%;background:var(--signal-soft);display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--signal)" stroke-width="2.5" width="24" height="24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h3 style="margin-bottom:6px">Your model is ready</h3>
+          <p class="dsubtle" style="margin-bottom:16px">We've set up a forecasting model tailored to your data. Head to Scenarios to run it, or check Overview for a summary.</p>
+          <button type="button" class="dbtn" id="obGoScenarios">Go to Scenarios →</button>
+        </div>
+      </div>
     </div>
   </div>
 
@@ -568,6 +630,8 @@
 <script src="../js/theme.js"></script>
 <script src="../js/scenarios.js"></script>
 <script src="../js/insights.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+<script src="../js/onboarding.js"></script>
 <script>
   /* dashboard page auth: apply user from token + wire logout */
   (function(){
