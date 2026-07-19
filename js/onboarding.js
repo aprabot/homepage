@@ -11,7 +11,7 @@
 
   var SCENARIOS_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/scenarios';
   var NOMINATIM = 'https://nominatim.openstreetmap.org/search';
-  var MAX_PLOTTED = 25; // cap bulk geocoding so a big list doesn't hammer Nominatim's public instance
+  var MAX_PLOTTED = 15; // cap bulk geocoding so a big list doesn't hammer Nominatim's public instance, and finishes faster
 
   var map = null, markersLayer = null, areaLayer = null;
   var histKey = null;
@@ -57,7 +57,6 @@
   function plotPoint(lat, lon, label) {
     ensureMap();
     L.marker([lat, lon]).addTo(markersLayer).bindPopup(label || '');
-    map.setView([lat, lon], 10);
   }
 
   // Draws a highlighted rectangle over the bounding area of all plotted
@@ -90,12 +89,15 @@
     el.className = 'stest-msg' + (cls ? ' ' + cls : '');
   }
 
-  // Throttled, sequential geocode for a bulk-uploaded list — stays under
-  // Nominatim's public-instance rate limit (~1 req/sec) and caps how many
-  // points we actually plot.
+  // Throttled, sequential geocode for a bulk-uploaded list. Nominatim's public
+  // instance asks for a max of ~1 request/sec and no concurrent requests — going
+  // faster risks it blocking the whole feature, so instead we cut total wait by
+  // deduping codes, plotting fewer of them, and redrawing the highlighted area
+  // after every point (so the shape reads as "done" well before the batch ends).
   function plotBulk(codes, country) {
     var statusEl = document.getElementById('obAreaStatus');
-    var toPlot = codes.slice(0, MAX_PLOTTED);
+    var unique = codes.filter(function (c, idx) { return codes.indexOf(c) === idx; });
+    var toPlot = unique.slice(0, MAX_PLOTTED);
     var plotted = 0, i = 0;
     var points = [];
 
@@ -104,10 +106,10 @@
         var note = codes.length > MAX_PLOTTED
           ? ' (showing first ' + MAX_PLOTTED + ' of ' + codes.length + ')' : '';
         setStatus(statusEl, 'Plotted ' + plotted + ' postal code(s)' + note + '.', 'ok');
-        highlightArea(points);
         return;
       }
       var code = toPlot[i]; i++;
+      setStatus(statusEl, 'Plotting postal codes… (' + i + ' of ' + toPlot.length + ')');
       if (!validPostal(code, country)) { next(); return; }
       geocode(code, country).then(function (results) {
         if (results && results.length) {
@@ -116,9 +118,10 @@
           plotPoint(lat, lon, code);
           points.push([lat, lon]);
           plotted++;
+          highlightArea(points); // redraw immediately so the area fills in as pins land
         }
       }).catch(function () {}).then(function () {
-        setTimeout(next, 1100);
+        setTimeout(next, 1000);
       });
     }
 
