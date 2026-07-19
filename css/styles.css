@@ -658,6 +658,10 @@
   .kpi .d.up{color:var(--signal)}.kpi .d.down{color:#ff8585}
   .dgrid{display:grid;grid-template-columns:1.7fr 1fr;gap:16px;margin-bottom:22px}
   .dcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .onboard-card{cursor:pointer;transition:border-color .2s,transform .2s}
+  .onboard-card:hover{border-color:var(--signal);transform:translateY(-2px)}
+  .onboard-card:hover .ch h4{color:var(--signal)}
+  .dgrid-3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:16px;margin-top:20px}
   .dcard .ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
   .dcard .ch h4{font-family:var(--display);font-weight:600;font-size:1.15rem;letter-spacing:-.01em}
   .dcard .ch .seg{display:flex;gap:4px;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:3px}
@@ -810,6 +814,7 @@
     .dside{display:none}
     .kpis{grid-template-columns:1fr 1fr}
     .dgrid{grid-template-columns:1fr}
+    .dgrid-3{grid-template-columns:1fr}
     .dtop .search{width:auto}
     .table-wrap{overflow-x:auto}
   }
