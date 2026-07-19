@@ -13,7 +13,7 @@
   var NOMINATIM = 'https://nominatim.openstreetmap.org/search';
   var MAX_PLOTTED = 25; // cap bulk geocoding so a big list doesn't hammer Nominatim's public instance
 
-  var map = null, markersLayer = null;
+  var map = null, markersLayer = null, areaLayer = null;
   var histKey = null;
   var TOTAL_STEPS = 3;
   var step = 1;
@@ -60,6 +60,20 @@
     map.setView([lat, lon], 10);
   }
 
+  // Draws a highlighted rectangle over the bounding area of all plotted
+  // points, so the serviceable area reads as a region rather than a
+  // scatter of pins, and fits the map view to it.
+  function highlightArea(points) {
+    if (!points.length) return;
+    ensureMap();
+    if (areaLayer) { map.removeLayer(areaLayer); areaLayer = null; }
+    var bounds = L.latLngBounds(points);
+    areaLayer = L.rectangle(bounds.pad(0.08), {
+      color: '#C8F24E', weight: 2, fillColor: '#C8F24E', fillOpacity: 0.12,
+    }).addTo(map);
+    map.fitBounds(bounds.pad(0.15));
+  }
+
   function geocode(code, country) {
     var params = new URLSearchParams({
       postalcode: code,
@@ -76,29 +90,6 @@
     el.className = 'stest-msg' + (cls ? ' ' + cls : '');
   }
 
-  function checkSingleZip() {
-    var input = document.getElementById('obZipInput');
-    var statusEl = document.getElementById('obZipStatus');
-    var country = currentCountry();
-    var code = input.value.trim();
-    if (!validPostal(code, country)) {
-      setStatus(statusEl, 'Enter a valid ' + countryName(country) + ' postal code.', 'err');
-      return;
-    }
-    setStatus(statusEl, 'Looking up ' + code + '…');
-    geocode(code, country).then(function (results) {
-      if (!results || !results.length) {
-        setStatus(statusEl, 'Could not find that postal code on the map.', 'err');
-        return;
-      }
-      var r = results[0];
-      plotPoint(parseFloat(r.lat), parseFloat(r.lon), code);
-      setStatus(statusEl, code + ' — shown on the map.', 'ok');
-    }).catch(function () {
-      setStatus(statusEl, 'Lookup failed — please try again.', 'err');
-    });
-  }
-
   // Throttled, sequential geocode for a bulk-uploaded list — stays under
   // Nominatim's public-instance rate limit (~1 req/sec) and caps how many
   // points we actually plot.
@@ -106,12 +97,14 @@
     var statusEl = document.getElementById('obAreaStatus');
     var toPlot = codes.slice(0, MAX_PLOTTED);
     var plotted = 0, i = 0;
+    var points = [];
 
     function next() {
       if (i >= toPlot.length) {
         var note = codes.length > MAX_PLOTTED
           ? ' (showing first ' + MAX_PLOTTED + ' of ' + codes.length + ')' : '';
         setStatus(statusEl, 'Plotted ' + plotted + ' postal code(s)' + note + '.', 'ok');
+        highlightArea(points);
         return;
       }
       var code = toPlot[i]; i++;
@@ -119,7 +112,9 @@
       geocode(code, country).then(function (results) {
         if (results && results.length) {
           var r = results[0];
-          plotPoint(parseFloat(r.lat), parseFloat(r.lon), code);
+          var lat = parseFloat(r.lat), lon = parseFloat(r.lon);
+          plotPoint(lat, lon, code);
+          points.push([lat, lon]);
           plotted++;
         }
       }).catch(function () {}).then(function () {
@@ -205,11 +200,6 @@
     });
 
     showStep(1);
-
-    document.getElementById('obZipCheck').addEventListener('click', checkSingleZip);
-    document.getElementById('obZipInput').addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') checkSingleZip();
-    });
 
     document.getElementById('obAreaFile').addEventListener('change', function () {
       var file = this.files[0];
