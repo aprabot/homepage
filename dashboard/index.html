@@ -385,31 +385,12 @@
         </ul>
       </div>
 
-      <div class="dgrid-3">
-        <div class="dcard onboard-card" data-goto="Overview">
-          <div class="ch"><h4>Overview</h4></div>
-          <p class="dsubtle" style="margin-bottom:0">Headline KPIs — overall accuracy, units forecasted, and the highest-volume SKUs, updated whenever a new scenario is approved.</p>
+      <div class="dcard" style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <div class="ch" style="margin-bottom:6px"><h4>Guided product walkthrough</h4></div>
+          <p class="dsubtle" style="margin-bottom:0;max-width:520px">We'll take you through Overview, Forecasts, Scenarios, AI Insights, Settings, and Lyra — right in the real dashboard, one step at a time.</p>
         </div>
-        <div class="dcard onboard-card" data-goto="Forecasts">
-          <div class="ch"><h4>Forecasts</h4></div>
-          <p class="dsubtle" style="margin-bottom:0">The full chart — actuals vs. forecast, with a forward-looking view, per-SKU search, and a confidence signal on longer-horizon numbers.</p>
-        </div>
-        <div class="dcard onboard-card" data-goto="Scenarios">
-          <div class="ch"><h4>Scenarios</h4></div>
-          <p class="dsubtle" style="margin-bottom:0">Run the real pipeline with different settings or your own data, compare runs side by side, and approve the one that goes live.</p>
-        </div>
-        <div class="dcard onboard-card" data-goto="AI Insights">
-          <div class="ch"><h4>AI Insights</h4></div>
-          <p class="dsubtle" style="margin-bottom:0">A generated business read on the current forecast — what's trending up, what needs attention, and why.</p>
-        </div>
-        <div class="dcard onboard-card" data-goto="Settings">
-          <div class="ch"><h4>Settings</h4></div>
-          <p class="dsubtle" style="margin-bottom:0">Theme, and how Lyra answers — response length, tone, focus area, and technical level.</p>
-        </div>
-        <div class="dcard">
-          <div class="ch"><h4>Ask Lyra</h4></div>
-          <p class="dsubtle" style="margin-bottom:0">The chat button in the bottom corner is a real AI analyst grounded in your live forecast data — she can also kick off a new scenario run if you ask her to.</p>
-        </div>
+        <button type="button" class="btn btn-pri" id="tourStartBtn" style="flex:0 0 auto">Start walkthrough →</button>
       </div>
 
       <div class="dcard" style="margin-top:20px">
@@ -625,6 +606,21 @@
   </div>
 </div>
 
+<!-- Guided product walkthrough -->
+<div id="tourBackdrop" class="tour-backdrop" style="display:none"></div>
+<div id="tourCard" class="tour-card" style="display:none">
+  <div class="tour-step-count" id="tourStepCount"></div>
+  <h3 id="tourTitle"></h3>
+  <p class="dsubtle" id="tourDesc" style="margin-bottom:18px"></p>
+  <div style="display:flex;justify-content:space-between;align-items:center">
+    <button type="button" class="link-btn" id="tourSkip">Skip tour</button>
+    <div style="display:flex;gap:8px">
+      <button type="button" class="dbtn" id="tourBack" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Back</button>
+      <button type="button" class="btn btn-pri" id="tourNext">Next →</button>
+    </div>
+  </div>
+</div>
+
 <script src="../js/data.js"></script>
 <script src="../js/main.js"></script>
 <script src="../js/theme.js"></script>
@@ -632,6 +628,7 @@
 <script src="../js/insights.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="../js/onboarding.js"></script>
+<script src="../js/tour.js"></script>
 <script>
   /* dashboard page auth: apply user from token + wire logout */
   (function(){
@@ -710,15 +707,6 @@
       if(target) target.click();
     });
 
-    /* onboarding feature cards jump to the matching nav panel */
-    document.querySelectorAll('.onboard-card[data-goto]').forEach(function(card){
-      card.addEventListener('click', function(){
-        var target = Array.prototype.filter.call(navItems, function(li){
-          return li.textContent.trim() === card.dataset.goto;
-        })[0];
-        if(target) target.click();
-      });
-    });
   })();
 
   /* settings panel helpers */
