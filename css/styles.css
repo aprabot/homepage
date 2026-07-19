@@ -632,6 +632,8 @@
   .file-input::file-selector-button:hover,.file-input::-webkit-file-upload-button:hover{transform:translateY(-1px);box-shadow:0 8px 20px -8px rgba(200,242,78,.55)}
   .spin{animation:dspin .7s linear infinite}
   @keyframes dspin{to{transform:rotate(360deg)}}
+  #obMap.ob-plotting{animation:obMapBlink 1s ease-in-out infinite}
+  @keyframes obMapBlink{0%,100%{box-shadow:0 0 0 3px rgba(255,209,0,.9)}50%{box-shadow:0 0 0 3px rgba(255,209,0,.1)}}
   .report-drop{position:absolute;top:calc(100% + 8px);right:0;background:var(--ink-3);border:1px solid var(--line-2);
     border-radius:11px;padding:6px;min-width:210px;box-shadow:0 24px 50px -18px rgba(0,0,0,.8);z-index:30;
     opacity:0;transform:translateY(-6px);pointer-events:none;transition:opacity .2s,transform .2s}

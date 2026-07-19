@@ -111,22 +111,24 @@
   // faster risks it blocking the whole feature, so instead we plot everything
   // at that safe pace, redrawing the highlighted area after every point (so
   // the shape reads as "done" well before the full list finishes), and stop
-  // outright if the user leaves this page.
+  // outright if the user leaves this page. Progress is shown as a blinking
+  // yellow border on the map itself rather than a running text counter.
   function plotBulk(codes, country) {
     var statusEl = document.getElementById('obAreaStatus');
+    var mapEl = document.getElementById('obMap');
     var toPlot = codes.filter(function (c, idx) { return codes.indexOf(c) === idx; });
     var plotted = 0, i = 0;
     var points = [];
 
     function next() {
-      if (!onboardingVisible()) return; // user navigated away — stop quietly
+      if (!onboardingVisible()) { mapEl.classList.remove('ob-plotting'); return; } // navigated away — stop quietly
 
       if (i >= toPlot.length) {
+        mapEl.classList.remove('ob-plotting');
         setStatus(statusEl, 'Plotted ' + plotted + ' of ' + toPlot.length + ' postal code(s).', 'ok');
         return;
       }
       var code = toPlot[i]; i++;
-      setStatus(statusEl, 'Plotting postal codes… (' + i + ' of ' + toPlot.length + ')');
       if (!validPostal(code, country)) { next(); return; }
       geocode(code, country).then(function (results) {
         if (results && results.length) {
@@ -142,7 +144,8 @@
       });
     }
 
-    setStatus(statusEl, 'Plotting postal codes…');
+    setStatus(statusEl, '');
+    mapEl.classList.add('ob-plotting');
     next();
   }
 
