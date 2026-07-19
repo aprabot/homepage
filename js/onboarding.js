@@ -11,7 +11,6 @@
 
   var SCENARIOS_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/scenarios';
   var NOMINATIM = 'https://nominatim.openstreetmap.org/search';
-  var MAX_PLOTTED = 15; // cap bulk geocoding so a big list doesn't hammer Nominatim's public instance, and finishes faster
 
   var map = null, markersLayer = null, areaLayer = null;
   var histKey = null;
@@ -98,23 +97,32 @@
     el.className = 'stest-msg' + (cls ? ' ' + cls : '');
   }
 
+  // Onboarding panel has to still be the visible section for plotting to keep
+  // going — lets a big list keep geocoding in the background while the user
+  // stays on this page, but stops as soon as they navigate elsewhere so we're
+  // not burning requests against Nominatim's public instance for no one.
+  function onboardingVisible() {
+    var panel = document.getElementById('onboardingPanel');
+    return !!panel && panel.style.display !== 'none';
+  }
+
   // Throttled, sequential geocode for a bulk-uploaded list. Nominatim's public
   // instance asks for a max of ~1 request/sec and no concurrent requests — going
-  // faster risks it blocking the whole feature, so instead we cut total wait by
-  // deduping codes, plotting fewer of them, and redrawing the highlighted area
-  // after every point (so the shape reads as "done" well before the batch ends).
+  // faster risks it blocking the whole feature, so instead we plot everything
+  // at that safe pace, redrawing the highlighted area after every point (so
+  // the shape reads as "done" well before the full list finishes), and stop
+  // outright if the user leaves this page.
   function plotBulk(codes, country) {
     var statusEl = document.getElementById('obAreaStatus');
-    var unique = codes.filter(function (c, idx) { return codes.indexOf(c) === idx; });
-    var toPlot = unique.slice(0, MAX_PLOTTED);
+    var toPlot = codes.filter(function (c, idx) { return codes.indexOf(c) === idx; });
     var plotted = 0, i = 0;
     var points = [];
 
     function next() {
+      if (!onboardingVisible()) return; // user navigated away — stop quietly
+
       if (i >= toPlot.length) {
-        var note = codes.length > MAX_PLOTTED
-          ? ' (showing first ' + MAX_PLOTTED + ' of ' + codes.length + ')' : '';
-        setStatus(statusEl, 'Plotted ' + plotted + ' postal code(s)' + note + '.', 'ok');
+        setStatus(statusEl, 'Plotted ' + plotted + ' of ' + toPlot.length + ' postal code(s).', 'ok');
         return;
       }
       var code = toPlot[i]; i++;
