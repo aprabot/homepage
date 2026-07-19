@@ -173,8 +173,12 @@
     next.textContent = (n === TOTAL_STEPS) ? 'Prepare my model →' : 'Next →';
     next.disabled = (n === TOTAL_STEPS) ? !histKey : false;
 
-    // Leaving the map into view for the first time needs a resize nudge.
-    if (n === 2 && map) setTimeout(function () { map.invalidateSize(); }, 0);
+    // Render the base map as soon as this step comes into view, rather than
+    // waiting for an upload to succeed — otherwise the box just looks blank.
+    if (n === 2) {
+      ensureMap();
+      setTimeout(function () { map.invalidateSize(); }, 0);
+    }
   }
 
   function init() {
