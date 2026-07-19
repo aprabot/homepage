@@ -384,11 +384,14 @@
 
       <div class="dcard" style="margin-top:20px">
         <div class="ch"><h4>Set up your forecast</h4></div>
-        <p class="dsubtle" style="margin-bottom:16px">Tell us your serviceable area and share your historical data — we'll prepare a model tailored to your business.</p>
+        <p class="dsubtle" style="margin-bottom:16px">Answer a few quick questions and we'll prepare a model tailored to your business.</p>
 
         <div id="obSetupForm">
+          <div class="ob-progress" id="obProgress">Question 1 of 3</div>
+
+          <div class="ob-step" id="obStep1">
           <div class="field">
-            <label for="obCountry">Country</label>
+            <label for="obCountry">Which country do you operate in?</label>
             <select id="obCountry" style="width:100%;padding:10px 12px;border-radius:9px;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:var(--body);font-size:14px">
               <option value="AF">Afghanistan</option>
               <option value="AL">Albania</option>
@@ -575,9 +578,11 @@
               <option value="ZW">Zimbabwe</option>
             </select>
           </div>
+          </div>
 
-          <div class="field" style="margin-top:16px">
-            <label for="obZipInput">Check a postal code</label>
+          <div class="ob-step" id="obStep2" style="display:none">
+          <div class="field">
+            <label for="obZipInput">What's your serviceable area? Check a postal code</label>
             <div style="display:flex;gap:8px">
               <input id="obZipInput" type="text" placeholder="e.g. 560001" style="flex:1">
               <button type="button" class="dbtn" id="obZipCheck">Show on map</button>
@@ -586,15 +591,17 @@
           </div>
 
           <div class="field" style="margin-top:14px">
-            <label for="obAreaFile">Or upload your serviceable area — a list of postal codes (CSV or TXT, one per line)</label>
+            <label for="obAreaFile">Or upload a list of postal codes (CSV or TXT, one per line)</label>
             <input type="file" id="obAreaFile" class="file-input" accept=".csv,.txt">
             <p class="stest-msg" id="obAreaStatus" style="margin-top:6px"></p>
           </div>
 
           <div id="obMap" style="height:320px;border-radius:12px;overflow:hidden;margin-top:14px;border:1px solid var(--line)"></div>
+          </div>
 
-          <div class="field" style="margin-top:20px">
-            <label for="obHistFile">Historical shipment data</label>
+          <div class="ob-step" id="obStep3" style="display:none">
+          <div class="field">
+            <label for="obHistFile">Do you have historical shipment data to share?</label>
             <input type="file" id="obHistFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
             <p class="stest-msg" style="margin-top:6px;color:var(--muted)">
               .xlsx with a Shipments sheet (required), Price and Weather sheets (optional).
@@ -602,8 +609,12 @@
             </p>
             <p class="stest-msg" id="obHistStatus" style="margin-top:6px"></p>
           </div>
+          </div>
 
-          <button type="button" class="btn btn-pri" id="obSubmit" style="margin-top:20px" disabled>Prepare my model →</button>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:24px">
+            <button type="button" class="dbtn" id="obBack" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">← Back</button>
+            <button type="button" class="btn btn-pri" id="obNext">Next →</button>
+          </div>
         </div>
 
         <div id="obPreparing" style="display:none;text-align:center;padding:40px 20px">

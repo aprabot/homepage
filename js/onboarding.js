@@ -15,6 +15,8 @@
 
   var map = null, markersLayer = null;
   var histKey = null;
+  var TOTAL_STEPS = 3;
+  var step = 1;
 
   function authHeaders() {
     var t = localStorage.getItem('apra_id');
@@ -157,13 +159,52 @@
   }
 
   function updateSubmitState() {
-    var btn = document.getElementById('obSubmit');
-    if (btn) btn.disabled = !histKey; // require at least historical data
+    // Only the final step (historical data) is required to proceed.
+    var btn = document.getElementById('obNext');
+    if (btn && step === TOTAL_STEPS) btn.disabled = !histKey;
+  }
+
+  function showStep(n) {
+    step = n;
+    for (var i = 1; i <= TOTAL_STEPS; i++) {
+      var el = document.getElementById('obStep' + i);
+      if (el) el.style.display = (i === n) ? '' : 'none';
+    }
+    document.getElementById('obProgress').textContent = 'Question ' + n + ' of ' + TOTAL_STEPS;
+
+    var back = document.getElementById('obBack');
+    var next = document.getElementById('obNext');
+    back.disabled = (n === 1);
+    next.textContent = (n === TOTAL_STEPS) ? 'Prepare my model →' : 'Next →';
+    next.disabled = (n === TOTAL_STEPS) ? !histKey : false;
+
+    // Leaving the map into view for the first time needs a resize nudge.
+    if (n === 2 && map) setTimeout(function () { map.invalidateSize(); }, 0);
   }
 
   function init() {
     var countrySelect = document.getElementById('obCountry');
     if (!countrySelect) return; // onboarding panel not present on this page
+
+    document.getElementById('obBack').addEventListener('click', function () {
+      if (step > 1) showStep(step - 1);
+    });
+
+    document.getElementById('obNext').addEventListener('click', function () {
+      if (step < TOTAL_STEPS) {
+        showStep(step + 1);
+        return;
+      }
+      // Final step — kick off the (UI-only) model preparation state.
+      document.getElementById('obSetupForm').style.display = 'none';
+      document.getElementById('obPreparing').style.display = '';
+      setTimeout(function () {
+        document.getElementById('obPreparing').style.display = 'none';
+        document.getElementById('obReady').style.display = '';
+      }, 6000);
+    });
+
+    showStep(1);
 
     document.getElementById('obZipCheck').addEventListener('click', checkSingleZip);
     document.getElementById('obZipInput').addEventListener('keydown', function (e) {
@@ -193,16 +234,6 @@
         histKey = key;
         updateSubmitState();
       }).catch(function () {});
-    });
-
-    document.getElementById('obSubmit').addEventListener('click', function () {
-      document.getElementById('obSetupForm').style.display = 'none';
-      document.getElementById('obPreparing').style.display = '';
-      // UI-only for now — real model-selection analysis isn't wired up yet.
-      setTimeout(function () {
-        document.getElementById('obPreparing').style.display = 'none';
-        document.getElementById('obReady').style.display = '';
-      }, 6000);
     });
 
     document.getElementById('obGoScenarios').addEventListener('click', function () {
