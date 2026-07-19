@@ -42,9 +42,18 @@
     return /^[A-Za-z0-9\- ]{3,10}$/.test(code); // generic fallback for other countries
   }
 
+  // High-level country views so the map opens already framed on the right
+  // country instead of a generic default — falls back to a world view for
+  // countries we don't have a tuned center/zoom for.
+  var COUNTRY_VIEWS = {
+    IN: [[22.0, 79.0], 4.2],
+    JP: [[36.5, 138.0], 4.8],
+  };
+
   function ensureMap() {
     if (map) return map;
-    map = L.map('obMap', { scrollWheelZoom: false }).setView([22.0, 79.0], 4.2);
+    var view = COUNTRY_VIEWS[currentCountry()] || [[20.0, 10.0], 1.8];
+    map = L.map('obMap', { scrollWheelZoom: false }).setView(view[0], view[1]);
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       attribution: '&copy; OpenStreetMap contributors',
       maxZoom: 18,
@@ -60,8 +69,9 @@
   }
 
   // Draws a highlighted rectangle over the bounding area of all plotted
-  // points, so the serviceable area reads as a region rather than a
-  // scatter of pins, and fits the map view to it.
+  // points, so the serviceable area reads as a region rather than a scatter
+  // of pins. Deliberately does not pan/zoom the map — keeps the country-level
+  // view steady instead of jumping around as each new point lands.
   function highlightArea(points) {
     if (!points.length) return;
     ensureMap();
@@ -70,7 +80,6 @@
     areaLayer = L.rectangle(bounds.pad(0.08), {
       color: '#C8F24E', weight: 2, fillColor: '#C8F24E', fillOpacity: 0.12,
     }).addTo(map);
-    map.fitBounds(bounds.pad(0.15));
   }
 
   function geocode(code, country) {
