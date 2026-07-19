@@ -587,7 +587,7 @@
 
           <div class="field" style="margin-top:14px">
             <label for="obAreaFile">Or upload your serviceable area — a list of postal codes (CSV or TXT, one per line)</label>
-            <input type="file" id="obAreaFile" accept=".csv,.txt">
+            <input type="file" id="obAreaFile" class="file-input" accept=".csv,.txt">
             <p class="stest-msg" id="obAreaStatus" style="margin-top:6px"></p>
           </div>
 
@@ -595,7 +595,7 @@
 
           <div class="field" style="margin-top:20px">
             <label for="obHistFile">Historical shipment data</label>
-            <input type="file" id="obHistFile" accept=".xlsx,.csv,.tsv,.txt">
+            <input type="file" id="obHistFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
             <p class="stest-msg" style="margin-top:6px;color:var(--muted)">
               .xlsx with a Shipments sheet (required), Price and Weather sheets (optional).
               <a href="apra_forecast_input_template.xlsx" download style="color:var(--signal)">Download template →</a>
@@ -645,7 +645,7 @@
           </div>
         </div>
         <div id="rf-upload-row" style="display:none;margin-bottom:16px">
-          <input type="file" id="rf-file" accept=".xlsx,.csv,.tsv,.txt" style="display:block;width:100%;font-size:12.5px;color:var(--muted)">
+          <input type="file" id="rf-file" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
           <p class="stest-msg" style="margin-top:8px;color:var(--muted)">
             .xlsx with separate <b>Shipments</b> (required), <b>Price</b> and <b>Weather</b> sheets — leave
             Price/Weather empty to fall back to platform defaults for that signal. Historical and
