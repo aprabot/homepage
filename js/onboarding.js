@@ -22,16 +22,22 @@
   }
 
   function currentCountry() {
-    var el = document.querySelector('#obCountry button.active');
-    return el ? el.dataset.c : 'IN';
+    var sel = document.getElementById('obCountry');
+    return sel ? sel.value : 'IN';
   }
 
-  function countryName(c) { return c === 'JP' ? 'Japan' : 'India'; }
+  function countryName(c) {
+    var sel = document.getElementById('obCountry');
+    if (!sel) return 'India';
+    var opt = sel.querySelector('option[value="' + c + '"]');
+    return opt ? opt.textContent : sel.options[sel.selectedIndex].textContent;
+  }
 
   function validPostal(code, country) {
     code = (code || '').trim();
     if (country === 'IN') return /^\d{6}$/.test(code);
-    return /^\d{3}-?\d{4}$/.test(code); // Japan: 123-4567 or 1234567
+    if (country === 'JP') return /^\d{3}-?\d{4}$/.test(code); // Japan: 123-4567 or 1234567
+    return /^[A-Za-z0-9\- ]{3,10}$/.test(code); // generic fallback for other countries
   }
 
   function ensureMap() {
@@ -156,15 +162,8 @@
   }
 
   function init() {
-    var countryPill = document.getElementById('obCountry');
-    if (!countryPill) return; // onboarding panel not present on this page
-
-    countryPill.querySelectorAll('button').forEach(function (b) {
-      b.addEventListener('click', function () {
-        countryPill.querySelectorAll('button').forEach(function (x) { x.classList.remove('active'); });
-        b.classList.add('active');
-      });
-    });
+    var countrySelect = document.getElementById('obCountry');
+    if (!countrySelect) return; // onboarding panel not present on this page
 
     document.getElementById('obZipCheck').addEventListener('click', checkSingleZip);
     document.getElementById('obZipInput').addEventListener('keydown', function (e) {
