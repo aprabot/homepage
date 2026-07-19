@@ -388,9 +388,9 @@
       <div class="dcard" style="display:flex;align-items:center;justify-content:space-between;gap:20px;flex-wrap:wrap">
         <div>
           <div class="ch" style="margin-bottom:6px"><h4>Guided product walkthrough</h4></div>
-          <p class="dsubtle" style="margin-bottom:0;max-width:520px">We'll take you through Overview, Forecasts, Scenarios, AI Insights, Settings, and Lyra — right in the real dashboard, one step at a time.</p>
+          <p class="dsubtle" style="margin-bottom:0;max-width:520px">Let Lyra walk you through Overview, Forecasts, Scenarios, AI Insights, Settings, and how to ask her anything — right in the real dashboard, one step at a time.</p>
         </div>
-        <button type="button" class="btn btn-pri" id="tourStartBtn" style="flex:0 0 auto">Start walkthrough →</button>
+        <button type="button" class="btn btn-pri" id="tourStartBtn" style="flex:0 0 auto">Start walkthrough with Lyra →</button>
       </div>
 
       <div class="dcard" style="margin-top:20px">
@@ -609,13 +609,38 @@
 <!-- Guided product walkthrough -->
 <div id="tourBackdrop" class="tour-backdrop" style="display:none"></div>
 <div id="tourCard" class="tour-card" style="display:none">
-  <div class="tour-step-count" id="tourStepCount"></div>
+  <div class="cb-id" style="margin-bottom:14px">
+    <span class="cb-orb">
+      <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="16" cy="14.5" rx="9" ry="7.6" fill="#2B2118"/>
+        <circle cx="16" cy="6.3" r="3.6" fill="#2B2118"/>
+        <ellipse cx="16" cy="19" rx="7.8" ry="9" fill="#E8B685"/>
+        <rect x="6" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>
+        <rect x="19" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>
+        <line x1="13" y1="18.6" x2="19" y2="18.6" stroke="#54E6C4" stroke-width="1.3" stroke-linecap="round"/>
+        <line x1="6" y1="18" x2="4" y2="17" stroke="#54E6C4" stroke-width="1.1" stroke-linecap="round"/>
+        <line x1="26" y1="18" x2="28" y2="17" stroke="#54E6C4" stroke-width="1.1" stroke-linecap="round"/>
+        <ellipse cx="9.4" cy="18.8" rx="1.4" ry="1.6" fill="#1a1a2e"/>
+        <ellipse cx="22.6" cy="18.8" rx="1.4" ry="1.6" fill="#1a1a2e"/>
+        <circle cx="10.1" cy="18.1" r="0.5" fill="white"/>
+        <circle cx="23.3" cy="18.1" r="0.5" fill="white"/>
+        <circle cx="10.5" cy="22" r="0.35" fill="#c47a5a" opacity=".5"/>
+        <circle cx="12" cy="22.6" r="0.35" fill="#c47a5a" opacity=".5"/>
+        <circle cx="20" cy="22.6" r="0.35" fill="#c47a5a" opacity=".5"/>
+        <circle cx="21.5" cy="22" r="0.35" fill="#c47a5a" opacity=".5"/>
+        <path d="M13 24.5 Q16 27 19 24.5" stroke="#a5623f" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+        <rect x="23.7" y="9.5" width="1.5" height="7.5" rx="0.6" fill="#C8F24E" transform="rotate(20 23.7 9.5)"/>
+        <path d="M9 31 Q13 28 16 27.5 Q19 28 23 31" fill="#7AA2FF" opacity="0.65"/>
+      </svg>
+    </span>
+    <div><b>Lyra</b><span id="tourStepCount"></span></div>
+  </div>
   <h3 id="tourTitle"></h3>
   <p class="dsubtle" id="tourDesc" style="margin-bottom:18px"></p>
   <div style="display:flex;justify-content:space-between;align-items:center">
     <button type="button" class="link-btn" id="tourSkip">Skip tour</button>
     <div style="display:flex;gap:8px">
-      <button type="button" class="dbtn" id="tourBack" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Back</button>
+      <button type="button" class="dbtn" id="tourBack" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">← Prev</button>
       <button type="button" class="btn btn-pri" id="tourNext">Next →</button>
     </div>
   </div>

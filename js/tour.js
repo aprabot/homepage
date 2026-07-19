@@ -8,12 +8,12 @@
   'use strict';
 
   var steps = [
-    { name: 'Overview', title: 'Overview', desc: 'Your at-a-glance snapshot — KPI cards, fastest movers, and the full SKU table, refreshed with the latest approved forecast.' },
-    { name: 'Forecasts', title: 'Forecasts', desc: 'The forward-looking chart for shipped units, with backtest, forecast, and confidence bands. Toggle series in the legend, switch the week range, or show/hide the backtest.' },
+    { name: 'Overview', title: 'Overview', desc: 'This is your at-a-glance snapshot — KPI cards, fastest movers, and the full SKU table, refreshed with the latest approved forecast.' },
+    { name: 'Forecasts', title: 'Forecasts', desc: 'Here’s the forward-looking chart for shipped units, with backtest, forecast, and confidence bands. I let you toggle series in the legend, switch the week range, or show/hide the backtest.' },
     { name: 'Scenarios', title: 'Scenarios', desc: 'Run what-if forecasts against the default dataset or your own uploaded data, compare them side by side, then approve one to make it live.' },
-    { name: 'AI Insights', title: 'AI Insights', desc: 'Lyra’s narrative read on the forecast — headline performance, key findings, watch areas, and opportunities, grounded in the real numbers.' },
+    { name: 'AI Insights', title: 'AI Insights', desc: 'This is my narrative read on the forecast — headline performance, key findings, watch areas, and opportunities, grounded in the real numbers.' },
     { name: 'Settings', title: 'Settings', desc: 'Manage your account and preferences here.' },
-    { selector: '#cbLaunch', title: 'Ask Lyra', desc: 'Have a question about the forecast, a SKU, or a scenario? Ask Lyra directly, any time, from anywhere in the dashboard.' },
+    { selector: '#cbLaunch', title: 'Ask me anything', desc: 'Have a question about the forecast, a SKU, or a scenario? Click here to open me up directly, any time, from anywhere in the dashboard.' },
   ];
 
   var idx = -1;
