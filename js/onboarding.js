@@ -14,14 +14,20 @@
 
   var map = null, markersLayer = null, areaLayer = null;
   var histKey = null;
-  var TOTAL_STEPS = 4;
+  var TOTAL_STEPS = 5;
   var step = 1;
+  var holidayCountryLoaded = null; // which country's defaults are currently loaded into holidayState
 
   // id -> {firstDate: Date|null, totalUnits: number|null, auto: bool} — auto
   // entries come from scanning the uploaded data, manual ones from the text
   // field on the "Newly launched SKUs" step. firstDate/totalUnits are null
   // for manual entries since we have no data to back them.
   var newSkuState = {};
+
+  // key -> {date: Date, name: String, auto: bool} — auto entries come from
+  // HOLIDAY_RULES for the selected country, manual ones from the "Holidays"
+  // step's add row. Keyed by "YYYY-MM-DD|name" so duplicates can't stack.
+  var holidayState = {};
 
   function authHeaders() {
     var t = localStorage.getItem('apra_id');
@@ -418,8 +424,137 @@
     });
   }
 
+  // Only fixed-date and "nth weekday of month" holidays are listed here —
+  // both are exact government-defined rules we can compute correctly for
+  // any year. Lunar/astronomical holidays (Diwali, Holi, Eid, the Japanese
+  // equinox days, etc.) shift every year in ways we can't safely predict,
+  // so those are left for the user to add themselves rather than guessed.
+  var HOLIDAY_RULES = {
+    IN: [
+      { month: 1, day: 26, name: 'Republic Day' },
+      { month: 8, day: 15, name: 'Independence Day' },
+      { month: 10, day: 2, name: 'Gandhi Jayanti' },
+    ],
+    JP: [
+      { month: 1, day: 1, name: "New Year's Day" },
+      { month: 1, weekday: 1, n: 2, name: 'Coming of Age Day' },
+      { month: 2, day: 11, name: 'National Foundation Day' },
+      { month: 2, day: 23, name: "Emperor's Birthday" },
+      { month: 4, day: 29, name: 'Showa Day' },
+      { month: 5, day: 3, name: 'Constitution Memorial Day' },
+      { month: 5, day: 4, name: 'Greenery Day' },
+      { month: 5, day: 5, name: "Children's Day" },
+      { month: 7, weekday: 1, n: 3, name: 'Marine Day' },
+      { month: 8, day: 11, name: 'Mountain Day' },
+      { month: 9, weekday: 1, n: 3, name: 'Respect for the Aged Day' },
+      { month: 10, weekday: 1, n: 2, name: 'Sports Day' },
+      { month: 11, day: 3, name: 'Culture Day' },
+      { month: 11, day: 23, name: 'Labor Thanksgiving Day' },
+    ],
+  };
+  var HOLIDAY_WINDOW_DAYS = 365; // show defaults over the coming year, matching the forecast horizon
+
+  function nthWeekdayOfMonth(year, month, weekday, n) {
+    var d = new Date(year, month - 1, 1);
+    var offset = (weekday - d.getDay() + 7) % 7;
+    d.setDate(1 + offset + (n - 1) * 7);
+    return d;
+  }
+
+  // Resolves a country's holiday rules into concrete dates falling within
+  // the next HOLIDAY_WINDOW_DAYS days (rules can span two calendar years).
+  function resolveHolidays(country) {
+    var rules = HOLIDAY_RULES[country];
+    if (!rules) return [];
+    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var horizon = new Date(today.getTime() + HOLIDAY_WINDOW_DAYS * 86400000);
+    var out = [];
+    [today.getFullYear(), today.getFullYear() + 1].forEach(function (year) {
+      rules.forEach(function (rule) {
+        var d = rule.day
+          ? new Date(year, rule.month - 1, rule.day)
+          : nthWeekdayOfMonth(year, rule.month, rule.weekday, rule.n);
+        if (d >= today && d <= horizon) out.push({ date: d, name: rule.name });
+      });
+    });
+    return out.sort(function (a, b) { return a.date - b.date; });
+  }
+
+  function holidayKey(date, name) { return date.toISOString().slice(0, 10) + '|' + name; }
+
+  function renderHolidayList() {
+    var listEl = document.getElementById('obHolidayList');
+    var emptyEl = document.getElementById('obHolidayEmpty');
+    if (!listEl) return; // step not present on this page
+    var keys = Object.keys(holidayState).sort(function (a, b) {
+      return holidayState[a].date - holidayState[b].date;
+    });
+    listEl.innerHTML = '';
+    emptyEl.style.display = keys.length ? 'none' : '';
+    emptyEl.textContent = HOLIDAY_RULES[currentCountry()]
+      ? 'No holidays listed yet — add one below.'
+      : "We don't have default holidays for this country yet — add any that apply below.";
+
+    keys.forEach(function (key) {
+      var h = holidayState[key];
+      var tag = document.createElement('span');
+      tag.className = 'sku-tag';
+
+      var label = document.createElement('span');
+      label.textContent = h.name;
+      tag.appendChild(label);
+
+      var meta = document.createElement('span');
+      meta.className = 'tag-meta';
+      meta.textContent = h.date.toISOString().slice(0, 10);
+      tag.appendChild(meta);
+
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.setAttribute('aria-label', 'Remove ' + h.name);
+      rm.textContent = '×';
+      rm.addEventListener('click', function () {
+        delete holidayState[key];
+        renderHolidayList();
+      });
+      tag.appendChild(rm);
+
+      listEl.appendChild(tag);
+    });
+  }
+
+  // Loads default holidays for the currently selected country, replacing
+  // any previously-loaded defaults but keeping manual additions/overrides —
+  // re-run whenever the Holidays step comes into view, so switching the
+  // country on step 1 and coming back updates the list.
+  function loadDefaultHolidays() {
+    var country = currentCountry();
+    if (country === holidayCountryLoaded) return;
+    Object.keys(holidayState).forEach(function (key) {
+      if (holidayState[key].auto) delete holidayState[key];
+    });
+    resolveHolidays(country).forEach(function (h) {
+      holidayState[holidayKey(h.date, h.name)] = { date: h.date, name: h.name, auto: true };
+    });
+    holidayCountryLoaded = country;
+    renderHolidayList();
+  }
+
+  function addManualHoliday() {
+    var dateInput = document.getElementById('obHolidayDate');
+    var nameInput = document.getElementById('obHolidayName');
+    var dateStr = dateInput.value;
+    var name = nameInput.value.trim();
+    if (!dateStr || !name) return;
+    var date = new Date(dateStr + 'T00:00:00');
+    if (isNaN(date.getTime())) return;
+    holidayState[holidayKey(date, name)] = { date: date, name: name, auto: false };
+    dateInput.value = ''; nameInput.value = '';
+    renderHolidayList();
+  }
+
   function updateSubmitState() {
-    // Only the final step (historical data) is required to proceed.
+    // Historical data is the only required upload — gates the final step's button.
     var btn = document.getElementById('obNext');
     if (btn && step === TOTAL_STEPS) btn.disabled = !histKey;
   }
@@ -444,6 +579,8 @@
       ensureMap();
       setTimeout(function () { map.invalidateSize(); }, 0);
     }
+
+    if (n === 5) loadDefaultHolidays();
   }
 
   function init() {
@@ -501,6 +638,11 @@
       if (e.key === 'Enter') { e.preventDefault(); addManualNewSku(); }
     });
     renderNewSkuList();
+
+    document.getElementById('obHolidayAdd').addEventListener('click', addManualHoliday);
+    document.getElementById('obHolidayName').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); addManualHoliday(); }
+    });
 
     document.getElementById('obGoScenarios').addEventListener('click', function () {
       var target = Array.prototype.filter.call(document.querySelectorAll('.dnav li'), function (li) {

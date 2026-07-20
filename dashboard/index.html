@@ -621,6 +621,20 @@
           </div>
           </div>
 
+          <div class="ob-step" id="obStep5" style="display:none">
+          <div class="field">
+            <label>Holidays</label>
+            <p class="dsubtle" style="margin-bottom:12px" id="obHolidayIntro">Default holidays for the selected country, shown below — remove any that don't apply, or add ones we missed (festival dates like Diwali, Holi, or Eid shift every year, so add those yourself).</p>
+            <div id="obHolidayList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+            <p class="stest-msg" id="obHolidayEmpty" style="margin-top:8px;color:var(--muted)"></p>
+            <div style="display:flex;gap:8px;margin-top:14px">
+              <input id="obHolidayDate" type="date" style="flex:0 0 170px">
+              <input id="obHolidayName" type="text" placeholder="Holiday name" style="flex:1">
+              <button type="button" class="dbtn" id="obHolidayAdd">Add</button>
+            </div>
+          </div>
+          </div>
+
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:24px">
             <button type="button" class="dbtn" id="obBack" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">← Back</button>
             <button type="button" class="btn btn-pri" id="obNext">Next →</button>
