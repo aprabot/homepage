@@ -14,8 +14,14 @@
 
   var map = null, markersLayer = null, areaLayer = null;
   var histKey = null;
-  var TOTAL_STEPS = 3;
+  var TOTAL_STEPS = 4;
   var step = 1;
+
+  // id -> {firstDate: Date|null, totalUnits: number|null, auto: bool} — auto
+  // entries come from scanning the uploaded data, manual ones from the text
+  // field on the "Newly launched SKUs" step. firstDate/totalUnits are null
+  // for manual entries since we have no data to back them.
+  var newSkuState = {};
 
   function authHeaders() {
     var t = localStorage.getItem('apra_id');
@@ -191,6 +197,8 @@
 
   var DATE_COLS = ['ship_day', 'date', 'day'];
   var UNITS_COLS = ['shipped_units', 'units', 'qty', 'quantity'];
+  var ASIN_COLS = ['asin', 'sku', 'sku_id'];
+  var NEW_SKU_WINDOW_DAYS = 90; // flag a SKU as "newly launched" if its first ship date is this close to the dataset's most recent day
 
   function findCol(row, candidates) {
     var keys = Object.keys(row);
@@ -312,9 +320,100 @@
     ctx.fillText(points[N - 1].date.toISOString().slice(0, 10), cw - padR, ch - 6);
   }
 
+  // Flags any SKU whose earliest ship date falls within NEW_SKU_WINDOW_DAYS
+  // of the most recent day in the dataset — a first pass at "this looks like
+  // a recent launch, it won't have much history to forecast from yet".
+  function detectNewSkus(rows) {
+    if (!rows.length) return {};
+    var dateCol = findCol(rows[0], DATE_COLS);
+    var unitsCol = findCol(rows[0], UNITS_COLS);
+    var asinCol = findCol(rows[0], ASIN_COLS);
+    if (!dateCol || !asinCol) return {};
+
+    var perAsin = {}, maxDate = null;
+    rows.forEach(function (row) {
+      var d = new Date(row[dateCol]);
+      var asin = row[asinCol];
+      if (isNaN(d.getTime()) || !asin) return;
+      var u = unitsCol ? parseFloat(row[unitsCol]) : 0;
+      if (isNaN(u)) u = 0;
+      if (!maxDate || d > maxDate) maxDate = d;
+      if (!perAsin[asin]) perAsin[asin] = { firstDate: d, totalUnits: 0 };
+      if (d < perAsin[asin].firstDate) perAsin[asin].firstDate = d;
+      perAsin[asin].totalUnits += u;
+    });
+    if (!maxDate) return {};
+
+    var flagged = {};
+    Object.keys(perAsin).forEach(function (asin) {
+      var info = perAsin[asin];
+      var ageDays = (maxDate - info.firstDate) / 86400000;
+      if (ageDays <= NEW_SKU_WINDOW_DAYS) {
+        flagged[asin] = { firstDate: info.firstDate, totalUnits: info.totalUnits, auto: true };
+      }
+    });
+    return flagged;
+  }
+
+  function renderNewSkuList() {
+    var listEl = document.getElementById('obNewSkuList');
+    var emptyEl = document.getElementById('obNewSkuEmpty');
+    if (!listEl) return; // step not present on this page
+    var ids = Object.keys(newSkuState).sort();
+    listEl.innerHTML = '';
+    emptyEl.style.display = ids.length ? 'none' : '';
+
+    ids.forEach(function (id) {
+      var info = newSkuState[id];
+      var tag = document.createElement('span');
+      tag.className = 'sku-tag';
+
+      var label = document.createElement('span');
+      label.textContent = id;
+      tag.appendChild(label);
+
+      var meta = document.createElement('span');
+      meta.className = 'tag-meta';
+      meta.textContent = info.firstDate
+        ? 'first shipped ' + info.firstDate.toISOString().slice(0, 10)
+        : 'added manually';
+      tag.appendChild(meta);
+
+      var rm = document.createElement('button');
+      rm.type = 'button';
+      rm.setAttribute('aria-label', 'Remove ' + id);
+      rm.textContent = '×';
+      rm.addEventListener('click', function () {
+        delete newSkuState[id];
+        renderNewSkuList();
+      });
+      tag.appendChild(rm);
+
+      listEl.appendChild(tag);
+    });
+  }
+
+  function addManualNewSku() {
+    var input = document.getElementById('obNewSkuInput');
+    var id = input.value.trim();
+    if (!id) return;
+    if (!newSkuState[id]) newSkuState[id] = { firstDate: null, totalUnits: null, auto: false };
+    input.value = '';
+    renderNewSkuList();
+  }
+
   function previewHistChart(file) {
     if (typeof XLSX === 'undefined') return; // library failed to load — skip the preview, upload still proceeds
-    readShipmentRows(file).then(aggregateByDate).then(drawHistChart).catch(function () {
+    readShipmentRows(file).then(function (rows) {
+      drawHistChart(aggregateByDate(rows));
+
+      var flagged = detectNewSkus(rows);
+      Object.keys(newSkuState).forEach(function (id) {
+        if (newSkuState[id].auto) delete newSkuState[id]; // replace prior auto-detections, keep manual ones
+      });
+      Object.assign(newSkuState, flagged);
+      renderNewSkuList();
+    }).catch(function () {
       document.getElementById('obHistChartWrap').style.display = 'none';
     });
   }
@@ -396,6 +495,12 @@
       }).catch(function () {});
       previewHistChart(file); // runs independently of the upload — just reads the local file
     });
+
+    document.getElementById('obNewSkuAdd').addEventListener('click', addManualNewSku);
+    document.getElementById('obNewSkuInput').addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { e.preventDefault(); addManualNewSku(); }
+    });
+    renderNewSkuList();
 
     document.getElementById('obGoScenarios').addEventListener('click', function () {
       var target = Array.prototype.filter.call(document.querySelectorAll('.dnav li'), function (li) {

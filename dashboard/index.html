@@ -608,6 +608,19 @@
           </div>
           </div>
 
+          <div class="ob-step" id="obStep4" style="display:none">
+          <div class="field">
+            <label>Newly launched SKUs</label>
+            <p class="dsubtle" style="margin-bottom:12px">We scan your historical data for SKUs that only started shipping recently — these need special handling since they don't have much sales history yet. Confirm the ones we found, or add any we missed.</p>
+            <div id="obNewSkuList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+            <p class="stest-msg" id="obNewSkuEmpty" style="margin-top:8px;color:var(--muted)">No newly launched SKUs detected yet — upload historical data on the previous step, or add one manually below.</p>
+            <div style="display:flex;gap:8px;margin-top:14px">
+              <input id="obNewSkuInput" type="text" placeholder="e.g. SKU-014" style="flex:1">
+              <button type="button" class="dbtn" id="obNewSkuAdd">Add</button>
+            </div>
+          </div>
+          </div>
+
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:24px">
             <button type="button" class="dbtn" id="obBack" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">← Back</button>
             <button type="button" class="btn btn-pri" id="obNext">Next →</button>
