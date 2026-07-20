@@ -503,8 +503,11 @@
   var HOLIDAY_RULES = {
     IN: [
       { month: 1, day: 26, name: 'Republic Day' },
+      { month: 4, day: 14, name: 'Ambedkar Jayanti' },
+      { month: 5, day: 1, name: 'May Day' },
       { month: 8, day: 15, name: 'Independence Day' },
       { month: 10, day: 2, name: 'Gandhi Jayanti' },
+      { month: 12, day: 25, name: 'Christmas' },
     ],
     JP: [
       { month: 1, day: 1, name: "New Year's Day" },
