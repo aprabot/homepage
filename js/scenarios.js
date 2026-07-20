@@ -17,6 +17,18 @@
     return t ? { 'Authorization': 'Bearer ' + t } : {};
   }
 
+  // A 401 here means the stored token expired mid-session (the page-load
+  // guard only checks once, on load) — clear it and send the user back to
+  // sign in again, rather than leaving a cryptic failed-request error.
+  function signOutExpired() {
+    try {
+      localStorage.removeItem('apra_access');
+      localStorage.removeItem('apra_id');
+      localStorage.removeItem('apra_refresh');
+    } catch (e) {}
+    window.location.replace('/');
+  }
+
   // Wires click-to-toggle behavior onto a chart's legend items, reflecting
   // (and mutating) the given visibility state object, then re-drawing.
   function wireLegend(container, state, redraw) {
@@ -264,8 +276,9 @@
       headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
       body: JSON.stringify({ filename: file.name }),
     })
-      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
       .then(function (res) {
+        if (res.status === 401) { signOutExpired(); throw new Error('Session expired.'); }
         if (!res.ok) throw new Error(res.d.error || 'Could not get an upload URL.');
         statusEl.textContent = 'Uploading ' + file.name + '…';
         return fetch(res.d.upload_url, {
