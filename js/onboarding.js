@@ -176,6 +176,136 @@
       });
   }
 
+  var DATE_COLS = ['ship_day', 'date', 'day'];
+  var UNITS_COLS = ['shipped_units', 'units', 'qty', 'quantity'];
+
+  function findCol(row, candidates) {
+    var keys = Object.keys(row);
+    for (var i = 0; i < candidates.length; i++) {
+      for (var j = 0; j < keys.length; j++) {
+        if (keys[j].toLowerCase() === candidates[i]) return keys[j];
+      }
+    }
+    return null;
+  }
+
+  // Reads the Shipments sheet/rows straight out of the file the user just
+  // picked (client-side, nothing sent anywhere) and returns [{date, units}]
+  // rows — no aggregation yet.
+  function readShipmentRows(file) {
+    var ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext === 'xlsx') {
+      return file.arrayBuffer().then(function (buf) {
+        var wb = XLSX.read(buf, { type: 'array' });
+        var sheetName = wb.SheetNames.filter(function (n) { return n.toLowerCase() === 'shipments'; })[0]
+          || wb.SheetNames[0];
+        return XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: null, raw: false });
+      });
+    }
+    return file.text().then(function (text) {
+      var delim = ext === 'tsv' || text.indexOf('\t') !== -1 ? '\t' : ',';
+      var lines = text.split(/\r\n|\n/).filter(function (l) { return l.trim(); });
+      if (!lines.length) return [];
+      var headers = lines[0].split(delim).map(function (h) { return h.trim(); });
+      return lines.slice(1).map(function (line) {
+        var cells = line.split(delim);
+        var row = {};
+        headers.forEach(function (h, idx) { row[h] = cells[idx] !== undefined ? cells[idx].trim() : null; });
+        return row;
+      });
+    });
+  }
+
+  // Sums shipped units per calendar day across every SKU/postal code, then
+  // buckets into weeks if there are too many distinct days to read as a chart.
+  function aggregateByDate(rows) {
+    if (!rows.length) return [];
+    var dateCol = findCol(rows[0], DATE_COLS);
+    var unitsCol = findCol(rows[0], UNITS_COLS);
+    if (!dateCol || !unitsCol) return [];
+
+    var byDate = {};
+    rows.forEach(function (row) {
+      var d = new Date(row[dateCol]);
+      var u = parseFloat(row[unitsCol]);
+      if (isNaN(d.getTime()) || isNaN(u)) return;
+      var key = d.toISOString().slice(0, 10);
+      byDate[key] = (byDate[key] || 0) + u;
+    });
+
+    var days = Object.keys(byDate).sort().map(function (key) {
+      return { date: new Date(key), units: byDate[key] };
+    });
+    if (days.length <= 60) return days;
+
+    // Too many points to read as a daily line — bucket into weeks instead.
+    var byWeek = {};
+    days.forEach(function (d) {
+      var weekStart = new Date(d.date);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      var key = weekStart.toISOString().slice(0, 10);
+      byWeek[key] = (byWeek[key] || 0) + d.units;
+    });
+    return Object.keys(byWeek).sort().map(function (key) {
+      return { date: new Date(key), units: byWeek[key] };
+    });
+  }
+
+  function drawHistChart(points) {
+    var wrap = document.getElementById('obHistChartWrap');
+    var cv = document.getElementById('obHistChart');
+    if (!points.length) { wrap.style.display = 'none'; return; }
+    wrap.style.display = '';
+
+    var dpr = window.devicePixelRatio || 1;
+    var cw = cv.clientWidth || 600, ch = cv.clientHeight || 200;
+    cv.width = cw * dpr; cv.height = ch * dpr;
+    var ctx = cv.getContext('2d');
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    ctx.clearRect(0, 0, cw, ch);
+
+    var padL = 44, padR = 12, padT = 12, padB = 22;
+    var vals = points.map(function (p) { return p.units; });
+    var vMax = Math.max.apply(null, vals) || 1;
+    var N = points.length;
+    var X = function (i) { return N === 1 ? padL : padL + (i / (N - 1)) * (cw - padL - padR); };
+    var Y = function (v) { return padT + (1 - v / vMax) * (ch - padT - padB); };
+
+    ctx.font = '10px JetBrains Mono, monospace';
+    for (var g = 0; g <= 3; g++) {
+      var y = padT + (g / 3) * (ch - padT - padB);
+      ctx.strokeStyle = 'rgba(255,255,255,.06)';
+      ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(cw - padR, y); ctx.stroke();
+      ctx.fillStyle = '#5C6878'; ctx.textAlign = 'right';
+      ctx.fillText(Math.round(vMax * (1 - g / 3)), padL - 8, y + 3);
+    }
+
+    ctx.beginPath();
+    points.forEach(function (p, i) {
+      var x = X(i), y = Y(p.units);
+      if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+    });
+    ctx.strokeStyle = '#C8F24E'; ctx.lineWidth = 2; ctx.stroke();
+
+    var grad = ctx.createLinearGradient(0, padT, 0, ch - padB);
+    grad.addColorStop(0, 'rgba(200,242,78,.28)');
+    grad.addColorStop(1, 'rgba(200,242,78,0)');
+    ctx.lineTo(X(N - 1), Y(0)); ctx.lineTo(X(0), Y(0)); ctx.closePath();
+    ctx.fillStyle = grad; ctx.fill();
+
+    ctx.fillStyle = '#5C6878'; ctx.textAlign = 'left';
+    ctx.fillText(points[0].date.toISOString().slice(0, 10), padL, ch - 6);
+    ctx.textAlign = 'right';
+    ctx.fillText(points[N - 1].date.toISOString().slice(0, 10), cw - padR, ch - 6);
+  }
+
+  function previewHistChart(file) {
+    if (typeof XLSX === 'undefined') return; // library failed to load — skip the preview, upload still proceeds
+    readShipmentRows(file).then(aggregateByDate).then(drawHistChart).catch(function () {
+      document.getElementById('obHistChartWrap').style.display = 'none';
+    });
+  }
+
   function updateSubmitState() {
     // Only the final step (historical data) is required to proceed.
     var btn = document.getElementById('obNext');
@@ -251,6 +381,7 @@
         histKey = key;
         updateSubmitState();
       }).catch(function () {});
+      previewHistChart(file); // runs independently of the upload — just reads the local file
     });
 
     document.getElementById('obGoScenarios').addEventListener('click', function () {
