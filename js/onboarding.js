@@ -12,11 +12,14 @@
   var SCENARIOS_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/scenarios';
   var NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 
+  var OPEN_METEO = 'https://api.open-meteo.com/v1/forecast';
   var map = null, markersLayer = null, areaLayer = null;
   var histKey = null;
-  var TOTAL_STEPS = 5;
+  var TOTAL_STEPS = 6;
   var step = 1;
   var holidayCountryLoaded = null; // which country's defaults are currently loaded into holidayState
+  var lastAreaPoints = []; // {lat, lon, code} from the most recently plotted serviceable-area codes
+  var weatherLoaded = false; // whether the Weather step's data has already been resolved once
 
   // id -> {firstDate: Date|null, totalUnits: number|null, auto: bool} — auto
   // entries come from scanning the uploaded data, manual ones from the text
@@ -143,6 +146,7 @@
     var toPlot = codes.filter(function (c, idx) { return codes.indexOf(c) === idx; });
     var plotted = 0, i = 0;
     var points = [];
+    lastAreaPoints = []; // reset — this run's results become the new serviceable-area sample for the Weather step
 
     function next() {
       if (!onboardingVisible()) { mapEl.classList.remove('ob-plotting'); return; } // navigated away — stop quietly
@@ -160,6 +164,7 @@
           var lat = parseFloat(r.lat), lon = parseFloat(r.lon);
           plotPoint(lat, lon, code);
           points.push([lat, lon]);
+          lastAreaPoints.push({ lat: lat, lon: lon, code: code });
           plotted++;
           highlightArea(points); // redraw immediately so the area fills in as pins land
         }
@@ -204,6 +209,7 @@
   var DATE_COLS = ['ship_day', 'date', 'day'];
   var UNITS_COLS = ['shipped_units', 'units', 'qty', 'quantity'];
   var ASIN_COLS = ['asin', 'sku', 'sku_id'];
+  var TEMP_COLS = ['temp_mean', 'temperature', 'temp'];
   var NEW_SKU_WINDOW_DAYS = 90; // flag a SKU as "newly launched" if its first ship date is this close to the dataset's most recent day
 
   function findCol(row, candidates) {
@@ -243,6 +249,19 @@
     });
   }
 
+  // Reads the optional Weather sheet, if the file has one — only .xlsx
+  // uploads can carry it, since csv/tsv/txt uploads are just Shipments rows.
+  function readWeatherRows(file) {
+    var ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext !== 'xlsx') return Promise.resolve([]);
+    return file.arrayBuffer().then(function (buf) {
+      var wb = XLSX.read(buf, { type: 'array' });
+      var sheetName = wb.SheetNames.filter(function (n) { return n.toLowerCase() === 'weather'; })[0];
+      if (!sheetName) return [];
+      return XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: null, raw: false });
+    });
+  }
+
   // Sums shipped units per calendar day across every SKU/postal code, then
   // buckets into weeks if there are too many distinct days to read as a chart.
   function aggregateByDate(rows) {
@@ -278,10 +297,50 @@
     });
   }
 
-  function drawHistChart(points) {
-    var wrap = document.getElementById('obHistChartWrap');
-    var cv = document.getElementById('obHistChart');
-    if (!points.length) { wrap.style.display = 'none'; return; }
+  // Same day/week bucketing as aggregateByDate, but averages instead of
+  // sums — temperature isn't additive across postal codes/rows like units are.
+  function aggregateAvgByDate(rows) {
+    if (!rows.length) return [];
+    var dateCol = findCol(rows[0], DATE_COLS);
+    var tempCol = findCol(rows[0], TEMP_COLS);
+    if (!dateCol || !tempCol) return [];
+
+    var byDate = {};
+    rows.forEach(function (row) {
+      var d = new Date(row[dateCol]);
+      var t = parseFloat(row[tempCol]);
+      if (isNaN(d.getTime()) || isNaN(t)) return;
+      var key = d.toISOString().slice(0, 10);
+      if (!byDate[key]) byDate[key] = { sum: 0, n: 0 };
+      byDate[key].sum += t; byDate[key].n++;
+    });
+
+    var days = Object.keys(byDate).sort().map(function (key) {
+      return { date: new Date(key), units: byDate[key].sum / byDate[key].n };
+    });
+    if (days.length <= 60) return days;
+
+    var byWeek = {};
+    days.forEach(function (d) {
+      var weekStart = new Date(d.date);
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      var key = weekStart.toISOString().slice(0, 10);
+      if (!byWeek[key]) byWeek[key] = { sum: 0, n: 0 };
+      byWeek[key].sum += d.units; byWeek[key].n++;
+    });
+    return Object.keys(byWeek).sort().map(function (key) {
+      return { date: new Date(key), units: byWeek[key].sum / byWeek[key].n };
+    });
+  }
+
+  // Generic day/week-bucketed line chart, reused for both shipment volume
+  // and temperature. Non-negative series (units) keep a zero baseline;
+  // series that dip below zero (temperature) get their own min instead.
+  function drawLineChart(canvasId, wrapId, points, fmt) {
+    fmt = fmt || function (v) { return Math.round(v); };
+    var wrap = document.getElementById(wrapId);
+    var cv = document.getElementById(canvasId);
+    if (!points.length) { wrap.style.display = 'none'; return false; }
     wrap.style.display = '';
 
     var dpr = window.devicePixelRatio || 1;
@@ -293,10 +352,13 @@
 
     var padL = 44, padR = 12, padT = 12, padB = 22;
     var vals = points.map(function (p) { return p.units; });
-    var vMax = Math.max.apply(null, vals) || 1;
+    var vMax = Math.max.apply(null, vals);
+    var vMin = Math.min.apply(null, vals);
+    if (vMin > 0) vMin = 0;
+    if (vMax === vMin) vMax = vMin + 1;
     var N = points.length;
     var X = function (i) { return N === 1 ? padL : padL + (i / (N - 1)) * (cw - padL - padR); };
-    var Y = function (v) { return padT + (1 - v / vMax) * (ch - padT - padB); };
+    var Y = function (v) { return padT + (1 - (v - vMin) / (vMax - vMin)) * (ch - padT - padB); };
 
     ctx.font = '10px JetBrains Mono, monospace';
     for (var g = 0; g <= 3; g++) {
@@ -304,7 +366,7 @@
       ctx.strokeStyle = 'rgba(255,255,255,.06)';
       ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(cw - padR, y); ctx.stroke();
       ctx.fillStyle = '#5C6878'; ctx.textAlign = 'right';
-      ctx.fillText(Math.round(vMax * (1 - g / 3)), padL - 8, y + 3);
+      ctx.fillText(fmt(vMax - (g / 3) * (vMax - vMin)), padL - 8, y + 3);
     }
 
     ctx.beginPath();
@@ -317,13 +379,14 @@
     var grad = ctx.createLinearGradient(0, padT, 0, ch - padB);
     grad.addColorStop(0, 'rgba(200,242,78,.28)');
     grad.addColorStop(1, 'rgba(200,242,78,0)');
-    ctx.lineTo(X(N - 1), Y(0)); ctx.lineTo(X(0), Y(0)); ctx.closePath();
+    ctx.lineTo(X(N - 1), Y(vMin)); ctx.lineTo(X(0), Y(vMin)); ctx.closePath();
     ctx.fillStyle = grad; ctx.fill();
 
     ctx.fillStyle = '#5C6878'; ctx.textAlign = 'left';
     ctx.fillText(points[0].date.toISOString().slice(0, 10), padL, ch - 6);
     ctx.textAlign = 'right';
     ctx.fillText(points[N - 1].date.toISOString().slice(0, 10), cw - padR, ch - 6);
+    return true;
   }
 
   // Flags any SKU whose earliest ship date falls within NEW_SKU_WINDOW_DAYS
@@ -408,10 +471,12 @@
     renderNewSkuList();
   }
 
+  var weatherChartPoints = []; // temperature points parsed from the uploaded file's Weather sheet, if any
+
   function previewHistChart(file) {
     if (typeof XLSX === 'undefined') return; // library failed to load — skip the preview, upload still proceeds
     readShipmentRows(file).then(function (rows) {
-      drawHistChart(aggregateByDate(rows));
+      drawLineChart('obHistChart', 'obHistChartWrap', aggregateByDate(rows));
 
       var flagged = detectNewSkus(rows);
       Object.keys(newSkuState).forEach(function (id) {
@@ -422,6 +487,12 @@
     }).catch(function () {
       document.getElementById('obHistChartWrap').style.display = 'none';
     });
+
+    readWeatherRows(file).then(function (rows) {
+      weatherChartPoints = aggregateAvgByDate(rows);
+      weatherLoaded = false; // let the Weather step re-render with this file's data next time it's shown
+      if (step === 6) loadWeatherPreview();
+    }).catch(function () { weatherChartPoints = []; });
   }
 
   // Only fixed-date and "nth weekday of month" holidays are listed here —
@@ -553,6 +624,63 @@
     renderHolidayList();
   }
 
+  // Fetches today's current temperature (no key needed, CORS-friendly) for a
+  // handful of the plotted serviceable-area points, as a fallback when the
+  // uploaded file didn't include a Weather sheet.
+  function fetchLiveWeather(points) {
+    var listEl = document.getElementById('obWeatherLiveList');
+    listEl.innerHTML = '';
+    var sample = points.slice(0, 5);
+    sample.forEach(function (p) {
+      var card = document.createElement('div');
+      card.className = 'weather-card';
+      var label = document.createElement('span');
+      label.className = 'wc-label';
+      label.textContent = p.code;
+      var temp = document.createElement('span');
+      temp.className = 'wc-temp';
+      temp.textContent = '…';
+      card.appendChild(label); card.appendChild(temp);
+      listEl.appendChild(card);
+
+      fetch(OPEN_METEO + '?latitude=' + p.lat + '&longitude=' + p.lon + '&current=temperature_2m')
+        .then(function (r) { return r.json(); })
+        .then(function (d) {
+          var t = d && d.current && d.current.temperature_2m;
+          temp.textContent = (t != null) ? Math.round(t) + '°C' : '—';
+        })
+        .catch(function () { temp.textContent = '—'; });
+    });
+  }
+
+  // Weather sheet data (if the upload had one) takes priority; otherwise
+  // falls back to live current temperature for the plotted serviceable-area
+  // points; otherwise a plain message explaining there's nothing to show yet.
+  function loadWeatherPreview() {
+    if (weatherLoaded) return;
+    weatherLoaded = true;
+
+    var chartWrap = document.getElementById('obWeatherChartWrap');
+    var liveWrap = document.getElementById('obWeatherLiveWrap');
+    var emptyEl = document.getElementById('obWeatherEmpty');
+    chartWrap.style.display = 'none';
+    liveWrap.style.display = 'none';
+    emptyEl.style.display = 'none';
+
+    if (weatherChartPoints.length) {
+      drawLineChart('obWeatherChart', 'obWeatherChartWrap', weatherChartPoints,
+        function (v) { return v.toFixed(1) + '°C'; });
+      return;
+    }
+    if (lastAreaPoints.length) {
+      liveWrap.style.display = '';
+      fetchLiveWeather(lastAreaPoints);
+      return;
+    }
+    emptyEl.style.display = '';
+    emptyEl.textContent = 'No weather data yet — include a Weather sheet with your historical data, or add serviceable-area postal codes on an earlier step.';
+  }
+
   function updateSubmitState() {
     // Historical data is the only required upload — gates the final step's button.
     var btn = document.getElementById('obNext');
@@ -581,6 +709,7 @@
     }
 
     if (n === 5) loadDefaultHolidays();
+    if (n === 6) loadWeatherPreview();
   }
 
   function init() {

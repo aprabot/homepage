@@ -635,6 +635,22 @@
           </div>
           </div>
 
+          <div class="ob-step" id="obStep6" style="display:none">
+          <div class="field">
+            <label>Weather</label>
+            <p class="dsubtle" style="margin-bottom:12px" id="obWeatherIntro">Temperature for your area — from your Weather sheet if you included one, otherwise a live reading for your serviceable area.</p>
+            <div id="obWeatherChartWrap" style="display:none">
+              <div class="ch" style="margin-bottom:8px"><h4 style="font-size:13.5px">Temperature over time (from your Weather sheet)</h4></div>
+              <canvas id="obWeatherChart" style="width:100%;height:200px;display:block;border-radius:12px;border:1px solid var(--line)"></canvas>
+            </div>
+            <div id="obWeatherLiveWrap" style="display:none">
+              <div class="ch" style="margin-bottom:8px"><h4 style="font-size:13.5px">Current temperature near your serviceable area</h4></div>
+              <div id="obWeatherLiveList" style="display:flex;flex-wrap:wrap;gap:10px"></div>
+            </div>
+            <p class="stest-msg" id="obWeatherEmpty" style="margin-top:8px;color:var(--muted)"></p>
+          </div>
+          </div>
+
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:24px">
             <button type="button" class="dbtn" id="obBack" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">← Back</button>
             <button type="button" class="btn btn-pri" id="obNext">Next →</button>
