@@ -661,7 +661,7 @@
             <path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" fill="#C8F24E"/>
           </svg>
           <h3 style="margin-bottom:6px">We're preparing the best model for you</h3>
-          <p class="dsubtle" style="margin-bottom:0">Analyzing your serviceable area and historical data — this usually takes a few minutes.</p>
+          <p class="dsubtle" id="obPreparingMsg" style="margin-bottom:0">Training a forecasting model on your uploaded data — this can take a few minutes.</p>
         </div>
 
         <div id="obReady" style="display:none;text-align:center;padding:40px 20px">
@@ -669,8 +669,17 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="var(--signal)" stroke-width="2.5" width="24" height="24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
           </div>
           <h3 style="margin-bottom:6px">Your model is ready</h3>
-          <p class="dsubtle" style="margin-bottom:16px">We've set up a forecasting model tailored to your data. Head to Scenarios to run it, or check Overview for a summary.</p>
+          <p class="dsubtle" style="margin-bottom:16px">We've trained a forecasting model on your data. Head to Scenarios to review it and approve it to go live.</p>
           <button type="button" class="dbtn" id="obGoScenarios">Go to Scenarios →</button>
+        </div>
+
+        <div id="obFailed" style="display:none;text-align:center;padding:40px 20px">
+          <div style="width:48px;height:48px;border-radius:50%;background:rgba(255,107,107,.12);display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
+            <svg viewBox="0 0 24 24" fill="none" stroke="#ff6b6b" stroke-width="2.5" width="24" height="24"><path d="M12 8v5M12 16h.01M12 3l9 16H3l9-16Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          </div>
+          <h3 style="margin-bottom:6px">Something went wrong</h3>
+          <p class="dsubtle" id="obFailedMsg" style="margin-bottom:16px">We couldn't prepare your model.</p>
+          <button type="button" class="dbtn" id="obTryAgain">Try again</button>
         </div>
       </div>
     </div>

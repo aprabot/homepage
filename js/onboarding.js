@@ -118,6 +118,7 @@
   }
 
   function setStatus(el, text, cls) {
+    if (!el) return; // background uploads (e.g. the onboarding profile) have no visible status UI
     el.textContent = text;
     el.className = 'stest-msg' + (cls ? ' ' + cls : '');
   }
@@ -701,6 +702,94 @@
     if (n === 6) loadWeatherPreview();
   }
 
+  var POLL_MS = 8000;
+  var MAX_POLLS = 100; // ~13 minutes, under the runner Lambda's 900s ceiling
+  var pollTimer = null;
+  var pollCount = 0;
+
+  // Holidays and newly-launched SKUs aren't consumable by forecast.py yet (no
+  // CLI support for either) — saved as a JSON profile for future use rather
+  // than silently dropped. Filed as .txt since that's already an allowed
+  // upload extension; only the S3 content-type metadata is cosmetically off.
+  function buildOnboardingProfile() {
+    var profile = {
+      country: currentCountry(),
+      submitted_at: new Date().toISOString(),
+      new_skus: Object.keys(newSkuState).map(function (id) {
+        var s = newSkuState[id];
+        return { id: id, auto: s.auto, first_shipped: s.firstDate ? s.firstDate.toISOString().slice(0, 10) : null };
+      }),
+      holidays: Object.keys(holidayState).map(function (key) {
+        var h = holidayState[key];
+        return { date: h.date.toISOString().slice(0, 10), name: h.name, auto: h.auto };
+      }),
+    };
+    return new File([JSON.stringify(profile, null, 2)], 'onboarding-profile.txt', { type: 'application/json' });
+  }
+
+  function submitOnboardingProfile() {
+    uploadFile(buildOnboardingProfile(), null).catch(function () {}); // best-effort, never blocks the main flow
+  }
+
+  function showPreparingResult(state, message) {
+    if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+    document.getElementById('obPreparing').style.display = 'none';
+    document.getElementById('obReady').style.display = (state === 'ready') ? '' : 'none';
+    document.getElementById('obFailed').style.display = (state === 'failed') ? '' : 'none';
+    if (state === 'failed' && message) document.getElementById('obFailedMsg').textContent = message;
+  }
+
+  // Mirrors js/scenarios.js's own polling (8s interval on GET /scenarios,
+  // watching for status !== 'running') rather than a dedicated status route —
+  // there isn't one, and the Scenarios tab already proves this pattern works.
+  function pollOnboardingScenario(scenarioId) {
+    pollCount = 0;
+    pollTimer = setInterval(function () {
+      pollCount++;
+      if (pollCount > MAX_POLLS) {
+        clearInterval(pollTimer); pollTimer = null;
+        // Stop polling but leave the preparing state up — the run may still finish;
+        // the Scenarios tab's own polling will pick it up regardless.
+        document.getElementById('obPreparingMsg').textContent =
+          'Still working — this is taking longer than usual. Check the Scenarios tab shortly.';
+        return;
+      }
+      fetch(SCENARIOS_API, { headers: authHeaders() })
+        .then(function (r) {
+          if (r.status === 401) { signOutExpired(); throw new Error('Session expired.'); }
+          return r.json();
+        })
+        .then(function (d) {
+          var match = (d.scenarios || []).filter(function (s) { return s.id === scenarioId; })[0];
+          if (!match) return; // not indexed yet — try again next tick
+          if (match.status === 'completed') showPreparingResult('ready');
+          else if (match.status === 'failed') showPreparingResult('failed', 'The model run failed — you can try again.');
+        })
+        .catch(function () {}); // transient error — just try again next tick
+    }, POLL_MS);
+  }
+
+  function createOnboardingScenario() {
+    fetch(SCENARIOS_API, {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      body: JSON.stringify({
+        label: 'Onboarding — ' + countryName(currentCountry()) + ' setup',
+        known_prices: true, calibrate: true, weather: true, refresh_days: 28,
+        custom_input_key: histKey,
+      }),
+    })
+      .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
+      .then(function (res) {
+        if (res.status === 401) { signOutExpired(); return; }
+        if (!res.ok) throw new Error(res.d.error || 'Could not start model preparation.');
+        pollOnboardingScenario(res.d.scenario_id);
+      })
+      .catch(function (err) {
+        showPreparingResult('failed', err.message || 'Could not start model preparation.');
+      });
+  }
+
   function init() {
     var countrySelect = document.getElementById('obCountry');
     if (!countrySelect) return; // onboarding panel not present on this page
@@ -714,13 +803,21 @@
         showStep(step + 1);
         return;
       }
-      // Final step — kick off the (UI-only) model preparation state.
+      // Final step — kick off real model preparation: a live scenario run
+      // against the uploaded historical data, polled the same way the
+      // Scenarios tab polls its own runs.
       document.getElementById('obSetupForm').style.display = 'none';
+      document.getElementById('obFailed').style.display = 'none';
+      document.getElementById('obPreparingMsg').textContent =
+        'Training a forecasting model on your uploaded data — this can take a few minutes.';
       document.getElementById('obPreparing').style.display = '';
-      setTimeout(function () {
-        document.getElementById('obPreparing').style.display = 'none';
-        document.getElementById('obReady').style.display = '';
-      }, 6000);
+      submitOnboardingProfile();
+      createOnboardingScenario();
+    });
+
+    document.getElementById('obTryAgain').addEventListener('click', function () {
+      document.getElementById('obFailed').style.display = 'none';
+      document.getElementById('obSetupForm').style.display = '';
     });
 
     showStep(1);
