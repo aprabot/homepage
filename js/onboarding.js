@@ -12,13 +12,11 @@
   var SCENARIOS_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/scenarios';
   var NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 
-  var OPEN_METEO = 'https://api.open-meteo.com/v1/forecast';
   var map = null, markersLayer = null, areaLayer = null;
   var histKey = null;
   var TOTAL_STEPS = 6;
   var step = 1;
   var holidayCountryLoaded = null; // which country's defaults are currently loaded into holidayState
-  var lastAreaPoints = []; // {lat, lon, code} from the most recently plotted serviceable-area codes
   var weatherLoaded = false; // whether the Weather step's data has already been resolved once
 
   // id -> {firstDate: Date|null, totalUnits: number|null, auto: bool} — auto
@@ -146,7 +144,6 @@
     var toPlot = codes.filter(function (c, idx) { return codes.indexOf(c) === idx; });
     var plotted = 0, i = 0;
     var points = [];
-    lastAreaPoints = []; // reset — this run's results become the new serviceable-area sample for the Weather step
 
     function next() {
       if (!onboardingVisible()) { mapEl.classList.remove('ob-plotting'); return; } // navigated away — stop quietly
@@ -164,7 +161,6 @@
           var lat = parseFloat(r.lat), lon = parseFloat(r.lon);
           plotPoint(lat, lon, code);
           points.push([lat, lon]);
-          lastAreaPoints.push({ lat: lat, lon: lon, code: code });
           plotted++;
           highlightArea(points); // redraw immediately so the area fills in as pins land
         }
@@ -653,44 +649,16 @@
   // Fetches today's current temperature (no key needed, CORS-friendly) for a
   // handful of the plotted serviceable-area points, as a fallback when the
   // uploaded file didn't include a Weather sheet.
-  function fetchLiveWeather(points) {
-    var listEl = document.getElementById('obWeatherLiveList');
-    listEl.innerHTML = '';
-    var sample = points.slice(0, 5);
-    sample.forEach(function (p) {
-      var card = document.createElement('div');
-      card.className = 'weather-card';
-      var label = document.createElement('span');
-      label.className = 'wc-label';
-      label.textContent = p.code;
-      var temp = document.createElement('span');
-      temp.className = 'wc-temp';
-      temp.textContent = '…';
-      card.appendChild(label); card.appendChild(temp);
-      listEl.appendChild(card);
-
-      fetch(OPEN_METEO + '?latitude=' + p.lat + '&longitude=' + p.lon + '&current=temperature_2m')
-        .then(function (r) { return r.json(); })
-        .then(function (d) {
-          var t = d && d.current && d.current.temperature_2m;
-          temp.textContent = (t != null) ? Math.round(t) + '°C' : '—';
-        })
-        .catch(function () { temp.textContent = '—'; });
-    });
-  }
-
-  // Weather sheet data (if the upload had one) takes priority; otherwise
-  // falls back to live current temperature for the plotted serviceable-area
-  // points; otherwise a plain message explaining there's nothing to show yet.
+  // Weather sheet data (from either the historical-data upload or a
+  // standalone weather file) drives the chart; otherwise a plain message
+  // explaining there's nothing to show yet.
   function loadWeatherPreview() {
     if (weatherLoaded) return;
     weatherLoaded = true;
 
     var chartWrap = document.getElementById('obWeatherChartWrap');
-    var liveWrap = document.getElementById('obWeatherLiveWrap');
     var emptyEl = document.getElementById('obWeatherEmpty');
     chartWrap.style.display = 'none';
-    liveWrap.style.display = 'none';
     emptyEl.style.display = 'none';
 
     if (weatherChartPoints.length) {
@@ -698,13 +666,8 @@
         function (v) { return v.toFixed(1) + '°C'; });
       return;
     }
-    if (lastAreaPoints.length) {
-      liveWrap.style.display = '';
-      fetchLiveWeather(lastAreaPoints);
-      return;
-    }
     emptyEl.style.display = '';
-    emptyEl.textContent = 'No weather data yet — upload a weather file above, include a Weather sheet with your historical data, or add serviceable-area postal codes on an earlier step.';
+    emptyEl.textContent = 'No weather data yet — upload a weather file above, or include a Weather sheet with your historical data.';
   }
 
   function updateSubmitState() {
