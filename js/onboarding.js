@@ -711,6 +711,7 @@
   var MAX_POLLS = 100; // ~13 minutes, under the runner Lambda's 900s ceiling
   var pollTimer = null;
   var pollCount = 0;
+  var ONBOARDING_SCENARIO_KEY = 'apra_onboarding_scenario_id';
 
   // Holidays and newly-launched SKUs aren't consumable by forecast.py yet (no
   // CLI support for either) — saved as a JSON profile for future use rather
@@ -788,11 +789,80 @@
       .then(function (res) {
         if (res.status === 401) { signOutExpired(); return; }
         if (!res.ok) throw new Error(res.d.error || 'Could not start model preparation.');
+        try { localStorage.setItem(ONBOARDING_SCENARIO_KEY, res.d.scenario_id); } catch (e) {}
         pollOnboardingScenario(res.d.scenario_id);
       })
       .catch(function (err) {
         showPreparingResult('failed', err.message || 'Could not start model preparation.');
       });
+  }
+
+  // Lets the user leave Getting Started and come back — even after a full
+  // page reload — and still see where their submitted run stands, instead
+  // of the wizard resetting to question 1 with no memory of it.
+  function resumeExistingOnboardingRun() {
+    var scenarioId;
+    try { scenarioId = localStorage.getItem(ONBOARDING_SCENARIO_KEY); } catch (e) { scenarioId = null; }
+    if (!scenarioId) return;
+
+    document.getElementById('obWalkthroughCard').style.display = 'none';
+    document.getElementById('obSetupForm').style.display = 'none';
+    document.getElementById('obPreparingMsg').textContent = 'Checking on your model…';
+    document.getElementById('obPreparing').style.display = '';
+
+    fetch(SCENARIOS_API, { headers: authHeaders() })
+      .then(function (r) {
+        if (r.status === 401) { signOutExpired(); throw new Error('Session expired.'); }
+        return r.json();
+      })
+      .then(function (d) {
+        var match = (d.scenarios || []).filter(function (s) { return s.id === scenarioId; })[0];
+        if (!match) {
+          try { localStorage.removeItem(ONBOARDING_SCENARIO_KEY); } catch (e) {}
+          document.getElementById('obPreparing').style.display = 'none';
+          document.getElementById('obSetupForm').style.display = '';
+          document.getElementById('obWalkthroughCard').style.display = (step === 1) ? 'flex' : 'none';
+          return;
+        }
+        if (match.status === 'completed') { showPreparingResult('ready'); return; }
+        if (match.status === 'failed') { showPreparingResult('failed', 'The model run failed — you can try again.'); return; }
+        document.getElementById('obPreparingMsg').textContent =
+          'Training a forecasting model on your uploaded data — this can take a few minutes.';
+        pollOnboardingScenario(scenarioId);
+      })
+      .catch(function () {
+        document.getElementById('obPreparing').style.display = 'none';
+        document.getElementById('obSetupForm').style.display = '';
+      });
+  }
+
+  // Full reset — clears the remembered run and every piece of wizard state,
+  // so the user can set up a fresh model from question 1.
+  function startOnboardingOver() {
+    try { localStorage.removeItem(ONBOARDING_SCENARIO_KEY); } catch (e) {}
+    histKey = null;
+    newSkuState = {};
+    holidayState = {};
+    holidayCountryLoaded = null;
+    weatherLoaded = false;
+    weatherChartPoints = [];
+
+    document.getElementById('obReady').style.display = 'none';
+    document.getElementById('obFailed').style.display = 'none';
+    document.getElementById('obPreparing').style.display = 'none';
+    document.getElementById('obSetupForm').style.display = '';
+
+    ['obAreaFile', 'obHistFile', 'obWeatherFile'].forEach(function (id) {
+      var el = document.getElementById(id); if (el) el.value = '';
+    });
+    document.getElementById('obAreaStatus').textContent = '';
+    document.getElementById('obHistStatus').textContent = '';
+    document.getElementById('obHistChartWrap').style.display = 'none';
+    document.getElementById('obWeatherFileStatus').textContent = '';
+    document.getElementById('obWeatherChartWrap').style.display = 'none';
+    renderNewSkuList();
+    renderHolidayList();
+    showStep(1);
   }
 
   function init() {
@@ -821,9 +891,13 @@
     });
 
     document.getElementById('obTryAgain').addEventListener('click', function () {
+      try { localStorage.removeItem(ONBOARDING_SCENARIO_KEY); } catch (e) {}
       document.getElementById('obFailed').style.display = 'none';
       document.getElementById('obSetupForm').style.display = '';
+      document.getElementById('obWalkthroughCard').style.display = (step === 1) ? 'flex' : 'none';
     });
+
+    document.getElementById('obStartOver').addEventListener('click', startOnboardingOver);
 
     showStep(1);
 
@@ -878,6 +952,8 @@
       })[0];
       if (target) target.click();
     });
+
+    resumeExistingOnboardingRun();
   }
 
   document.addEventListener('DOMContentLoaded', init);
