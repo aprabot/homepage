@@ -222,15 +222,17 @@
     return null;
   }
 
-  // Reads the Shipments sheet/rows straight out of the file the user just
-  // picked (client-side, nothing sent anywhere) and returns [{date, units}]
-  // rows — no aggregation yet.
-  function readShipmentRows(file) {
+  // Reads tabular rows straight out of the file the user just picked
+  // (client-side, nothing sent anywhere). For .xlsx, prefers a sheet named
+  // preferredSheet, falling back to the first sheet if there isn't one —
+  // right for files dedicated to a single kind of data (Shipments, or a
+  // standalone weather upload). csv/tsv/txt have no sheet concept.
+  function readTabularRows(file, preferredSheet) {
     var ext = (file.name.split('.').pop() || '').toLowerCase();
     if (ext === 'xlsx') {
       return file.arrayBuffer().then(function (buf) {
         var wb = XLSX.read(buf, { type: 'array' });
-        var sheetName = wb.SheetNames.filter(function (n) { return n.toLowerCase() === 'shipments'; })[0]
+        var sheetName = wb.SheetNames.filter(function (n) { return n.toLowerCase() === preferredSheet; })[0]
           || wb.SheetNames[0];
         return XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: null, raw: false });
       });
@@ -249,8 +251,16 @@
     });
   }
 
-  // Reads the optional Weather sheet, if the file has one — only .xlsx
-  // uploads can carry it, since csv/tsv/txt uploads are just Shipments rows.
+  function readShipmentRows(file) { return readTabularRows(file, 'shipments'); }
+
+  // Standalone weather-file upload (step 6) — the whole file is presumably
+  // weather data, so fall back to the first sheet like readShipmentRows does.
+  function readWeatherFile(file) { return readTabularRows(file, 'weather'); }
+
+  // Reads the optional Weather sheet embedded in the historical-data upload
+  // (step 3) — only .xlsx can carry it, and unlike readWeatherFile, there's
+  // no fallback: without an exact "Weather" sheet match this would otherwise
+  // wrongly grab the Shipments sheet and treat shipment data as weather data.
   function readWeatherRows(file) {
     var ext = (file.name.split('.').pop() || '').toLowerCase();
     if (ext !== 'xlsx') return Promise.resolve([]);
@@ -495,6 +505,19 @@
     }).catch(function () { weatherChartPoints = []; });
   }
 
+  // Standalone weather file uploaded directly on the Weather step — takes
+  // priority over whatever came from the historical-data upload's Weather
+  // sheet, since it's a more deliberate, dedicated action.
+  function previewWeatherFile(file) {
+    var ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext === 'xlsx' && typeof XLSX === 'undefined') return; // library failed to load — skip the preview
+    readWeatherFile(file).then(function (rows) {
+      weatherChartPoints = aggregateAvgByDate(rows);
+      weatherLoaded = false;
+      loadWeatherPreview();
+    }).catch(function () {});
+  }
+
   // Only fixed-date and "nth weekday of month" holidays are listed here —
   // both are exact government-defined rules we can compute correctly for
   // any year. Lunar/astronomical holidays (Diwali, Holi, Eid, the Japanese
@@ -681,7 +704,7 @@
       return;
     }
     emptyEl.style.display = '';
-    emptyEl.textContent = 'No weather data yet — include a Weather sheet with your historical data, or add serviceable-area postal codes on an earlier step.';
+    emptyEl.textContent = 'No weather data yet — upload a weather file above, include a Weather sheet with your historical data, or add serviceable-area postal codes on an earlier step.';
   }
 
   function updateSubmitState() {
@@ -774,6 +797,14 @@
     document.getElementById('obHolidayAdd').addEventListener('click', addManualHoliday);
     document.getElementById('obHolidayName').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); addManualHoliday(); }
+    });
+
+    document.getElementById('obWeatherFile').addEventListener('change', function () {
+      var file = this.files[0];
+      if (!file) return;
+      var statusEl = document.getElementById('obWeatherFileStatus');
+      uploadFile(file, statusEl).catch(function () {}); // fire-and-forget — doesn't gate anything downstream
+      previewWeatherFile(file);
     });
 
     document.getElementById('obGoScenarios').addEventListener('click', function () {
