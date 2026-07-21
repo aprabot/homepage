@@ -685,6 +685,11 @@
     }
     document.getElementById('obProgress').textContent = 'Question ' + n + ' of ' + TOTAL_STEPS;
 
+    // Keep the walkthrough card out of the way once the user is actually
+    // working through the questionnaire — only show it back on question 1.
+    var walkthroughCard = document.getElementById('obWalkthroughCard');
+    if (walkthroughCard) walkthroughCard.style.display = (n === 1) ? 'flex' : 'none';
+
     var back = document.getElementById('obBack');
     var next = document.getElementById('obNext');
     back.disabled = (n === 1);
