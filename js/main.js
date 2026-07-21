@@ -434,6 +434,37 @@
   const CHAT_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/chat';
   let cbHistory = [];
 
+  function cbNavLi(name){
+    var items=document.querySelectorAll('.dnav li');
+    for(var i=0;i<items.length;i++){ if(items[i].textContent.trim()===name) return items[i]; }
+    return null;
+  }
+  var cbPointTimer=null, cbPointEl=null, cbPointArrow=null;
+  function cbClearPoint(){
+    if(cbPointTimer){ clearTimeout(cbPointTimer); cbPointTimer=null; }
+    if(cbPointEl){ cbPointEl.classList.remove('cb-nav-point'); cbPointEl=null; }
+    if(cbPointArrow){ cbPointArrow.remove(); cbPointArrow=null; }
+  }
+  function cbPointTo(name){
+    cbClearPoint();
+    var li=cbNavLi(name);
+    if(!li) return; // no matching nav item on this page — silent no-op
+    li.classList.add('cb-nav-point');
+    cbPointEl=li;
+    var r=li.getBoundingClientRect();
+    var arrow=document.createElement('div');
+    arrow.className='cb-arrow'; arrow.textContent='←';
+    arrow.style.left=(r.right+10)+'px'; arrow.style.top=(r.top+r.height/2-11)+'px';
+    document.body.appendChild(arrow);
+    cbPointArrow=arrow;
+    cbPointTimer=setTimeout(cbClearPoint,6000);
+    li.addEventListener('click',cbClearPoint,{once:true});
+    document.addEventListener('click',function dismissOnce(e){
+      if(e.target===li||li.contains(e.target)) return; // the li's own click listener already handles this case
+      cbClearPoint();
+    },{once:true});
+  }
+
   function cbMd(text){
     return text
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -486,6 +517,7 @@
       const reply=d.reply||'Sorry, something went wrong — please try again.';
       cbPush(cbMd(reply),'bot');
       cbHistory.push({role:'assistant',content:reply});
+      if(d.point_to) cbPointTo(d.point_to);
     })
     .catch(function(){
       typ.remove(); if(cbOrbEl) cbOrbEl.classList.remove('cb-thinking');

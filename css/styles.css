@@ -585,6 +585,12 @@
     animation:tourPulse 1.6s ease-in-out infinite}
   @keyframes tourPulse{0%,100%{box-shadow:0 0 0 4px var(--signal),0 0 24px 6px rgba(200,242,78,.5)}
     50%{box-shadow:0 0 0 4px var(--signal),0 0 34px 10px rgba(200,242,78,.75)}}
+  .cb-nav-point{z-index:175!important;
+    box-shadow:0 0 0 4px var(--signal),0 0 24px 6px rgba(200,242,78,.5)!important;
+    animation:tourPulse 1.6s ease-in-out infinite}
+  .cb-arrow{position:fixed;z-index:176;color:var(--signal);font-family:var(--display);
+    font-size:22px;line-height:1;pointer-events:none;animation:cbArrowNudge 1s ease-in-out infinite}
+  @keyframes cbArrowNudge{0%,100%{transform:translateX(0)}50%{transform:translateX(-6px)}}
   .dside .signout{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:9px;color:var(--muted);
     font-weight:500;font-size:14.5px;cursor:pointer;border:1px solid var(--line);transition:border-color .2s,color .2s}
   .dside .signout:hover{border-color:#ff6b6b;color:#ff8585}

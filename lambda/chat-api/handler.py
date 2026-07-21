@@ -93,6 +93,9 @@ Rules:
   specifies should differ from the defaults (known_prices=true, weather=true, calibrate=true,
   refresh_days=28) — don't ask clarifying questions for settings they didn't mention, just use
   the defaults and say so in your reply.
+• Whenever your answer tells the user where to go or what to click in the dashboard, also call the
+  point_to_ui tool with the relevant nav item, in addition to writing your normal text reply — do
+  not use it instead of a reply.
 
 {data}
 """
@@ -134,8 +137,33 @@ TOOL_CONFIG = {
                 }},
             }
         },
+        {
+            "toolSpec": {
+                "name": "point_to_ui",
+                "description": (
+                    "Visually points to a section of the dashboard by highlighting its sidebar nav "
+                    "item, in addition to your normal text reply. Call this whenever your answer "
+                    "tells the user where to go or what to click — e.g. running a forecast "
+                    "(Scenarios), checking accuracy or trends (Forecasts or AI Insights), reviewing "
+                    "SKUs (Overview), changing preferences (Settings), or the setup wizard "
+                    "(Getting Started)."
+                ),
+                "inputSchema": {"json": {
+                    "type": "object",
+                    "properties": {
+                        "target": {"type": "string", "enum": [
+                            "Overview", "Forecasts", "Scenarios", "AI Insights",
+                            "Settings", "Getting Started",
+                        ]},
+                    },
+                    "required": ["target"],
+                }},
+            }
+        },
     ]
 }
+
+NAV_TARGETS = {"Overview", "Forecasts", "Scenarios", "AI Insights", "Settings", "Getting Started"}
 
 
 def _claims(event):
@@ -192,6 +220,9 @@ def execute_tool(name, inputs, claims):
         if not mine:
             return {'message': 'No scenarios found for this user yet.'}
         return mine[0]  # list_scenarios already sorts newest-first
+
+    if name == 'point_to_ui':
+        return {'ok': True}  # actual UI effect happens client-side; this just satisfies the tool-result contract
 
     return {'error': f'unknown tool {name}'}
 
@@ -250,6 +281,7 @@ def handler(event, context):
             inferenceConfig=inference_config, toolConfig=TOOL_CONFIG,
         )
         output_message = resp['output']['message']
+        point_to = None
 
         if resp.get('stopReason') == 'tool_use':
             messages.append(output_message)
@@ -257,7 +289,12 @@ def handler(event, context):
             for block in output_message.get('content', []):
                 if 'toolUse' in block:
                     tu = block['toolUse']
-                    result = execute_tool(tu['name'], tu.get('input') or {}, claims)
+                    inputs = tu.get('input') or {}
+                    if tu['name'] == 'point_to_ui':
+                        target = inputs.get('target')
+                        if target in NAV_TARGETS:
+                            point_to = target
+                    result = execute_tool(tu['name'], inputs, claims)
                     tool_result_blocks.append({'toolResult': {
                         'toolUseId': tu['toolUseId'],
                         'content': [{'json': result}],
@@ -275,7 +312,7 @@ def handler(event, context):
         return {
             'statusCode': 200,
             'headers':    {**CORS, 'Content-Type': 'application/json'},
-            'body':       json.dumps({'reply': reply}),
+            'body':       json.dumps({'reply': reply, 'point_to': point_to}),
         }
 
     except Exception as exc:
