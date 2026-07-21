@@ -230,10 +230,18 @@ def execute_tool(name, inputs, claims):
 def _text_of(message):
     for block in message.get('content', []):
         if 'text' in block:
+            text = block['text']
             # Nova sometimes emits a <thinking>...</thinking> preamble inline
-            # in the text block rather than as separate reasoning content —
-            # strip it, it's not meant for the end user.
-            return re.sub(r'<thinking>.*?</thinking>\s*', '', block['text'], flags=re.DOTALL).strip()
+            # in the text block rather than as separate reasoning content,
+            # occasionally wraps the actual reply in a stray <reply>...</reply>
+            # tag, and occasionally narrates a tool call as fake inline markup
+            # (e.g. <point_to_ui(target="X")>...</point_to_ui>) instead of a
+            # real toolUse block — none of these are meant for the end user to
+            # see literally, so strip them all.
+            text = re.sub(r'<thinking>.*?</thinking>\s*', '', text, flags=re.DOTALL)
+            text = re.sub(r'</?reply>', '', text)
+            text = re.sub(r'</?(?:run_scenario|check_scenario_status|point_to_ui)\b[^>]*>', '', text, flags=re.DOTALL)
+            return text.strip()
     return ''
 
 
@@ -276,14 +284,24 @@ def handler(event, context):
         claims = _claims(event)
         inference_config = {'maxTokens': toks, 'temperature': temp}
 
-        resp = bedrock.converse(
-            modelId=MODEL, system=[{'text': system}], messages=messages,
-            inferenceConfig=inference_config, toolConfig=TOOL_CONFIG,
-        )
-        output_message = resp['output']['message']
         point_to = None
+        reply = ''
+        # Bounded loop rather than a single follow-up call: Nova sometimes
+        # chains a second tool call (e.g. point_to_ui then run_scenario)
+        # before it's ready to produce the final text, so one fixed
+        # round-trip isn't always enough — and previously left `reply` empty
+        # when that happened, even though the request had actually succeeded.
+        for _ in range(4):
+            resp = bedrock.converse(
+                modelId=MODEL, system=[{'text': system}], messages=messages,
+                inferenceConfig=inference_config, toolConfig=TOOL_CONFIG,
+            )
+            output_message = resp['output']['message']
 
-        if resp.get('stopReason') == 'tool_use':
+            if resp.get('stopReason') != 'tool_use':
+                reply = _text_of(output_message)
+                break
+
             messages.append(output_message)
             tool_result_blocks = []
             for block in output_message.get('content', []):
@@ -301,13 +319,8 @@ def handler(event, context):
                     }})
             messages.append({'role': 'user', 'content': tool_result_blocks})
 
-            resp2 = bedrock.converse(
-                modelId=MODEL, system=[{'text': system}], messages=messages,
-                inferenceConfig=inference_config, toolConfig=TOOL_CONFIG,
-            )
-            reply = _text_of(resp2['output']['message'])
-        else:
-            reply = _text_of(output_message)
+        if not reply:
+            reply = "Done — I've highlighted it in the sidebar for you." if point_to else "Done!"
 
         return {
             'statusCode': 200,
