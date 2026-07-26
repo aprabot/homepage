@@ -211,15 +211,24 @@
   // another tab, or another user entirely. render() runs on every fetch
   // (eager load, poll, manual refresh, or an explicit approve), so this
   // catches an approval no matter where it happened.
-  var knownApprovedId; // undefined until the first observation
+  //
+  // The last-known approved id is persisted to localStorage, not just held
+  // in a JS variable — a plain in-memory value resets to undefined on every
+  // page load, so it would only ever catch an approval that happened while
+  // a tab was already open and polling. A user who simply reloads or
+  // revisits after someone else approves elsewhere needs the comparison to
+  // survive across page loads, which only localStorage does.
+  var APPROVED_ID_KEY = 'apra_last_approved_id';
   function checkApprovalChange(scenarios) {
     var approved = scenarios.find(function (s) { return s.approved; });
     var approvedId = approved ? approved.id : null;
-    if (knownApprovedId !== undefined && approvedId !== knownApprovedId) {
+    var lastKnown;
+    try { lastKnown = localStorage.getItem(APPROVED_ID_KEY); } catch (e) { lastKnown = null; }
+    if (lastKnown !== null && approvedId !== lastKnown) {
       try { localStorage.removeItem('apra_forecast_cache'); } catch (e) {}
       if (typeof loadForecast === 'function') loadForecast();
     }
-    knownApprovedId = approvedId;
+    try { localStorage.setItem(APPROVED_ID_KEY, approvedId || ''); } catch (e) {}
   }
 
   var _origRender = render;
