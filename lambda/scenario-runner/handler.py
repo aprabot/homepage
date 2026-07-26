@@ -330,6 +330,8 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
 
     wk_asin = (df.groupby(['ASIN', 'week'], as_index=False)
                  .agg(a=('actual_units', 'sum'), f=('forecast_units', 'sum')))
+    wk_asin_zip = (df.groupby(['ASIN', 'postal_code', 'week'], as_index=False)
+                     .agg(a=('actual_units', 'sum'), f=('forecast_units', 'sum')))
 
     weeks = sorted(wk_asin['week'].unique())
     weeks_set = set(weeks)
@@ -339,17 +341,21 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
     anon = {asin: f"SKU-{i+1:03d}" for i, asin in enumerate(asin_ids)}
 
     future_wk_asin = None
+    future_wk_asin_zip = None
     future_weeks = []
     if future_tsv_path and os.path.exists(future_tsv_path):
         fdf = pd.read_csv(future_tsv_path, sep='\t', parse_dates=['ship_day'])
         fdf['week'] = fdf['ship_day'].dt.to_period('W-SUN').dt.start_time
         future_wk_asin = (fdf.groupby(['ASIN', 'week'], as_index=False)
                               .agg(f=('forecast_units', 'sum')))
+        future_wk_asin_zip = (fdf.groupby(['ASIN', 'postal_code', 'week'], as_index=False)
+                                  .agg(f=('forecast_units', 'sum')))
         # Drop any week already covered by the backtest — the last backtest
         # week and first future week can land in the same W-SUN bucket at
         # the data boundary. Keep the backtest's (real, complete) week.
         future_weeks = sorted(w for w in future_wk_asin['week'].unique() if w not in weeks_set)
         future_wk_asin = future_wk_asin[future_wk_asin['week'].isin(future_weeks)]
+        future_wk_asin_zip = future_wk_asin_zip[future_wk_asin_zip['week'].isin(future_weeks)]
 
         # The recursive forecast dampens seasonal amplitude badly beyond
         # its validated ~8-week horizon (short-term lag/rolling features
@@ -357,10 +363,23 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
         # seasonal index from real multi-year history, blended in over the
         # first ramp_weeks so the model's own near-term signal still leads.
         if raw_history_path and os.path.exists(raw_history_path) and not future_wk_asin.empty:
+            future_wk_asin_raw = future_wk_asin[['ASIN', 'week', 'f']].rename(columns={'f': 'f_raw'})
             per_asin_idx, catalog_idx = _seasonal_index(raw_history_path)
             future_wk_asin = _apply_seasonal_correction(future_wk_asin, per_asin_idx, catalog_idx)
             future_wk_asin = _apply_level_correction(
                 future_wk_asin, wk_asin, trail_win=min(len(future_weeks), len(weeks)))
+
+            # Propagate the same SKU-week correction ratio down to the ZIP
+            # breakdown, so sum(byZip forward forecasts) == the corrected
+            # SKU-level forward forecast shown in the aggregate chart.
+            ratio = future_wk_asin[['ASIN', 'week', 'f']].merge(future_wk_asin_raw, on=['ASIN', 'week'])
+            ratio['ratio'] = ratio.apply(
+                lambda r: (r['f'] / r['f_raw']) if r['f_raw'] else 1.0, axis=1)
+            future_wk_asin_zip = future_wk_asin_zip.merge(
+                ratio[['ASIN', 'week', 'ratio']], on=['ASIN', 'week'], how='left')
+            future_wk_asin_zip['ratio'] = future_wk_asin_zip['ratio'].fillna(1.0)
+            future_wk_asin_zip['f'] = future_wk_asin_zip['f'] * future_wk_asin_zip['ratio']
+            future_wk_asin_zip = future_wk_asin_zip.drop(columns=['ratio'])
 
     all_weeks = weeks + future_weeks
     week_strs = [w.strftime('%Y-%m-%d') for w in all_weeks]
@@ -382,7 +401,25 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
             for w, row in fsub.iterrows():
                 i = widx[w]
                 f[i] = round(float(row['f']))  # a stays None — genuinely unknown
-        skus[anon[asin]] = {'a': a, 'f': f}
+
+        by_zip = {}
+        zip_codes = sorted(wk_asin_zip.loc[wk_asin_zip['ASIN'] == asin, 'postal_code'].unique())
+        for zip_code in zip_codes:
+            za = [None] * n
+            zf = [None] * n
+            zsub = wk_asin_zip[(wk_asin_zip['ASIN'] == asin) & (wk_asin_zip['postal_code'] == zip_code)].set_index('week')
+            for w, row in zsub.iterrows():
+                i = widx[w]
+                za[i] = round(float(row['a']))
+                zf[i] = round(float(row['f']))
+            if future_wk_asin_zip is not None:
+                zfsub = future_wk_asin_zip[(future_wk_asin_zip['ASIN'] == asin) & (future_wk_asin_zip['postal_code'] == zip_code)].set_index('week')
+                for w, row in zfsub.iterrows():
+                    i = widx[w]
+                    zf[i] = round(float(row['f']))
+            by_zip[str(zip_code)] = {'a': za, 'f': zf}
+
+        skus[anon[asin]] = {'a': a, 'f': f, 'byZip': by_zip}
 
     all_a = [None] * n
     all_f = [None] * n

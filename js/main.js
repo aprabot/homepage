@@ -115,6 +115,12 @@
   }
   function getSeries(sel){
     if(!sel||sel==='ALL') return {a:DATA.all.a,f:DATA.all.f,w:DATA.all.w,name:'All SKUs',overall:DATA.overallWape};
+    if(sel.indexOf('|')!==-1){
+      const [skuId,zip]=sel.split('|');
+      const sku=DATA.skus[skuId]; const o=sku&&sku.byZip&&sku.byZip[zip];
+      if(!o) return null;
+      const r=seriesWape(o.a,o.f); return {a:o.a,f:o.f,w:r.w,name:skuId+' · '+zip,overall:r.overall};
+    }
     const o=DATA.skus[sel]; if(!o) return null;
     const r=seriesWape(o.a,o.f); return {a:o.a,f:o.f,w:r.w,name:sel,overall:r.overall};
   }
@@ -219,6 +225,8 @@
       const li=e.target.closest('li'); if(li){input.value=li.dataset.sku;selectSku(li.dataset.sku);}});
     document.getElementById('skuBody').addEventListener('click',e=>{
       const tr=e.target.closest('tr'); if(tr){input.value=tr.dataset.sku;selectSku(tr.dataset.sku);}});
+    document.getElementById('skuZipBody').addEventListener('click',e=>{
+      const tr=e.target.closest('tr'); if(tr){selectSku(tr.dataset.sku+'|'+tr.dataset.zip);}});
 
     // hover + resize
     const cv=document.getElementById('fcCanvas');
@@ -237,6 +245,40 @@
     document.getElementById('selName').textContent=s.name;
     document.getElementById('selWape').textContent=s.overall==null?'—':s.overall.toFixed(2)+'%';
     drawChart();
+    renderSkuZipTable((sel||'').split('|')[0]);
+  }
+
+  // Per-ZIP breakdown for whichever SKU is currently selected — the model
+  // predicts at SKU x postal_code x day natively; this just stops throwing
+  // that dimension away before it reaches the chart data.
+  function renderSkuZipTable(baseSkuId){
+    const card=document.getElementById('skuZipCard'), body=document.getElementById('skuZipBody');
+    const sku=DATA.skus[baseSkuId];
+    const byZip=sku&&sku.byZip;
+    if(!byZip||!Object.keys(byZip).length){ card.style.display='none'; return; }
+
+    const bt=DATA.backtestWeeks!=null?DATA.backtestWeeks:DATA.weeks.length;
+    const totalWeeks=DATA.weeks.length, fwdWeeks=totalWeeks-bt;
+    const trailWin=Math.min(fwdWeeks||1,bt)||1;
+    const sumRange=(arr,s,e)=>arr.slice(s,e).reduce((acc,x)=>acc+(x||0),0);
+    const trendPill=t=>{if(t==null)return '<span class="pill warn">n/a</span>';
+      const cls=t>=0?'ok':'risk'; return `<span class="pill ${cls}">${t>=0?'+':''}${t.toFixed(1)}%</span>`;};
+
+    const rows=Object.keys(byZip).map(zip=>{
+      const o=byZip[zip];
+      const backtestVol=sumRange(o.a,0,bt);
+      const avgF=o.f.reduce((s,x)=>s+(x||0),0)/o.f.length;
+      const fwdVol=fwdWeeks>0?sumRange(o.f,bt,totalWeeks):0;
+      const trailVol=sumRange(o.a,Math.max(0,bt-trailWin),bt);
+      const trend=(fwdWeeks>0&&trailVol)?100*(fwdVol-trailVol)/trailVol:null;
+      return {zip,backtestVol,avgF,trend};
+    }).sort((x,y)=>y.backtestVol-x.backtestVol);
+
+    body.innerHTML=rows.map(r=>
+      `<tr data-sku="${baseSkuId}" data-zip="${r.zip}"><td class="skucell">${r.zip}</td>`+
+      `<td>${nfFull(r.backtestVol)}</td><td>${nfFull(r.avgF)}</td><td>${trendPill(r.trend)}</td></tr>`
+    ).join('');
+    card.style.display='';
   }
 
   function drawChart(){
