@@ -1,6 +1,10 @@
+import csv
+import io
 import json
 import re
+import datetime as dt
 import boto3
+import jpholiday
 import os
 
 BEDROCK_REGION = os.environ.get('BEDROCK_REGION', 'us-west-2')
@@ -10,6 +14,7 @@ lam     = boto3.client('lambda')
 
 BUCKET         = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
 KEY            = os.environ.get('FORECAST_KEY', 'forecast/latest.json')
+WEATHER_KEY    = os.environ.get('WEATHER_KEY', 'raw/weather.tsv')
 MODEL          = os.environ.get('MODEL_ID',    'amazon.nova-lite-v1:0')
 SCENARIOS_API_FUNCTION = os.environ.get('SCENARIOS_API_FUNCTION', 'aprabot-scenarios-api')
 
@@ -20,6 +25,67 @@ CORS = {
 }
 
 _cache = {}   # simple in-process cache across warm invocations
+
+# forecast.py itself already uses jpholiday as a real model feature
+# (is_holiday, days_to/from_holiday, etc.) — this mirrors the same library
+# for chat context, translated to English since jpholiday's names are
+# Japanese and Lyra's replies are in English.
+JP_HOLIDAY_EN = {
+    '元日': "New Year's Day", '成人の日': 'Coming of Age Day',
+    '建国記念の日': 'National Foundation Day', '天皇誕生日': "Emperor's Birthday",
+    '春分の日': 'Vernal Equinox Day', '昭和の日': 'Showa Day',
+    '憲法記念日': 'Constitution Memorial Day', 'みどりの日': 'Greenery Day',
+    'こどもの日': "Children's Day", '海の日': 'Marine Day', '山の日': 'Mountain Day',
+    '敬老の日': 'Respect for the Aged Day', '秋分の日': 'Autumnal Equinox Day',
+    'スポーツの日': 'Sports Day', '文化の日': 'Culture Day',
+    '勤労感謝の日': 'Labor Thanksgiving Day', '国民の休日': "Citizens' Holiday",
+}
+
+
+def _translate_holiday(jp_name):
+    suffix = ' 振替休日'
+    if jp_name.endswith(suffix):
+        base = jp_name[:-len(suffix)]
+        return JP_HOLIDAY_EN.get(base, base) + ' (observed)'
+    return JP_HOLIDAY_EN.get(jp_name, jp_name)
+
+
+def _week_holidays(week_start_str):
+    """Japanese public holidays falling within the Mon-Sun week starting on
+    week_start_str — real, computed dates, not guessed (works for both past
+    and future weeks, since Japan's holiday calendar is defined in advance)."""
+    start = dt.date.fromisoformat(week_start_str)
+    names = []
+    for i in range(7):
+        name = jpholiday.is_holiday_name(start + dt.timedelta(days=i))
+        if name:
+            names.append(_translate_holiday(name))
+    return names
+
+
+def _weekly_weather():
+    """Aggregates raw/weather.tsv (daily, per postal code) to one row per
+    W-SUN week, averaged across all postal codes — only covers real
+    historical dates, not the forward forecast period."""
+    try:
+        obj = s3.get_object(Bucket=BUCKET, Key=WEATHER_KEY)
+        text = obj['Body'].read().decode('utf-8')
+    except Exception:
+        return {}
+    by_week = {}
+    for row in csv.DictReader(io.StringIO(text), delimiter='\t'):
+        try:
+            d = dt.date.fromisoformat(row['ship_day'][:10])
+            week_start = (d - dt.timedelta(days=d.weekday())).isoformat()
+            b = by_week.setdefault(week_start, {'temp': 0.0, 'precip': 0.0, 'hot': 0, 'cold': 0, 'n': 0})
+            b['temp'] += float(row['temp_mean'])
+            b['precip'] += float(row['precip_mm'])
+            b['hot'] += int(row['is_hot'])
+            b['cold'] += int(row['is_cold'])
+            b['n'] += 1
+        except (KeyError, ValueError):
+            continue
+    return by_week
 
 def build_data_summary():
     obj  = s3.get_object(Bucket=BUCKET, Key=KEY)
@@ -114,6 +180,25 @@ def build_data_summary():
         "Weekly aggregate WAPE (backtest weeks only, one entry per week):",
         "  " + "  ".join(f"{w:.1f}%" for w in data['all']['w'][:bt]),
     ]
+
+    # Real holiday (Japan's actual public-holiday calendar, same as
+    # forecast.py uses as a model feature) and weather context per week —
+    # lets Lyra correlate a spike or drop with an actual cause instead of
+    # only describing the number. Weather only covers real historical dates;
+    # forward weeks show holidays only (weather isn't known in advance).
+    weather_by_week = _weekly_weather()
+    lines += ["", "--- WEEKLY CONTEXT (for correlating spikes/drops with an actual cause) ---"]
+    for i, w in enumerate(data['weeks']):
+        hols = _week_holidays(w)
+        hol_str = ', '.join(hols) if hols else 'none'
+        wk = weather_by_week.get(w)
+        if wk and wk['n']:
+            tag = ' hot-week' if wk['hot'] / wk['n'] > 0.5 else (' cold-week' if wk['cold'] / wk['n'] > 0.5 else '')
+            weather_str = f"avg_temp={wk['temp']/wk['n']:.1f}C  avg_precip={wk['precip']/wk['n']:.1f}mm{tag}"
+        else:
+            weather_str = 'no weather data (future)' if i >= bt else 'no weather data'
+        lines.append(f"  {w}  holiday={hol_str}  {weather_str}")
+
     return "\n".join(lines)
 
 
@@ -139,11 +224,30 @@ Rules:
   it's the reason. For a specific bad week, compare actual vs. forecast for that week and note
   whether it's an isolated spike or matches a broader pattern (e.g. that SKU's tier, or other SKUs
   the same week) using the highest-error/fastest-declining/fastest-growing lists below.
+• When reasoning about a spike, drop, or forecast miss for a specific week, always check that week
+  against the WEEKLY CONTEXT section below (real Japanese public holidays and weather, the same
+  calendar/weather signals forecast.py itself trains on) before concluding it's unexplained. If a
+  holiday falls in or near that week, or it's tagged hot-week/cold-week/high-precipitation, lead
+  with that as the likely driver — actual demand shifting around a holiday, or weather-sensitive
+  buying, are genuine causes, not model error. If nothing in that week's context stands out, say so
+  rather than inventing a cause. Never claim a holiday or weather effect that isn't listed for that
+  exact week — only use what's actually in the data below. The WEEKLY CONTEXT week label is the
+  Monday the Mon-Sun week starts on — a holiday listed for that week may fall on any day within it,
+  not necessarily the Monday itself, so phrase it as "the week of {{date}}", not "{{date}}, which is
+  {{holiday}}".
+• The per-SKU numbers below (vol, forward_fcst, trend) are TOTALS across the whole backtest or
+  whole forward horizon — there is no per-week-per-SKU breakdown in this data. Only the "all"
+  totals and the weekly WAPE list are broken out by individual week. Never invent a specific SKU's
+  units for a specific week — if asked for that exact combination, say it isn't available at that
+  granularity rather than making up a number.
 • You can actually start a new forecast pipeline run using the run_scenario tool, and check on a
-  run's progress with check_scenario_status. Use run_scenario when the user asks you to run, start,
-  or kick off a new forecast/scenario. A run takes ~3-5 minutes — tell the user that, and mention
-  they can ask you for a status update or check the Scenarios tab. Only the settings the user
-  specifies should differ from the defaults (known_prices=true, weather=true, calibrate=true,
+  run's progress with check_scenario_status. Only call run_scenario when the user explicitly asks
+  you to run, start, or kick off a NEW forecast/scenario — never for an analytical or correlation
+  question about the existing forecast (e.g. "do holidays cause spikes?", "why did this SKU drop?")
+  even if answering it thoroughly is hard; answer directly from the data instead, or say what's
+  missing. A run takes ~3-5 minutes — tell the user that, and mention they can ask you for a status
+  update or check the Scenarios tab. Only the settings the user specifies should differ from the
+  defaults (known_prices=true, weather=true, calibrate=true,
   refresh_days=28) — don't ask clarifying questions for settings they didn't mention, just use
   the defaults and say so in your reply.
 • Whenever your answer tells the user where to go or what to click in the dashboard, also call the
