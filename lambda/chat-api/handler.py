@@ -29,14 +29,34 @@ def build_data_summary():
     # forecast begins; older cached results may not have the field.
     bt = data.get('backtestWeeks', len(data['weeks']))
 
+    total_weeks = len(data['weeks'])
+    fwd_weeks   = total_weeks - bt
+    trail_win   = min(fwd_weeks, bt) if fwd_weeks else 0
+
     rows = []
     for sku, d in data['skus'].items():
-        vol = sum(a for a in d['a'] if a is not None)
-        num = sum(abs(a - f) for a, f in zip(d['a'], d['f']) if a is not None)
+        a, f = d['a'], d['f']
+        vol = sum(x for x in a if x is not None)
+        num = sum(abs(x - y) for x, y in zip(a, f) if x is not None)
         wape = round(100 * num / vol, 2) if vol else 0
-        fwd = sum(f for f in d['f'][bt:] if f is not None)
-        rows.append({'sku': sku, 'vol': vol, 'wape': wape, 'acc': round(100 - wape, 1), 'fwd': fwd})
+        fwd = sum(x for x in f[bt:] if x is not None)
+        # Trend: total forward forecast vs. an equally-sized trailing actual
+        # window — same comparison the dashboard itself shows, so Lyra's
+        # reasoning about a SKU's trajectory matches what the user sees.
+        trail_actual = sum(x for x in a[max(0, bt - trail_win):bt] if x is not None) if trail_win else 0
+        trend = round(100 * (fwd - trail_actual) / trail_actual, 1) if trail_win and trail_actual else None
+        rows.append({'sku': sku, 'vol': vol, 'wape': wape, 'acc': round(100 - wape, 1), 'fwd': fwd, 'trend': trend})
     rows.sort(key=lambda x: -x['vol'])
+
+    # Forward-looking confidence tier by backtest-volume rank — same tiering
+    # used everywhere else in the product (dashboard badges, PDF report,
+    # AI Insights): top ~15% by volume = High, next ~35% = Medium, rest =
+    # Lower. Gives Lyra real grounding to explain *why* a forecast looks a
+    # certain way instead of just restating numbers.
+    n = len(rows) or 1
+    for i, r in enumerate(rows):
+        pct = i / n
+        r['tier'] = 'High' if pct < 0.15 else 'Medium' if pct < 0.5 else 'Lower'
 
     tot_a          = sum(x for x in data['all']['a'] if x is not None)
     tot_f_backtest = sum(x for x in data['all']['f'][:bt] if x is not None)
@@ -57,10 +77,31 @@ def build_data_summary():
             f"— total forecast units {tot_f_forward:,}")
     lines += [
         "",
-        "--- SKU DETAIL (volume-sorted; vol/WAPE/acc are backtest-only, forward_fcst is the forecast beyond the backtest) ---",
+        "--- SKU DETAIL (volume-sorted; vol/WAPE/acc are backtest-only, forward_fcst is the forecast "
+        "beyond the backtest, trend compares forward_fcst to an equally-sized trailing-actual window, "
+        "confidence is the tier explained below) ---",
     ]
     for r in rows:
-        lines.append(f"  {r['sku']:20s}  vol={r['vol']:>9,}  WAPE={r['wape']:.1f}%  acc={r['acc']:.1f}%  forward_fcst={r['fwd']:>8,}")
+        trend_str = f"{r['trend']:+.1f}%" if r['trend'] is not None else "n/a"
+        lines.append(
+            f"  {r['sku']:20s}  vol={r['vol']:>9,}  WAPE={r['wape']:.1f}%  acc={r['acc']:.1f}%  "
+            f"forward_fcst={r['fwd']:>8,}  trend={trend_str:>7s}  confidence={r['tier']}")
+
+    worst_wape = sorted(rows, key=lambda x: -x['wape'])[:5]
+    with_trend = [r for r in rows if r['trend'] is not None]
+    declining  = sorted(with_trend, key=lambda x: x['trend'])[:5]
+    growing    = sorted(with_trend, key=lambda x: -x['trend'])[:5]
+    lines += [
+        "",
+        "Highest-error SKUs (backtest WAPE, for reasoning about accuracy questions):",
+        *[f"  {r['sku']:20s}  WAPE={r['wape']:.1f}%  confidence={r['tier']}" for r in worst_wape],
+        "",
+        "Fastest-declining SKUs (forward forecast vs. trailing actual):",
+        *[f"  {r['sku']:20s}  trend={r['trend']:+.1f}%  confidence={r['tier']}" for r in declining],
+        "",
+        "Fastest-growing SKUs (forward forecast vs. trailing actual):",
+        *[f"  {r['sku']:20s}  trend={r['trend']:+.1f}%  confidence={r['tier']}" for r in growing],
+    ]
 
     bt_weeks = [(i, w) for i, w in enumerate(data['all']['w'][:bt]) if w is not None]
     worst_wk = max(bt_weeks, key=lambda x: x[1])[0]
@@ -86,6 +127,18 @@ Rules:
 • If a SKU is not in the data, say so.
 • Never fabricate numbers. Only quote figures that appear in the data below.
 • The forward forecast has no actuals yet — never quote a WAPE or accuracy % for those weeks.
+• When asked WHY a forecast looks a certain way (declining, high error, low confidence, a spike,
+  etc.), give the actual reasoning, not just a restatement of the numbers. Ground it in the SKU's
+  confidence tier and trend from the data below: SKUs are tiered by backtest sales volume — top
+  ~15% = High confidence, next ~35% = Medium, the rest = Lower. The 52-week forward forecast holds
+  up best for High-confidence (top-selling) SKUs. For Medium/Lower-confidence SKUs it's less
+  certain, because the day-by-day recursive model's short-term lag/rolling features become
+  self-referential deep into a long horizon, dampening the signal — the pipeline corrects for this
+  by blending their forward level toward a trusted trend computed from the High-confidence SKUs.
+  This is expected behavior for lower-volume series, not a bug or data error — say so plainly when
+  it's the reason. For a specific bad week, compare actual vs. forecast for that week and note
+  whether it's an isolated spike or matches a broader pattern (e.g. that SKU's tier, or other SKUs
+  the same week) using the highest-error/fastest-declining/fastest-growing lists below.
 • You can actually start a new forecast pipeline run using the run_scenario tool, and check on a
   run's progress with check_scenario_status. Use run_scenario when the user asks you to run, start,
   or kick off a new forecast/scenario. A run takes ~3-5 minutes — tell the user that, and mention
