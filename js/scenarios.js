@@ -409,8 +409,29 @@
       return { a: a, f: f, err: a ? (100 * (f - a) / a) : 0 };
     });
     rows.push(['Actual units', totals.map(function (t) { return t.a.toLocaleString(); })]);
-    rows.push(['Forecast units', totals.map(function (t) { return t.f.toLocaleString(); })]);
+    rows.push(['Forecast units (backtest period)', totals.map(function (t) { return t.f.toLocaleString(); })]);
     rows.push(['Volume error', totals.map(function (t) { return (t.err > 0 ? '+' : '') + t.err.toFixed(2) + '%'; })]);
+
+    // Forward-horizon totals — the genuinely forward-looking numbers (e.g.
+    // the effect of a Future Price / discount sheet). Backtest-period WAPE
+    // and volume error above are identical whenever two scenarios share the
+    // same historical data, so they can't show a Future Price scenario's
+    // actual impact — this can.
+    var forward = results.map(function (r) {
+      var bw = r.backtestWeeks != null ? r.backtestWeeks : r.weeks.length;
+      var slice = r.all.f.slice(bw);
+      var f = slice.reduce(function (s, x) { return s + (x || 0); }, 0);
+      return { f: f, n: slice.length };
+    });
+    if (forward.some(function (t) { return t.n > 0; })) {
+      rows.push(['Forecast units (forward horizon)', forward.map(function (t) {
+        return t.n > 0 ? t.f.toLocaleString() + ' over ' + t.n + ' wk' : '—';
+      })]);
+      if (forward[0].f && forward[1].n > 0) {
+        var fwdDelta = 100 * (forward[1].f - forward[0].f) / forward[0].f;
+        rows.push(['Forward horizon delta', ['—', (fwdDelta > 0 ? '+' : '') + fwdDelta.toFixed(2) + '%']]);
+      }
+    }
 
     var betterIdx = results[0].overallWape <= results[1].overallWape ? 0 : 1;
 
