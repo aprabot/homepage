@@ -447,7 +447,7 @@
     var betterIdx = results[0].overallWape <= results[1].overallWape ? 0 : 1;
 
     var html = '<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px">' +
-      '<button type="button" class="dbtn" id="cmpMaximizeBtn" style="padding:6px 10px;font-size:14px;' +
+      '<button type="button" class="dbtn" id="cmpMaximizeBtn" style="padding:6px 16px;font-size:14px;min-width:44px;justify-content:center;' +
       'background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" ' +
       'title="Maximize" aria-label="Maximize" onclick="toggleCompareMaximize()">⤢</button>' +
       '<button type="button" class="dbtn" style="padding:6px 10px;font-size:14px;' +
