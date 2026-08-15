@@ -447,9 +447,9 @@
     var betterIdx = results[0].overallWape <= results[1].overallWape ? 0 : 1;
 
     var html = '<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px">' +
-      '<button type="button" class="dbtn" id="cmpMaximizeBtn" style="padding:6px 12px;font-size:12px;' +
+      '<button type="button" class="dbtn" id="cmpMaximizeBtn" style="padding:6px 10px;font-size:14px;' +
       'background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" ' +
-      'onclick="toggleCompareMaximize()">⤢ Maximize</button>' +
+      'title="Maximize" aria-label="Maximize" onclick="toggleCompareMaximize()">⤢</button>' +
       '<button type="button" class="dbtn" style="padding:6px 12px;font-size:12px;' +
       'background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" ' +
       'onclick="downloadCompareXlsx()">⬇ Download .xlsx</button>' +
@@ -500,7 +500,11 @@
     if (!card) return;
     cmpMaximized = !cmpMaximized;
     card.classList.toggle('maximized', cmpMaximized);
-    if (btn) btn.textContent = cmpMaximized ? '⤡ Restore' : '⤢ Maximize';
+    if (btn) {
+      btn.textContent = cmpMaximized ? '⤡' : '⤢';
+      btn.title = cmpMaximized ? 'Restore' : 'Maximize';
+      btn.setAttribute('aria-label', btn.title);
+    }
     // The chart box's CSS height changes with the card size — redraw so the
     // canvas picks up its new on-screen dimensions instead of staying at
     // whatever size it was drawn at before.
