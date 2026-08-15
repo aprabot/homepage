@@ -12,6 +12,7 @@ BUCKET = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
 
 RAW_INPUT   = '/tmp/With_Price.tsv'
 RAW_WEATHER = '/tmp/weather.tsv'
+RAW_FUTURE_PRICES = '/tmp/future_prices.tsv'
 CUSTOM_RAW  = '/tmp/custom_upload'
 OUTDIR      = '/tmp/out'
 FORECAST_PY = '/var/task/forecast.py'
@@ -99,18 +100,25 @@ def _merge_exogenous_sheet(ship_df, other_df, key_candidates, required_keys, lab
     return ship_df.merge(other_df, on=merge_keys, how='left', suffixes=('', f'_{label.lower()}'))
 
 
+FUTURE_PRICE_REQUIRED_COLS = {'ship_day', 'asin', 'postal_code'}
+
+
 def _download_custom_input(key):
     """Download a user-uploaded input file and normalize it to the
     tab-separated format forecast.py expects, validating required columns.
 
-    For .xlsx, reads separate Shipments / Price / Weather sheets — Price and
-    Weather are optional; an empty or missing sheet just means that signal
-    falls back to the platform default (no price features, or the default
-    weather.tsv). .csv/.tsv uploads are treated as a single Shipments sheet
-    with no separate exogenous data (that split is an xlsx-only feature).
+    For .xlsx, reads separate Shipments / Price / Weather / Future Price
+    sheets — all but Shipments are optional; an empty or missing sheet just
+    means that signal falls back to the platform default (no price
+    features, the default weather.tsv, or flat carry-forward for the
+    forward forecast). .csv/.tsv uploads are treated as a single Shipments
+    sheet with no separate exogenous data (that split is an xlsx-only
+    feature).
 
-    Returns True if a custom weather file was written (RAW_WEATHER), so the
-    caller knows not to overwrite it with the default.
+    Returns (has_custom_weather, has_custom_future_prices) — whether
+    RAW_WEATHER / RAW_FUTURE_PRICES were written, so the caller knows
+    whether to fall back to platform defaults / omit the --future-prices
+    flag.
     """
     import pandas as pd
 
@@ -119,6 +127,7 @@ def _download_custom_input(key):
     s3.download_file(BUCKET, key, local_raw)
 
     has_custom_weather = False
+    has_custom_future_prices = False
 
     if ext == '.xlsx':
         sheets = pd.read_excel(local_raw, sheet_name=None)
@@ -142,6 +151,25 @@ def _download_custom_input(key):
                 weather_df.to_csv(RAW_WEATHER, sep='\t', index=False)
                 has_custom_weather = True
 
+        # Future Price is NOT merged onto Shipments — unlike historical
+        # Price, these rows describe dates beyond the last real shipment,
+        # so there's nothing in Shipments for them to join to. Written as
+        # its own file and fed to forecast.py's --future-prices instead.
+        future_price_df = by_name.get('future price')
+        if future_price_df is not None:
+            future_price_df = _strip_cols(future_price_df).dropna(how='all')
+            cols_lower = {c.strip().lower() for c in future_price_df.columns}
+            has_price_col = bool({'avg_our_price', 'avg_discount_amt'} & cols_lower)
+            if future_price_df.empty:
+                pass
+            elif not FUTURE_PRICE_REQUIRED_COLS.issubset(cols_lower) or not has_price_col:
+                print(f"[custom_input] Future Price sheet present but missing expected columns "
+                      f"(needs {sorted(FUTURE_PRICE_REQUIRED_COLS)} plus avg_our_price and/or "
+                      f"avg_discount_amt, found {list(future_price_df.columns)}) — skipping.")
+            else:
+                future_price_df.to_csv(RAW_FUTURE_PRICES, sep='\t', index=False)
+                has_custom_future_prices = True
+
         ship_df.to_csv(RAW_INPUT, sep='\t', index=False)
     elif ext == '.csv':
         df = pd.read_csv(local_raw)
@@ -150,7 +178,7 @@ def _download_custom_input(key):
         os.replace(local_raw, RAW_INPUT)
 
     _validate_custom_input(RAW_INPUT)
-    return has_custom_weather
+    return has_custom_weather, has_custom_future_prices
 
 
 def _dynamic_train_end(path, backtest_fraction=BACKTEST_FRACTION):
@@ -468,8 +496,9 @@ def handler(event, context):
     try:
         os.makedirs(OUTDIR, exist_ok=True)
         has_custom_weather = False
+        has_custom_future_prices = False
         if custom_input_key:
-            has_custom_weather = _download_custom_input(custom_input_key)
+            has_custom_weather, has_custom_future_prices = _download_custom_input(custom_input_key)
             _trim_partial_trailing_week(RAW_INPUT)
             train_end = _dynamic_train_end(RAW_INPUT)
         else:
@@ -492,6 +521,8 @@ def handler(event, context):
             args.append('--calibrate')
         if weather:
             args += ['--weather', RAW_WEATHER]
+        if known_prices and has_custom_future_prices:
+            args += ['--future-prices', RAW_FUTURE_PRICES]
 
         proc = subprocess.run(args, capture_output=True, text=True, timeout=780)
         if proc.returncode != 0:

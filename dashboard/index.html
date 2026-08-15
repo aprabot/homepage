@@ -606,7 +606,9 @@
             <label for="obHistFile">Do you have historical shipment data to share?</label>
             <input type="file" id="obHistFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
             <p class="stest-msg" style="margin-top:6px;color:var(--muted)">
-              .xlsx with a Shipments sheet (required), Price and Weather sheets (optional).
+              .xlsx with a Shipments sheet (required), plus Price, Future Price, and Weather
+              sheets (all optional) — Future Price lets you specify planned discounts for dates
+              beyond your last Shipments date, so the forward forecast can respond to them.
               <a href="apra_forecast_input_template.xlsx" download style="color:var(--signal)">Download template →</a>
             </p>
             <p class="stest-msg" id="obHistStatus" style="margin-top:6px"></p>
@@ -717,9 +719,11 @@
         <div id="rf-upload-row" style="display:none;margin-bottom:16px">
           <input type="file" id="rf-file" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
           <p class="stest-msg" style="margin-top:8px;color:var(--muted)">
-            .xlsx with separate <b>Shipments</b> (required), <b>Price</b> and <b>Weather</b> sheets — leave
-            Price/Weather empty to fall back to platform defaults for that signal. Historical and
-            forward-looking rows go in the same Shipments sheet.
+            .xlsx with separate <b>Shipments</b> (required), <b>Price</b>, <b>Future Price</b>, and
+            <b>Weather</b> sheets — leave any of them empty to fall back to platform defaults for
+            that signal. Historical actuals go in Shipments; planned discounts for dates
+            <i>beyond</i> your last Shipments date go in Future Price, so the forward forecast can
+            actually respond to them instead of just carrying the last known price forward.
             <a href="apra_forecast_input_template.xlsx" download style="color:var(--signal)">Download template →</a>
           </p>
           <p id="rf-upload-status" class="stest-msg" style="margin-top:4px"></p>
