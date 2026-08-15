@@ -13,6 +13,7 @@
   var cmpVisible = { a: true, fA: true, fB: true };
   var cmpZoom = null;       // {start, end} week-index range (inclusive) into the full series, or null = full range
   var cmpLastRender = null; // {X, N0, dataLen} from the most recent drawCompareChart call, for hit-testing drags
+  var lastCompare = null;   // {metas, results, totals, forward, fwdDelta} from the most recent renderCompare, for .xlsx export
 
   function authHeaders() {
     var t = localStorage.getItem('apra_id');
@@ -426,19 +427,27 @@
       var f = slice.reduce(function (s, x) { return s + (x || 0); }, 0);
       return { f: f, n: slice.length };
     });
+    var fwdDelta = null;
     if (forward.some(function (t) { return t.n > 0; })) {
       rows.push(['Forecast units (forward horizon)', forward.map(function (t) {
         return t.n > 0 ? t.f.toLocaleString() + ' over ' + t.n + ' wk' : '—';
       })]);
       if (forward[0].f && forward[1].n > 0) {
-        var fwdDelta = 100 * (forward[1].f - forward[0].f) / forward[0].f;
+        fwdDelta = 100 * (forward[1].f - forward[0].f) / forward[0].f;
         rows.push(['Forward horizon delta', ['—', (fwdDelta > 0 ? '+' : '') + fwdDelta.toFixed(2) + '%']]);
       }
     }
+    lastCompare = { metas: metas, results: results, totals: totals, forward: forward, fwdDelta: fwdDelta };
 
     var betterIdx = results[0].overallWape <= results[1].overallWape ? 0 : 1;
 
-    var html = '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 16px">' +
+    var html = '<div style="display:flex;justify-content:flex-end;margin-bottom:10px">' +
+      '<button type="button" class="dbtn" style="padding:6px 12px;font-size:12px;' +
+      'background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" ' +
+      'onclick="downloadCompareXlsx()">⬇ Download .xlsx</button>' +
+      '</div>';
+
+    html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 16px">' +
       '<div></div>' +
       metas.map(function (m, i) {
         return '<div style="font-weight:700;padding-bottom:10px;border-bottom:2px solid ' +
@@ -475,6 +484,57 @@
     wireLegend(document.getElementById('cmpLegend'), cmpVisible, redrawCmp);
     wireCompareZoom(document.getElementById('cmpCanvas'), redrawCmp);
   }
+
+  // Exports the currently-open comparison to an .xlsx workbook — a Summary
+  // sheet mirroring the KPI rows shown on screen, plus a Weekly data sheet
+  // mirroring the chart. Uses the SheetJS build already loaded on this page
+  // for reading uploads (js/onboarding.js) — no separate write-side library.
+  window.downloadCompareXlsx = function () {
+    if (!lastCompare || typeof XLSX === 'undefined') return;
+    var metas = lastCompare.metas, results = lastCompare.results;
+    var totals = lastCompare.totals, forward = lastCompare.forward, fwdDelta = lastCompare.fwdDelta;
+
+    var summaryRows = [
+      ['', metas[0].label, metas[1].label],
+      ['Config', configDescription(metas[0]), configDescription(metas[1])],
+      ['Overall WAPE (%)', results[0].overallWape, results[1].overallWape],
+      ['Weeks', results[0].weeks.length, results[1].weeks.length],
+      ['SKUs', Object.keys(results[0].skus).length, Object.keys(results[1].skus).length],
+      ['Actual units (backtest period)', totals[0].a, totals[1].a],
+      ['Forecast units (backtest period)', totals[0].f, totals[1].f],
+      ['Volume error (%)', +totals[0].err.toFixed(2), +totals[1].err.toFixed(2)],
+    ];
+    if (forward.some(function (t) { return t.n > 0; })) {
+      summaryRows.push(['Forecast units (forward horizon)', forward[0].f, forward[1].f]);
+      summaryRows.push(['Forward horizon weeks', forward[0].n, forward[1].n]);
+      if (fwdDelta != null) summaryRows.push(['Forward horizon delta (%)', '', +fwdDelta.toFixed(2)]);
+    }
+
+    var weeks = results[0].weeks;
+    var bw = results[0].backtestWeeks != null ? results[0].backtestWeeks : weeks.length;
+    var weeklyRows = [['Week', 'Period', 'Actual', metas[0].label + ' forecast', metas[1].label + ' forecast']];
+    weeks.forEach(function (w, i) {
+      weeklyRows.push([
+        w,
+        i < bw ? 'Backtest' : 'Forecast',
+        results[0].all.a[i] != null ? results[0].all.a[i] : '',
+        results[0].all.f[i] != null ? results[0].all.f[i] : '',
+        results[1].all.f[i] != null ? results[1].all.f[i] : '',
+      ]);
+    });
+
+    var wb = XLSX.utils.book_new();
+    var wsSummary = XLSX.utils.aoa_to_sheet(summaryRows);
+    wsSummary['!cols'] = [{ wch: 30 }, { wch: 26 }, { wch: 26 }];
+    XLSX.utils.book_append_sheet(wb, wsSummary, 'Summary');
+
+    var wsWeekly = XLSX.utils.aoa_to_sheet(weeklyRows);
+    wsWeekly['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 24 }, { wch: 24 }];
+    XLSX.utils.book_append_sheet(wb, wsWeekly, 'Weekly data');
+
+    var safeName = function (s) { return String(s).replace(/[^A-Za-z0-9_-]+/g, '_').replace(/^_+|_+$/g, '').slice(0, 40) || 'scenario'; };
+    XLSX.writeFile(wb, 'apra-scenario-compare_' + safeName(metas[0].label) + '_vs_' + safeName(metas[1].label) + '.xlsx');
+  };
 
   function updateCmpZoomBar(redraw) {
     var bar = document.getElementById('cmpZoomBar');
