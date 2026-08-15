@@ -450,9 +450,9 @@
       '<button type="button" class="dbtn" id="cmpMaximizeBtn" style="padding:6px 10px;font-size:14px;' +
       'background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" ' +
       'title="Maximize" aria-label="Maximize" onclick="toggleCompareMaximize()">⤢</button>' +
-      '<button type="button" class="dbtn" style="padding:6px 12px;font-size:12px;' +
+      '<button type="button" class="dbtn" style="padding:6px 10px;font-size:14px;' +
       'background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" ' +
-      'onclick="downloadCompareXlsx()">⬇ Download .xlsx</button>' +
+      'title="Download .xlsx" aria-label="Download .xlsx" onclick="downloadCompareXlsx()">⬇</button>' +
       '</div>';
 
     html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 16px">' +
