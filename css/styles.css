@@ -733,6 +733,8 @@
   .movers .nmx{font-weight:500}
   .movers .chg{font-family:var(--mono);font-size:13px;font-weight:600}
   .movers .chg.up{color:var(--signal)}.movers .chg.down{color:#ff8585}
+  .table-wrap{max-height:60vh;overflow-y:auto;overflow-x:auto}
+  .table-wrap .dtable thead th{position:sticky;top:0;background:var(--ink-2);z-index:1}
   .dtable{width:100%;border-collapse:collapse}
   .dtable th{text-align:left;font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;
     color:var(--muted-2);padding:0 14px 14px;font-weight:500;border-bottom:1px solid var(--line)}
