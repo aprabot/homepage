@@ -444,7 +444,8 @@
     }
     lastCompare = { metas: metas, results: results, totals: totals, forward: forward, fwdDelta: fwdDelta };
 
-    var betterIdx = results[0].overallWape <= results[1].overallWape ? 0 : 1;
+    var wapeTied = results[0].overallWape === results[1].overallWape;
+    var betterIdx = wapeTied ? -1 : (results[0].overallWape < results[1].overallWape ? 0 : 1);
 
     var html = '<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px">' +
       '<button type="button" class="dbtn" id="cmpMaximizeBtn" style="padding:6px 16px;font-size:14px;min-width:44px;justify-content:center;' +
@@ -458,9 +459,11 @@
     html += '<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:0 16px">' +
       '<div></div>' +
       metas.map(function (m, i) {
+        var pill = wapeTied
+          ? ' <span class="pill" style="margin-left:4px;color:var(--muted);border-color:var(--line-2);background:var(--ink-3)">Same WAPE</span>'
+          : (i === betterIdx ? ' <span class="pill ok" style="margin-left:4px">Lower WAPE</span>' : '');
         return '<div style="font-weight:700;padding-bottom:10px;border-bottom:2px solid ' +
-          (i === betterIdx ? 'var(--signal)' : 'var(--line)') + '">' + escapeHtml(m.label) +
-          (i === betterIdx ? ' <span class="pill ok" style="margin-left:4px">Lower WAPE</span>' : '') + '</div>';
+          (i === betterIdx ? 'var(--signal)' : 'var(--line)') + '">' + escapeHtml(m.label) + pill + '</div>';
       }).join('') +
       rows.map(function (row) {
         return '<div class="dsubtle" style="margin:0;padding:10px 0;border-top:1px solid var(--line)">' + row[0] + '</div>' +
