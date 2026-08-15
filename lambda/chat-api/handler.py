@@ -17,6 +17,7 @@ KEY            = os.environ.get('FORECAST_KEY', 'forecast/latest.json')
 WEATHER_KEY    = os.environ.get('WEATHER_KEY', 'raw/weather.tsv')
 MODEL          = os.environ.get('MODEL_ID',    'amazon.nova-lite-v1:0')
 SCENARIOS_API_FUNCTION = os.environ.get('SCENARIOS_API_FUNCTION', 'aprabot-scenarios-api')
+KNOWLEDGE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'forecasting_knowledge.md')
 
 CORS = {
     'Access-Control-Allow-Origin':  '*',
@@ -86,6 +87,20 @@ def _weekly_weather():
         except (KeyError, ValueError):
             continue
     return by_week
+
+
+def load_forecasting_knowledge():
+    """General demand-forecasting domain knowledge (metrics pitfalls, common
+    causes of forecast issues, terminology) bundled alongside handler.py —
+    same pattern as forecast.py being bundled into scenario-runner. Static
+    content, so read straight off disk rather than round-tripping through
+    S3 like the live forecast data."""
+    try:
+        with open(KNOWLEDGE_PATH, 'r', encoding='utf-8') as f:
+            return f.read()
+    except OSError:
+        return ''  # missing file shouldn't break the chat — just no background knowledge
+
 
 def build_data_summary():
     obj  = s3.get_object(Bucket=BUCKET, Key=KEY)
@@ -253,6 +268,13 @@ Rules:
 • Whenever your answer tells the user where to go or what to click in the dashboard, also call the
   point_to_ui tool with the relevant nav item, in addition to writing your normal text reply — do
   not use it instead of a reply.
+• The GENERAL FORECASTING KNOWLEDGE section below is background domain knowledge (industry
+  concepts, common causes of forecast issues, terminology like WAPE/bias/FVA/bullwhip effect) — use
+  it to explain WHY something happens or to name a real phenomenon, never to state a number. The
+  live data further below is always the sole source of truth for any actual figure; never quote a
+  benchmark or example number from the general knowledge as if it were this dataset's own result.
+
+{knowledge}
 
 {data}
 """
@@ -421,8 +443,10 @@ def handler(event, context):
 
         if 'data' not in _cache:
             _cache['data'] = build_data_summary()
+        if 'knowledge' not in _cache:
+            _cache['knowledge'] = load_forecasting_knowledge()
 
-        system = SYSTEM_TMPL.format(data=_cache['data'])
+        system = SYSTEM_TMPL.format(knowledge=_cache['knowledge'], data=_cache['data'])
         if extra:
             system += f"\n\nADDITIONAL INSTRUCTIONS: {extra}"
 
@@ -443,12 +467,15 @@ def handler(event, context):
 
         point_to = None
         reply = ''
+        seen_tool_calls = set()  # (name, sorted-inputs) already executed this request
         # Bounded loop rather than a single follow-up call: Nova sometimes
         # chains a second tool call (e.g. point_to_ui then run_scenario)
         # before it's ready to produce the final text, so one fixed
         # round-trip isn't always enough — and previously left `reply` empty
         # when that happened, even though the request had actually succeeded.
-        for _ in range(4):
+        # 6 iterations measured at ~1-2.5s each in practice — up to ~15s
+        # worst case, comfortably under this Lambda's 30s timeout.
+        for _ in range(6):
             resp = bedrock.converse(
                 modelId=MODEL, system=[{'text': system}], messages=messages,
                 inferenceConfig=inference_config, toolConfig=TOOL_CONFIG,
@@ -461,6 +488,7 @@ def handler(event, context):
 
             messages.append(output_message)
             tool_result_blocks = []
+            repeated_call = False
             for block in output_message.get('content', []):
                 if 'toolUse' in block:
                     tu = block['toolUse']
@@ -469,12 +497,41 @@ def handler(event, context):
                         target = inputs.get('target')
                         if target in NAV_TARGETS:
                             point_to = target
+                    # Nova occasionally gets stuck re-issuing the exact same
+                    # tool call indefinitely (observed: point_to_ui with an
+                    # unchanged target, 8+ times in a row) — no fixed
+                    # iteration budget reliably bounds a genuine loop, so
+                    # detect the repeat directly instead.
+                    call_sig = (tu['name'], json.dumps(inputs, sort_keys=True))
+                    if call_sig in seen_tool_calls:
+                        repeated_call = True
+                    seen_tool_calls.add(call_sig)
                     result = execute_tool(tu['name'], inputs, claims)
                     tool_result_blocks.append({'toolResult': {
                         'toolUseId': tu['toolUseId'],
                         'content': [{'json': result}],
                     }})
             messages.append({'role': 'user', 'content': tool_result_blocks})
+
+            if repeated_call:
+                # Nudge toward a decisive final answer instead of looping
+                # again. toolConfig must stay present here — the Converse
+                # API requires it whenever prior turns contain toolUse/
+                # toolResult blocks — so this can't force tools off
+                # outright, only ask; if it still calls a tool, the loop's
+                # normal exit (falling through to the fallback text below)
+                # is the backstop.
+                messages.append({'role': 'user', 'content': [
+                    {'text': "You already have what you need from that tool. Answer now in "
+                              "plain text — don't call any more tools."},
+                ]})
+                resp2 = bedrock.converse(
+                    modelId=MODEL, system=[{'text': system}], messages=messages,
+                    inferenceConfig=inference_config, toolConfig=TOOL_CONFIG,
+                )
+                if resp2.get('stopReason') != 'tool_use':
+                    reply = _text_of(resp2['output']['message'])
+                break
 
         if not reply:
             reply = "Done — I've highlighted it in the sidebar for you." if point_to else "Done!"
