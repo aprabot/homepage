@@ -253,6 +253,7 @@
   // that dimension away before it reaches the chart data.
   function renderSkuZipTable(baseSkuId){
     const card=document.getElementById('skuZipCard'), body=document.getElementById('skuZipBody');
+    const wasHidden=card.style.display==='none';
     const sku=DATA.skus[baseSkuId];
     const byZip=sku&&sku.byZip;
     if(!byZip||!Object.keys(byZip).length){ card.style.display='none'; return; }
@@ -279,6 +280,16 @@
       `<td>${nfFull(r.backtestVol)}</td><td>${nfFull(r.avgF)}</td><td>${trendPill(r.trend)}</td></tr>`
     ).join('');
     card.style.display='';
+
+    // The postal-code breakdown appears below the SKU table, easy to miss
+    // since nothing above it hints there's more content beneath — scroll it
+    // into view and flash its border on the hidden->visible transition (not
+    // on every re-selection while it's already on screen, which would just
+    // yank the viewport around unnecessarily).
+    if(wasHidden){
+      card.scrollIntoView({behavior:'smooth',block:'nearest'});
+      card.classList.remove('card-reveal'); void card.offsetWidth; card.classList.add('card-reveal');
+    }
   }
 
   function drawChart(){
