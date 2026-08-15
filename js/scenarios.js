@@ -726,10 +726,21 @@
     var approveBtn = (meta.status === 'completed' && !meta.approved)
       ? '<button class="dbtn" onclick="approveScenario(\'' + meta.id + '\');closeScenarioDetail()">Approve</button>'
       : '';
+    // result.inputDownload is a presigned URL to whatever this scenario
+    // actually ran on — the uploaded file if there was one, otherwise the
+    // platform default dataset (see scenarios-api's get_result).
+    var inputBtn = (result && result.inputDownload)
+      ? '<a class="dbtn" href="' + escapeHtml(result.inputDownload.url) + '" download="' + escapeHtml(result.inputDownload.filename) + '" ' +
+        'style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);text-decoration:none;padding:6px 10px;font-size:14px" ' +
+        'title="' + (result.inputDownload.isDefault ? 'Download default dataset' : 'Download input file') + '" ' +
+        'aria-label="Download input file">⬇</a>'
+      : '';
 
     var html = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:4px">' +
       '<div><h3 style="margin-bottom:4px">' + escapeHtml(meta.label || 'Untitled') + '</h3>' +
-      statusPill(meta) + '</div>' + approveBtn + '</div>';
+      statusPill(meta) + '</div>' +
+      '<div style="display:flex;gap:8px">' + inputBtn + approveBtn + '</div>' +
+      '</div>';
 
     html += '<div class="dsubtle" style="margin:12px 0 20px">' +
       'Requested by ' + escapeHtml((meta.requested_by || '').split('@')[0]) +

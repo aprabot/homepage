@@ -138,10 +138,34 @@ def create_scenario(event):
     return _resp(202, {'scenario_id': scenario_id, 'status': 'running'})
 
 
+DEFAULT_INPUT_KEY = 'raw/With_Price.tsv'
+DEFAULT_INPUT_FILENAME = 'apra-default-input.tsv'
+
+
 def get_result(scenario_id):
     result = _read_json(f'scenarios/{scenario_id}/result.json')
     if result is None:
         return _resp(404, {'error': 'result not found (scenario may still be running or failed)'})
+
+    # Presigned download for whatever this scenario actually ran on — the
+    # user's uploaded file if there was one, otherwise the platform default
+    # dataset. Not persisted back to S3, just added to this response.
+    config = _read_json(f'scenarios/{scenario_id}/config.json', default={})
+    custom_key = config.get('custom_input_key')
+    if custom_key:
+        filename = custom_key.rsplit('/', 1)[-1]
+        key, is_default = custom_key, False
+    else:
+        filename = DEFAULT_INPUT_FILENAME
+        key, is_default = DEFAULT_INPUT_KEY, True
+    url = s3.generate_presigned_url(
+        'get_object',
+        Params={'Bucket': BUCKET, 'Key': key,
+                'ResponseContentDisposition': f'attachment; filename="{filename}"'},
+        ExpiresIn=300,
+    )
+    result['inputDownload'] = {'url': url, 'filename': filename, 'isDefault': is_default}
+
     return _resp(200, result)
 
 
