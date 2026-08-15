@@ -14,6 +14,8 @@
   var cmpZoom = null;       // {start, end} week-index range (inclusive) into the full series, or null = full range
   var cmpLastRender = null; // {X, N0, dataLen} from the most recent drawCompareChart call, for hit-testing drags
   var lastCompare = null;   // {metas, results, totals, forward, fwdDelta} from the most recent renderCompare, for .xlsx export
+  var cmpMaximized = false;
+  var cmpRedraw = null;     // current redrawCmp closure, so toggling maximize can redraw the chart at its new size
 
   function authHeaders() {
     var t = localStorage.getItem('apra_id');
@@ -396,6 +398,9 @@
 
   function renderCompare(metas, results) {
     cmpZoom = null; // fresh comparison starts fully zoomed out
+    cmpMaximized = false;
+    var card = document.getElementById('compareCard');
+    if (card) card.classList.remove('maximized');
     var body = document.getElementById('compareBody');
     var rows = [
       ['Config', metas.map(configDescription)],
@@ -441,7 +446,10 @@
 
     var betterIdx = results[0].overallWape <= results[1].overallWape ? 0 : 1;
 
-    var html = '<div style="display:flex;justify-content:flex-end;margin-bottom:10px">' +
+    var html = '<div style="display:flex;justify-content:flex-end;gap:8px;margin-bottom:10px">' +
+      '<button type="button" class="dbtn" id="cmpMaximizeBtn" style="padding:6px 12px;font-size:12px;' +
+      'background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" ' +
+      'onclick="toggleCompareMaximize()">⤢ Maximize</button>' +
       '<button type="button" class="dbtn" style="padding:6px 12px;font-size:12px;' +
       'background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" ' +
       'onclick="downloadCompareXlsx()">⬇ Download .xlsx</button>' +
@@ -467,7 +475,7 @@
       '<h4>Weekly actual vs. each scenario\'s forecast</h4>' +
       '<div id="cmpZoomBar" style="display:flex;align-items:center;gap:8px"></div>' +
       '</div>' +
-      '<div class="dchart" style="height:220px;position:relative"><canvas id="cmpCanvas"></canvas></div>' +
+      '<div class="dchart cmp-chart-box" style="position:relative"><canvas id="cmpCanvas"></canvas></div>' +
       '<div class="chart-legend" id="cmpLegend">' +
       '<span class="lgd-item" data-k="a"><i style="background:#54E6C4"></i>Actual</span>' +
       '<span class="lgd-item" data-k="fA"><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>' + escapeHtml(metas[0].label) + '</span>' +
@@ -480,10 +488,24 @@
     var redrawCmp = function (dragPx) {
       drawCompareChart(results[0].weeks, results[0].all.a, results[0].all.f, results[1].all.f, results[0].backtestWeeks, dragPx);
     };
+    cmpRedraw = redrawCmp;
     redrawCmp();
     wireLegend(document.getElementById('cmpLegend'), cmpVisible, redrawCmp);
     wireCompareZoom(document.getElementById('cmpCanvas'), redrawCmp);
   }
+
+  window.toggleCompareMaximize = function () {
+    var card = document.getElementById('compareCard');
+    var btn = document.getElementById('cmpMaximizeBtn');
+    if (!card) return;
+    cmpMaximized = !cmpMaximized;
+    card.classList.toggle('maximized', cmpMaximized);
+    if (btn) btn.textContent = cmpMaximized ? '⤡ Restore' : '⤢ Maximize';
+    // The chart box's CSS height changes with the card size — redraw so the
+    // canvas picks up its new on-screen dimensions instead of staying at
+    // whatever size it was drawn at before.
+    if (cmpRedraw) cmpRedraw();
+  };
 
   // Exports the currently-open comparison to an .xlsx workbook — a Summary
   // sheet mirroring the KPI rows shown on screen, plus a Weekly data sheet
