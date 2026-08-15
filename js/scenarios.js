@@ -11,6 +11,8 @@
   var selectedForCompare = [];
   var sdVisible = { a: true, f: true };
   var cmpVisible = { a: true, fA: true, fB: true };
+  var cmpZoom = null;       // {start, end} week-index range (inclusive) into the full series, or null = full range
+  var cmpLastRender = null; // {X, N0, dataLen} from the most recent drawCompareChart call, for hit-testing drags
 
   function authHeaders() {
     var t = localStorage.getItem('apra_id');
@@ -392,6 +394,7 @@
   };
 
   function renderCompare(metas, results) {
+    cmpZoom = null; // fresh comparison starts fully zoomed out
     var body = document.getElementById('compareBody');
     var rows = [
       ['Config', metas.map(configDescription)],
@@ -451,23 +454,81 @@
       '</div>';
 
     html += '<div class="dcard" style="margin-top:20px;padding:16px">' +
-      '<div class="ch"><h4>Weekly actual vs. each scenario\'s forecast</h4></div>' +
-      '<div class="dchart" style="height:220px"><canvas id="cmpCanvas"></canvas></div>' +
+      '<div class="ch" style="display:flex;align-items:center;justify-content:space-between;gap:12px">' +
+      '<h4>Weekly actual vs. each scenario\'s forecast</h4>' +
+      '<div id="cmpZoomBar" style="display:flex;align-items:center;gap:8px"></div>' +
+      '</div>' +
+      '<div class="dchart" style="height:220px;position:relative"><canvas id="cmpCanvas"></canvas></div>' +
       '<div class="chart-legend" id="cmpLegend">' +
       '<span class="lgd-item" data-k="a"><i style="background:#54E6C4"></i>Actual</span>' +
       '<span class="lgd-item" data-k="fA"><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>' + escapeHtml(metas[0].label) + '</span>' +
       '<span class="lgd-item" data-k="fB"><i style="background:#7AA2FF;border-radius:0;height:0;border-top:2px dashed #7AA2FF"></i>' + escapeHtml(metas[1].label) + '</span>' +
-      '</div></div>';
+      '</div>' +
+      '<p class="dsubtle" style="margin:8px 0 0;font-size:11px">Drag on the chart to zoom in · double-click or Reset zoom to zoom back out</p>' +
+      '</div>';
 
     body.innerHTML = html;
-    var redrawCmp = function () {
-      drawCompareChart(results[0].weeks, results[0].all.a, results[0].all.f, results[1].all.f, results[0].backtestWeeks);
+    var redrawCmp = function (dragPx) {
+      drawCompareChart(results[0].weeks, results[0].all.a, results[0].all.f, results[1].all.f, results[0].backtestWeeks, dragPx);
     };
     redrawCmp();
     wireLegend(document.getElementById('cmpLegend'), cmpVisible, redrawCmp);
+    wireCompareZoom(document.getElementById('cmpCanvas'), redrawCmp);
   }
 
-  function drawCompareChart(weeks, actual, forecastA, forecastB, backtestWeeks) {
+  function updateCmpZoomBar(redraw) {
+    var bar = document.getElementById('cmpZoomBar');
+    if (!bar) return;
+    if (!cmpZoom) { bar.innerHTML = ''; return; }
+    bar.innerHTML = '<button type="button" class="dbtn" style="padding:4px 10px;font-size:11.5px;' +
+      'background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" id="cmpZoomResetBtn">↺ Reset zoom</button>';
+    document.getElementById('cmpZoomResetBtn').onclick = function () {
+      cmpZoom = null;
+      redraw();
+      updateCmpZoomBar(redraw);
+    };
+  }
+
+  // Click-and-drag on the compare chart to zoom into a week range, CloudWatch-
+  // metrics-style — the Y axis auto-rescales to whatever's visible, and
+  // zooming again while already zoomed narrows further. Handlers live on the
+  // canvas element itself (not window), so they're naturally discarded with
+  // it on the next re-render — nothing to unwire.
+  function wireCompareZoom(cv, redraw) {
+    if (!cv) return;
+    cv.style.cursor = 'crosshair';
+    var dragStartPx = null;
+
+    var pxFor = function (e) { return e.clientX - cv.getBoundingClientRect().left; };
+
+    var endDrag = function (finalPx) {
+      var startPx = dragStartPx;
+      dragStartPx = null;
+      if (startPx == null || !cmpLastRender) { redraw(); return; }
+      if (Math.abs(finalPx - startPx) < 6) { redraw(); return; } // treat as a click, not a drag
+      var lo = Math.min(startPx, finalPx), hi = Math.max(startPx, finalPx);
+      var idx = cmpLastRender.pxToIndex;
+      var startIdx = Math.max(0, Math.round(idx(lo)));
+      var endIdx = Math.min(cmpLastRender.dataLen - 1, Math.round(idx(hi)));
+      if (endIdx - startIdx < 1) { redraw(); return; }
+      cmpZoom = { start: startIdx, end: endIdx };
+      redraw();
+      updateCmpZoomBar(redraw);
+    };
+
+    cv.onmousedown = function (e) { dragStartPx = pxFor(e); };
+    cv.onmousemove = function (e) {
+      if (dragStartPx == null) return;
+      redraw({ x1: dragStartPx, x2: pxFor(e) });
+    };
+    cv.onmouseup = function (e) { endDrag(pxFor(e)); };
+    cv.onmouseleave = function (e) { if (dragStartPx != null) endDrag(pxFor(e)); };
+    cv.ondblclick = function () {
+      if (cmpZoom) { cmpZoom = null; redraw(); updateCmpZoomBar(redraw); }
+    };
+  }
+
+  function drawCompareChart(weeksFull, actualFull, forecastAFull, forecastBFull, backtestWeeksFull, dragPx) {
     var cv = document.getElementById('cmpCanvas');
     if (!cv) return;
     var box = cv.parentElement;
@@ -477,12 +538,30 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     ctx.clearRect(0, 0, cw, ch);
 
+    var dataLen = weeksFull.length;
+    var zStart = cmpZoom ? cmpZoom.start : 0;
+    var zEnd = cmpZoom ? cmpZoom.end : dataLen - 1;
+    var weeks = weeksFull.slice(zStart, zEnd + 1);
+    var actual = actualFull.slice(zStart, zEnd + 1);
+    var forecastA = forecastAFull.slice(zStart, zEnd + 1);
+    var forecastB = forecastBFull.slice(zStart, zEnd + 1);
+
     var padL = 54, padR = 12, padT = 12, padB = 22;
     var N = weeks.length;
     var nonNull = function (arr) { return arr.filter(function (v) { return v != null; }); };
+    // Y axis auto-rescales to whatever's currently visible, CloudWatch-style —
+    // zooming into a narrow band reveals its own fluctuation instead of being
+    // flattened against the full series' max.
     var uMax = Math.max.apply(null, nonNull(actual).concat(nonNull(forecastA), nonNull(forecastB))) * 1.12 || 1;
     var X = function (i) { return padL + i * (cw - padL - padR) / (N - 1 || 1); };
     var Y = function (v) { return padT + (ch - padT - padB) * (1 - v / uMax); };
+    // Inverse of X(), remapped back onto the FULL (unzoomed) index space so
+    // drag selections compose correctly when zooming in more than once.
+    var pxToIndex = function (px) {
+      var localIdx = (px - padL) * (N - 1 || 1) / (cw - padL - padR);
+      return zStart + localIdx;
+    };
+    cmpLastRender = { pxToIndex: pxToIndex, dataLen: dataLen };
 
     ctx.font = '10px JetBrains Mono';
     for (var g = 0; g <= 3; g++) {
@@ -510,12 +589,26 @@
     if (cmpVisible.fA) line(forecastA, '#C8F24E', [7, 5]);
     if (cmpVisible.fB) line(forecastB, '#7AA2FF', [2, 3]);
 
-    if (backtestWeeks != null && backtestWeeks > 0 && backtestWeeks < N) {
-      var bx = X(backtestWeeks - 0.5);
-      ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.setLineDash([3, 3]);
-      ctx.beginPath(); ctx.moveTo(bx, padT); ctx.lineTo(bx, ch - padB); ctx.stroke(); ctx.setLineDash([]);
-      ctx.fillStyle = '#5C6878'; ctx.font = '9px JetBrains Mono'; ctx.textAlign = 'left';
-      ctx.fillText('FORECAST →', bx + 4, padT + 10);
+    if (backtestWeeksFull != null) {
+      var bIdx = backtestWeeksFull - 0.5 - zStart;
+      if (bIdx > 0 && bIdx < N) {
+        var bx = X(bIdx);
+        ctx.strokeStyle = 'rgba(255,255,255,.18)'; ctx.setLineDash([3, 3]);
+        ctx.beginPath(); ctx.moveTo(bx, padT); ctx.lineTo(bx, ch - padB); ctx.stroke(); ctx.setLineDash([]);
+        ctx.fillStyle = '#5C6878'; ctx.font = '9px JetBrains Mono'; ctx.textAlign = 'left';
+        ctx.fillText('FORECAST →', bx + 4, padT + 10);
+      }
+    }
+
+    // Live selection overlay while dragging — doesn't commit a zoom, just feedback.
+    if (dragPx) {
+      var x1 = Math.max(padL, Math.min(cw - padR, dragPx.x1));
+      var x2 = Math.max(padL, Math.min(cw - padR, dragPx.x2));
+      var lo = Math.min(x1, x2), hi = Math.max(x1, x2);
+      ctx.fillStyle = 'rgba(122,162,255,.16)';
+      ctx.fillRect(lo, padT, hi - lo, ch - padT - padB);
+      ctx.strokeStyle = 'rgba(122,162,255,.55)'; ctx.lineWidth = 1;
+      ctx.strokeRect(lo, padT, hi - lo, ch - padT - padB);
     }
   }
 
