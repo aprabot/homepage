@@ -250,13 +250,15 @@
 
   // Per-ZIP breakdown for whichever SKU is currently selected — the model
   // predicts at SKU x postal_code x day natively; this just stops throwing
-  // that dimension away before it reaches the chart data.
+  // that dimension away before it reaches the chart data. Swaps in for the
+  // SKU table (rather than appearing below it) so there's nothing to scroll
+  // to find — window.backToSkuTable() below swaps it back.
   function renderSkuZipTable(baseSkuId){
+    const detailCard=document.getElementById('skuDetailCard');
     const card=document.getElementById('skuZipCard'), body=document.getElementById('skuZipBody');
-    const wasHidden=card.style.display==='none';
     const sku=DATA.skus[baseSkuId];
     const byZip=sku&&sku.byZip;
-    if(!byZip||!Object.keys(byZip).length){ card.style.display='none'; return; }
+    if(!byZip||!Object.keys(byZip).length){ card.style.display='none'; detailCard.style.display=''; return; }
 
     const bt=DATA.backtestWeeks!=null?DATA.backtestWeeks:DATA.weeks.length;
     const totalWeeks=DATA.weeks.length, fwdWeeks=totalWeeks-bt;
@@ -279,18 +281,16 @@
       `<tr data-sku="${baseSkuId}" data-zip="${r.zip}"><td class="skucell">${r.zip}</td>`+
       `<td>${nfFull(r.backtestVol)}</td><td>${nfFull(r.avgF)}</td><td>${trendPill(r.trend)}</td></tr>`
     ).join('');
+    const nameEl=document.getElementById('skuZipSkuName');
+    if(nameEl)nameEl.textContent=' — '+baseSkuId;
+    detailCard.style.display='none';
     card.style.display='';
-
-    // The postal-code breakdown appears below the SKU table, easy to miss
-    // since nothing above it hints there's more content beneath — scroll it
-    // into view and flash its border on the hidden->visible transition (not
-    // on every re-selection while it's already on screen, which would just
-    // yank the viewport around unnecessarily).
-    if(wasHidden){
-      card.scrollIntoView({behavior:'smooth',block:'nearest'});
-      card.classList.remove('card-reveal'); void card.offsetWidth; card.classList.add('card-reveal');
-    }
   }
+
+  window.backToSkuTable=function(){
+    document.getElementById('skuZipCard').style.display='none';
+    document.getElementById('skuDetailCard').style.display='';
+  };
 
   function drawChart(){
     const s=getSeries(curSel); if(!s)return;
