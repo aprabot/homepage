@@ -105,7 +105,7 @@
     });
   });
 
-  const nf=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':String(n);
+  const nf=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':String(Math.round(n));
   const nfFull=n=>Math.round(n).toLocaleString();
 
   function seriesWape(a,f){            // per-week + overall WAPE for an a/f pair
@@ -173,6 +173,11 @@
     const apply=()=>selectSku(input.value.trim());
     input.addEventListener('change',apply);
     input.addEventListener('keydown',e=>{if(e.key==='Enter')apply();});
+    document.getElementById('zipInput').addEventListener('change',e=>{
+      const baseSkuId=(curSel||'').split('|')[0];
+      if(!baseSkuId||baseSkuId==='ALL')return;
+      selectSku(e.target.value?baseSkuId+'|'+e.target.value:baseSkuId);
+    });
     const periodSeg=document.getElementById('periodSeg');
     const customBtn=document.getElementById('periodCustomBtn');
     const customWrap=document.getElementById('periodCustomWrap');
@@ -245,7 +250,35 @@
     document.getElementById('selName').textContent=s.name;
     document.getElementById('selWape').textContent=s.overall==null?'—':s.overall.toFixed(2)+'%';
     drawChart();
-    renderSkuZipTable((sel||'').split('|')[0]);
+    const [baseSkuId,zip]=(sel||'').split('|');
+    renderSkuZipTable(baseSkuId);
+    renderZipFilter(baseSkuId,zip||'');
+  }
+
+  // Lets the chart be filtered straight to one postal code for the currently
+  // selected SKU, without going through the postal-code table — options are
+  // scoped to whichever SKU is selected since the aggregate "All SKUs" view
+  // has no per-ZIP breakdown to filter.
+  function renderZipFilter(baseSkuId,selectedZip){
+    const sel=document.getElementById('zipInput');
+    const sku=baseSkuId&&DATA.skus[baseSkuId];
+    const byZip=sku&&sku.byZip;
+    const zips=byZip?Object.keys(byZip):[];
+    if(!zips.length){
+      sel.innerHTML='<option value="">All postal codes</option>';
+      sel.disabled=true;
+      sel.title='Pick a SKU first to filter by its postal codes';
+      sel.value='';
+      return;
+    }
+    const bt=DATA.backtestWeeks!=null?DATA.backtestWeeks:DATA.weeks.length;
+    const sumRange=(arr,s,e)=>arr.slice(s,e).reduce((acc,x)=>acc+(x||0),0);
+    const sorted=zips.map(z=>({z,vol:sumRange(byZip[z].a,0,bt)})).sort((x,y)=>y.vol-x.vol);
+    sel.innerHTML='<option value="">All postal codes</option>'+
+      sorted.map(o=>`<option value="${o.z}">${o.z}</option>`).join('');
+    sel.disabled=false;
+    sel.title='Filter the chart to one postal code';
+    sel.value=(selectedZip&&byZip[selectedZip])?selectedZip:'';
   }
 
   // Per-ZIP breakdown for whichever SKU is currently selected — the model

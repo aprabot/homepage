@@ -751,6 +751,10 @@
   .sku-search input{background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:8px 12px;
     color:var(--text);font-family:var(--mono);font-size:12.5px;width:230px;transition:border-color .2s,box-shadow .2s}
   .sku-search input:focus{outline:none;border-color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
+  .sku-search select{background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:8px 12px;
+    color:var(--text);font-family:var(--mono);font-size:12.5px;width:170px;transition:border-color .2s,box-shadow .2s}
+  .sku-search select:focus{outline:none;border-color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
+  .sku-search select:disabled{opacity:.5;cursor:not-allowed}
   .selbar{display:flex;align-items:center;justify-content:space-between;gap:12px;margin:-6px 0 14px;
     font-family:var(--mono);font-size:12px;color:var(--muted);flex-wrap:wrap}
   .selbar #selName{color:var(--text);font-weight:600}
@@ -1088,3 +1092,4 @@
   [data-theme="light"] .ic{background:rgba(200,242,78,.12);border-color:rgba(130,180,0,.2)}
   [data-theme="light"] .report-drop button:hover{background:rgba(200,242,78,.12)}
   [data-theme="light"] .sku-search input{background:var(--ink-3);border-color:rgba(0,0,0,.1);color:var(--text)}
+  [data-theme="light"] .sku-search select{background:var(--ink-3);border-color:rgba(0,0,0,.1);color:var(--text)}

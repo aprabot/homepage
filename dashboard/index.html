@@ -144,6 +144,11 @@
                 <input id="skuInput" list="skuList" placeholder="Search SKU… (blank = all)">
                 <datalist id="skuList"></datalist>
               </div>
+              <div class="sku-search">
+                <select id="zipInput" disabled title="Pick a SKU first to filter by its postal codes">
+                  <option value="">All postal codes</option>
+                </select>
+              </div>
               <div class="seg" id="periodSeg">
                 <button data-w="12">12W</button><button data-w="26">26W</button><button class="on" data-w="52">52W</button>
                 <button data-w="custom" id="periodCustomBtn">Custom</button>
