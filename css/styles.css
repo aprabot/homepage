@@ -685,12 +685,19 @@
   .dgreet .hl{color:var(--signal)}
   .dsubtle{color:var(--muted);font-size:.97rem;margin-bottom:28px}
   .kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-bottom:22px}
-  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
+  .kpi{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px;
+    transition:transform .18s ease,box-shadow .18s ease,border-color .18s ease}
+  .kpi:hover{transform:translateY(-2px);box-shadow:0 14px 30px -16px rgba(0,0,0,.4);border-color:var(--line-2)}
+  .kpi-ic{width:34px;height:34px;border-radius:9px;background:var(--signal-soft);border:1px solid rgba(200,242,78,.25);
+    display:flex;align-items:center;justify-content:center;margin-bottom:14px;color:var(--signal)}
+  .kpi-ic svg{width:17px;height:17px}
   .kpi .t{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
   .kpi .v{font-family:var(--display);font-weight:600;font-size:2rem;letter-spacing:-.03em;line-height:1}
   .kpi .d{font-family:var(--mono);font-size:12px;margin-top:10px}
   .kpi .d.up{color:var(--signal)}.kpi .d.down{color:#ff8585}
   .dgrid{display:grid;grid-template-columns:1.7fr 1fr;gap:16px;margin-bottom:22px}
+  .dcard.clickable{cursor:pointer;transition:border-color .18s ease,transform .18s ease}
+  .dcard.clickable:hover{border-color:var(--signal);transform:translateY(-2px)}
   .dcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
   .dcard .ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
   .dcard .ch h4{font-family:var(--display);font-weight:600;font-size:1.15rem;letter-spacing:-.01em}
@@ -1008,6 +1015,7 @@
     background:#fff;border-color:rgba(0,0,0,.07);
     box-shadow:0 1px 3px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.04)
   }
+  [data-theme="light"] .kpi-ic{background:rgba(200,242,78,.12);border-color:rgba(130,180,0,.2)}
   [data-theme="light"] .dcard{
     background:#fff;border-color:rgba(0,0,0,.07);
     box-shadow:0 1px 3px rgba(0,0,0,.04),0 4px 12px rgba(0,0,0,.04)

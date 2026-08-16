@@ -122,12 +122,38 @@
       <p class="dsubtle">Shipped-units forecast accuracy — <b>2025 weekly backtest</b>, trained on 2023–2024, plus a 52-week forward forecast.</p>
 
       <div class="kpis">
-        <div class="kpi"><div class="t">Overall WAPE</div><div class="v" id="kpiWape">—</div><div class="d up">volume-weighted error · lower is better</div></div>
-        <div class="kpi"><div class="t">SKUs forecasted</div><div class="v" id="kpiSkus">—</div><div class="d up">across the full catalog</div></div>
-        <div class="kpi"><div class="t">Units forecasted</div><div class="v" id="kpiUnits">—</div><div class="d up">total shipped (52 wks)</div></div>
-        <div class="kpi"><div class="t">Backtest horizon</div><div class="v">52<span style="font-size:1rem;color:var(--muted)"> wks</span></div><div class="d up">1-week-ahead, out-of-sample</div></div>
+        <div class="kpi">
+          <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".5" fill="currentColor"/></svg></div>
+          <div class="t">Overall WAPE</div><div class="v" id="kpiWape">—</div><div class="d up">volume-weighted error · lower is better</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="t">SKUs forecasted</div><div class="v" id="kpiSkus">—</div><div class="d up">across the full catalog</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="t">Units forecasted</div><div class="v" id="kpiUnits">—</div><div class="d up">total shipped (52 wks)</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4" stroke-linecap="round"/></svg></div>
+          <div class="t">Backtest horizon</div><div class="v">52<span style="font-size:1rem;color:var(--muted)"> wks</span></div><div class="d up">1-week-ahead, out-of-sample</div>
+        </div>
       </div>
 
+      <div class="dgrid" style="margin-top:22px">
+        <div class="dcard clickable" id="ovTrendCard" title="Open Forecasts">
+          <div class="ch"><h4>Forecast trend — all SKUs</h4><span class="dsubtle" style="margin:0;font-size:.8rem">recent actuals + forward outlook · open Forecasts →</span></div>
+          <div class="dchart" style="height:190px"><canvas id="ovTrendCanvas"></canvas></div>
+          <div class="chart-legend">
+            <span class="lgd-item"><i style="background:#54E6C4"></i>Actual</span>
+            <span class="lgd-item"><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>Forecast</span>
+          </div>
+        </div>
+        <div class="dcard">
+          <div class="ch"><h4>Highest-volume SKUs</h4><span class="dsubtle" style="margin:0;font-size:.8rem">click to chart it</span></div>
+          <ul class="movers" id="ovMoversList"></ul>
+        </div>
+      </div>
     </div>
 
     <!-- Forecasts panel -->

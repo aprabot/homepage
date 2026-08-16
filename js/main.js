@@ -137,12 +137,15 @@
       return {a, vol, wape:seriesWape(o.a,o.f).overall, avgF:o.f.reduce((s,x)=>s+(x||0),0)/o.f.length};
     }).filter(r=>r.vol>0&&r.wape!=null).sort((x,y)=>y.vol-x.vol);
 
-    // movers: top 6 by volume
-    document.getElementById('moversList').innerHTML=rows.slice(0,6).map(r=>{
+    // movers: top 6 by volume (shown on both the Forecasts tab and Overview)
+    const moversHtml=rows.slice(0,6).map(r=>{
       const good=r.wape<=DATA.overallWape;
       return `<li data-sku="${r.a}"><div><div class="nmx">${r.a}</div><div class="sku">${nfFull(r.vol)} units · 2024</div></div>`+
              `<span class="chg ${good?'up':'down'}">${r.wape.toFixed(1)}%</span></li>`;
     }).join('');
+    document.getElementById('moversList').innerHTML=moversHtml;
+    const ovMovers=document.getElementById('ovMoversList');
+    if(ovMovers)ovMovers.innerHTML=moversHtml;
 
     // table: top 12 by volume
     const F=computeForwardStats();
@@ -163,10 +166,79 @@
     document.getElementById('skuList').innerHTML=rows.slice(0,400).map(r=>`<option value="${r.a}">`).join('');
   }
 
+  // Compact, non-interactive all-SKU actual-vs-forecast snapshot for the
+  // Overview page — same visual language as the real Forecasts chart
+  // (mint actual, dashed signal-green forecast) but no axis-2/WAPE line,
+  // hover, or legend toggle, since it's a glance-and-click-through widget.
+  function drawOverviewTrend(){
+    const cv=document.getElementById('ovTrendCanvas');
+    if(!cv||!window.DATA)return;
+    // Center the window on the backtest/forecast boundary (trailing actuals
+    // + near-term forward outlook) rather than just "the last 26 calendar
+    // weeks" — with a long forward horizon, the most recent weeks are
+    // forecast-only with no actuals yet, which would make the actual line
+    // vanish entirely from a naive trailing window.
+    const backtestTotal0=DATA.backtestWeeks||DATA.weeks.length;
+    const st=Math.max(0,Math.min(backtestTotal0-13,DATA.weeks.length-26));
+    const N=Math.min(26,DATA.weeks.length-st);
+    const weeks=DATA.weeks.slice(st), a=DATA.all.a.slice(st), f=DATA.all.f.slice(st);
+    const box=cv.parentElement;
+    const cw=box.clientWidth||600, ch=box.clientHeight||190, dpr=window.devicePixelRatio||1;
+    cv.width=cw*dpr; cv.height=ch*dpr; const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
+    ctx.clearRect(0,0,cw,ch);
+    const padL=48,padR=12,padT=14,padB=24;
+    const uMax=Math.max(...a.filter(x=>x!=null),...f.filter(x=>x!=null))*1.12||1;
+    const X=i=>padL+i*(cw-padL-padR)/(N-1||1);
+    const Y=v=>padT+(ch-padT-padB)*(1-v/uMax);
+    ctx.font='10px JetBrains Mono';
+    for(let g=0;g<=3;g++){const y=padT+(ch-padT-padB)*g/3;
+      ctx.strokeStyle='rgba(255,255,255,.06)';ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(cw-padR,y);ctx.stroke();
+      ctx.fillStyle='#5C6878';ctx.textAlign='right';ctx.fillText(nf(uMax*(1-g/3)),padL-8,y+3);}
+    ctx.fillStyle='#5C6878';ctx.textAlign='center';
+    const step=Math.max(1,Math.round(N/5));
+    for(let i=0;i<N;i+=step){ctx.fillText(weeks[i].slice(5),X(i),ch-6);}
+    const line=(arr,color,dash)=>{ctx.strokeStyle=color;ctx.lineWidth=2.2;ctx.setLineDash(dash||[]);
+      ctx.beginPath();let started=false;
+      arr.forEach((v,i)=>{if(v==null)return;const x=X(i),y=Y(v);if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);});
+      ctx.stroke();ctx.setLineDash([]);};
+    const grad=ctx.createLinearGradient(0,padT,0,ch-padB);
+    grad.addColorStop(0,'rgba(84,230,196,.2)');grad.addColorStop(1,'rgba(84,230,196,0)');
+    ctx.beginPath();let sx=null;a.forEach((v,i)=>{if(v==null)return;const x=X(i),y=Y(v);if(sx===null){ctx.moveTo(x,y);sx=x;}else ctx.lineTo(x,y);});
+    if(sx!==null){ctx.lineTo(X(N-1),Y(0));ctx.lineTo(sx,Y(0));ctx.closePath();ctx.fillStyle=grad;ctx.fill();}
+    line(a,'#54E6C4'); line(f,'#C8F24E',[7,5]);
+    const backtestTotal=DATA.backtestWeeks||DATA.weeks.length, boundary=backtestTotal-st;
+    if(boundary>0&&boundary<N){
+      const bx=X(boundary-0.5);
+      ctx.strokeStyle='rgba(255,255,255,.18)';ctx.setLineDash([3,3]);
+      ctx.beginPath();ctx.moveTo(bx,padT);ctx.lineTo(bx,ch-padB);ctx.stroke();ctx.setLineDash([]);
+    }
+  }
+
+  // Switches the sidebar to the given panel by reusing its real click
+  // handler (js inline in dashboard/index.html), so active state, the
+  // report-menu visibility, and the saved-panel localStorage entry all
+  // stay in sync exactly like a manual nav click would.
+  function goToPanel(name){
+    const li=Array.from(document.querySelectorAll('.dnav li')).find(el=>el.textContent.trim()===name);
+    if(li)li.click();
+  }
+
   function initDashboard(){
     renderDashboardData();
+    drawOverviewTrend();
     if(dashReady){drawChart();return;}
     dashReady=true;
+
+    document.getElementById('ovTrendCard')?.addEventListener('click',()=>goToPanel('Forecasts'));
+    document.getElementById('ovMoversList')?.addEventListener('click',e=>{
+      const li=e.target.closest('li'); if(!li)return;
+      goToPanel('Forecasts');
+      const skuInput=document.getElementById('skuInput');
+      if(skuInput)skuInput.value=li.dataset.sku;
+      selectSku(li.dataset.sku);
+    });
+    const ovChartBox=document.querySelector('#ovTrendCard .dchart');
+    if(ovChartBox)new ResizeObserver(()=>drawOverviewTrend()).observe(ovChartBox);
 
     // wire interactions
     const input=document.getElementById('skuInput');
