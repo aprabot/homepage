@@ -18,11 +18,12 @@ WEATHER_KEY    = os.environ.get('WEATHER_KEY', 'raw/weather.tsv')
 MODEL          = os.environ.get('MODEL_ID',    'amazon.nova-lite-v1:0')
 SCENARIOS_API_FUNCTION = os.environ.get('SCENARIOS_API_FUNCTION', 'aprabot-scenarios-api')
 KNOWLEDGE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'forecasting_knowledge.md')
+KNOWLEDGE_KEY  = os.environ.get('KNOWLEDGE_KEY', 'knowledge/forecasting_knowledge.md')
 
 CORS = {
     'Access-Control-Allow-Origin':  '*',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'POST,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
 }
 
 _cache = {}   # simple in-process cache across warm invocations
@@ -91,15 +92,66 @@ def _weekly_weather():
 
 def load_forecasting_knowledge():
     """General demand-forecasting domain knowledge (metrics pitfalls, common
-    causes of forecast issues, terminology) bundled alongside handler.py —
-    same pattern as forecast.py being bundled into scenario-runner. Static
-    content, so read straight off disk rather than round-tripping through
-    S3 like the live forecast data."""
+    causes of forecast issues, terminology) — read fresh from S3 on every
+    call, no cross-invocation cache, so an edit saved via the dashboard's
+    Knowledge Base tab (PUT /knowledge) takes effect on the very next chat
+    message rather than waiting for a cold start. Falls back to the copy
+    bundled alongside handler.py (same pattern as forecast.py being bundled
+    into scenario-runner) if the S3 object is missing, so a fresh deploy or
+    a transient S3 issue never breaks chat outright."""
+    try:
+        obj = s3.get_object(Bucket=BUCKET, Key=KNOWLEDGE_KEY)
+        return obj['Body'].read().decode('utf-8')
+    except Exception:
+        pass
     try:
         with open(KNOWLEDGE_PATH, 'r', encoding='utf-8') as f:
             return f.read()
     except OSError:
         return ''  # missing file shouldn't break the chat — just no background knowledge
+
+
+def get_knowledge():
+    """GET /knowledge — current content plus its S3 last-modified time, for
+    the dashboard's Knowledge Base editor. Falls back the same way
+    load_forecasting_knowledge() does if the S3 object isn't there yet."""
+    try:
+        obj = s3.get_object(Bucket=BUCKET, Key=KNOWLEDGE_KEY)
+        content = obj['Body'].read().decode('utf-8')
+        updated_at = obj['LastModified'].isoformat()
+    except Exception:
+        content = load_forecasting_knowledge()
+        updated_at = None
+    return {'statusCode': 200, 'headers': {**CORS, 'Content-Type': 'application/json'},
+            'body': json.dumps({'content': content, 'updated_at': updated_at})}
+
+
+def put_knowledge(event):
+    """PUT /knowledge — overwrite the live knowledge base. Backs up whatever
+    was live to knowledge/history/ first (timestamped), so a bad edit is a
+    one-click revert away rather than a re-deploy away — this bucket isn't
+    versioned, so this is the safety net."""
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except json.JSONDecodeError:
+        return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'invalid JSON body'})}
+
+    content = body.get('content')
+    if not isinstance(content, str) or not content.strip():
+        return {'statusCode': 400, 'headers': CORS, 'body': json.dumps({'error': 'content required'})}
+
+    try:
+        existing = s3.get_object(Bucket=BUCKET, Key=KNOWLEDGE_KEY)['Body'].read()
+        backup_key = f"knowledge/history/forecasting_knowledge-{int(dt.datetime.now(dt.timezone.utc).timestamp())}.md"
+        s3.put_object(Bucket=BUCKET, Key=backup_key, Body=existing, ContentType='text/markdown')
+    except Exception:
+        pass  # nothing live yet to back up (e.g. first-ever save) — fine
+
+    s3.put_object(Bucket=BUCKET, Key=KNOWLEDGE_KEY, Body=content.encode('utf-8'),
+                   ContentType='text/markdown')
+    return {'statusCode': 200, 'headers': {**CORS, 'Content-Type': 'application/json'},
+            'body': json.dumps({'saved': True,
+                                 'updated_at': dt.datetime.now(dt.timezone.utc).isoformat()})}
 
 
 def build_data_summary():
@@ -426,8 +478,14 @@ def _text_of(message):
 
 def handler(event, context):
     method = (event.get('requestContext') or {}).get('http', {}).get('method', 'POST')
+    path   = (event.get('requestContext') or {}).get('http', {}).get('path', '')
     if method == 'OPTIONS':
         return {'statusCode': 200, 'headers': CORS, 'body': ''}
+
+    if path == '/knowledge' and method == 'GET':
+        return get_knowledge()
+    if path == '/knowledge' and method == 'PUT':
+        return put_knowledge(event)
 
     try:
         body    = json.loads(event.get('body') or '{}')
@@ -443,10 +501,8 @@ def handler(event, context):
 
         if 'data' not in _cache:
             _cache['data'] = build_data_summary()
-        if 'knowledge' not in _cache:
-            _cache['knowledge'] = load_forecasting_knowledge()
 
-        system = SYSTEM_TMPL.format(knowledge=_cache['knowledge'], data=_cache['data'])
+        system = SYSTEM_TMPL.format(knowledge=load_forecasting_knowledge(), data=_cache['data'])
         if extra:
             system += f"\n\nADDITIONAL INSTRUCTIONS: {extra}"
 
