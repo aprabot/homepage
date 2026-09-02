@@ -4,7 +4,7 @@ import os
 
 s3 = boto3.client('s3')
 BUCKET = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
-KEY    = os.environ.get('INSIGHTS_KEY', 'insights/latest.json')
+KEY    = os.environ.get('FORECAST_KEY', 'forecast/latest.json')
 
 CORS = {
     'Access-Control-Allow-Origin':  '*',
@@ -21,9 +21,12 @@ def handler(event, context):
         body = obj['Body'].read().decode('utf-8')
         return {
             'statusCode': 200,
-            # Same fix as forecast-api's: a full hour meant a regenerated
-            # insight could stay invisible to anyone with an already-cached
-            # response for that long.
+            # Was max-age=3600 — meant an approved scenario could take up to
+            # an hour to show up for anyone whose browser had already cached
+            # a GET /forecast response, regardless of the dashboard's own
+            # 5-minute localStorage cache being cleared on approval. 60s
+            # still meaningfully cuts down on repeat requests without that
+            # long a stale window.
             'headers': {**CORS, 'Content-Type': 'application/json', 'Cache-Control': 'max-age=60'},
             'body': body,
         }

@@ -1165,17 +1165,26 @@
   var CACHE_KEY     = 'apra_forecast_cache';
   var CACHE_TTL     = 5 * 60 * 1000; /* 5 minutes in ms */
 
-  function loadForecast() {
+  function loadForecast(forceFresh) {
     try {
-      var cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
-      if (cached && (Date.now() - cached.ts) < CACHE_TTL) {
-        window.DATA = cached.data;
-        if (typeof initDashboard === 'function') initDashboard();
-        return;
+      if (!forceFresh) {
+        var cached = JSON.parse(localStorage.getItem(CACHE_KEY) || 'null');
+        if (cached && (Date.now() - cached.ts) < CACHE_TTL) {
+          window.DATA = cached.data;
+          if (typeof initDashboard === 'function') initDashboard();
+          return;
+        }
       }
     } catch(e) {}
 
-    fetch(FORECAST_API)
+    // The API itself sends a Cache-Control header so the browser can cache
+    // it between page loads — great for the common case, but it means a
+    // plain re-fetch right after approving a scenario can still resolve
+    // from the browser's HTTP cache instead of hitting the network. A
+    // cache-busting query param sidesteps that for this one forced case.
+    var url = forceFresh ? FORECAST_API + '?_=' + Date.now() : FORECAST_API;
+
+    fetch(url)
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(d){
         window.DATA = d;

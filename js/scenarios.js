@@ -231,7 +231,7 @@
     try { lastKnown = localStorage.getItem(APPROVED_ID_KEY); } catch (e) { lastKnown = null; }
     if (lastKnown !== null && approvedId !== lastKnown) {
       try { localStorage.removeItem('apra_forecast_cache'); } catch (e) {}
-      if (typeof loadForecast === 'function') loadForecast();
+      if (typeof loadForecast === 'function') loadForecast(true);
     }
     try { localStorage.setItem(APPROVED_ID_KEY, approvedId || ''); } catch (e) {}
   }
@@ -370,7 +370,7 @@
       .then(function () {
         loadScenarios();
         try { localStorage.removeItem('apra_forecast_cache'); } catch (e) {}
-        if (typeof loadForecast === 'function') loadForecast(); // refresh Overview/Forecasts with the newly-approved data
+        if (typeof loadForecast === 'function') loadForecast(true); // refresh Overview/Forecasts with the newly-approved data
       });
   };
 
