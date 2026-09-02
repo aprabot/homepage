@@ -220,6 +220,25 @@ def build_data_summary():
             f"  {r['sku']:20s}  vol={r['vol']:>9,}  WAPE={r['wape']:.1f}%  acc={r['acc']:.1f}%  "
             f"forward_fcst={r['fwd']:>8,}  trend={trend_str:>7s}  confidence={r['tier']}")
 
+    # Actual volume by postal code, summed across ALL SKUs — the dashboard
+    # itself only ever shows this per-SKU (the "By postal code" table you
+    # reach by clicking into one SKU); there's no catalog-wide "top zip"
+    # view anywhere in the product. Without this, a question like "which
+    # zip code has the highest volume" had zero real data to ground an
+    # answer in.
+    zip_totals = {}
+    for sku, d in data['skus'].items():
+        for zip_code, zd in (d.get('byZip') or {}).items():
+            vol = sum(x for x in (zd.get('a') or []) if x is not None)
+            zip_totals[zip_code] = zip_totals.get(zip_code, 0) + vol
+    top_zips = sorted(zip_totals.items(), key=lambda kv: -kv[1])[:10]
+    if top_zips:
+        lines += [
+            "",
+            "--- TOP POSTAL CODES BY VOLUME (backtest actuals, summed across all SKUs) ---",
+            *[f"  {zc:12s}  vol={vol:>9,}" for zc, vol in top_zips],
+        ]
+
     worst_wape = sorted(rows, key=lambda x: -x['wape'])[:5]
     with_trend = [r for r in rows if r['trend'] is not None]
     declining  = sorted(with_trend, key=lambda x: x['trend'])[:5]
@@ -307,6 +326,10 @@ Rules:
   totals and the weekly WAPE list are broken out by individual week. Never invent a specific SKU's
   units for a specific week — if asked for that exact combination, say it isn't available at that
   granularity rather than making up a number.
+• For any question about postal codes / zip codes catalog-wide (e.g. "which zip code has the
+  highest volume"), use the TOP POSTAL CODES BY VOLUME section below — never guess or invent a zip
+  code. If that section is empty or missing, say zip-level data isn't available for this forecast
+  rather than making one up.
 • You can actually start a new forecast pipeline run using the run_scenario tool, and check on a
   run's progress — or its top SKUs by volume, once completed — with check_scenario_status, which
   can look a scenario up by name (label) as well as by id; you don't need to list scenarios
