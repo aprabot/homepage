@@ -308,7 +308,9 @@ Rules:
   units for a specific week — if asked for that exact combination, say it isn't available at that
   granularity rather than making up a number.
 • You can actually start a new forecast pipeline run using the run_scenario tool, and check on a
-  run's progress with check_scenario_status. Only call run_scenario when the user explicitly asks
+  run's progress — or its top SKUs by volume, once completed — with check_scenario_status, which
+  can look a scenario up by name (label) as well as by id; you don't need to list scenarios
+  separately first, just call it with the label the user mentioned. Only call run_scenario when the user explicitly asks
   you to run, start, or kick off a NEW forecast/scenario — never for an analytical or correlation
   question about the existing forecast (e.g. "do holidays cause spikes?", "why did this SKU drop?")
   even if answering it thoroughly is hard; answer directly from the data instead, or say what's
@@ -357,13 +359,17 @@ TOOL_CONFIG = {
             "toolSpec": {
                 "name": "check_scenario_status",
                 "description": (
-                    "Check the status/result of a scenario run. If scenario_id is omitted, "
-                    "checks the most recently requested scenario for this user."
+                    "Check the status/result of a scenario run, including its top SKUs by volume "
+                    "once it's completed. Look it up by scenario_id, or by label (matches "
+                    "case-insensitively against part of the scenario's name, e.g. the user says "
+                    "'the 40% discount scenario' or quotes its exact name). Omit both to check the "
+                    "most recently requested scenario for this user."
                 ),
                 "inputSchema": {"json": {
                     "type": "object",
                     "properties": {
-                        "scenario_id": {"type": "string", "description": "e.g. scn-1234567890-abcdef. Omit to check the most recent one."},
+                        "scenario_id": {"type": "string", "description": "e.g. scn-1234567890-abcdef. Omit to look up by label or use the most recent."},
+                        "label":       {"type": "string", "description": "Full or partial scenario name, e.g. '40% discount'. Omit if scenario_id is given."},
                     },
                 }},
             }
@@ -442,15 +448,41 @@ def execute_tool(name, inputs, claims):
         scenarios = result.get('scenarios', [])
 
         sid = (inputs.get('scenario_id') or '').strip()
+        label_query = (inputs.get('label') or '').strip().lower()
+
         if sid:
             match = next((s for s in scenarios if s['id'] == sid), None)
-            return match or {'error': f'no scenario found with id {sid}'}
+            if not match:
+                return {'error': f'no scenario found with id {sid}'}
+        elif label_query:
+            matches = [s for s in scenarios if label_query in (s.get('label') or '').lower()]
+            if not matches:
+                return {'error': f'no scenario found with a label matching "{inputs.get("label")}"'}
+            if len(matches) > 1:
+                return {'multiple_matches': [{'id': m['id'], 'label': m['label']} for m in matches[:10]],
+                        'message': 'More than one scenario matches that label — ask the user which '
+                                   'one they mean, or call this again with the exact scenario_id.'}
+            match = matches[0]
+        else:
+            email = claims.get('email')
+            mine = [s for s in scenarios if s.get('requested_by') == email]
+            if not mine:
+                return {'message': 'No scenarios found for this user yet.'}
+            match = mine[0]  # list_scenarios already sorts newest-first
 
-        email = claims.get('email')
-        mine = [s for s in scenarios if s.get('requested_by') == email]
-        if not mine:
-            return {'message': 'No scenarios found for this user yet.'}
-        return mine[0]  # list_scenarios already sorts newest-first
+        out = dict(match)
+        if match.get('status') == 'completed':
+            rstatus, rresult = _invoke_scenarios_api('GET', f"/scenarios/{match['id']}/result", claims)
+            if rstatus == 200:
+                # Same "top SKUs by volume" ranking the dashboard's own compare
+                # view uses (sum of actual units, descending) — top 8.
+                ranked = []
+                for sku_id, o in (rresult.get('skus') or {}).items():
+                    vol = sum(x for x in (o.get('a') or []) if x is not None)
+                    ranked.append({'sku': sku_id, 'volume': round(vol)})
+                ranked.sort(key=lambda r: r['volume'], reverse=True)
+                out['top_skus_by_volume'] = ranked[:8]
+        return out
 
     if name == 'point_to_ui':
         return {'ok': True}  # actual UI effect happens client-side; this just satisfies the tool-result contract
