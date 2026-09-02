@@ -95,7 +95,7 @@
       var canCompare = s.status === 'completed';
       var checked = selectedForCompare.indexOf(s.id) > -1 ? 'checked' : '';
       var approveBtn = (s.status === 'completed' && !s.approved)
-        ? '<button class="dbtn" style="padding:6px 12px;font-size:12px" onclick="event.stopPropagation();approveScenario(\'' + s.id + '\')">Approve</button>'
+        ? '<button class="dbtn" style="padding:6px 12px;font-size:12px" onclick="event.stopPropagation();approveScenario(\'' + s.id + '\', this)">Approve</button>'
         : '';
       return '<tr onclick="viewScenario(\'' + s.id + '\')" style="cursor:pointer">' +
         '<td>' + (canCompare ? '<input type="checkbox" ' + checked + ' onclick="event.stopPropagation()" onchange="toggleCompareSelect(\'' + s.id + '\',this.checked)">' : '') + '</td>' +
@@ -362,15 +362,34 @@
   };
 
   /* ── Approve ── */
-  window.approveScenario = function (id) {
-    fetch(SCENARIOS_API + '/' + id + '/approve', {
+  var SPINNER_SVG = '<svg class="spin" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5">' +
+    '<path d="M21 12a9 9 0 1 1-2.64-6.36" stroke-linecap="round"/></svg>';
+
+  // btn is optional (the row's inline Approve button, or the detail modal's) —
+  // when given, it's disabled and shown a spinner for the ~2s round-trip
+  // (the approve call itself, plus the scenario-list refresh so the button
+  // doesn't flash back to "Approve" for an instant before the row updates).
+  // Rejects on failure (restoring the button) so callers like the detail
+  // modal can chain .then(closeScenarioDetail) and only close on success.
+  window.approveScenario = function (id, btn) {
+    var origHtml = btn ? btn.innerHTML : null;
+    if (btn) { btn.disabled = true; btn.innerHTML = SPINNER_SVG; }
+
+    return fetch(SCENARIOS_API + '/' + id + '/approve', {
       method: 'POST',
       headers: authHeaders(),
     })
+      .then(function (r) {
+        if (!r.ok) throw new Error('approve failed');
+        return loadScenarios();
+      })
       .then(function () {
-        loadScenarios();
         try { localStorage.removeItem('apra_forecast_cache'); } catch (e) {}
         if (typeof loadForecast === 'function') loadForecast(true); // refresh Overview/Forecasts with the newly-approved data
+      })
+      .catch(function (err) {
+        if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
+        throw err;
       });
   };
 
@@ -727,7 +746,7 @@
   function renderScenarioDetail(meta, result) {
     var body = document.getElementById('scenarioDetailBody');
     var approveBtn = (meta.status === 'completed' && !meta.approved)
-      ? '<button class="dbtn" onclick="approveScenario(\'' + meta.id + '\');closeScenarioDetail()">Approve</button>'
+      ? '<button class="dbtn" onclick="approveScenario(\'' + meta.id + '\', this).then(closeScenarioDetail)">Approve</button>'
       : '';
     // result.inputDownload is a presigned URL to whatever this scenario
     // actually ran on — the uploaded file if there was one, otherwise the
