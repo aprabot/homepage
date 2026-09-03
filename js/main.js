@@ -796,9 +796,25 @@
         </div>`;
   }
 
+  // Report customization — set from Settings > Downloadable Report, read fresh
+  // each time so a change there takes effect on the next Generate Report click
+  // without needing a page reload.
+  function getReportPrefs(){
+    const onOff=(key)=>(localStorage.getItem(key)||'on')!=='off';
+    const rowsRaw=localStorage.getItem('report_rows')||'15';
+    return {
+      insights: onOff('report_insights'),
+      chart:    onOff('report_chart'),
+      movers:   onOff('report_movers'),
+      backtest: onOff('report_backtest'),
+      rows: rowsRaw==='all' ? Infinity : (parseInt(rowsRaw,10)||15),
+    };
+  }
+
   function buildReportHTML(insights){
     const S=cbGetStats();
     const F=computeForwardStats();
+    const P=getReportPrefs();
     const acc=(100-DATA.overallWape).toFixed(1);
     const user=document.getElementById('greetName').textContent||'—';
     const dt=new Date().toLocaleDateString(undefined,{year:'numeric',month:'long',day:'numeric'});
@@ -811,7 +827,7 @@
       const cls=c==='High'?'ok':c==='Medium'?'warn':'risk'; return `<span class="pill ${cls}">${c||'—'}</span>`;};
     const fwdRow=r=>`<tr><td class="mono">${r.id}</td><td>${tn(r.backtestVol)}</td><td>${tn(r.fwdVol)}</td><td>${trendPill(r.trend)}</td><td>${confPill(r.id)}</td></tr>`;
     const trendLi=r=>`<li><span class="mono">${r.id}</span><b style="color:${r.trend>=0?'#1aa179':'#d35454'}">${r.trend>=0?'+':''}${r.trend.toFixed(1)}%</b></li>`;
-    const top=S.byVol.slice(0,15);
+    const top=S.byVol.slice(0,P.rows);
     const trow=r=>{const a2=Math.max(0,100-r.wape);const cls=r.wape<=30?'ok':r.wape<=45?'warn':'risk';
       const lab=r.wape<=30?'Strong':r.wape<=45?'Fair':'High error';
       return `<tr><td class="mono">${r.a}</td><td>${tn(r.vol)}</td><td>${r.wape.toFixed(1)}%</td><td>${a2.toFixed(0)}%</td><td><span class="pill ${cls}">${lab}</span></td></tr>`;};
@@ -868,21 +884,21 @@
           ${card('Volume trend',(F.trendPct>=0?'+':'')+F.trendPct.toFixed(1)+'%',`vs trailing ${F.trailWin} wks`)}
           ${card('SKUs forecasted',S.skuCount.toLocaleString(),'full catalog')}
         </div>
-        ${buildInsightsSection(insights)}
-        <h2 class="sec">Forecast trend — shipped units</h2>
+        ${P.insights?buildInsightsSection(insights):''}
+        ${P.chart?`<h2 class="sec">Forecast trend — shipped units</h2>
         <img class="chart" src="${reportChartPNG()}" alt="Shipped units, historical and forecast">
-        <p class="lead" style="margin-top:10px;font-size:12px;color:#6b7787">Blue: actuals to date · Orange (dashed): forecast, including the ${F.fwdWeeks}-week forward view · Green: weekly model error (WAPE), for reference.</p>
+        <p class="lead" style="margin-top:10px;font-size:12px;color:#6b7787">Blue: actuals to date · Orange (dashed): forecast, including the ${F.fwdWeeks}-week forward view · Green: weekly model error (WAPE), for reference.</p>`:''}
         <h2 class="sec">Top SKUs — forward volume</h2>
         <table><thead><tr><th>SKU</th><th>Backtest volume</th><th>Forward forecast</th><th>Trend</th><th>Confidence</th></tr></thead>
-        <tbody>${F.byFwdVol.slice(0,15).map(fwdRow).join('')}</tbody></table>
+        <tbody>${F.byFwdVol.slice(0,P.rows).map(fwdRow).join('')}</tbody></table>
         <p class="lead" style="margin-top:8px;font-size:12px;color:#6b7787">Confidence is a volume rank, not a probability — this pipeline's long-horizon forecast is validated at high volume and holds up best for top sellers; long-tail SKUs compound more error over ${F.fwdWeeks} weeks and should be treated as directional.</p>
-        <h2 class="sec">Fastest movers</h2>
+        ${P.movers?`<h2 class="sec">Fastest movers</h2>
         <div class="two">
           <div><h3>Fastest growing</h3><ul>${F.growing.map(trendLi).join('')}</ul></div>
           <div><h3>Fastest declining</h3><ul>${F.declining.map(trendLi).join('')}</ul></div>
-        </div>
+        </div>`:''}
 
-        <div class="refsec">
+        ${P.backtest?`<div class="refsec">
           <h2>Model performance (reference)</h2>
           <p class="lead" style="font-size:13px">Backtest accuracy behind this forecast — included for transparency, not the headline. WAPE is computed only over the historical backtest window; the forward view above carries no actuals to score against yet.</p>
           <div class="cards" style="margin-top:14px">
@@ -890,10 +906,10 @@
             ${smCard('Volume-wtd accuracy',acc+'%','100 − WAPE')}
             ${smCard('Forecast bias',(S.bias>0?'+':'')+S.bias.toFixed(1)+'%',S.bias<0?'under-forecast':'over-forecast')}
           </div>
-          <h3 style="font-size:12px;color:#6b7787;margin:16px 0 8px">Top 15 SKUs by backtest volume</h3>
+          <h3 style="font-size:12px;color:#6b7787;margin:16px 0 8px">${Number.isFinite(P.rows)?'Top '+P.rows:'All'} SKUs by backtest volume</h3>
           <table><thead><tr><th>SKU</th><th>Total units</th><th>WAPE</th><th>Accuracy</th><th>Status</th></tr></thead>
           <tbody>${top.map(trow).join('')}</tbody></table>
-        </div>
+        </div>`:''}
         <div class="foot">Methodology: forward volume and trend come from the demand model's forecast beyond the backtest window, compared against the trailing ${F.trailWin}-week actuals. WAPE = Σ|actual − forecast| / Σactual, computed per week over the backtest only and aggregated by volume. This report is generated from a live scenario snapshot.</div>
       </div>
     </div></body></html>`;
