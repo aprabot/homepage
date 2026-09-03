@@ -462,8 +462,9 @@ Rules:
   same units as the forecast itself) and "pct_of_forecast" is what share of that day's total
   forecast it represents, e.g. "the {{factor}} factor added/cut about {{units}} units, roughly
   {{pct_of_forecast}}% of that day's forecast." If quantitative_factors says it's unavailable
-  instead, say plainly that day-level model attribution isn't available for this forecast (and why,
-  per that message) rather than inventing a cause.
+  instead, quote THAT message's specific reason verbatim-ish (it names the actual cause, e.g. a
+  covered-date-range boundary or attribution still computing) — don't substitute or blend in
+  weather_note's "future date" reason, that's a separate, unrelated field about a different thing.
 • You can actually start a new forecast pipeline run using the run_scenario tool, and check on a
   run's progress — or its top SKUs by volume, once completed — with check_scenario_status, which
   can look a scenario up by name (label) as well as by id; you don't need to list scenarios
@@ -736,10 +737,26 @@ def execute_tool(name, inputs, claims):
                         }
                         for f in day_features
                     ]
-                else:
+                elif not explain_days:
+                    # No explain/{sku}.json at all — aprabot-explain-runner hasn't
+                    # finished yet (it's async, fired right after this scenario's
+                    # main run completed) or failed for this scenario.
                     out['quantitative_factors'] = (
-                        f'not available — {date_str} is outside the forward horizon this '
-                        'scenario forecast, or has no data for this SKU'
+                        'not available yet for this scenario — day-level model attribution '
+                        'is computed as a background step after the forecast itself finishes, '
+                        'and may take a few more minutes, or may have failed for this run'
+                    )
+                else:
+                    # explain_days IS populated — date_str just falls outside its
+                    # covered range. Quantitative attribution is deliberately capped
+                    # to a near-term window (not the full forecast horizon) to keep
+                    # computation practical at full catalog scale — say so plainly
+                    # with the real covered range, instead of a vague "unavailable".
+                    covered = sorted(explain_days.keys())
+                    out['quantitative_factors'] = (
+                        f'not available for {date_str} — real per-feature attribution for this '
+                        f'scenario only covers {covered[0]} through {covered[-1]} (the near-term '
+                        f'part of the forecast); {date_str} falls outside that window'
                     )
         return out
 
