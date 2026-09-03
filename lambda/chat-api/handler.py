@@ -457,9 +457,17 @@ Rules:
   overall number, which is summed across ALL its postal codes and is a different figure. If the
   user names a zip that turns out not to exist for that SKU, or doesn't name one at all, the tool
   returns that SKU's actual list of postal codes — offer those rather than guessing which one they
-  meant.
-• For "why is/was the forecast high/low on [a specific date]", use the explain_forecast_day tool —
-  never answer this from memory or estimate. Its week_actual_units/week_forecast_units describe the
+  meant. Also pass a date whenever the question is about a SPECIFIC DATE within that zip (e.g. "the
+  forecast for SKU-003 in 160-0022 on 2026-03-23") — never answer that from the sku+zip totals,
+  which are summed across the whole backtest or whole forward horizon, not any one date. With a
+  date, the tool instead returns week_actual_units/week_forecast_units for the WHOLE WEEK that date
+  falls in (same "no true daily number" caveat as explain_forecast_day just below) — say so
+  explicitly, e.g. "the week of {{week_of}} (which {{date}} falls in) forecast X units in that zip",
+  never imply X is that one day's number.
+• For "why is/was the forecast high/low on [a specific date]" with NO specific zip in the question,
+  use the explain_forecast_day tool — never answer this from memory or estimate. (It has no zip
+  filter — for a date within one specific zip, use get_zip_forecast's date parameter instead, per
+  the rule above.) Its week_actual_units/week_forecast_units describe the
   WHOLE WEEK that date falls in (there's no true daily actual/forecast number in this data) — say
   so explicitly, e.g. "the week of {{week_of}} (which {{date}} falls in) forecast X units", never
   imply X is that one day's number. Lead with day_of_week/holiday/weather as the likely qualitative
@@ -570,13 +578,17 @@ TOOL_CONFIG = {
                     "Always call this tool for that case instead of reusing the SKU total. Omit "
                     "zip to get the ranked list of postal codes that SKU actually sells in (by "
                     "backtest volume) — use this to answer 'which zips does this SKU sell in', "
-                    "or when the user asked about a zip but hasn't said which one yet."
+                    "or when the user asked about a zip but hasn't said which one yet. Add a date "
+                    "when the question is about that zip on one specific date — without it, the "
+                    "forecast/actual figures returned are totals summed across the whole backtest "
+                    "or whole forward horizon, not any single date."
                 ),
                 "inputSchema": {"json": {
                     "type": "object",
                     "properties": {
-                        "sku": {"type": "string", "description": "e.g. SKU-003."},
-                        "zip": {"type": "string", "description": "Postal code, e.g. 160-0022. Omit to list the SKU's available zips instead."},
+                        "sku":  {"type": "string", "description": "e.g. SKU-003."},
+                        "zip":  {"type": "string", "description": "Postal code, e.g. 160-0022. Omit to list the SKU's available zips instead."},
+                        "date": {"type": "string", "description": "ISO date, e.g. 2026-03-23. Only meaningful together with zip — returns that specific week's actual/forecast for this sku+zip instead of the full-horizon totals."},
                     },
                     "required": ["sku"],
                 }},
@@ -841,6 +853,32 @@ def execute_tool(name, inputs, claims):
                              key=lambda z: -sum(x for x in by_zip[z]['a'][:bt] if x is not None))
             return {'error': f'no postal code "{zip_code}" found for {sku}',
                     'available_zips': ranked[:15]}
+
+        # A date narrows this to one specific week instead of the full-horizon
+        # totals below — same week-lookup logic and field names as
+        # explain_forecast_day (week_actual_units/week_forecast_units mean
+        # the WHOLE WEEK, there's no true daily number in this data), just
+        # scoped to this one sku+zip series instead of the SKU/all-SKU total.
+        date_str = (inputs.get('date') or '').strip()
+        if date_str:
+            try:
+                day = dt.date.fromisoformat(date_str)
+            except ValueError:
+                return {'error': f'"{date_str}" is not a valid ISO date (YYYY-MM-DD).'}
+            week_start = (day - dt.timedelta(days=day.weekday())).isoformat()
+            try:
+                idx = data['weeks'].index(week_start)
+            except ValueError:
+                return {'error': f'{date_str} falls outside the range of this forecast '
+                                  f'({data["weeks"][0]} to {data["weeks"][-1]}).'}
+            actual, forecast = zd['a'][idx], zd['f'][idx]
+            return {
+                'sku': sku, 'zip': zip_code, 'date': date_str,
+                'week_of': week_start,
+                'week_actual_units': actual,
+                'week_forecast_units': round(forecast, 1) if forecast is not None else None,
+                'is_forward_forecast_week': idx >= bt,
+            }
 
         vol, wape, fwd, trend = zip_summary(zd)
         out = {'sku': sku, 'zip': zip_code, 'backtest_actual_units': round(vol), 'wape': wape}
