@@ -721,12 +721,39 @@
   }
 
   /* ── Scenario detail ── */
+  var SD_CLOSE_BTN = '<button class="x" onclick="closeScenarioDetail()" aria-label="Close">×</button>';
+  // Shown immediately on open, before the result fetch resolves — mirrors
+  // the shape of the real content (see renderScenarioDetail) using the
+  // dashboard's shimmer classes, rather than a bare "Loading…" line.
+  var SD_SKELETON_HEAD = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">' +
+    '<div style="min-width:0"><span class="skel-line title" style="margin-bottom:10px"></span>' +
+    '<span class="skel" style="width:84px;height:20px;border-radius:100px"></span></div>' +
+    '<div style="display:flex;align-items:center;gap:8px;flex:none">' + SD_CLOSE_BTN + '</div></div>';
+  var SD_SKELETON_BODY = '<div class="kpis" style="margin-bottom:20px">' +
+    ['Overall WAPE', 'Volume error', 'SKUs', 'Weeks'].map(function (t) {
+      return '<div class="kpi"><div class="t">' + t + '</div><div class="v"><span class="skel"></span></div></div>';
+    }).join('') + '</div>' +
+    '<div class="dcard" style="padding:16px"><div class="ch"><h4><span class="skel-line title"></span></h4></div>' +
+    '<div class="dchart" style="height:200px"><div class="chart-skel">' +
+    '<i style="height:45%"></i><i style="height:62%"></i><i style="height:38%"></i><i style="height:70%"></i>' +
+    '<i style="height:55%"></i><i style="height:80%"></i><i style="height:50%"></i><i style="height:65%"></i>' +
+    '</div></div></div>' +
+    '<div class="dcard" style="margin-top:16px;padding:16px"><div class="ch"><h4>Top SKUs by volume</h4></div>' +
+    '<table class="dtable"><tbody>' +
+    [1, 2, 3, 4].map(function () {
+      return '<tr class="skel-row"><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td></tr>';
+    }).join('') + '</tbody></table></div>';
+
   window.viewScenario = function (id) {
     var meta = lastScenarios.find(function (s) { return s.id === id; });
     if (!meta) return;
+    var head = document.getElementById('scenarioDetailHead');
     var body = document.getElementById('scenarioDetailBody');
-    body.innerHTML = '<p class="dsubtle">Loading…</p>';
+    head.innerHTML = SD_SKELETON_HEAD;
+    body.innerHTML = SD_SKELETON_BODY;
     document.getElementById('scenarioDetailModal').classList.add('open');
+    var closeBtn = head.querySelector('.x');
+    if (closeBtn) closeBtn.focus();
 
     if (meta.status !== 'completed') {
       renderScenarioDetail(meta, null);
@@ -736,6 +763,7 @@
       .then(function (r) { return r.json(); })
       .then(function (result) { renderScenarioDetail(meta, result); })
       .catch(function () {
+        head.innerHTML = SD_CLOSE_BTN;
         body.innerHTML = '<p class="auth-error">Could not load this scenario\'s result.</p>';
       });
   };
@@ -743,8 +771,20 @@
     document.getElementById('scenarioDetailModal').classList.remove('open');
   };
 
+  // Escape closes whichever scenario modal is open — same behavior the
+  // login modal already has, extended to these two.
+  document.addEventListener('keydown', function (e) {
+    if (e.key !== 'Escape') return;
+    var sd = document.getElementById('scenarioDetailModal');
+    var cmp = document.getElementById('compareModal');
+    if (sd && sd.classList.contains('open')) { window.closeScenarioDetail(); return; }
+    if (cmp && cmp.classList.contains('open')) { window.closeCompareModal(); }
+  });
+
   function renderScenarioDetail(meta, result) {
+    var head = document.getElementById('scenarioDetailHead');
     var body = document.getElementById('scenarioDetailBody');
+
     var approveBtn = (meta.status === 'completed' && !meta.approved)
       ? '<button class="dbtn" onclick="approveScenario(\'' + meta.id + '\', this).then(closeScenarioDetail)">Approve</button>'
       : '';
@@ -757,52 +797,66 @@
         'title="' + (result.inputDownload.isDefault ? 'Download default dataset' : 'Download input file') + '" ' +
         'aria-label="Download input file">⬇</a>'
       : '';
-    // Only offered once a result actually exists — running/failed scenarios
-    // have nothing to validate yet.
-    var validationsBtn = result
-      ? '<button type="button" class="dbtn" id="sdValidateBtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);padding:6px 12px;font-size:12.5px">' +
-        '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 11l3 3L22 4" stroke-linecap="round" stroke-linejoin="round"/>' +
-        '<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
-        ' Run validations</button>'
-      : '';
 
-    var html = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:4px">' +
-      '<div><h3 style="margin-bottom:4px">' + escapeHtml(meta.label || 'Untitled') + '</h3>' +
-      statusPill(meta) + '</div>' +
-      '<div style="display:flex;gap:8px">' + inputBtn + validationsBtn + approveBtn + '</div>' +
+    // Validations are pure, instant analysis of data already on the page —
+    // computed up front so their pass/warn/fail state is visible at a
+    // glance next to the status pill, with no click required first.
+    // Clicking the pill expands the full checklist into the body below.
+    var checks = result ? runDataValidations(meta, result) : null;
+    var validationsPill = '';
+    if (checks) {
+      var vc = { fail: 0, warn: 0, pass: 0 };
+      checks.forEach(function (c) { vc[c.status]++; });
+      var vcls = vc.fail ? 'risk' : vc.warn ? 'warn' : 'ok';
+      var vlabel = vc.fail ? vc.fail + ' validation issue' + (vc.fail > 1 ? 's' : '')
+        : vc.warn ? vc.warn + ' validation warning' + (vc.warn > 1 ? 's' : '')
+        : 'Validations passed';
+      validationsPill = '<button type="button" class="pill pill-btn ' + vcls + '" id="sdValidateBtn">' + vlabel + '</button>';
+    }
+
+    var headHtml = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px">' +
+      '<div style="min-width:0"><h3 style="margin-bottom:8px">' + escapeHtml(meta.label || 'Untitled') + '</h3>' +
+      '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + statusPill(meta) + validationsPill + '</div>' +
+      '</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;flex:none">' + inputBtn + approveBtn + SD_CLOSE_BTN + '</div>' +
       '</div>';
 
-    html += '<div class="dsubtle" style="margin:12px 0 20px">' +
+    headHtml += '<div class="dsubtle" style="margin:14px 0 0">' +
       'Requested by ' + escapeHtml((meta.requested_by || '').split('@')[0]) +
       ' · Created ' + fmtRelative(meta.created_at) +
       (meta.completed_at ? ' · Completed ' + fmtRelative(meta.completed_at) : '') +
       ' · Config: ' + configDescription(meta) +
       '</div>';
 
+    if (meta.approved) {
+      headHtml += '<div style="margin-top:12px;padding:9px 14px;border-radius:9px;background:var(--signal-soft);' +
+        'border:1px solid rgba(200,242,78,.25);color:var(--signal);font-size:12.5px;display:flex;align-items:center;gap:8px">' +
+        '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" style="flex:none"><path d="M20 6 9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        '<span>This scenario is approved and currently powers the live Overview &amp; Forecasts data.</span></div>';
+    }
+    head.innerHTML = headHtml;
+
     if (meta.status === 'running') {
-      html += '<p class="dsubtle">Still training — this view will show results once it completes. Close and reopen in a minute.</p>';
-      body.innerHTML = html;
+      body.innerHTML = '<p class="dsubtle">Still training — this view will show results once it completes. Close and reopen in a minute.</p>';
       return;
     }
     if (meta.status === 'failed') {
-      html += '<p class="auth-error">' + escapeHtml(meta.error || 'Run failed.') + '</p>';
-      body.innerHTML = html;
+      body.innerHTML = '<p class="auth-error">' + escapeHtml(meta.error || 'Run failed.') + '</p>';
       return;
     }
     if (!result) {
-      html += '<p class="dsubtle">No result available.</p>';
-      body.innerHTML = html;
+      body.innerHTML = '<p class="dsubtle">No result available.</p>';
       return;
     }
 
-    html += '<div class="kpis" style="margin-bottom:20px">' +
+    var bodyHtml = '<div class="kpis" style="margin-bottom:20px">' +
       '<div class="kpi"><div class="t">Overall WAPE</div><div class="v">' + result.overallWape.toFixed(2) + '%</div></div>' +
       '<div class="kpi"><div class="t">Volume error</div><div class="v">' + (meta.volume_error > 0 ? '+' : '') + (meta.volume_error != null ? meta.volume_error.toFixed(2) : '0') + '%</div></div>' +
       '<div class="kpi"><div class="t">SKUs</div><div class="v">' + Object.keys(result.skus).length + '</div></div>' +
       '<div class="kpi"><div class="t">Weeks</div><div class="v">' + result.weeks.length + '</div></div>' +
       '</div>';
 
-    html += '<div class="dcard" style="padding:16px">' +
+    bodyHtml += '<div class="dcard" style="padding:16px">' +
       '<div class="ch"><h4>Forecast vs actuals — all SKUs</h4></div>' +
       '<div class="dchart" style="height:200px"><canvas id="sdCanvas"></canvas></div>' +
       '<div class="chart-legend" id="sdLegend"><span class="lgd-item" data-k="a"><i style="background:#54E6C4"></i>Actual</span>' +
@@ -821,7 +875,7 @@
       return { id: id, vol: vol, wape: wape };
     }).sort(function (a, b) { return b.vol - a.vol; }).slice(0, 8);
 
-    html += '<div class="dcard" style="margin-top:16px;padding:16px">' +
+    bodyHtml += '<div class="dcard" style="margin-top:16px;padding:16px">' +
       '<div class="ch"><h4>Top SKUs by volume</h4></div>' +
       '<div class="table-wrap"><table class="dtable"><thead><tr><th>SKU</th><th>Units</th><th>WAPE</th></tr></thead><tbody>' +
       topSkus.map(function (r) {
@@ -829,12 +883,11 @@
       }).join('') +
       '</tbody></table></div></div>';
 
-    // Filled in on demand by the "Run validations" button — left empty on
-    // open so opening a scenario never spends time computing checks the
-    // user might not ask for.
-    html += '<div id="sdValidations"></div>';
+    // Filled in when the validations pill above is clicked — its checklist
+    // is already computed (checks), so this is just a render, not a re-run.
+    bodyHtml += '<div id="sdValidations"></div>';
 
-    body.innerHTML = html;
+    body.innerHTML = bodyHtml;
     drawScenarioChart(result.weeks, result.all.a, result.all.f, result.backtestWeeks);
     wireLegend(document.getElementById('sdLegend'), sdVisible, function () {
       drawScenarioChart(result.weeks, result.all.a, result.all.f, result.backtestWeeks);
@@ -844,7 +897,7 @@
     if (validateBtn) {
       validateBtn.onclick = function () {
         var wrap = document.getElementById('sdValidations');
-        wrap.innerHTML = renderValidations(runDataValidations(meta, result));
+        wrap.innerHTML = renderValidations(checks);
         wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
       };
     }
