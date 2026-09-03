@@ -757,11 +757,19 @@
         'title="' + (result.inputDownload.isDefault ? 'Download default dataset' : 'Download input file') + '" ' +
         'aria-label="Download input file">⬇</a>'
       : '';
+    // Only offered once a result actually exists — running/failed scenarios
+    // have nothing to validate yet.
+    var validationsBtn = result
+      ? '<button type="button" class="dbtn" id="sdValidateBtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);padding:6px 12px;font-size:12.5px">' +
+        '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M9 11l3 3L22 4" stroke-linecap="round" stroke-linejoin="round"/>' +
+        '<path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        ' Run validations</button>'
+      : '';
 
     var html = '<div style="display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:4px">' +
       '<div><h3 style="margin-bottom:4px">' + escapeHtml(meta.label || 'Untitled') + '</h3>' +
       statusPill(meta) + '</div>' +
-      '<div style="display:flex;gap:8px">' + inputBtn + approveBtn + '</div>' +
+      '<div style="display:flex;gap:8px">' + inputBtn + validationsBtn + approveBtn + '</div>' +
       '</div>';
 
     html += '<div class="dsubtle" style="margin:12px 0 20px">' +
@@ -821,11 +829,152 @@
       }).join('') +
       '</tbody></table></div></div>';
 
+    // Filled in on demand by the "Run validations" button — left empty on
+    // open so opening a scenario never spends time computing checks the
+    // user might not ask for.
+    html += '<div id="sdValidations"></div>';
+
     body.innerHTML = html;
     drawScenarioChart(result.weeks, result.all.a, result.all.f, result.backtestWeeks);
     wireLegend(document.getElementById('sdLegend'), sdVisible, function () {
       drawScenarioChart(result.weeks, result.all.a, result.all.f, result.backtestWeeks);
     });
+
+    var validateBtn = document.getElementById('sdValidateBtn');
+    if (validateBtn) {
+      validateBtn.onclick = function () {
+        var wrap = document.getElementById('sdValidations');
+        wrap.innerHTML = renderValidations(runDataValidations(meta, result));
+        wrap.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+      };
+    }
+  }
+
+  /* ── Data validations — a fixed set of basic sanity/QA checks run
+     client-side against a scenario's already-loaded result JSON. Nothing
+     here calls the backend; it's pure analysis of data already on the
+     page, triggered on demand from the "Run validations" button. ── */
+  function runDataValidations(meta, result) {
+    var checks = [];
+    var add = function (name, status, detail) { checks.push({ name: name, status: status, detail: detail }); };
+
+    var weeks = result.weeks || [], all = result.all || { a: [], f: [] }, skus = result.skus || {};
+    var bw = result.backtestWeeks != null ? result.backtestWeeks : weeks.length;
+    var skuIds = Object.keys(skus);
+
+    // 1. Negative units — shipped-unit forecasts/actuals should never be negative.
+    var negCount = 0, negSkus = {};
+    skuIds.forEach(function (id) {
+      (skus[id].f || []).concat(skus[id].a || []).forEach(function (v) {
+        if (v != null && v < 0) { negCount++; negSkus[id] = 1; }
+      });
+    });
+    add('No negative unit values', negCount ? 'fail' : 'pass',
+      negCount ? negCount + ' negative value(s) across ' + Object.keys(negSkus).length + ' SKU(s).' : 'All actual and forecast values are ≥ 0.');
+
+    // 2. Non-finite values (NaN / Infinity) — would silently break charts/KPIs downstream.
+    var badCount = 0;
+    skuIds.forEach(function (id) {
+      (skus[id].f || []).concat(skus[id].a || []).forEach(function (v) {
+        if (v != null && !isFinite(v)) badCount++;
+      });
+    });
+    add('No NaN / infinite values', badCount ? 'fail' : 'pass',
+      badCount ? badCount + ' non-finite value(s) found in the result data.' : 'All actual and forecast values are finite numbers.');
+
+    // 3. Weekly date continuity — every week should be exactly 7 days after the last.
+    var gapIssues = 0;
+    for (var i = 1; i < weeks.length; i++) {
+      var diffDays = Math.round((new Date(weeks[i]) - new Date(weeks[i - 1])) / 86400000);
+      if (diffDays !== 7) gapIssues++;
+    }
+    add('Weekly date continuity', gapIssues ? 'warn' : 'pass',
+      gapIssues ? gapIssues + ' week-to-week gap(s) are not exactly 7 days apart.' : 'All ' + weeks.length + ' weeks are evenly spaced 7 days apart.');
+
+    // 4. Per-SKU actuals should sum to the aggregate — catches a SKU dropped
+    // (or double-counted) between the per-SKU and all-SKU series.
+    var sumSkuA = 0;
+    skuIds.forEach(function (id) {
+      (skus[id].a || []).slice(0, bw).forEach(function (v) { if (v != null) sumSkuA += v; });
+    });
+    var sumAllA = (all.a || []).slice(0, bw).reduce(function (s, v) { return s + (v || 0); }, 0);
+    var diffPct = sumAllA ? Math.abs(sumSkuA - sumAllA) / sumAllA * 100 : 0;
+    add('SKU totals reconcile with the all-SKU aggregate', diffPct > 1 ? 'warn' : 'pass',
+      'Per-SKU actuals sum to ' + Math.round(sumSkuA).toLocaleString() + ' vs. aggregate ' + Math.round(sumAllA).toLocaleString() +
+      ' (' + diffPct.toFixed(2) + '% difference).');
+
+    // 5. Per-SKU WAPE outliers — SKUs scoring far worse than the overall number.
+    var overall = result.overallWape || 0;
+    var outliers = [];
+    skuIds.forEach(function (id) {
+      var o = skus[id], vol = 0, num = 0;
+      (o.a || []).forEach(function (x, i) { if (x == null) return; vol += x; num += Math.abs(x - (o.f[i] || 0)); });
+      if (!vol) return;
+      var wape = 100 * num / vol;
+      if (wape > Math.max(75, overall * 2)) outliers.push(id + ' (' + wape.toFixed(0) + '%)');
+    });
+    add('No extreme per-SKU WAPE outliers', outliers.length ? 'warn' : 'pass',
+      outliers.length
+        ? outliers.length + ' SKU(s) scoring far above the ' + overall.toFixed(1) + '% overall WAPE: ' + outliers.slice(0, 6).join(', ') + (outliers.length > 6 ? '…' : '')
+        : 'No SKU’s WAPE is far above the ' + overall.toFixed(1) + '% overall.');
+
+    // 6. SKUs with real history that collapse to a zero forward forecast.
+    var zeroFwd = [];
+    skuIds.forEach(function (id) {
+      var o = skus[id];
+      var histVol = (o.a || []).slice(0, bw).reduce(function (s, v) { return s + (v || 0); }, 0);
+      var fwd = (o.f || []).slice(bw);
+      var fwdSum = fwd.reduce(function (s, v) { return s + (v || 0); }, 0);
+      if (histVol > 0 && fwd.length && fwdSum === 0) zeroFwd.push(id);
+    });
+    add('No SKU collapses to a zero forward forecast', zeroFwd.length ? 'warn' : 'pass',
+      zeroFwd.length
+        ? zeroFwd.length + ' SKU(s) had real volume but forecast 0 units for the entire forward horizon: ' + zeroFwd.slice(0, 6).join(', ') + (zeroFwd.length > 6 ? '…' : '')
+        : 'Every SKU with historical volume has a non-zero forward forecast.');
+
+    // 7. Abrupt week-over-week swings in the aggregate forward forecast.
+    var fwdAll = (all.f || []).slice(bw);
+    var spikes = 0;
+    for (var j = 1; j < fwdAll.length; j++) {
+      var p = fwdAll[j - 1], c = fwdAll[j];
+      if (p > 0 && c != null && (c / p > 3 || c / p < 0.33)) spikes++;
+    }
+    add('No abrupt week-over-week jumps in the forward forecast', spikes ? 'warn' : 'pass',
+      spikes ? spikes + ' week-to-week swing(s) of 3x or more in the aggregate forward forecast.' : 'The aggregate forward forecast moves smoothly week to week.');
+
+    // 8. Overall volume error within a sane range.
+    var ve = meta.volume_error;
+    add('Overall volume error within a sane range', (ve != null && Math.abs(ve) > 20) ? 'warn' : 'pass',
+      ve != null ? 'Volume error is ' + (ve > 0 ? '+' : '') + ve.toFixed(2) + '%.' : 'No volume error recorded for this scenario.');
+
+    return checks;
+  }
+
+  function renderValidations(checks) {
+    var order = { fail: 0, warn: 1, pass: 2 };
+    var sorted = checks.slice().sort(function (a, b) { return order[a.status] - order[b.status]; });
+    var counts = { fail: 0, warn: 0, pass: 0 };
+    checks.forEach(function (c) { counts[c.status]++; });
+
+    var icon = {
+      pass: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M20 6 9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      warn: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M12 9v4M12 17h.01M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0Z" stroke-linecap="round" stroke-linejoin="round"/></svg>',
+      fail: '<svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.6"><path d="M18 6 6 18M6 6l12 12" stroke-linecap="round"/></svg>',
+    };
+    var cls = { pass: 'ok', warn: 'warn', fail: 'risk' };
+    var summaryLabel = counts.fail ? counts.fail + ' failed'
+      : counts.warn ? counts.warn + ' warning' + (counts.warn > 1 ? 's' : '')
+      : 'All checks passed';
+
+    return '<div class="dcard" style="margin-top:16px;padding:16px">' +
+      '<div class="ch"><h4>Data validations</h4><span class="pill ' + cls[counts.fail ? 'fail' : counts.warn ? 'warn' : 'pass'] + '">' + summaryLabel + '</span></div>' +
+      '<ul class="val-list">' +
+      sorted.map(function (c) {
+        return '<li><span class="val-icon ' + cls[c.status] + '">' + icon[c.status] + '</span>' +
+          '<div><div class="val-name">' + escapeHtml(c.name) + '</div>' +
+          '<div class="val-detail">' + escapeHtml(c.detail) + '</div></div></li>';
+      }).join('') +
+      '</ul></div>';
   }
 
   function drawScenarioChart(weeks, a, f, backtestWeeks) {

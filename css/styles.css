@@ -719,9 +719,44 @@
   .qty-step:first-child{border-bottom:1px solid var(--line)}
   .qty-step:hover{background:var(--signal-soft);color:var(--signal)}
 
-  /* AI Insights — loading pulse + staggered reveal */
-  .ins-load-spark{animation:insPulse 1.3s ease-in-out infinite}
-  @keyframes insPulse{0%,100%{transform:scale(1) rotate(0deg);opacity:.55}50%{transform:scale(1.18) rotate(18deg);opacity:1}}
+  /* Skeleton loading screens — placeholder shapes shown wherever dashboard
+     data (KPIs, charts, lists, tables) hasn't arrived yet. Most of these
+     live directly inside the DOM node a render function later overwrites
+     via textContent/innerHTML, so they're wiped for free the moment real
+     data renders — only the chart overlays need an explicit JS hide once
+     their canvas has something to show. */
+  .skel{position:relative;overflow:hidden;display:inline-block;background:var(--line-2);border-radius:6px}
+  .skel::after{content:'';position:absolute;inset:0;transform:translateX(-100%);
+    background:linear-gradient(90deg,transparent,var(--skel-shine,rgba(255,255,255,.08)),transparent);
+    animation:skelShine 1.4s ease-in-out infinite}
+  @keyframes skelShine{100%{transform:translateX(100%)}}
+  [data-theme="light"]{--skel-shine:rgba(0,0,0,.05)}
+
+  .kpi .v .skel{width:64%;height:1.6rem;border-radius:7px;vertical-align:-3px}
+
+  .skel-line{display:block;width:100%;height:13px;border-radius:5px;background:var(--line-2);position:relative;overflow:hidden}
+  .skel-line::after{content:'';position:absolute;inset:0;transform:translateX(-100%);
+    background:linear-gradient(90deg,transparent,var(--skel-shine,rgba(255,255,255,.08)),transparent);
+    animation:skelShine 1.4s ease-in-out infinite}
+  .skel-line+.skel-line{margin-top:9px}
+  .skel-line.title{height:17px;width:220px;max-width:55%}
+  .skel-line.wide{width:92%}
+
+  .movers li.skel-row .skel-line{width:34%}
+  .movers li.skel-row .skel-line.short{width:44px}
+
+  .dtable tr.skel-row td .skel-line{width:70%}
+  .dtable tr.skel-row td:first-child .skel-line{width:50%}
+
+  .chart-skel{position:absolute;inset:0;display:flex;align-items:flex-end;justify-content:space-between;
+    gap:4%;padding:14px 16px 26px;pointer-events:none}
+  .chart-skel i{flex:1;border-radius:4px 4px 0 0;background:var(--line-2);position:relative;overflow:hidden}
+  .chart-skel i::after{content:'';position:absolute;inset:0;transform:translateX(-100%);
+    background:linear-gradient(90deg,transparent,var(--skel-shine,rgba(255,255,255,.08)),transparent);
+    animation:skelShine 1.4s ease-in-out infinite}
+  .dchart,#forecastChart{position:relative}
+
+  /* AI Insights — staggered reveal once real content replaces the skeleton */
   #insightsContent>.dcard{animation:insightIn .5s ease both}
   #insightsContent>.dcard:nth-of-type(2){animation-delay:.1s}
   #insightsContent>.dgrid>.dcard:nth-child(1){animation-delay:.2s}
@@ -753,6 +788,19 @@
   .pill.ok{color:var(--signal);border-color:rgba(200,242,78,.3);background:var(--signal-soft)}
   .pill.warn{color:#ffcf5c;border-color:rgba(255,207,92,.3);background:rgba(255,207,92,.1)}
   .pill.risk{color:#ff8585;border-color:rgba(255,107,107,.3);background:rgba(255,107,107,.1)}
+
+  /* Scenario detail — data validations checklist */
+  .val-list{list-style:none}
+  .val-list li{display:flex;align-items:flex-start;gap:12px;padding:12px 0;border-top:1px solid var(--line)}
+  .val-list li:first-child{border-top:none}
+  .val-icon{width:26px;height:26px;border-radius:50%;flex:none;margin-top:1px;
+    display:flex;align-items:center;justify-content:center}
+  .val-icon.ok{color:var(--signal);background:var(--signal-soft)}
+  .val-icon.warn{color:#ffcf5c;background:rgba(255,207,92,.1)}
+  .val-icon.risk{color:#ff8585;background:rgba(255,107,107,.1)}
+  .val-name{font-weight:600;font-size:14px}
+  .val-detail{color:var(--muted);font-size:12.5px;margin-top:2px}
+
   .bar-mini{height:6px;border-radius:4px;background:var(--ink);overflow:hidden;width:90px}
   .bar-mini i{display:block;height:100%;background:linear-gradient(90deg,var(--mint),var(--signal))}
   .sku-search input{background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:8px 12px;
@@ -1065,6 +1113,11 @@
   [data-theme="light"] .pill.ok{color:#5A9200;border-color:rgba(130,180,0,.35);background:rgba(200,242,78,.14)}
   [data-theme="light"] .pill.warn{color:#8B6000}
   [data-theme="light"] .pill.risk{color:#C0392B}
+
+  /* Data validations checklist */
+  [data-theme="light"] .val-icon.ok{color:#5A9200}
+  [data-theme="light"] .val-icon.warn{color:#8B6000}
+  [data-theme="light"] .val-icon.risk{color:#C0392B}
 
   /* Bar mini */
   [data-theme="light"] .bar-mini{background:rgba(0,0,0,.08)}

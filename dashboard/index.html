@@ -136,15 +136,15 @@
       <div class="kpis">
         <div class="kpi">
           <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".5" fill="currentColor"/></svg></div>
-          <div class="t">Overall WAPE</div><div class="v" id="kpiWape">—</div><div class="d up">volume-weighted error · lower is better</div>
+          <div class="t">Overall WAPE</div><div class="v" id="kpiWape"><span class="skel"></span></div><div class="d up">volume-weighted error · lower is better</div>
         </div>
         <div class="kpi">
           <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div class="t">SKUs forecasted</div><div class="v" id="kpiSkus">—</div><div class="d up">across the full catalog</div>
+          <div class="t">SKUs forecasted</div><div class="v" id="kpiSkus"><span class="skel"></span></div><div class="d up">across the full catalog</div>
         </div>
         <div class="kpi">
           <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div class="t">Units forecasted</div><div class="v" id="kpiUnits">—</div><div class="d up">total shipped (52 wks)</div>
+          <div class="t">Units forecasted</div><div class="v" id="kpiUnits"><span class="skel"></span></div><div class="d up">total shipped (52 wks)</div>
         </div>
         <div class="kpi">
           <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4" stroke-linecap="round"/></svg></div>
@@ -155,7 +155,13 @@
       <div class="dgrid" style="margin-top:22px">
         <div class="dcard clickable" id="ovTrendCard" title="Open Forecasts">
           <div class="ch"><h4>Forecast trend — all SKUs</h4><span class="dsubtle" style="margin:0;font-size:.8rem">recent actuals + forward outlook · open Forecasts →</span></div>
-          <div class="dchart" style="height:190px"><canvas id="ovTrendCanvas"></canvas></div>
+          <div class="dchart" style="height:190px">
+            <canvas id="ovTrendCanvas"></canvas>
+            <div class="chart-skel" id="ovTrendSkel">
+              <i style="height:52%"></i><i style="height:68%"></i><i style="height:40%"></i><i style="height:74%"></i>
+              <i style="height:58%"></i><i style="height:85%"></i><i style="height:48%"></i><i style="height:70%"></i>
+            </div>
+          </div>
           <div class="chart-legend">
             <span class="lgd-item"><i style="background:#54E6C4"></i>Actual</span>
             <span class="lgd-item"><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>Forecast</span>
@@ -163,7 +169,12 @@
         </div>
         <div class="dcard">
           <div class="ch"><h4>Highest-volume SKUs</h4><span class="dsubtle" style="margin:0;font-size:.8rem">click to chart it</span></div>
-          <ul class="movers" id="ovMoversList"></ul>
+          <ul class="movers" id="ovMoversList">
+            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+          </ul>
         </div>
       </div>
     </div>
@@ -212,6 +223,11 @@
           <div class="dchart" id="forecastChart">
             <canvas id="fcCanvas"></canvas>
             <div class="fc-tip" id="fcTip"></div>
+            <div class="chart-skel" id="fcChartSkel">
+              <i style="height:45%"></i><i style="height:62%"></i><i style="height:38%"></i><i style="height:70%"></i>
+              <i style="height:55%"></i><i style="height:80%"></i><i style="height:50%"></i><i style="height:65%"></i>
+              <i style="height:42%"></i><i style="height:75%"></i>
+            </div>
           </div>
           <div class="chart-legend" id="fcLegend">
             <span class="lgd-item" data-k="a"><i style="background:#54E6C4"></i>Actual</span>
@@ -221,7 +237,14 @@
         </div>
         <div class="dcard">
           <div class="ch"><h4>Highest-volume SKUs</h4></div>
-          <ul class="movers" id="moversList"></ul>
+          <ul class="movers" id="moversList">
+            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+          </ul>
         </div>
       </div>
 
@@ -230,7 +253,13 @@
         <div class="table-wrap">
           <table class="dtable">
             <thead><tr><th>SKU</th><th>Total units</th><th>Avg forecast / wk</th><th>WAPE</th><th>Accuracy</th><th>Status</th><th title="Forward-looking confidence, ranked by backtest volume">52-wk confidence</th></tr></thead>
-            <tbody id="skuBody"></tbody>
+            <tbody id="skuBody">
+              <tr class="skel-row"><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td></tr>
+              <tr class="skel-row"><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td></tr>
+              <tr class="skel-row"><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td></tr>
+              <tr class="skel-row"><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td></tr>
+              <tr class="skel-row"><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td></tr>
+            </tbody>
           </table>
         </div>
       </div>
@@ -281,7 +310,11 @@
               <th style="width:30px"></th><th>Scenario</th><th>Requested by</th><th>Config</th>
               <th>WAPE</th><th>Volume error</th><th>Status</th><th>Created</th><th></th>
             </tr></thead>
-            <tbody id="scenariosBody"></tbody>
+            <tbody id="scenariosBody">
+              <tr class="skel-row"><td><span class="skel-line" style="width:16px"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td></td></tr>
+              <tr class="skel-row"><td><span class="skel-line" style="width:16px"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td></td></tr>
+              <tr class="skel-row"><td><span class="skel-line" style="width:16px"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td></td></tr>
+            </tbody>
           </table>
         </div>
         <p class="dsubtle" id="scenariosEmpty" style="margin:32px 0 12px;text-align:center;display:none">No scenarios yet — run your first forecast above.</p>
@@ -297,11 +330,37 @@
         </div>
       </div>
 
-      <div id="insightsLoading" class="dcard" style="margin-top:24px;text-align:center;color:var(--muted);padding:40px 22px">
-        <svg class="ins-load-spark" viewBox="0 0 24 24" width="28" height="28" style="display:block;margin:0 auto 12px">
-          <path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" fill="#C8F24E"/>
-        </svg>
-        <span id="insightsLoadingText">Loading insights…</span>
+      <div id="insightsLoading">
+        <span id="insightsLoadingText" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Loading insights…</span>
+        <div class="dcard" style="margin-top:24px">
+          <div class="ch"><h4><span class="skel-line title"></span></h4></div>
+          <span class="skel-line wide"></span>
+          <span class="skel-line" style="width:65%"></span>
+        </div>
+        <div class="dcard" style="margin-top:20px">
+          <div class="ch"><h4>Key findings</h4></div>
+          <ul class="movers">
+            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+          </ul>
+        </div>
+        <div class="dgrid" style="margin-top:20px">
+          <div class="dcard">
+            <div class="ch"><h4>Watch areas</h4></div>
+            <ul class="movers">
+              <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+              <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+            </ul>
+          </div>
+          <div class="dcard">
+            <div class="ch"><h4>Opportunities</h4></div>
+            <ul class="movers">
+              <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+              <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
+            </ul>
+          </div>
+        </div>
       </div>
       <p id="insightsError" class="dsubtle" style="margin:32px 0 12px;text-align:center;display:none"></p>
 

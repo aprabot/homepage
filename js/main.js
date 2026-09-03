@@ -173,6 +173,8 @@
   function drawOverviewTrend(){
     const cv=document.getElementById('ovTrendCanvas');
     if(!cv||!window.DATA)return;
+    const ovSkel=document.getElementById('ovTrendSkel');
+    if(ovSkel)ovSkel.style.display='none';
     // Center the window on the backtest/forecast boundary (trailing actuals
     // + near-term forward outlook) rather than just "the last 26 calendar
     // weeks" — with a long forward horizon, the most recent weeks are
@@ -399,6 +401,8 @@
 
   function drawChart(){
     const s=getSeries(curSel); if(!s)return;
+    const fcSkel=document.getElementById('fcChartSkel');
+    if(fcSkel)fcSkel.style.display='none';
     let N=Math.min(curWeeks,s.a.length), st=s.a.length-N;
     if(hideBacktest && DATA.backtestWeeks!=null){
       st=Math.max(st,DATA.backtestWeeks); N=s.a.length-st;
