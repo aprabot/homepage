@@ -90,6 +90,118 @@ def _weekly_weather():
     return by_week
 
 
+_FEATURE_NAMES = {
+    'ly_week_mean': "same week last year's average",
+    'yoy_ratio': 'year-over-year growth trend',
+    'dow': 'day of week',
+    'is_weekend': 'weekend',
+    'day': 'day of month',
+    'month': 'month of year',
+    'weekofyear': 'week of year',
+    'dayofyear': 'day of year',
+    'time_idx': 'long-run trend over time',
+    'is_holiday': 'Japanese public holiday',
+    'is_holiday_eve': 'day before a holiday',
+    'is_holiday_next': 'day after a holiday',
+    'days_to_holiday': 'days until next holiday',
+    'days_from_holiday': 'days since last holiday',
+    'is_golden_week': 'Golden Week',
+    'is_obon': 'Obon',
+    'is_year_end_new_year': 'year-end/New Year period',
+    'burstiness': 'demand volatility (bursty vs. steady)',
+    'discount_frac': 'discount depth',
+    'discount_vs_tr28': 'discount depth vs. its recent 28-day trailing average',
+    'deep_promo': 'deep promotional discount',
+    'promo_x_weekend': 'promo timed on a weekend',
+    'promo_x_holiday_eve': 'promo timed on a holiday eve',
+    'promo_x_hot': 'promo during hot weather',
+    'hot_x_weekend': 'hot weather on a weekend',
+    'avg_our_price': 'price level',
+    'avg_discount_amt': 'discount amount',
+    'temp_mean': 'average temperature',
+    'temp_max': 'high temperature',
+    'temp_min': 'low temperature',
+    'precip_mm': 'precipitation',
+    'is_hot': 'hot weather',
+    'is_cold': 'cold weather',
+    'temp_max_roll7': '7-day average high temperature',
+    'temp_max_lag1': "previous day's high temperature",
+    'heatwave': 'sustained heatwave (3+ hot days)',
+    'temp_range': 'daily temperature swing',
+    'postal_code': 'regional (ZIP) differences',
+    'ASIN': 'product-specific baseline',
+}
+
+
+def _translate_feature(feature):
+    """Plain-English label for a forecast.py feature-column name, for
+    narrating explain_forecast_day's top_contributing_features. Named/special
+    features come from _FEATURE_NAMES; lag_N / roll_*_N families (whose N can
+    change if forecast.py's LAGS/ROLL_WINDOWS constants do) are handled by
+    pattern instead of being hardcoded per-N.
+    """
+    if feature in _FEATURE_NAMES:
+        return _FEATURE_NAMES[feature]
+    m = re.match(r'^lag_(\d+)$', feature)
+    if m:
+        n = int(m.group(1))
+        if n in (364, 365, 371):
+            return 'shipments around this time last year'
+        return f'shipments {n} day{"s" if n != 1 else ""} ago'
+    m = re.match(r'^roll_mean_(\d+)$', feature)
+    if m:
+        return f"average shipments over the trailing {m.group(1)} days"
+    m = re.match(r'^roll_std_(\d+)$', feature)
+    if m:
+        return f"demand volatility over the trailing {m.group(1)} days"
+    m = re.match(r'^roll_max_(\d+)$', feature)
+    if m:
+        return f"peak shipments over the trailing {m.group(1)} days"
+    m = re.match(r'^active_rate_(\d+)$', feature)
+    if m:
+        return f"how often this SKU/ZIP shipped at all over the trailing {m.group(1)} days"
+    return feature
+
+
+def _day_holiday(date_str):
+    """Same real, computed Japanese holiday lookup as _week_holidays(), for a
+    single ISO date instead of a Mon-Sun week — works for both past and
+    future dates."""
+    d = dt.date.fromisoformat(date_str)
+    name = jpholiday.is_holiday_name(d)
+    return _translate_holiday(name) if name else None
+
+
+def _day_weather(date_str):
+    """Real historical weather for a single date, averaged across postal
+    codes — same source (raw/weather.tsv) as _weekly_weather(), just not
+    pre-aggregated to a week. Returns None for a date with no matching rows
+    (most commonly: a forward-forecast date, since weather isn't known that
+    far in advance)."""
+    try:
+        obj = s3.get_object(Bucket=BUCKET, Key=WEATHER_KEY)
+        text = obj['Body'].read().decode('utf-8')
+    except Exception:
+        return None
+    temp = precip = 0.0
+    hot = cold = n = 0
+    for row in csv.DictReader(io.StringIO(text), delimiter='\t'):
+        if row['ship_day'][:10] != date_str:
+            continue
+        try:
+            temp += float(row['temp_mean'])
+            precip += float(row['precip_mm'])
+            hot += int(row['is_hot'])
+            cold += int(row['is_cold'])
+            n += 1
+        except (KeyError, ValueError):
+            continue
+    if not n:
+        return None
+    return {'avg_temp': round(temp / n, 1), 'avg_precip': round(precip / n, 1),
+            'hot_share': hot / n, 'cold_share': cold / n}
+
+
 def load_forecasting_knowledge():
     """General demand-forecasting domain knowledge (metrics pitfalls, common
     causes of forecast issues, terminology) — read fresh from S3 on every
@@ -154,9 +266,19 @@ def put_knowledge(event):
                                  'updated_at': dt.datetime.now(dt.timezone.utc).isoformat()})}
 
 
+def _get_forecast_data():
+    """Fetch + parse forecast/latest.json once per warm invocation, shared by
+    build_data_summary() (which turns it into the prompt string) and any tool
+    that needs the structured data directly (e.g. explain_forecast_day,
+    which looks up a specific week's real numbers)."""
+    if 'forecast_data' not in _cache:
+        obj = s3.get_object(Bucket=BUCKET, Key=KEY)
+        _cache['forecast_data'] = json.loads(obj['Body'].read().decode('utf-8'))
+    return _cache['forecast_data']
+
+
 def build_data_summary():
-    obj  = s3.get_object(Bucket=BUCKET, Key=KEY)
-    data = json.loads(obj['Body'].read().decode('utf-8'))
+    data = _get_forecast_data()
 
     # backtestWeeks marks where real actuals end and the forward-only
     # forecast begins; older cached results may not have the field.
@@ -330,6 +452,18 @@ Rules:
   highest volume"), use the TOP POSTAL CODES BY VOLUME section below — never guess or invent a zip
   code. If that section is empty or missing, say zip-level data isn't available for this forecast
   rather than making one up.
+• For "why is/was the forecast high/low on [a specific date]", use the explain_forecast_day tool —
+  never answer this from memory or estimate. Its week_actual_units/week_forecast_units describe the
+  WHOLE WEEK that date falls in (there's no true daily actual/forecast number in this data) — say
+  so explicitly, e.g. "the week of {{week_of}} (which {{date}} falls in) forecast X units", never
+  imply X is that one day's number. Lead with day_of_week/holiday/weather as the likely qualitative
+  drivers; only cite top_contributing_features (when present) as genuine quantitative attribution —
+  each entry's "units" is that factor's real modeled contribution to that day's forecast (in the
+  same units as the forecast itself) and "pct_of_forecast" is what share of that day's total
+  forecast it represents, e.g. "the {{factor}} factor added/cut about {{units}} units, roughly
+  {{pct_of_forecast}}% of that day's forecast." If quantitative_factors says it's unavailable
+  instead, say plainly that day-level model attribution isn't available for this forecast (and why,
+  per that message) rather than inventing a cause.
 • You can actually start a new forecast pipeline run using the run_scenario tool, and check on a
   run's progress — or its top SKUs by volume, once completed — with check_scenario_status, which
   can look a scenario up by name (label) as well as by id; you don't need to list scenarios
@@ -394,6 +528,27 @@ TOOL_CONFIG = {
                         "scenario_id": {"type": "string", "description": "e.g. scn-1234567890-abcdef. Omit to look up by label or use the most recent."},
                         "label":       {"type": "string", "description": "Full or partial scenario name, e.g. '40% discount'. Omit if scenario_id is given."},
                     },
+                }},
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "explain_forecast_day",
+                "description": (
+                    "Explain why the forecast is high/low on a SPECIFIC date — real day-level "
+                    "context (Japanese public holiday, historical weather if the date is in the "
+                    "past, weekday/weekend), the real actual/forecast totals for the week that day "
+                    "falls in, and — only for forward-forecast dates on a scenario run that "
+                    "captured it — the model's actual top contributing features for that exact "
+                    "day. Use this for any 'why is/was the forecast high/low on [date]' question."
+                ),
+                "inputSchema": {"json": {
+                    "type": "object",
+                    "properties": {
+                        "date": {"type": "string", "description": "ISO date, e.g. 2026-03-05."},
+                        "sku":  {"type": "string", "description": "e.g. SKU-003. Omit for the all-SKU catalog total."},
+                    },
+                    "required": ["date"],
                 }},
             }
         },
@@ -507,6 +662,87 @@ def execute_tool(name, inputs, claims):
                 out['top_skus_by_volume'] = ranked[:8]
         return out
 
+    if name == 'explain_forecast_day':
+        date_str = (inputs.get('date') or '').strip()
+        try:
+            day = dt.date.fromisoformat(date_str)
+        except ValueError:
+            return {'error': f'"{date_str}" is not a valid ISO date (YYYY-MM-DD).'}
+
+        data = _get_forecast_data()
+        week_start = (day - dt.timedelta(days=day.weekday())).isoformat()
+        try:
+            idx = data['weeks'].index(week_start)
+        except ValueError:
+            return {'error': f'{date_str} falls outside the range of this forecast '
+                              f'({data["weeks"][0]} to {data["weeks"][-1]}).'}
+
+        sku = (inputs.get('sku') or '').strip()
+        if sku:
+            sku_data = data['skus'].get(sku)
+            if not sku_data:
+                return {'error': f'no SKU found matching "{sku}"'}
+            actual, forecast = sku_data['a'][idx], sku_data['f'][idx]
+            series_label = sku
+        else:
+            actual, forecast = data['all']['a'][idx], data['all']['f'][idx]
+            series_label = 'all SKUs'
+
+        bt = data.get('backtestWeeks', len(data['weeks']))
+        is_forward = idx >= bt
+
+        out = {
+            'date': date_str,
+            'series': series_label,
+            'week_of': week_start,
+            'week_actual_units': actual,  # None if this week has no actuals yet (forward-only)
+            'week_forecast_units': round(forecast, 1) if forecast is not None else None,
+            'is_forward_forecast_week': is_forward,
+            'day_of_week': day.strftime('%A'),
+            'is_weekend': day.weekday() >= 5,
+            'holiday': _day_holiday(date_str),
+        }
+        weather = _day_weather(date_str)
+        if weather:
+            out['weather'] = weather
+        elif is_forward:
+            out['weather_note'] = 'not available — this is a future date, weather is only known historically'
+
+        if is_forward:
+            scenario_id = data.get('id')
+            if not sku:
+                out['quantitative_factors'] = (
+                    "not available at the 'all SKUs' level — ask about a specific SKU "
+                    "(e.g. SKU-003) to get real per-feature model attribution for that day"
+                )
+            elif not scenario_id:
+                out['quantitative_factors'] = (
+                    "not available for this forecast — it was approved before day-level model "
+                    "attribution was added, so no per-day explain data was captured for it"
+                )
+            else:
+                try:
+                    obj = s3.get_object(Bucket=BUCKET, Key=f'scenarios/{scenario_id}/explain/{sku}.json')
+                    explain_days = json.loads(obj['Body'].read().decode('utf-8'))
+                except Exception:
+                    explain_days = {}
+                day_features = explain_days.get(date_str)
+                if day_features:
+                    out['top_contributing_features'] = [
+                        {
+                            'factor': _translate_feature(f['feature']),
+                            'units': f['units'],
+                            'pct_of_forecast': f['pct_of_forecast'],
+                        }
+                        for f in day_features
+                    ]
+                else:
+                    out['quantitative_factors'] = (
+                        f'not available — {date_str} is outside the forward horizon this '
+                        'scenario forecast, or has no data for this SKU'
+                    )
+        return out
+
     if name == 'point_to_ui':
         return {'ok': True}  # actual UI effect happens client-side; this just satisfies the tool-result contract
 
@@ -526,7 +762,7 @@ def _text_of(message):
             # see literally, so strip them all.
             text = re.sub(r'<thinking>.*?</thinking>\s*', '', text, flags=re.DOTALL)
             text = re.sub(r'</?reply>', '', text)
-            text = re.sub(r'</?(?:run_scenario|check_scenario_status|point_to_ui)\b[^>]*>', '', text, flags=re.DOTALL)
+            text = re.sub(r'</?(?:run_scenario|check_scenario_status|explain_forecast_day|point_to_ui)\b[^>]*>', '', text, flags=re.DOTALL)
             return text.strip()
     return ''
 

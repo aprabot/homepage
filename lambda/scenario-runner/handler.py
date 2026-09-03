@@ -7,8 +7,10 @@ from datetime import datetime, timezone
 
 import boto3
 
-s3 = boto3.client('s3')
+s3  = boto3.client('s3')
+lam = boto3.client('lambda')
 BUCKET = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
+EXPLAIN_RUNNER_FUNCTION = os.environ.get('EXPLAIN_RUNNER_FUNCTION', 'aprabot-explain-runner')
 
 RAW_INPUT   = '/tmp/With_Price.tsv'
 RAW_WEATHER = '/tmp/weather.tsv'
@@ -23,6 +25,14 @@ BACKTEST_FRACTION = 0.2   # for custom uploads: last 20% of unique dates held ou
 
 def _now():
     return datetime.now(timezone.utc).isoformat()
+
+
+def _read_local_json(path, default=None):
+    try:
+        with open(path) as fh:
+            return json.load(fh)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return default
 
 
 def _read_json(key, default=None):
@@ -350,6 +360,10 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
     and forecast=the forward prediction. overallWape/volume_error are
     computed from the backtest weeks only — the forward forecast never
     affects the accuracy metrics, only extends the chart data.
+
+    Returns (result_dict, volume_error, anon) — anon is the ASIN->SKU-###
+    mapping, also needed by build_explain_by_sku() to translate
+    forecast_explain.json's ASIN keys.
     """
     import pandas as pd
 
@@ -481,7 +495,53 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
             'w': all_w,
         },
         'skus': skus,
-    }, volume_error
+    }, volume_error, anon
+
+
+def build_explain_by_sku(explain_path, anon):
+    """Aggregate forecast.py's --explain output (per postal code, per day,
+    per feature pct_effect — see recursive_forecast's docstring for why it's
+    a multiplicative % and not a raw unit) into per-SKU, per-day top-5
+    features expressed as real unit deltas.
+
+    Summing pct_effect directly across postal codes would be wrong — each
+    ZIP's percentage is relative to that ZIP's own base prediction, so
+    percentages from different ZIPs aren't additive. Converting each ZIP's
+    percentage back to that ZIP's own unit delta first (using the `units`
+    forecast.py persisted alongside it) makes the aggregation additive and
+    correct. Returns {sku: {ship_day: [{feature, units, pct_of_forecast},
+    ...top 5 by |units|]}} — empty dict if forecast.py wasn't run with
+    --explain or produced no forward horizon.
+    """
+    if not os.path.exists(explain_path):
+        return {}
+    with open(explain_path) as fh:
+        raw = json.load(fh)
+
+    out = {}
+    for asin, days in raw.items():
+        sku = anon.get(asin)
+        if not sku:
+            continue
+        sku_out = out.setdefault(sku, {})
+        for day_str, rows in days.items():
+            day_total = sum(r['units'] for r in rows)
+            feature_totals = {}
+            for r in rows:
+                units = r['units']
+                for f in r['features']:
+                    delta = units - units / (1 + f['pct_effect'] / 100)
+                    feature_totals[f['feature']] = feature_totals.get(f['feature'], 0.0) + delta
+            ranked = sorted(feature_totals.items(), key=lambda kv: abs(kv[1]), reverse=True)[:5]
+            sku_out[day_str] = [
+                {
+                    'feature': name,
+                    'units': round(delta, 2),
+                    'pct_of_forecast': round(100 * delta / day_total, 1) if day_total else None,
+                }
+                for name, delta in ranked
+            ]
+    return out
 
 
 def handler(event, context):
@@ -508,13 +568,24 @@ def handler(event, context):
         if weather and not has_custom_weather:
             s3.download_file(BUCKET, 'raw/weather.tsv', RAW_WEATHER)
 
-        args = [sys.executable, FORECAST_PY,
+        # --explain stays inline (in this same forecast.py call) for custom
+        # (user-uploaded) inputs — those are always small and never close to
+        # Lambda's timeout. It's ONLY the default full-catalog run (217 series
+        # x 364 forward days) that's too slow to fit --explain inline (confirmed
+        # 2026-09-03: exceeds even Lambda's 900s hard ceiling) — that case gets
+        # explain data from a separate async invoke of aprabot-explain-runner
+        # instead, further down.
+        inline_explain = bool(custom_input_key)
+
+        args = [sys.executable, '-u', FORECAST_PY,
                 '--input', RAW_INPUT,
                 '--outdir', OUTDIR,
                 '--train-end', train_end,
                 '--refresh-days', str(refresh_days),
                 '--forecast-future',
                 '--horizon', str(FUTURE_HORIZON_DAYS)]
+        if inline_explain:
+            args.append('--explain')
         if known_prices:
             args.append('--known-prices')
         if calibrate:
@@ -524,16 +595,73 @@ def handler(event, context):
         if known_prices and has_custom_future_prices:
             args += ['--future-prices', RAW_FUTURE_PRICES]
 
-        proc = subprocess.run(args, capture_output=True, text=True, timeout=780)
+        # Lambda's own hard ceiling is 900s; leave ~40s for transform_to_weekly +
+        # the S3 writes that follow, which are fast (seconds) but real.
+        #
+        # Deliberately NOT capture_output=True: piping to a buffer means nothing
+        # reaches CloudWatch until the process ends, so a timeout leaves zero
+        # progress visibility (hit this blind 2026-09-03 diagnosing a real
+        # timeout — genuinely couldn't tell whether forecast.py was stuck at
+        # startup or nearly done). Inheriting stdout/stderr streams forecast.py's
+        # own prints straight into this Lambda's live log output instead.
+        proc = subprocess.run(args, timeout=860)
         if proc.returncode != 0:
-            raise RuntimeError(f"forecast.py exited {proc.returncode}: {proc.stderr[-2000:]}")
+            raise RuntimeError(f"forecast.py exited {proc.returncode} — see the "
+                                f"forecast.py output above in this same log stream for the traceback.")
 
-        result_json, volume_error = transform_to_weekly(
+        result_json, volume_error, anon = transform_to_weekly(
             os.path.join(OUTDIR, 'backtest_2025.tsv'),
             os.path.join(OUTDIR, 'forecast_output.tsv'),
             raw_history_path=RAW_INPUT)
 
+        # Lets chat-api trace the currently-live forecast/latest.json (a
+        # verbatim copy of a completed scenario's result.json, written by
+        # approve_scenario()) back to the scenario_id whose explain/ data to read.
+        result_json['id'] = scenario_id
+
         _write_json(f'scenarios/{scenario_id}/result.json', result_json)
+
+        if inline_explain:
+            # Small custom upload — --explain already ran inline above (fast,
+            # never close to the timeout), so just aggregate + write it here.
+            explain_by_sku = build_explain_by_sku(os.path.join(OUTDIR, 'forecast_explain.json'), anon)
+            for sku, days in explain_by_sku.items():
+                _write_json(f'scenarios/{scenario_id}/explain/{sku}.json', days)
+        else:
+            # Full catalog run — --explain doesn't fit inline at this scale
+            # (confirmed 2026-09-03: backtest ~240s + a measured ~2.5s/explain-day
+            # meant the forward+explain phase alone extrapolated to ~900s on its
+            # own, exceeding even Lambda's hard ceiling). Explain is instead a
+            # separate, async, best-effort enhancement: aprabot-explain-runner
+            # gets its own fresh Lambda budget and reuses this run's best_iter
+            # (via backtest_2025.meta.json) to refit an equivalent model without
+            # redoing the expensive backtest. This scenario is already
+            # 'completed' by the time it's invoked — if it fails, chat-api's
+            # explain_forecast_day tool just reports quantitative attribution
+            # as unavailable, nothing here depends on it succeeding.
+            meta_path = os.path.join(OUTDIR, 'backtest_2025.meta.json')
+            meta = _read_local_json(meta_path, default={})
+            best_iter = meta.get('best_iter')
+            if best_iter is not None:
+                _write_json(f'scenarios/{scenario_id}/anon.json', anon)
+                try:
+                    lam.invoke(
+                        FunctionName=EXPLAIN_RUNNER_FUNCTION,
+                        InvocationType='Event',
+                        Payload=json.dumps({
+                            'scenario_id': scenario_id,
+                            'best_iter': best_iter,
+                            'known_prices': known_prices,
+                            'weather': weather,
+                        }).encode('utf-8'),
+                    )
+                except Exception as exc:
+                    # Best-effort — the main scenario result above already succeeded
+                    # and must not be undone by an explain-enhancement hiccup.
+                    print(f"EXPLAIN_INVOKE_WARNING[{scenario_id}]: {exc}")
+            else:
+                print(f"EXPLAIN_INVOKE_WARNING[{scenario_id}]: no best_iter in "
+                      f"{meta_path}, skipping explain-runner invoke")
 
         config = _read_json(f'scenarios/{scenario_id}/config.json', default={})
         config.update({

@@ -14,6 +14,25 @@ pip3 install --platform manylinux_2_28_x86_64 --implementation cp --python-versi
   --only-binary=:all: --target ./pkg --no-deps \
   pandas==2.3.3 numpy lightgbm==4.6.0 jpholiday certifi python-dateutil pytz tzdata scipy
 
+# lightgbm/basic.py unconditionally does `import scipy.sparse`, which (confirmed by importing
+# scipy.sparse + scipy.sparse.linalg and diffing sys.modules) only ever pulls in scipy.linalg,
+# scipy._lib, scipy._distributor_init, scipy.__config__, scipy.version beyond scipy.sparse itself
+# — none of scipy's other ~17 submodules (stats/optimize/special/spatial/io/signal/interpolate/
+# fft/fftpack/integrate/ndimage/cluster/odr/misc/constants/datasets/differentiate). Those add
+# ~140MB for nothing forecast.py or lightgbm ever uses, and pushed the unzipped package past
+# Lambda's 250MB hard limit as numpy/scipy releases grew (hit 2026-09-03: 301MB with them all).
+# Also strip test suites / __pycache__ / .pyi stubs (safe — pytest-only, never imported at
+# runtime), which numpy/pandas/scipy all bundle by default even for --no-deps installs.
+rm -rf ./pkg/scipy/{cluster,constants,datasets,differentiate,fft,fftpack,integrate,interpolate,io,misc,ndimage,odr,optimize,signal,spatial,special,stats}
+find ./pkg -type d -name "__pycache__" -exec rm -rf {} +
+# ONLY "tests"/"test" (pytest-internal, never imported at runtime) — NOT "testing".
+# numpy.testing is a real public submodule; scipy's array-api-compat shim touches it
+# via `from numpy import *`-style introspection even in a plain `import scipy.sparse`,
+# so deleting it breaks import at runtime, not just pytest (hit + fixed 2026-09-03).
+find ./pkg -type d \( -name "tests" -o -name "test" \) -exec rm -rf {} +
+find ./pkg -name "*.pyi" -delete
+du -sh ./pkg   # sanity check: should be well under 250MB (was 301MB before trimming, ~141MB after)
+
 pip3 download --platform manylinux2014_x86_64 --implementation cp --python-version 3.12 \
   --only-binary=:all: --no-deps -d /tmp/sklearn-dl scikit-learn
 cd /tmp/sklearn-dl && unzip -o -q *.whl "scikit_learn.libs/libgomp*"
@@ -28,6 +47,10 @@ aws s3 cp ../scenario-runner.zip s3://aprabot-forecast-751835847089/_deploy/scen
 aws lambda update-function-code --function-name aprabot-scenario-runner \
   --s3-bucket aprabot-forecast-751835847089 --s3-key _deploy/scenario-runner.zip
 ```
+
+If a future forecast.py change starts using more of scipy (e.g. scipy.optimize), re-run the
+sys.modules diff above locally first to see what it actually pulls in, then adjust the `rm -rf`
+list — don't just add the whole submodule back blindly.
 
 Env vars: `BUCKET_NAME`, `LD_LIBRARY_PATH=/var/task/lib`.
 
