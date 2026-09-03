@@ -452,6 +452,12 @@ Rules:
   highest volume"), use the TOP POSTAL CODES BY VOLUME section below — never guess or invent a zip
   code. If that section is empty or missing, say zip-level data isn't available for this forecast
   rather than making one up.
+• For a SKU's forecast/actuals/WAPE within one SPECIFIC postal code (e.g. "what's the forecast for
+  SKU-003 in 160-0022"), always call the get_zip_forecast tool — never answer with that SKU's
+  overall number, which is summed across ALL its postal codes and is a different figure. If the
+  user names a zip that turns out not to exist for that SKU, or doesn't name one at all, the tool
+  returns that SKU's actual list of postal codes — offer those rather than guessing which one they
+  meant.
 • For "why is/was the forecast high/low on [a specific date]", use the explain_forecast_day tool —
   never answer this from memory or estimate. Its week_actual_units/week_forecast_units describe the
   WHOLE WEEK that date falls in (there's no true daily actual/forecast number in this data) — say
@@ -550,6 +556,29 @@ TOOL_CONFIG = {
                         "sku":  {"type": "string", "description": "e.g. SKU-003. Omit for the all-SKU catalog total."},
                     },
                     "required": ["date"],
+                }},
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "get_zip_forecast",
+                "description": (
+                    "Look up the real forecast/actuals for one SKU within one specific postal "
+                    "code (ZIP) — the SKU-level numbers already provided in the data are summed "
+                    "ACROSS ALL postal codes for that SKU, so they are NOT the right answer "
+                    "whenever the user asks about a specific zip/postal code within a SKU. "
+                    "Always call this tool for that case instead of reusing the SKU total. Omit "
+                    "zip to get the ranked list of postal codes that SKU actually sells in (by "
+                    "backtest volume) — use this to answer 'which zips does this SKU sell in', "
+                    "or when the user asked about a zip but hasn't said which one yet."
+                ),
+                "inputSchema": {"json": {
+                    "type": "object",
+                    "properties": {
+                        "sku": {"type": "string", "description": "e.g. SKU-003."},
+                        "zip": {"type": "string", "description": "Postal code, e.g. 160-0022. Omit to list the SKU's available zips instead."},
+                    },
+                    "required": ["sku"],
                 }},
             }
         },
@@ -758,6 +787,67 @@ def execute_tool(name, inputs, claims):
                         f'scenario only covers {covered[0]} through {covered[-1]} (the near-term '
                         f'part of the forecast); {date_str} falls outside that window'
                     )
+        return out
+
+    if name == 'get_zip_forecast':
+        sku = (inputs.get('sku') or '').strip()
+        zip_code = (inputs.get('zip') or '').strip()
+        if not sku:
+            return {'error': 'a sku is required, e.g. SKU-003'}
+
+        data = _get_forecast_data()
+        sku_data = data['skus'].get(sku)
+        if not sku_data:
+            return {'error': f'no SKU found matching "{sku}"'}
+
+        by_zip = sku_data.get('byZip') or {}
+        if not by_zip:
+            return {'error': f'{sku} has no postal-code breakdown in this forecast — only a '
+                              f'SKU-level total (summed across all postal codes) is available'}
+
+        bt = data.get('backtestWeeks', len(data['weeks']))
+        total_weeks = len(data['weeks'])
+        fwd_weeks = total_weeks - bt
+        trail_win = min(fwd_weeks, bt) if fwd_weeks else 0
+
+        # Same math as the dashboard's own SKU→postal-code table (js/main.js
+        # renderSkuZipTable / seriesWape) — backtest-only WAPE, and a trend
+        # comparing the forward forecast to an equally-sized trailing-actual
+        # window — so Lyra's numbers always match what's on screen.
+        def zip_summary(zd):
+            a, f = zd['a'], zd['f']
+            vol = sum(x for x in a[:bt] if x is not None)
+            num = sum(abs(x - y) for x, y in zip(a[:bt], f[:bt]) if x is not None)
+            wape = round(100 * num / vol, 1) if vol else None
+            fwd = sum(x for x in f[bt:] if x is not None) if fwd_weeks else None
+            trail_actual = sum(x for x in a[max(0, bt - trail_win):bt] if x is not None) if trail_win else 0
+            trend = (round(100 * (fwd - trail_actual) / trail_actual, 1)
+                      if (trail_win and trail_actual and fwd is not None) else None)
+            return vol, wape, fwd, trend
+
+        if not zip_code:
+            ranked = []
+            for z, zd in by_zip.items():
+                vol, wape, _fwd, _trend = zip_summary(zd)
+                ranked.append({'zip': z, 'backtest_actual_units': round(vol), 'wape': wape})
+            ranked.sort(key=lambda r: -r['backtest_actual_units'])
+            return {'sku': sku, 'zip': None, 'available_zips': ranked[:15],
+                    'message': 'No zip specified — call again with one of these zip codes for its '
+                               'specific forecast, or offer this list to the user.'}
+
+        zd = by_zip.get(zip_code)
+        if not zd:
+            ranked = sorted(by_zip.keys(),
+                             key=lambda z: -sum(x for x in by_zip[z]['a'][:bt] if x is not None))
+            return {'error': f'no postal code "{zip_code}" found for {sku}',
+                    'available_zips': ranked[:15]}
+
+        vol, wape, fwd, trend = zip_summary(zd)
+        out = {'sku': sku, 'zip': zip_code, 'backtest_actual_units': round(vol), 'wape': wape}
+        if fwd_weeks:
+            out['forward_forecast_units'] = round(fwd) if fwd is not None else None
+            out['forward_weeks'] = fwd_weeks
+            out['trend_vs_trailing_actual'] = trend
         return out
 
     if name == 'point_to_ui':
