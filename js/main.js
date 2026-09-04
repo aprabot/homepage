@@ -681,6 +681,7 @@
       cbHistory.push({role:'assistant',content:reply});
       if(d.point_to) cbPointTo(d.point_to);
       if(d.generate_report) generateReport();
+      if(d.open_scenario_id && typeof viewScenario==='function') viewScenario(d.open_scenario_id);
     })
     .catch(function(){
       typ.remove(); if(cbOrbEl) cbOrbEl.classList.remove('cb-thinking');

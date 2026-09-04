@@ -538,6 +538,12 @@ Rules:
   defaults (known_prices=true, weather=true, calibrate=true,
   refresh_days=28) — don't ask clarifying questions for settings they didn't mention, just use
   the defaults and say so in your reply.
+• When the user asks to see, open, show, pull up, or look at a specific scenario (as opposed to
+  asking a question you can just answer in text), use open_scenario — it opens the real detail
+  modal (chart, top SKUs, validations, Approve) directly, so hand it to them rather than describing
+  where to click. Don't also call point_to_ui at Scenarios for this — the modal already shows it,
+  same as generate_report. Use check_scenario_status instead when they're asking FOR specific
+  numbers/status as an answer (e.g. "what's the WAPE on the 40% discount run"), not to see the UI.
 • Approving a scenario (approve_scenario) makes it the live forecast for every user — treat it like
   any other real, hard-to-reverse action. Call it once to see what it would approve (this never
   actually approves anything), tell the user what you found, ask them to confirm, and END YOUR TURN
@@ -619,6 +625,31 @@ TOOL_CONFIG = {
                     "case-insensitively against part of the scenario's name, e.g. the user says "
                     "'the 40% discount scenario' or quotes its exact name). Omit both to check the "
                     "most recently requested scenario for this user."
+                ),
+                "inputSchema": {"json": {
+                    "type": "object",
+                    "properties": {
+                        "scenario_id": {"type": "string", "description": "e.g. scn-1234567890-abcdef. Omit to look up by label or use the most recent."},
+                        "label":       {"type": "string", "description": "Full or partial scenario name, e.g. '40% discount'. Omit if scenario_id is given."},
+                    },
+                }},
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "open_scenario",
+                "description": (
+                    "Open a scenario's full detail view directly in the dashboard — the same modal "
+                    "the user would get by clicking its row in Scenarios (chart, top SKUs by "
+                    "volume, the validations pill, Approve/download buttons). The actual modal "
+                    "opens client-side; this just triggers it. Call this whenever the user asks to "
+                    "see, open, show, pull up, or look at a specific scenario — hand it to them "
+                    "directly instead of just telling them to go find it in the Scenarios tab, and "
+                    "don't also call point_to_ui at Scenarios for this, the modal already shows it. "
+                    "(For just the numbers/status as text instead of opening the UI, use "
+                    "check_scenario_status.) Look it up by scenario_id, by label (partial match, "
+                    "e.g. 'the 40% discount scenario'), or omit both for 'open the latest run' (the "
+                    "user's most recently requested scenario)."
                 ),
                 "inputSchema": {"json": {
                     "type": "object",
@@ -1073,6 +1104,23 @@ def execute_tool(name, inputs, claims, request_state):
                 ranked.sort(key=lambda r: r['volume'], reverse=True)
                 out['top_skus_by_volume'] = ranked[:8]
         return out
+
+    if name == 'open_scenario':
+        status, result = _invoke_scenarios_api('GET', '/scenarios', claims)
+        if status != 200:
+            return {'error': result.get('error', 'failed to list scenarios')}
+        scenarios = result.get('scenarios', [])
+
+        match, err = _match_scenario(inputs, scenarios, claims)
+        if err is not None:
+            return err
+
+        # Read-only — nothing to confirm, unlike approve_scenario. handler()
+        # picks scenario_id back up from here (only when opened is true) to
+        # set open_scenario_id, which js/main.js turns into a real
+        # viewScenario(id) call client-side.
+        return {'opened': True, 'scenario_id': match['id'], 'label': match.get('label'),
+                'status': match.get('status')}
 
     if name == 'approve_scenario':
         status, result = _invoke_scenarios_api('GET', '/scenarios', claims)
@@ -1578,6 +1626,7 @@ def handler(event, context):
 
         point_to = None
         trigger_report = False
+        open_scenario_id = None
         reply = ''
         seen_tool_calls = set()  # (name, sorted-inputs) already executed this request
         # Fresh per request — carries cross-tool-call state within this one
@@ -1627,6 +1676,8 @@ def handler(event, context):
                         repeated_call = True
                     seen_tool_calls.add(call_sig)
                     result = execute_tool(tu['name'], inputs, claims, request_state)
+                    if tu['name'] == 'open_scenario' and result.get('opened'):
+                        open_scenario_id = result['scenario_id']
                     tool_result_blocks.append({'toolResult': {
                         'toolUseId': tu['toolUseId'],
                         'content': [{'json': result}],
@@ -1654,7 +1705,8 @@ def handler(event, context):
                 break
 
         if not reply:
-            reply = ("I've generated your downloadable report — it should open in a new tab, or "
+            reply = ("I've opened it for you." if open_scenario_id
+                      else "I've generated your downloadable report — it should open in a new tab, or "
                       "download directly if your browser blocks the pop-up." if trigger_report
                       else "Done — I've highlighted it in the sidebar for you." if point_to
                       else "Done!")
@@ -1662,7 +1714,8 @@ def handler(event, context):
         return {
             'statusCode': 200,
             'headers':    {**CORS, 'Content-Type': 'application/json'},
-            'body':       json.dumps({'reply': reply, 'point_to': point_to, 'generate_report': trigger_report}),
+            'body':       json.dumps({'reply': reply, 'point_to': point_to, 'generate_report': trigger_report,
+                                       'open_scenario_id': open_scenario_id}),
         }
 
     except Exception as exc:
