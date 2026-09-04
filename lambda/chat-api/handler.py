@@ -492,22 +492,29 @@ Rules:
   highest volume"), use the TOP POSTAL CODES BY VOLUME section below — never guess or invent a zip
   code. If that section is empty or missing, say zip-level data isn't available for this forecast
   rather than making one up.
-• For a SKU's forecast/actuals/WAPE within one SPECIFIC postal code (e.g. "what's the forecast for
-  SKU-003 in 160-0022"), always call the get_zip_forecast tool — never answer with that SKU's
-  overall number, which is summed across ALL its postal codes and is a different figure. If the
-  user names a zip that turns out not to exist for that SKU, or doesn't name one at all, the tool
-  returns that SKU's actual list of postal codes — offer those rather than guessing which one they
-  meant. Also pass a date whenever the question is about a SPECIFIC DATE within that zip (e.g. "the
-  forecast for SKU-003 in 160-0022 on 2026-03-23") — never answer that from the sku+zip totals,
-  which are summed across the whole backtest or whole forward horizon, not any one date. With a
-  date, the tool instead returns week_actual_units/week_forecast_units for the WHOLE WEEK that date
-  falls in (same "no true daily number" caveat as explain_forecast_day just below) — say so
-  explicitly, e.g. "the week of {{week_of}} (which {{date}} falls in) forecast X units in that zip",
-  never imply X is that one day's number.
-• For "why is/was the forecast high/low on [a specific date]" with NO specific zip in the question,
-  use the explain_forecast_day tool — never answer this from memory or estimate. (It has no zip
-  filter — for a date within one specific zip, use get_zip_forecast's date parameter instead, per
-  the rule above.) Its week_actual_units/week_forecast_units describe the
+• Before calling get_zip_forecast or explain_forecast_day with a date, check FIRST whether the user
+  actually gave ONE date or TWO (a "from X to Y" / "between X and Y" phrasing, or any other way of
+  naming a start and an end — even a short 2-3 day span). Two dates is a RANGE: use
+  get_forecast_range for it (see its own rule further below) — never call get_zip_forecast or
+  explain_forecast_day with just the range's start date and drop the end date, that silently
+  answers a narrower question than what was actually asked and is wrong even if the number happens
+  to come out the same (e.g. a 3-day range that lands inside a single week). Only proceed with the
+  single-date rules below once you've confirmed it really is one date.
+• For a SKU's forecast/actuals/WAPE within one SPECIFIC postal code on (at most) one specific date
+  (e.g. "what's the forecast for SKU-003 in 160-0022", or "...on 2026-03-23"), always call the
+  get_zip_forecast tool — never answer with that SKU's overall number, which is summed across ALL
+  its postal codes and is a different figure. If the user names a zip that turns out not to exist
+  for that SKU, or doesn't name one at all, the tool returns that SKU's actual list of postal codes
+  — offer those rather than guessing which one they meant. Without a date, the sku+zip totals are
+  summed across the whole backtest or whole forward horizon, not any one date — pass a date to get
+  one specific week's number instead. With a date, the tool returns week_actual_units/
+  week_forecast_units for the WHOLE WEEK that date falls in (same "no true daily number" caveat as
+  explain_forecast_day just below) — say so explicitly, e.g. "the week of {{week_of}} (which
+  {{date}} falls in) forecast X units in that zip", never imply X is that one day's number.
+• For "why is/was the forecast high/low on [one specific date]" with NO specific zip in the
+  question, use the explain_forecast_day tool — never answer this from memory or estimate. (It has
+  no zip filter — for a date within one specific zip, use get_zip_forecast's date parameter
+  instead, per the rule above.) Its week_actual_units/week_forecast_units describe the
   WHOLE WEEK that date falls in (there's no true daily actual/forecast number in this data) — say
   so explicitly, e.g. "the week of {{week_of}} (which {{date}} falls in) forecast X units", never
   imply X is that one day's number. Lead with day_of_week/holiday/weather as the likely qualitative
@@ -552,12 +559,14 @@ Rules:
   second scenario they mean rather than guessing.
 • For "compare SKU-X and SKU-Y" (two SKUs within the CURRENT live forecast, not two scenarios), use
   compare_skus instead — different tool, different question.
-• For a total over a DATE RANGE rather than one specific date (e.g. "how does next month look for
-  SKU-003", "total forecast for Q2"), use get_forecast_range — never sum multiple
-  explain_forecast_day/get_zip_forecast calls yourself or estimate. It rounds to whichever weeks
-  the range overlaps and tells you exactly which ones — say so if the range doesn't line up exactly
-  with week boundaries, rather than implying the total is precisely bounded by the user's exact
-  dates.
+• For a total over a DATE RANGE — the user gave two dates, in any phrasing, no matter how close
+  together (e.g. "how does next month look for SKU-003", "total forecast for Q2", or even "from
+  2026-03-23 to 2026-03-25") — use get_forecast_range. Never substitute a single
+  explain_forecast_day/get_zip_forecast call using just the start date, and never sum multiple such
+  calls yourself or estimate. It rounds to whichever weeks the range overlaps and tells you exactly
+  which ones — say so explicitly in your reply (e.g. when a short range lands inside a single week,
+  say that plainly) rather than implying the total is precisely bounded by the user's exact dates,
+  or silently answering as if only one date had been given.
 • Whenever your answer tells the user where to go or what to click in the dashboard, also call the
   point_to_ui tool with the relevant nav item, in addition to writing your normal text reply — do
   not use it instead of a reply.
@@ -687,17 +696,21 @@ TOOL_CONFIG = {
             "toolSpec": {
                 "name": "explain_forecast_day",
                 "description": (
-                    "Explain why the forecast is high/low on a SPECIFIC date — real day-level "
-                    "context (Japanese public holiday, historical weather if the date is in the "
-                    "past, weekday/weekend), the real actual/forecast totals for the week that day "
-                    "falls in, and — only for forward-forecast dates on a scenario run that "
-                    "captured it — the model's actual top contributing features for that exact "
-                    "day. Use this for any 'why is/was the forecast high/low on [date]' question."
+                    "Explain why the forecast is high/low on a SINGLE SPECIFIC date — real "
+                    "day-level context (Japanese public holiday, historical weather if the date is "
+                    "in the past, weekday/weekend), the real actual/forecast totals for the week "
+                    "that day falls in, and — only for forward-forecast dates on a scenario run "
+                    "that captured it — the model's actual top contributing features for that "
+                    "exact day. Use this for any 'why is/was the forecast high/low on [one date]' "
+                    "question. If the user gave a RANGE (two dates — 'from X to Y', 'between X and "
+                    "Y', even a short 2-3 day span) rather than one date, use get_forecast_range "
+                    "instead — do not call this tool with just the range's start date, which "
+                    "silently answers a narrower question than what was actually asked."
                 ),
                 "inputSchema": {"json": {
                     "type": "object",
                     "properties": {
-                        "date": {"type": "string", "description": "ISO date, e.g. 2026-03-05."},
+                        "date": {"type": "string", "description": "ISO date, e.g. 2026-03-05 — a SINGLE date only. If the user gave a range (two dates), use get_forecast_range instead."},
                         "sku":  {"type": "string", "description": "e.g. SKU-003. Omit for the all-SKU catalog total."},
                     },
                     "required": ["date"],
@@ -715,17 +728,21 @@ TOOL_CONFIG = {
                     "Always call this tool for that case instead of reusing the SKU total. Omit "
                     "zip to get the ranked list of postal codes that SKU actually sells in (by "
                     "backtest volume) — use this to answer 'which zips does this SKU sell in', "
-                    "or when the user asked about a zip but hasn't said which one yet. Add a date "
-                    "when the question is about that zip on one specific date — without it, the "
-                    "forecast/actual figures returned are totals summed across the whole backtest "
-                    "or whole forward horizon, not any single date."
+                    "or when the user asked about a zip but hasn't said which one yet. Add date "
+                    "ONLY for a question about ONE SINGLE isolated date — without it, the figures "
+                    "returned are totals summed across the whole backtest or whole forward "
+                    "horizon. If the user gave TWO dates (any 'from X to Y' / 'between X and Y' "
+                    "phrasing, even a short span like just 2-3 days), that is a RANGE, not a "
+                    "single date — use get_forecast_range instead (with the same sku/zip), and do "
+                    "NOT call this tool with just the range's start date and silently drop the end "
+                    "date, which answers a different, narrower question than what was actually asked."
                 ),
                 "inputSchema": {"json": {
                     "type": "object",
                     "properties": {
                         "sku":  {"type": "string", "description": "e.g. SKU-003."},
                         "zip":  {"type": "string", "description": "Postal code, e.g. 160-0022. Omit to list the SKU's available zips instead."},
-                        "date": {"type": "string", "description": "ISO date, e.g. 2026-03-23. Only meaningful together with zip — returns that specific week's actual/forecast for this sku+zip instead of the full-horizon totals."},
+                        "date": {"type": "string", "description": "ISO date, e.g. 2026-03-23 — a SINGLE date only. If the user gave a range (two dates), use get_forecast_range instead, not this field with just one end of it."},
                     },
                     "required": ["sku"],
                 }},
@@ -754,13 +771,19 @@ TOOL_CONFIG = {
                 "name": "get_forecast_range",
                 "description": (
                     "Sum real actual/forecast units over a date range (e.g. 'how does next month "
-                    "look for SKU-003', 'forecast for all SKUs from March 1 to March 31'). Rounds "
-                    "the range to whichever weeks it overlaps (this data is weekly-grain, not "
-                    "daily) — the tool returns exactly which weeks it summed, plus how many of "
-                    "those were backtest vs. forward-only. Omit sku for the all-SKU catalog total; "
+                    "look for SKU-003', 'forecast for all SKUs from March 1 to March 31', or even "
+                    "a short 2-3 day span like 'from 2026-03-23 to 2026-03-25'). Use this whenever "
+                    "the user gives TWO dates, no matter how close together — never call "
+                    "explain_forecast_day/get_zip_forecast with just the range's start date and "
+                    "silently ignore the end date, that answers a narrower question than what was "
+                    "actually asked. Rounds the range to whichever weeks it overlaps (this data is "
+                    "weekly-grain, not daily) — the tool returns exactly which weeks it summed, "
+                    "plus how many of those were backtest vs. forward-only; if a short range lands "
+                    "entirely within one week, say so explicitly rather than silently answering as "
+                    "if only one date had been asked about. Omit sku for the all-SKU catalog total; "
                     "add zip (only together with sku) to scope to one postal code. For a single "
-                    "date instead of a range, use explain_forecast_day or get_zip_forecast instead "
-                    "— they give richer single-week context (holiday/weather/attribution)."
+                    "isolated date (not a range), use explain_forecast_day or get_zip_forecast "
+                    "instead — they give richer single-week context (holiday/weather/attribution)."
                 ),
                 "inputSchema": {"json": {
                     "type": "object",
