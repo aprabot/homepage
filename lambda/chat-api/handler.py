@@ -1809,12 +1809,14 @@ def handler(event, context):
         # mere nav highlight — suppress point_to_ui's effect whenever one of
         # these fired, regardless of whether the model ALSO called
         # point_to_ui. It sometimes still does despite being told not to in
-        # the system prompt (observed: flaky, not every call) — the same
-        # "enforce it in code, not just the prompt" lesson approve_scenario's
-        # confirm gate already needed. A prompt instruction shapes behavior
-        # and avoids the wasted extra tool round-trip most of the time, but
-        # isn't a guarantee, so this is the actual guarantee.
-        if annotate or trigger_report or open_scenario_id:
+        # the system prompt (observed: flaky, not every call — chart was the
+        # same story, caught in the same round of testing as this comment)
+        # — the same "enforce it in code, not just the prompt" lesson
+        # approve_scenario's confirm gate already needed. A prompt
+        # instruction shapes behavior and avoids the wasted extra tool
+        # round-trip most of the time, but isn't a guarantee, so this is the
+        # actual guarantee.
+        if annotate or trigger_report or open_scenario_id or chart:
             point_to = None
 
         if not reply:
