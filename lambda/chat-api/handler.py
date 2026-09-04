@@ -278,6 +278,19 @@ def _get_forecast_data():
     return _cache['forecast_data']
 
 
+def _downsample(arr, target=40):
+    """Even-stride downsample for compact chart payloads — an inline chat
+    sparkline doesn't need full weekly resolution, and this keeps both the
+    tool result (which the model also reads) and the client-facing chart
+    payload small and length-independent regardless of a series' actual
+    horizon (backtest+forward commonly 80-100+ weeks)."""
+    n = len(arr)
+    if n <= target:
+        return arr
+    step = n / target
+    return [arr[int(i * step)] for i in range(target)]
+
+
 def _sku_row(sku_id, sku_data, bt, trail_win):
     """One SKU's summary stats (backtest volume/WAPE/accuracy, forward
     forecast total, trend vs. an equally-sized trailing-actual window) —
@@ -565,6 +578,11 @@ Rules:
   second scenario they mean rather than guessing.
 • For "compare SKU-X and SKU-Y" (two SKUs within the CURRENT live forecast, not two scenarios), use
   compare_skus instead — different tool, different question.
+• compare_skus and get_forecast_range both also render a small inline chart in the chat automatically
+  (a two-line comparison, or an actual-vs-forecast bar) — you don't control this and it needs no
+  separate mention or setup; just answer normally in text. Keep the reply itself to the actual
+  numbers/comparison, not a verbal description of what the chart looks like (e.g. not "the lines
+  show an upward trend" — the picture already says that).
 • For a total over a DATE RANGE — the user gave two dates, in any phrasing, no matter how close
   together (e.g. "how does next month look for SKU-003", "total forecast for Q2", or even "from
   2026-03-23 to 2026-03-25") — use get_forecast_range. Never substitute a single
@@ -1472,8 +1490,23 @@ def execute_tool(name, inputs, claims, request_state):
         if not row_b:
             return {'error': f'no SKU found matching "{sku_b}"'}
 
+        # A compact forecast-line sparkline per SKU — the continuous 'f'
+        # series (unlike 'a', it has no null gaps in the forward horizon,
+        # so it draws as one clean line covering the whole window) — for
+        # the client to render as an inline mini-chart in the chat bubble.
+        # Copies rather than mutates the cached _all_sku_rows() dicts,
+        # which build_data_summary() and other calls also read.
+        data = _get_forecast_data()
+
+        def spark(sku_id):
+            f = (data['skus'].get(sku_id) or {}).get('f') or []
+            return _downsample([round(x, 1) if x is not None else None for x in f])
+
+        row_a_out = dict(row_a, sparkline=spark(row_a['sku']))
+        row_b_out = dict(row_b, sparkline=spark(row_b['sku']))
+
         return {
-            'a': row_a, 'b': row_b,
+            'a': row_a_out, 'b': row_b_out,
             'higher_volume': row_a['sku'] if row_a['vol'] >= row_b['vol'] else row_b['sku'],
             'lower_wape': row_a['sku'] if row_a['wape'] <= row_b['wape'] else row_b['sku'],
         }
@@ -1628,6 +1661,7 @@ def handler(event, context):
         trigger_report = False
         open_scenario_id = None
         celebrate = False
+        chart = None
         reply = ''
         seen_tool_calls = set()  # (name, sorted-inputs) already executed this request
         # Fresh per request — carries cross-tool-call state within this one
@@ -1681,6 +1715,19 @@ def handler(event, context):
                         open_scenario_id = result['scenario_id']
                     if tu['name'] == 'approve_scenario' and result.get('approved'):
                         celebrate = True
+                    if tu['name'] == 'compare_skus' and result.get('a') and result.get('b'):
+                        chart = {
+                            'type': 'sku_compare',
+                            'a': {'sku': result['a']['sku'], 'series': result['a'].get('sparkline') or []},
+                            'b': {'sku': result['b']['sku'], 'series': result['b'].get('sparkline') or []},
+                        }
+                    if tu['name'] == 'get_forecast_range' and 'error' not in result:
+                        chart = {
+                            'type': 'range_bar',
+                            'series': result.get('series'),
+                            'actual': result.get('actual_units'),
+                            'forecast': result.get('forecast_units'),
+                        }
                     tool_result_blocks.append({'toolResult': {
                         'toolUseId': tu['toolUseId'],
                         'content': [{'json': result}],
@@ -1718,7 +1765,7 @@ def handler(event, context):
             'statusCode': 200,
             'headers':    {**CORS, 'Content-Type': 'application/json'},
             'body':       json.dumps({'reply': reply, 'point_to': point_to, 'generate_report': trigger_report,
-                                       'open_scenario_id': open_scenario_id, 'celebrate': celebrate}),
+                                       'open_scenario_id': open_scenario_id, 'celebrate': celebrate, 'chart': chart}),
         }
 
     except Exception as exc:

@@ -593,6 +593,76 @@
     d.querySelectorAll('.lk').forEach(l=>l.onclick=()=>cbChart(l.dataset.sku));
     return d;
   }
+
+  // Renders a small inline chart INTO an existing bot message bubble —
+  // chart is {type:'sku_compare', a:{sku,series}, b:{sku,series}} or
+  // {type:'range_bar', series, actual, forecast} from the chat response.
+  // Same canvas-color convention as the real dashboard charts (fixed hex,
+  // not theme-driven — drawChart/drawOverviewTrend do the same, since a
+  // mid-gray/brand palette reads fine on both light and dark card
+  // backgrounds without branching).
+  function cbRenderChart(container,chart){
+    if(!chart||!container)return;
+    const wrap=document.createElement('div'); wrap.className='cb-chart';
+    const cv=document.createElement('canvas');
+    const W=246,H=72,dpr=window.devicePixelRatio||1;
+    cv.width=W*dpr; cv.height=H*dpr; cv.style.width=W+'px'; cv.style.height=H+'px';
+    const ctx=cv.getContext('2d'); ctx.scale(dpr,dpr);
+    wrap.appendChild(cv); container.appendChild(wrap);
+
+    if(chart.type==='sku_compare'){
+      cbDrawSparkCompare(ctx,W,H,chart);
+      const legend=document.createElement('div'); legend.className='cb-chart-legend';
+      legend.innerHTML=`<span><i style="background:#54E6C4"></i>${chart.a.sku}</span>`+
+                        `<span><i style="background:#C8F24E"></i>${chart.b.sku}</span>`;
+      wrap.appendChild(legend);
+    } else if(chart.type==='range_bar'){
+      cbDrawRangeBar(ctx,W,H,chart);
+    } else { return; }
+    cbBody().scrollTop=cbBody().scrollHeight;
+  }
+
+  function cbDrawSparkCompare(ctx,W,H,chart){
+    const a=chart.a.series||[], b=chart.b.series||[];
+    const all=a.concat(b).filter(v=>v!=null);
+    if(!all.length)return;
+    const max=Math.max(...all)*1.1||1, pad=6;
+    const N=Math.max(a.length,b.length,1);
+    const X=i=>pad+i*(W-pad*2)/(N-1||1), Y=v=>H-pad-(v/max)*(H-pad*2);
+    const line=(arr,color)=>{
+      ctx.strokeStyle=color; ctx.lineWidth=1.8; ctx.beginPath();
+      let started=false;
+      arr.forEach((v,i)=>{
+        if(v==null)return;
+        const x=X(i),y=Y(v);
+        if(!started){ctx.moveTo(x,y);started=true;} else ctx.lineTo(x,y);
+      });
+      ctx.stroke();
+    };
+    line(a,'#54E6C4'); line(b,'#C8F24E');
+  }
+
+  function cbDrawRangeBar(ctx,W,H,chart){
+    const vals=[{label:'Actual',v:chart.actual,color:'#54E6C4'},{label:'Forecast',v:chart.forecast,color:'#C8F24E'}]
+      .filter(x=>x.v!=null);
+    if(!vals.length)return;
+    const max=Math.max(...vals.map(x=>x.v))*1.2||1;
+    const padTop=16,padBottom=16,barW=54,gap=30;
+    const totalW=vals.length*barW+(vals.length-1)*gap;
+    const startX=(W-totalW)/2;
+    vals.forEach((x,i)=>{
+      const bx=startX+i*(barW+gap);
+      const bh=(H-padTop-padBottom)*(x.v/max);
+      const by=H-padBottom-bh;
+      ctx.fillStyle=x.color; ctx.fillRect(bx,by,barW,bh);
+      ctx.fillStyle='#5C6878'; ctx.font='10px JetBrains Mono'; ctx.textAlign='center';
+      ctx.fillText(x.label,bx+barW/2,H-4);
+      ctx.font='600 11px JetBrains Mono';
+      ctx.fillText(nfFull(x.v),bx+barW/2,by-6); // full digits — nf()'s K/M rounding
+                                                  // can make two distinct totals both read "5K"
+    });
+  }
+
   const CHAT_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/chat';
   let cbHistory = [];
 
@@ -734,8 +804,9 @@
     .then(function(d){
       typ.remove(); if(cbOrbEl) cbOrbEl.classList.remove('cb-thinking');
       const reply=d.reply||'Sorry, something went wrong — please try again.';
-      cbPush(cbMd(reply),'bot');
+      const msgEl=cbPush(cbMd(reply),'bot');
       cbHistory.push({role:'assistant',content:reply});
+      if(d.chart) cbRenderChart(msgEl,d.chart);
       if(d.point_to) cbPointTo(d.point_to);
       if(d.generate_report) generateReport();
       if(d.open_scenario_id && typeof viewScenario==='function') viewScenario(d.open_scenario_id);
