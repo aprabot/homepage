@@ -601,11 +601,13 @@
     for(var i=0;i<items.length;i++){ if(items[i].textContent.trim()===name) return items[i]; }
     return null;
   }
-  var cbPointTimer=null, cbPointEl=null, cbPointArrow=null;
+  var cbPointTimer=null, cbPointEl=null, cbPointArrow=null, cbPointBackdrop=null, cbBackdropTimer=null;
   function cbClearPoint(){
     if(cbPointTimer){ clearTimeout(cbPointTimer); cbPointTimer=null; }
+    if(cbBackdropTimer){ clearTimeout(cbBackdropTimer); cbBackdropTimer=null; }
     if(cbPointEl){ cbPointEl.classList.remove('cb-nav-point'); cbPointEl=null; }
     if(cbPointArrow){ cbPointArrow.remove(); cbPointArrow=null; }
+    if(cbPointBackdrop){ cbPointBackdrop.remove(); cbPointBackdrop=null; }
   }
   function cbPointTo(name){
     cbClearPoint();
@@ -619,6 +621,19 @@
     arrow.style.left=(r.right+12)+'px'; arrow.style.top=(r.top+r.height/2-21)+'px';
     document.body.appendChild(arrow);
     cbPointArrow=arrow;
+
+    // Blurs the rest of the dashboard for 3s so the arrow+glow actually
+    // register instead of blending into the page — shorter than the 6s
+    // highlight itself, which stays up a bit longer once attention's caught.
+    var backdrop=document.createElement('div');
+    backdrop.className='cb-point-backdrop';
+    document.body.appendChild(backdrop);
+    cbPointBackdrop=backdrop;
+    cbBackdropTimer=setTimeout(function(){
+      if(cbPointBackdrop){ cbPointBackdrop.remove(); cbPointBackdrop=null; }
+      cbBackdropTimer=null;
+    },3000);
+
     cbPointTimer=setTimeout(cbClearPoint,6000);
     li.addEventListener('click',cbClearPoint,{once:true});
     document.addEventListener('click',function dismissOnce(e){

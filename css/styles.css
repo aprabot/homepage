@@ -617,6 +617,16 @@
     text-shadow:0 0 14px rgba(255,59,59,.85),0 0 4px rgba(255,59,59,.95);
     animation:cbArrowNudge 1s ease-in-out infinite}
   @keyframes cbArrowNudge{0%,100%{transform:translateX(0)}50%{transform:translateX(-10px)}}
+  /* Blurs the rest of the dashboard for a few seconds when Lyra points at
+     something, so the arrow+glow read as "look here" instead of blending
+     into the page. z-index sits below .cb-panel/.cb-nav-point/.cb-arrow so
+     the chat panel and the highlighted item itself stay sharp, and
+     pointer-events:none keeps it purely visual — it never blocks clicks. */
+  .cb-point-backdrop{position:fixed;inset:0;z-index:170;pointer-events:none;
+    backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
+    background:rgba(6,9,14,.2);animation:cbBackdropFade 3s ease forwards}
+  [data-theme="light"] .cb-point-backdrop{background:rgba(245,244,238,.3)}
+  @keyframes cbBackdropFade{0%{opacity:0}8%{opacity:1}80%{opacity:1}100%{opacity:0}}
   .dside .signout{display:flex;align-items:center;gap:12px;padding:11px 14px;border-radius:9px;color:var(--muted);
     font-weight:500;font-size:14.5px;cursor:pointer;border:1px solid var(--line);transition:border-color .2s,color .2s}
   .dside .signout:hover{border-color:#ff6b6b;color:#ff8585}
