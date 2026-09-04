@@ -616,7 +616,7 @@
     var r=li.getBoundingClientRect();
     var arrow=document.createElement('div');
     arrow.className='cb-arrow'; arrow.textContent='←';
-    arrow.style.left=(r.right+10)+'px'; arrow.style.top=(r.top+r.height/2-11)+'px';
+    arrow.style.left=(r.right+12)+'px'; arrow.style.top=(r.top+r.height/2-21)+'px';
     document.body.appendChild(arrow);
     cbPointArrow=arrow;
     cbPointTimer=setTimeout(cbClearPoint,6000);
