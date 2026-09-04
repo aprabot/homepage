@@ -967,6 +967,14 @@
     display:flex;align-items:center;justify-content:center;transition:transform .2s}
   .cb-input button svg{width:19px;height:19px}
   .cb-input button:hover{transform:scale(1.06)}
+  /* Mic button — secondary/muted by default (unlike the signal-green send
+     button), red + pulsing while actively listening so it reads as "live"
+     the same way other Lyra recording/active states do elsewhere. */
+  #cbMicBtn{background:var(--ink-3);color:var(--muted);border:1px solid var(--line-2)}
+  #cbMicBtn:hover{background:var(--ink-3);color:var(--text)}
+  #cbMicBtn.listening{background:rgba(255,59,59,.14);border-color:#ff3b3b;color:#ff3b3b;
+    animation:cbMicPulse 1.2s ease-in-out infinite}
+  @keyframes cbMicPulse{0%,100%{box-shadow:0 0 0 0 rgba(255,59,59,.4)}50%{box-shadow:0 0 0 6px rgba(255,59,59,0)}}
   @media(max-width:560px){.cb-panel{height:calc(100vh - 40px);bottom:20px;right:16px;left:16px;max-width:none;width:auto}
     .cb-launch{bottom:20px;right:20px;padding:5px;width:58px}
     .cb-launch-label{display:none}}

@@ -946,6 +946,39 @@
     e.preventDefault(); const i=document.getElementById('cbText'); const v=i.value; i.value=''; cbAsk(v);});
   document.getElementById('cbChips').querySelectorAll('button').forEach(b=>b.onclick=()=>cbAsk(b.textContent));
 
+  // Voice INPUT — the complement to voice narration above: speak an
+  // instruction instead of typing it, via the browser's built-in
+  // SpeechRecognition. Fills the input box live as interim results come
+  // in, but deliberately does NOT auto-submit on a final result — some of
+  // what you can ask Lyra to do is real (approve a scenario, kick off a
+  // run), so a mis-transcription gets a chance to be reviewed/edited
+  // before it's ever sent, same caution as everywhere else here.
+  (function(){
+    const micBtn=document.getElementById('cbMicBtn');
+    const CB_SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+    if(!micBtn)return;
+    if(!CB_SR){ micBtn.style.display='none'; return; } // Firefox/Safari mainly — no crash, just no button
+
+    let recognizer=null, listening=false;
+    micBtn.onclick=()=>{
+      if(listening){ recognizer&&recognizer.stop(); return; } // toggle off — same click-again-to-stop pattern as cbSpeak
+      const input=document.getElementById('cbText');
+      recognizer=new CB_SR();
+      recognizer.lang='en-US';
+      recognizer.interimResults=true;
+      recognizer.continuous=false; // auto-stops after a pause — no manual stop needed for the common case
+      recognizer.onstart=()=>{ listening=true; micBtn.classList.add('listening'); };
+      recognizer.onresult=(e)=>{
+        let transcript='';
+        for(let i=0;i<e.results.length;i++) transcript+=e.results[i][0].transcript;
+        input.value=transcript;
+      };
+      recognizer.onerror=()=>{}; // e.g. mic permission denied, no speech heard — onend still fires and resets the button
+      recognizer.onend=()=>{ listening=false; micBtn.classList.remove('listening'); input.focus(); };
+      recognizer.start();
+    };
+  })();
+
   /* ===== GENERATE REPORT (print-ready PDF view + CSV export) ===== */
   // dropdown
   const rDrop=document.getElementById('reportDrop');
