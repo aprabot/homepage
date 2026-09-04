@@ -1517,14 +1517,15 @@ def _text_of(message):
             # Nova sometimes emits a <thinking>...</thinking> preamble inline
             # in the text block rather than as separate reasoning content,
             # occasionally wraps the actual reply in a stray <reply>...</reply>
-            # tag, and occasionally narrates a tool call as fake inline markup
-            # (e.g. <point_to_ui(target="X")>...</point_to_ui>) instead of a
-            # real toolUse block — none of these are meant for the end user to
-            # see literally, so strip them all. _TOOL_TAG_RE is built from
+            # or <response>...</response> tag, and occasionally narrates a
+            # tool call as fake inline markup (e.g.
+            # <point_to_ui(target="X")>...</point_to_ui>) instead of a real
+            # toolUse block — none of these are meant for the end user to see
+            # literally, so strip them all. _TOOL_TAG_RE is built from
             # TOOL_CONFIG itself so a newly added tool is covered automatically
             # instead of silently missing here (get_zip_forecast was, once).
             text = re.sub(r'<thinking>.*?</thinking>\s*', '', text, flags=re.DOTALL)
-            text = re.sub(r'</?reply>', '', text)
+            text = re.sub(r'</?(?:reply|response)>', '', text)
             text = _TOOL_TAG_RE.sub('', text)
             return text.strip()
     return ''
