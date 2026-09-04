@@ -20,6 +20,13 @@ MODEL          = os.environ.get('MODEL_ID',    'amazon.nova-lite-v1:0')
 SCENARIOS_API_FUNCTION = os.environ.get('SCENARIOS_API_FUNCTION', 'aprabot-scenarios-api')
 KNOWLEDGE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'forecasting_knowledge.md')
 KNOWLEDGE_KEY  = os.environ.get('KNOWLEDGE_KEY', 'knowledge/forecasting_knowledge.md')
+# RAG index for the knowledge base — see build_knowledge_index()/retrieve_
+# knowledge() below. A companion object next to KNOWLEDGE_KEY, not a
+# replacement for it: the raw .md stays the source of truth the editor
+# loads/saves, this is a derived, rebuilt-on-every-save cache.
+KNOWLEDGE_INDEX_KEY = os.environ.get('KNOWLEDGE_INDEX_KEY', 'knowledge/forecasting_knowledge.index.json')
+EMBED_MODEL_ID = os.environ.get('EMBED_MODEL_ID', 'amazon.titan-embed-text-v2:0')
+KNOWLEDGE_TOP_K = 4  # sections retrieved per chat message, out of ~15-20 total
 
 CORS = {
     'Access-Control-Allow-Origin':  '*',
@@ -224,6 +231,88 @@ def load_forecasting_knowledge():
         return ''  # missing file shouldn't break the chat — just no background knowledge
 
 
+def _embed_text(text):
+    """One Titan Embeddings V2 call -> list[float] (1024-dim). Truncated
+    defensively — the model has its own input-length limit and a KB
+    section is never anywhere near it, this is just a safety net."""
+    resp = bedrock.invoke_model(
+        modelId=EMBED_MODEL_ID,
+        body=json.dumps({'inputText': text[:8000]}),
+        contentType='application/json', accept='application/json',
+    )
+    return json.loads(resp['body'].read())['embedding']
+
+
+def _cosine(a, b):
+    dot = sum(x * y for x, y in zip(a, b))
+    na = math.sqrt(sum(x * x for x in a))
+    nb = math.sqrt(sum(y * y for y in b))
+    return dot / (na * nb) if na and nb else 0.0
+
+
+def _split_knowledge_sections(content):
+    """Split the KB markdown into (title, body) sections on H1/H2 headings
+    ('#'/'##') — H3+ subheadings stay nested inside their enclosing
+    section (this file's own numbered subsections like 8.1/8.2/8.3 are
+    already organized that way, so splitting deeper would break up
+    content the author clearly intended to read together). Each body
+    includes its own heading line, so a retrieved chunk reads naturally
+    on its own. Returns a list of {'title', 'body'} dicts, empty ones
+    dropped (e.g. any stray content before the first heading, if there is
+    none worth keeping)."""
+    heading_re = re.compile(r'^#{1,2}\s+(.+)$')
+    sections, cur_title, cur_lines = [], None, []
+    for line in content.split('\n'):
+        m = heading_re.match(line)
+        if m:
+            if cur_lines:
+                sections.append({'title': cur_title or '(intro)', 'body': '\n'.join(cur_lines).strip()})
+            cur_title, cur_lines = m.group(1).strip(), [line]
+        else:
+            cur_lines.append(line)
+    if cur_lines:
+        sections.append({'title': cur_title or '(intro)', 'body': '\n'.join(cur_lines).strip()})
+    return [s for s in sections if s['body'].strip()]
+
+
+def build_knowledge_index(content):
+    """Split the just-saved KB content into sections and embed each one —
+    called synchronously from put_knowledge() so the index stays as fresh
+    as the raw file, keeping the same 'live on the very next message'
+    guarantee the old full-file approach had. ~15-20 short sections at
+    ~150-250ms/embed call is a few seconds, acceptable for a Save click
+    (the UI already shows a 'Saving…' state for the round trip)."""
+    sections = _split_knowledge_sections(content)
+    for s in sections:
+        s['embedding'] = _embed_text(s['title'] + '\n' + s['body'])
+    return {'sections': sections, 'built_at': dt.datetime.now(dt.timezone.utc).isoformat()}
+
+
+def retrieve_knowledge(question):
+    """RAG retrieval for the knowledge base: embed the question, cosine-
+    rank the pre-embedded sections from the index build_knowledge_index()
+    produces, return only the top KNOWLEDGE_TOP_K sections' text instead
+    of dumping the entire KB file into every prompt regardless of
+    relevance (the old load_forecasting_knowledge()-in-every-request
+    behavior) — fixes both the cost of a growing KB and a large model
+    context diluting attention on whatever's buried lower in the file.
+    Falls back to the full file — the exact old behavior — if there's no
+    index yet (e.g. a knowledge base saved before this existed, or one
+    that's never been re-saved since) or if anything about retrieval
+    itself fails; a degraded-but-working answer beats a broken one."""
+    try:
+        obj = s3.get_object(Bucket=BUCKET, Key=KNOWLEDGE_INDEX_KEY)
+        sections = json.loads(obj['Body'].read().decode('utf-8')).get('sections') or []
+        if not sections:
+            raise ValueError('empty knowledge index')
+        qvec = _embed_text(question)
+        ranked = sorted(sections, key=lambda s: _cosine(qvec, s['embedding']), reverse=True)
+        return '\n\n'.join(s['body'] for s in ranked[:KNOWLEDGE_TOP_K])
+    except Exception as exc:
+        print(f"KB_RETRIEVAL_FALLBACK: {exc} — using full-file knowledge instead")
+        return load_forecasting_knowledge()
+
+
 def get_knowledge():
     """GET /knowledge — current content plus its S3 last-modified time, for
     the dashboard's Knowledge Base editor. Falls back the same way
@@ -262,6 +351,22 @@ def put_knowledge(event):
 
     s3.put_object(Bucket=BUCKET, Key=KNOWLEDGE_KEY, Body=content.encode('utf-8'),
                    ContentType='text/markdown')
+
+    # Rebuild the RAG index for retrieve_knowledge() so the edit's actual
+    # CONTENT is what's used on the next chat message, not just that the
+    # raw file changed. Best-effort: an embedding hiccup here (e.g. a
+    # transient Bedrock throttle) must not undo the content save that
+    # already succeeded above — retrieve_knowledge() already falls back to
+    # the full file if the index is stale or missing, so this degrades
+    # gracefully rather than breaking the save.
+    try:
+        index = build_knowledge_index(content)
+        s3.put_object(Bucket=BUCKET, Key=KNOWLEDGE_INDEX_KEY,
+                       Body=json.dumps(index).encode('utf-8'), ContentType='application/json')
+    except Exception as exc:
+        print(f"KB_INDEX_BUILD_FAILED: {exc} — content saved, but chat will use the full-file "
+              f"fallback until the next successful save")
+
     return {'statusCode': 200, 'headers': {**CORS, 'Content-Type': 'application/json'},
             'body': json.dumps({'saved': True,
                                  'updated_at': dt.datetime.now(dt.timezone.utc).isoformat()})}
@@ -1678,7 +1783,9 @@ def handler(event, context):
         if 'data' not in _cache:
             _cache['data'] = build_data_summary()
 
-        system = SYSTEM_TMPL.format(knowledge=load_forecasting_knowledge(), data=_cache['data'])
+        # RAG retrieval (top KNOWLEDGE_TOP_K relevant sections, not the whole
+        # KB file) — see retrieve_knowledge()'s own docstring.
+        system = SYSTEM_TMPL.format(knowledge=retrieve_knowledge(message), data=_cache['data'])
         if extra:
             system += f"\n\nADDITIONAL INSTRUCTIONS: {extra}"
 
