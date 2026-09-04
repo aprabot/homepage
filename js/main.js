@@ -1067,8 +1067,87 @@
   document.getElementById('cbClose').onclick=cbCloseFn;
   document.getElementById('cbTabAdd').onclick=cbNewTab;
   document.getElementById('cbForm').addEventListener('submit',e=>{
-    e.preventDefault(); const i=document.getElementById('cbText'); const v=i.value; i.value=''; cbAsk(v);});
+    e.preventDefault(); const i=document.getElementById('cbText'); const v=i.value; i.value=''; cbCloseSlashMenu(); cbAsk(v);});
   document.getElementById('cbChips').querySelectorAll('button').forEach(b=>b.onclick=()=>cbAsk(b.textContent));
+
+  // Slash-command palette — see the .cb-slash-menu CSS comment for the
+  // full rationale. Maps directly to Lyra's existing tool set (one entry
+  // per toolSpec in chat-api/handler.py's TOOL_CONFIG) so a power user
+  // doesn't have to compose a full sentence for things they do often.
+  // Purely a text-composition aid: picking one just fills the input with
+  // a template and selects its first [placeholder] for easy overtyping —
+  // sending is still the normal form submit, so it can't skip Lyra's own
+  // tool selection or approve_scenario's confirm gate.
+  const CB_SLASH_COMMANDS = [
+    {cmd:'run',      label:'Run a new scenario',        template:'Run a new scenario forecast'},
+    {cmd:'status',   label:'Check a scenario’s status', template:'Check the status of [scenario name]'},
+    {cmd:'open',     label:'Open a scenario',           template:'Open the [scenario name] scenario'},
+    {cmd:'approve',  label:'Approve a scenario',        template:'Approve the [scenario name] scenario'},
+    {cmd:'validate', label:'Check data quality',        template:'Any data quality issues with [scenario name]?'},
+    {cmd:'compare',  label:'Compare two SKUs',          template:'Compare [SKU-A] and [SKU-B]'},
+    {cmd:'compare-scenarios', label:'Compare two scenarios', template:'Compare [scenario A] and [scenario B]'},
+    {cmd:'explain',  label:'Explain a date',            template:'Why is the forecast high or low on [YYYY-MM-DD]?'},
+    {cmd:'range',    label:'Forecast over a date range', template:'What does the forecast look like from [YYYY-MM-DD] to [YYYY-MM-DD]?'},
+    {cmd:'zip',      label:'Look up a SKU in a ZIP',    template:'What is the forecast for [SKU] in zip [postal code]?'},
+    {cmd:'report',   label:'Generate the report',       template:'Generate the downloadable report'},
+    {cmd:'goto',     label:'Jump to a dashboard section', template:'Take me to [Scenarios / Forecasts / AI Insights / Overview / Settings / Knowledge Base / Getting Started]'},
+  ];
+  (function(){
+    const cbTextEl = document.getElementById('cbText');
+    const menuEl = document.getElementById('cbSlashMenu');
+    let matches = [];
+    let activeIdx = 0;
+
+    function closeMenu(){ menuEl.hidden = true; menuEl.innerHTML=''; matches=[]; }
+    window.cbCloseSlashMenu = closeMenu; // used by the submit handler above
+
+    function renderMenu(){
+      menuEl.innerHTML = '';
+      matches.forEach(function(c,i){
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'cb-slash-item' + (i===activeIdx ? ' active' : '');
+        const cmdEl = document.createElement('span'); cmdEl.className='cb-slash-cmd'; cmdEl.textContent='/'+c.cmd;
+        const lblEl = document.createElement('span'); lblEl.className='cb-slash-label'; lblEl.textContent=c.label;
+        item.appendChild(cmdEl); item.appendChild(lblEl);
+        // mousedown (not click) fires before the input's blur, so
+        // selecting an item never loses the text field's focus first.
+        item.addEventListener('mousedown', function(e){ e.preventDefault(); pick(c); });
+        menuEl.appendChild(item);
+      });
+      menuEl.hidden = matches.length===0;
+    }
+
+    function pick(c){
+      cbTextEl.value = c.template;
+      const m = /\[[^\]]*\]/.exec(c.template);
+      if(m) cbTextEl.setSelectionRange(m.index, m.index+m[0].length);
+      else  cbTextEl.setSelectionRange(c.template.length, c.template.length);
+      cbTextEl.focus();
+      closeMenu();
+    }
+
+    cbTextEl.addEventListener('input', function(){
+      const v = cbTextEl.value;
+      if(v[0]!=='/'){ closeMenu(); return; }
+      const filter = v.slice(1).toLowerCase();
+      matches = CB_SLASH_COMMANDS.filter(c=>c.cmd.startsWith(filter));
+      activeIdx = 0;
+      renderMenu();
+    });
+
+    cbTextEl.addEventListener('keydown', function(e){
+      if(menuEl.hidden || !matches.length)return;
+      if(e.key==='ArrowDown'){ e.preventDefault(); activeIdx=(activeIdx+1)%matches.length; renderMenu(); }
+      else if(e.key==='ArrowUp'){ e.preventDefault(); activeIdx=(activeIdx-1+matches.length)%matches.length; renderMenu(); }
+      else if(e.key==='Enter' || e.key==='Tab'){ e.preventDefault(); pick(matches[activeIdx]); }
+      else if(e.key==='Escape'){ closeMenu(); }
+    });
+
+    document.addEventListener('click', function(e){
+      if(!menuEl.hidden && e.target!==cbTextEl && !menuEl.contains(e.target)) closeMenu();
+    });
+  })();
 
   // Voice INPUT — the complement to voice narration above: speak an
   // instruction instead of typing it, via the browser's built-in

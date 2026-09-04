@@ -983,6 +983,38 @@
   .cb-chips button{flex:0 0 auto;background:var(--panel);border:1px solid var(--line);color:var(--muted);
     font-family:var(--body);font-size:12px;padding:7px 12px;border-radius:100px;cursor:pointer;transition:.2s;white-space:nowrap}
   .cb-chips button:hover{border-color:var(--signal);color:var(--signal)}
+  /* Slash-command palette — typing "/" as the first character of the
+     input pops a quick-action menu that inserts a ready-made prompt
+     template (with [placeholder] tokens the user fills in) for one of
+     Lyra's existing tools, instead of the user needing to type a full
+     sentence from scratch. It only ever composes the message box —
+     sending still goes through the normal form submit -> cbAsk() ->
+     chat-api flow, same as typing the question by hand, so it can't skip
+     the LLM's own tool selection or (for approve_scenario) its two-step
+     confirm gate. position:relative on .cb-input (not its own wrapper) is
+     enough to anchor this absolutely, even though it's a <form> child —
+     an absolutely positioned element leaves the form's flex flow. */
+  .cb-input{position:relative}
+  .cb-slash-menu{position:absolute;bottom:100%;left:14px;right:14px;margin-bottom:8px;
+    background:var(--ink-3);border:1px solid var(--line-2);border-radius:12px;
+    box-shadow:0 20px 50px -15px rgba(0,0,0,.6);overflow:hidden;max-height:240px;overflow-y:auto}
+  /* .cb-slash-menu-prefixed (not bare .cb-slash-item) so this beats the
+     existing ".cb-input button{width:42px;background:var(--signal)...}"
+     rule below, meant for the send/mic buttons — both are equal-looking
+     single-class selectors in isolation, but that one is actually
+     ".cb-input button" (class+type = higher specificity than a bare
+     class), and these buttons are DOM descendants of .cb-input too
+     (nested inside the form so the menu can anchor off it). Without the
+     prefix here every item collapses to a 42px green square (confirmed
+     2026-09-04 via screenshot — very much not a native slash menu). */
+  .cb-slash-menu .cb-slash-item{display:flex;align-items:baseline;gap:10px;width:100%;
+    padding:9px 12px;background:none;border:none;border-radius:0;color:inherit;
+    text-align:left;cursor:pointer;transition:background .12s}
+  .cb-slash-menu .cb-slash-item:hover,.cb-slash-menu .cb-slash-item.active{background:rgba(255,255,255,.06)}
+  .cb-slash-cmd{flex:0 0 auto;font-family:var(--mono);font-size:12.5px;color:var(--signal);font-weight:600}
+  .cb-slash-label{font-size:12.5px;color:var(--muted)}
+  [data-theme="light"] .cb-slash-menu{background:#fff;border-color:rgba(0,0,0,.1)}
+  [data-theme="light"] .cb-slash-item:hover,[data-theme="light"] .cb-slash-item.active{background:rgba(0,0,0,.05)}
   .cb-input{display:flex;gap:8px;padding:14px;border-top:1px solid var(--line)}
   .cb-input input{flex:1;background:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:11px 13px;
     color:var(--text);font-family:var(--body);font-size:14px;transition:border-color .2s,box-shadow .2s}
