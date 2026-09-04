@@ -1141,11 +1141,53 @@
       if(e.key==='ArrowDown'){ e.preventDefault(); activeIdx=(activeIdx+1)%matches.length; renderMenu(); }
       else if(e.key==='ArrowUp'){ e.preventDefault(); activeIdx=(activeIdx-1+matches.length)%matches.length; renderMenu(); }
       else if(e.key==='Enter' || e.key==='Tab'){ e.preventDefault(); pick(matches[activeIdx]); }
-      else if(e.key==='Escape'){ closeMenu(); }
+      // stopPropagation so this Escape closes only the menu, not also the
+      // whole panel via the document-level Esc-closes-panel shortcut below
+      // in the same keystroke — a second, separate Escape closes that.
+      else if(e.key==='Escape'){ e.stopPropagation(); closeMenu(); }
     });
 
     document.addEventListener('click', function(e){
       if(!menuEl.hidden && e.target!==cbTextEl && !menuEl.contains(e.target)) closeMenu();
+    });
+  })();
+
+  // Keyboard shortcuts — makes Lyra a command surface reachable without
+  // clicking the launcher first, not just a click target:
+  //   Cmd/Ctrl+K        opens Lyra and focuses the input, from anywhere
+  //                      on the dashboard (the same pattern as Slack/
+  //                      Linear/Notion/GitHub's own command palettes).
+  //   Cmd/Ctrl+Shift+]  next chat tab (wraps around).
+  //   Cmd/Ctrl+Shift+[  previous chat tab (wraps around).
+  //   Esc               closes the panel.
+  // Global (document-level), not scoped to the panel or input, since
+  // Cmd+K in particular needs to work no matter what's focused. Ctrl+K
+  // doubles for Cmd+K here so Windows/Linux users have an equivalent —
+  // same tradeoff those products above make, accepting that Ctrl+K
+  // shadows Mac's native "delete to end of line" text-field binding
+  // while this page has focus (not a text-field-specific exception here,
+  // for the same "anywhere on the dashboard" reason).
+  (function(){
+    function cycleTab(dir){
+      if(!cbTabs.length)return;
+      const idx = cbTabs.findIndex(t=>t.id===cbActiveTabId);
+      cbSwitchTab(cbTabs[((idx===-1?0:idx)+dir+cbTabs.length)%cbTabs.length].id);
+    }
+    document.addEventListener('keydown', function(e){
+      const mod = e.metaKey || e.ctrlKey;
+      if(mod && !e.shiftKey && e.key.toLowerCase()==='k'){
+        e.preventDefault(); // otherwise Chrome focuses its own address bar
+        cbOpen();
+        return;
+      }
+      const panelOpen = document.getElementById('cbPanel').classList.contains('open');
+      if(mod && e.shiftKey && (e.code==='BracketRight' || e.code==='BracketLeft')){
+        if(!panelOpen)return; // nothing to cycle if it isn't even showing
+        e.preventDefault();
+        cycleTab(e.code==='BracketRight' ? 1 : -1);
+        return;
+      }
+      if(e.key==='Escape' && panelOpen) cbCloseFn();
     });
   })();
 
