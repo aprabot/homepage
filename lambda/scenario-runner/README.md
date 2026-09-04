@@ -12,7 +12,8 @@ Lambda base image does not ship. Fix: extract it from scikit-learn's manylinux w
 ```bash
 pip3 install --platform manylinux_2_28_x86_64 --implementation cp --python-version 3.12 \
   --only-binary=:all: --target ./pkg --no-deps \
-  pandas==2.3.3 numpy lightgbm==4.6.0 jpholiday certifi python-dateutil pytz tzdata scipy
+  pandas==2.3.3 numpy lightgbm==4.6.0 jpholiday certifi python-dateutil pytz tzdata scipy \
+  openpyxl et_xmlfile
 
 # lightgbm/basic.py unconditionally does `import scipy.sparse`, which (confirmed by importing
 # scipy.sparse + scipy.sparse.linalg and diffing sys.modules) only ever pulls in scipy.linalg,
@@ -31,7 +32,7 @@ find ./pkg -type d -name "__pycache__" -exec rm -rf {} +
 # so deleting it breaks import at runtime, not just pytest (hit + fixed 2026-09-03).
 find ./pkg -type d \( -name "tests" -o -name "test" \) -exec rm -rf {} +
 find ./pkg -name "*.pyi" -delete
-du -sh ./pkg   # sanity check: should be well under 250MB (was 301MB before trimming, ~141MB after)
+du -sh ./pkg   # sanity check: should be well under 250MB (was 301MB before trimming, ~142MB after w/ openpyxl)
 
 pip3 download --platform manylinux2014_x86_64 --implementation cp --python-version 3.12 \
   --only-binary=:all: --no-deps -d /tmp/sklearn-dl scikit-learn
@@ -51,6 +52,12 @@ aws lambda update-function-code --function-name aprabot-scenario-runner \
 If a future forecast.py change starts using more of scipy (e.g. scipy.optimize), re-run the
 sys.modules diff above locally first to see what it actually pulls in, then adjust the `rm -rf`
 list — don't just add the whole submodule back blindly.
+
+`openpyxl` (+ its own dependency `et_xmlfile`) is required for `pandas.read_excel` on `.xlsx`
+uploads — one of the file types Getting Started accepts. Without it pandas raises "Missing
+optional dependency 'openpyxl'" only when a run actually hits an .xlsx file, not at import time,
+so this was easy to miss until a real onboarding upload failed (hit + fixed 2026-09-04). Both are
+pure-Python (`py3-none-any`) wheels, so there's no platform/arch concern packaging them.
 
 Env vars: `BUCKET_NAME`, `LD_LIBRARY_PATH=/var/task/lib`.
 
