@@ -572,10 +572,11 @@ Rules:
   not use it instead of a reply.
 • When the user asks to see, generate, download, export, or get a copy of the report (the print-
   ready one under Settings → Downloadable Report — chart, SKU tables, AI Insights, backtest
-  reference), call generate_report to open it directly instead of just telling them to go find it
-  themselves. It uses whatever sections/row-count they already have configured in Settings — it
-  can't customize that from chat, so if they ask for something only Settings controls (e.g. "only
-  show 10 SKUs"), tell them to set that in Settings → Downloadable Report first, then ask again.
+  reference), call generate_report to hand it to them directly — don't also call point_to_ui at
+  Settings for this, that tells them to go find it themselves right after you've just handed it to
+  them, which reads as contradictory. Point to Settings only if they ask to CHANGE what's in the
+  report (e.g. "only show 10 SKUs") — that's the one thing generate_report can't do, since it
+  reuses whatever sections/row-count are already configured there.
 • The GENERAL FORECASTING KNOWLEDGE section below is background domain knowledge (industry
   concepts, common causes of forecast issues, terminology like WAPE/bias/FVA/bullwhip effect) — use
   it to explain WHY something happens or to name a real phenomenon, never to state a number. The
