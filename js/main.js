@@ -586,11 +586,54 @@
     + '<path d="M9 31 Q13 28 16 27.5 Q19 28 23 31" fill="#7AA2FF" opacity="0.65"/>'
     + '</svg>';
 
+  /* ===== Voice narration (Web Speech API) — read a reply, the AI Insights
+     brief, or a scenario summary aloud. No backend, no new dependency;
+     nothing else in the product uses audio. One utterance at a time —
+     starting a new one cancels whatever's already playing, which also
+     resets that button's own state via its onend/onerror handler. ===== */
+  const CB_SPEAK_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+  let cbSpeakingBtn=null;
+  function cbStripHtml(html){
+    const tmp=document.createElement('div');
+    tmp.innerHTML=String(html).replace(/<br\s*\/?>/gi,' ');
+    return (tmp.textContent||tmp.innerText||'').replace(/\s+/g,' ').trim();
+  }
+  function cbSpeak(text,btn){
+    if(!('speechSynthesis' in window)||!text)return;
+    const synth=window.speechSynthesis;
+    const wasThisBtn=(cbSpeakingBtn===btn);
+    synth.cancel(); // stops whatever's playing; that utterance's own onend/onerror clears ITS button's state
+    if(wasThisBtn){ cbSpeakingBtn=null; return; } // clicking the active button again just stops it
+    const utter=new SpeechSynthesisUtterance(text);
+    utter.onend=utter.onerror=()=>{
+      if(btn)btn.classList.remove('speaking');
+      if(cbSpeakingBtn===btn)cbSpeakingBtn=null;
+    };
+    if(btn)btn.classList.add('speaking');
+    cbSpeakingBtn=btn;
+    synth.speak(utter);
+  }
+  // Reusable "🔊 read this" button — call with the plain text to speak and
+  // (optionally) an extra CSS class for context-specific sizing/placement.
+  function cbSpeakBtn(text,extraClass){
+    if(!('speechSynthesis' in window))return null;
+    const btn=document.createElement('button');
+    btn.type='button'; btn.className='cb-speak-btn'+(extraClass?' '+extraClass:'');
+    btn.setAttribute('aria-label','Read this aloud');
+    btn.innerHTML=CB_SPEAK_ICON;
+    btn.onclick=()=>cbSpeak(text,btn);
+    return btn;
+  }
+
   const cbBody=()=>document.getElementById('cbBody');
   function cbPush(text,who){
     const d=document.createElement('div'); d.className='cb-msg '+who; d.innerHTML=text;
     cbBody().appendChild(d); cbBody().scrollTop=cbBody().scrollHeight;
     d.querySelectorAll('.lk').forEach(l=>l.onclick=()=>cbChart(l.dataset.sku));
+    if(who==='bot'){
+      const btn=cbSpeakBtn(cbStripHtml(text));
+      if(btn)d.appendChild(btn);
+    }
     return d;
   }
 

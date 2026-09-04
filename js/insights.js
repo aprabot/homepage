@@ -51,9 +51,35 @@
     return el;
   }
 
+  // Plain-text narration for the "read brief aloud" button — same content
+  // as the visible cards, in reading order, joined into flowing sentences
+  // rather than the bullet-list shape the page itself uses.
+  function narrateInsights(data) {
+    var parts = [];
+    if (data.headline) parts.push(data.headline + '.');
+    if (data.summary) parts.push(data.summary);
+    var findings = data.key_findings || [];
+    if (findings.length) {
+      parts.push('Key findings:');
+      findings.forEach(function (f) { parts.push(f.title + ': ' + f.detail + '.'); });
+    }
+    var watch = data.watch_areas || data.risks || [];
+    if (watch.length) parts.push('Watch areas: ' + watch.join('. ') + '.');
+    var opps = data.opportunities || [];
+    if (opps.length) parts.push('Opportunities: ' + opps.join('. ') + '.');
+    return parts.join(' ');
+  }
+
   function render(data) {
     document.getElementById('insightsHeadline').textContent = data.headline || '';
     document.getElementById('insightsSummary').textContent = data.summary || '';
+
+    var speakSlot = document.getElementById('insightsSpeakSlot');
+    if (speakSlot && typeof window.cbSpeakBtn === 'function') {
+      speakSlot.innerHTML = '';
+      var speakBtn = window.cbSpeakBtn(narrateInsights(data));
+      if (speakBtn) speakSlot.appendChild(speakBtn);
+    }
 
     var findings = document.getElementById('insightsFindings');
     findings.innerHTML = '';

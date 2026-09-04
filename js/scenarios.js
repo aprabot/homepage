@@ -852,7 +852,8 @@
       '<div style="min-width:0"><h3 style="margin-bottom:8px">' + escapeHtml(meta.label || 'Untitled') + '</h3>' +
       '<div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">' + statusPill(meta) + validationsPill + '</div>' +
       '</div>' +
-      '<div style="display:flex;align-items:center;gap:8px;flex:none">' + inputBtn + approveBtn + SD_CLOSE_BTN + '</div>' +
+      '<div style="display:flex;align-items:center;gap:8px;flex:none">' + inputBtn +
+      (result ? '<span id="sdSpeakSlot"></span>' : '') + approveBtn + SD_CLOSE_BTN + '</div>' +
       '</div>';
 
     headHtml += '<div class="dsubtle" style="margin:14px 0 0">' +
@@ -869,6 +870,14 @@
         '<span>This scenario is approved and currently powers the live Overview &amp; Forecasts data.</span></div>';
     }
     head.innerHTML = headHtml;
+
+    if (result) {
+      var speakSlot = document.getElementById('sdSpeakSlot');
+      if (speakSlot && typeof window.cbSpeakBtn === 'function') {
+        var speakBtn = window.cbSpeakBtn(narrateScenario(meta, result, checks));
+        if (speakBtn) speakSlot.appendChild(speakBtn);
+      }
+    }
 
     if (meta.status === 'running') {
       body.innerHTML = '<p class="dsubtle">Still training — this view will show results once it completes. Close and reopen in a minute.</p>';
@@ -1062,6 +1071,28 @@
           '<div class="val-detail">' + escapeHtml(c.detail) + '</div></div></li>';
       }).join('') +
       '</ul></div>';
+  }
+
+  // Plain-text narration for the scenario detail modal's "read summary
+  // aloud" button — checks is runDataValidations' output, already
+  // computed once for the validations pill, reused here rather than
+  // re-run.
+  function narrateScenario(meta, result, checks) {
+    var parts = [(meta.label || 'Untitled scenario') + '.'];
+    parts.push('Overall WAPE ' + result.overallWape.toFixed(2) + ' percent.');
+    if (meta.volume_error != null) {
+      parts.push('Volume error ' + (meta.volume_error > 0 ? '+' : '') + meta.volume_error.toFixed(2) + ' percent.');
+    }
+    parts.push(Object.keys(result.skus).length + ' SKUs over ' + result.weeks.length + ' weeks.');
+    if (checks) {
+      var vc = { fail: 0, warn: 0, pass: 0 };
+      checks.forEach(function (c) { vc[c.status]++; });
+      parts.push(vc.fail ? vc.fail + ' validation issue' + (vc.fail > 1 ? 's' : '') + '.'
+        : vc.warn ? vc.warn + ' validation warning' + (vc.warn > 1 ? 's' : '') + '.'
+        : 'All validations passed.');
+    }
+    if (meta.approved) parts.push('This scenario is currently live.');
+    return parts.join(' ');
   }
 
   function drawScenarioChart(weeks, a, f, backtestWeeks) {
