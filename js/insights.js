@@ -56,6 +56,7 @@
   // rather than the bullet-list shape the page itself uses.
   function narrateInsights(data) {
     var parts = [];
+    if (data.tagline) parts.push(data.tagline + '.');
     if (data.headline) parts.push(data.headline + '.');
     if (data.summary) parts.push(data.summary);
     var findings = data.key_findings || [];
@@ -71,8 +72,35 @@
   }
 
   function render(data) {
+    // tagline is a newer field — older cached insights.json (generated
+    // before this was added, or a manual re-run hasn't happened yet) won't
+    // have it, so hide the line entirely rather than show it empty.
+    var taglineEl = document.getElementById('insightsTagline');
+    if (taglineEl) {
+      if (data.tagline) { taglineEl.textContent = data.tagline; taglineEl.style.display = ''; }
+      else { taglineEl.textContent = ''; taglineEl.style.display = 'none'; }
+    }
+
     document.getElementById('insightsHeadline').textContent = data.headline || '';
     document.getElementById('insightsSummary').textContent = data.summary || '';
+
+    // "Ask Lyra for more" — opens the real chat, pre-filled with a question
+    // that references this actual brief (not a generic prompt), so Lyra's
+    // reply picks up right where the static brief leaves off. Doesn't
+    // auto-send — same review-before-send caution as voice input and the
+    // rest of this product's chat-adjacent features.
+    var askBtn = document.getElementById('insightsAskLyraBtn');
+    if (askBtn) {
+      askBtn.onclick = function () {
+        if (typeof window.cbOpen === 'function') window.cbOpen();
+        var input = document.getElementById('cbText');
+        if (input && !input.value) {
+          var about = data.tagline || data.headline || 'today’s AI Insights brief';
+          input.value = 'Can you go deeper on this: "' + about + '"?';
+          input.focus();
+        }
+      };
+    }
 
     var speakSlot = document.getElementById('insightsSpeakSlot');
     if (speakSlot && typeof window.cbSpeakBtn === 'function') {

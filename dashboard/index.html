@@ -337,6 +337,7 @@
       <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
         <div>
           <h1 class="dgreet">AI Insights</h1>
+          <p id="insightsTagline" style="display:none;font-family:var(--display);font-weight:600;font-size:1.05rem;color:var(--signal);margin:4px 0 6px"></p>
           <p class="dsubtle" id="insightsSubtitle" style="margin-bottom:0">Lyra's read on the current forecast — generated from the live, approved data.</p>
         </div>
         <div id="insightsSpeakSlot"></div>
@@ -396,6 +397,14 @@
             <div class="ch"><h4>Opportunities</h4></div>
             <ul class="movers" id="insightsOpportunities"></ul>
           </div>
+        </div>
+
+        <div class="dcard" style="margin-top:20px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
+          <div>
+            <div style="font-weight:600;margin-bottom:2px">Want to dig deeper?</div>
+            <p class="dsubtle" style="margin:0;font-size:12.5px">Ask Lyra to break down a finding, compare SKUs, or check a specific date.</p>
+          </div>
+          <button type="button" class="dbtn" id="insightsAskLyraBtn">Ask Lyra →</button>
         </div>
       </div>
     </div>

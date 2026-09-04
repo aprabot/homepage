@@ -108,6 +108,10 @@ DATA:
 Return ONLY valid JSON (no markdown fences, no prose outside the JSON) matching this
 exact schema:
 {{
+  "tagline": "<4-8 words, no ending period, punchier and shorter than the headline below — a
+    single memorable phrase capturing this forecast cycle's overall story, e.g. 'Steady demand,
+    sharp accuracy' or 'Growth in top sellers, watch the tail'. Shown as a standalone banner line,
+    not a full sentence.>",
   "headline": "<one confident sentence that leads with overall forecast performance/strength>",
   "summary": "<2-3 sentence paragraph, plain language, referencing the real WAPE/volume numbers above, framed around what the forecast tells the planner about the business>",
   "key_findings": [
