@@ -236,12 +236,46 @@
     try { localStorage.setItem(APPROVED_ID_KEY, approvedId || ''); } catch (e) {}
   }
 
+  // Best-effort decode of the current user's email out of the Cognito ID
+  // token — same base64url-JWT decode already used inline in
+  // dashboard/index.html, just scoped here so checkRunCompletion can tell
+  // "my own run" from anyone else's without a network round-trip.
+  function currentUserEmail() {
+    try {
+      var t = localStorage.getItem('apra_id');
+      if (!t) return null;
+      var payload = JSON.parse(decodeURIComponent(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))
+        .split('').map(function (c) { return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2); }).join('')));
+      return payload.email || null;
+    } catch (e) { return null; }
+  }
+
+  // Celebrates a scenario of the user's OWN flipping running → completed
+  // between one render and the next — catches both a run Lyra started via
+  // chat and one started through the "Run new forecast" modal, since both
+  // go through the same /scenarios POST and there's no separate marker for
+  // which one kicked it off. Compares against the PREVIOUS render's
+  // snapshot, so this only fires for a transition actually watched happen
+  // in this tab (a scenario that was already completed on first load never
+  // triggers it — prev starts as [], so nothing was "running" yet).
+  function checkRunCompletion(prev, next) {
+    var email = currentUserEmail();
+    if (!email) return;
+    var wasRunning = {};
+    prev.forEach(function (s) { if (s.status === 'running' && s.requested_by === email) wasRunning[s.id] = true; });
+    if (!Object.keys(wasRunning).length) return;
+    var justCompleted = next.some(function (s) { return wasRunning[s.id] && s.status === 'completed'; });
+    if (justCompleted && typeof window.cbCelebrate === 'function') window.cbCelebrate();
+  }
+
   var _origRender = render;
   render = function (scenarios) {
+    var prevScenarios = lastScenarios; // capture before _origRender overwrites it
     _origRender(scenarios);
     ensurePolling();
     renderNotifications(scenarios);
     checkApprovalChange(scenarios);
+    checkRunCompletion(prevScenarios, scenarios);
   };
 
   /* ── Run new forecast modal ── */

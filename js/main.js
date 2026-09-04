@@ -642,6 +642,48 @@
     },{once:true});
   }
 
+  // A brief, tasteful confetti burst for real milestones — a scenario Lyra
+  // just approved, or one of the user's own runs flipping to completed
+  // while they're still around (see checkRunCompletion in scenarios.js).
+  // Bursts from the chat launcher's corner so it visually ties back to
+  // Lyra rather than reading as a generic page-wide effect. Pure canvas,
+  // no dependencies, self-removing — never blocks input (pointer-events:none)
+  // and never outlives its own ~1.2s animation.
+  window.cbCelebrate=function(){
+    var cv=document.createElement('canvas');
+    cv.style.cssText='position:fixed;inset:0;z-index:9996;pointer-events:none';
+    cv.width=innerWidth; cv.height=innerHeight;
+    document.body.appendChild(cv);
+    var ctx=cv.getContext('2d');
+    var colors=['#C8F24E','#54E6C4','#7AA2FF','#ff8585','#ffcf5c'];
+    var particles=[];
+    for(var i=0;i<90;i++){
+      particles.push({
+        x:innerWidth-70+(Math.random()-0.5)*60,
+        y:innerHeight-70+(Math.random()-0.5)*30,
+        vx:(Math.random()-0.5)*6-2,
+        vy:Math.random()*-9-4,
+        g:0.18+Math.random()*0.08,
+        size:4+Math.random()*4,
+        color:colors[i%colors.length],
+        rot:Math.random()*Math.PI*2,
+        vr:(Math.random()-0.5)*0.3,
+      });
+    }
+    var DUR=1200, start=performance.now();
+    (function frame(now){
+      var t=now-start, alpha=Math.max(0,1-t/DUR);
+      ctx.clearRect(0,0,cv.width,cv.height);
+      particles.forEach(function(p){
+        p.vy+=p.g; p.x+=p.vx; p.y+=p.vy; p.rot+=p.vr;
+        ctx.save(); ctx.globalAlpha=alpha; ctx.translate(p.x,p.y); ctx.rotate(p.rot);
+        ctx.fillStyle=p.color; ctx.fillRect(-p.size/2,-p.size/2,p.size,p.size*0.6);
+        ctx.restore();
+      });
+      if(t<DUR) requestAnimationFrame(frame); else cv.remove();
+    })(start);
+  };
+
   function cbMd(text){
     return text
       .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
@@ -697,6 +739,7 @@
       if(d.point_to) cbPointTo(d.point_to);
       if(d.generate_report) generateReport();
       if(d.open_scenario_id && typeof viewScenario==='function') viewScenario(d.open_scenario_id);
+      if(d.celebrate) cbCelebrate();
     })
     .catch(function(){
       typ.remove(); if(cbOrbEl) cbOrbEl.classList.remove('cb-thinking');

@@ -1627,6 +1627,7 @@ def handler(event, context):
         point_to = None
         trigger_report = False
         open_scenario_id = None
+        celebrate = False
         reply = ''
         seen_tool_calls = set()  # (name, sorted-inputs) already executed this request
         # Fresh per request — carries cross-tool-call state within this one
@@ -1678,6 +1679,8 @@ def handler(event, context):
                     result = execute_tool(tu['name'], inputs, claims, request_state)
                     if tu['name'] == 'open_scenario' and result.get('opened'):
                         open_scenario_id = result['scenario_id']
+                    if tu['name'] == 'approve_scenario' and result.get('approved'):
+                        celebrate = True
                     tool_result_blocks.append({'toolResult': {
                         'toolUseId': tu['toolUseId'],
                         'content': [{'json': result}],
@@ -1715,7 +1718,7 @@ def handler(event, context):
             'statusCode': 200,
             'headers':    {**CORS, 'Content-Type': 'application/json'},
             'body':       json.dumps({'reply': reply, 'point_to': point_to, 'generate_report': trigger_report,
-                                       'open_scenario_id': open_scenario_id}),
+                                       'open_scenario_id': open_scenario_id, 'celebrate': celebrate}),
         }
 
     except Exception as exc:
