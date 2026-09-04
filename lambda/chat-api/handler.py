@@ -533,10 +533,13 @@ Rules:
   the defaults and say so in your reply.
 • Approving a scenario (approve_scenario) makes it the live forecast for every user — treat it like
   any other real, hard-to-reverse action. Call it once to see what it would approve (this never
-  actually approves anything), tell the user what you found, and only call it again with
-  confirm=true after they've explicitly said yes in this conversation. Never set confirm=true
-  pre-emptively, and never treat "run a scenario and approve it" as pre-authorization to skip
-  confirming the approve step specifically — running and approving are two separate real actions.
+  actually approves anything), tell the user what you found, ask them to confirm, and END YOUR TURN
+  there — do not call the tool again in this same reply. Only call it again with confirm=true in a
+  LATER message, once the user's own next message actually confirms. Calling it again with
+  confirm=true immediately, in the same turn as the preview, is refused outright (there's no real
+  confirmation to act on yet) and just wastes a call — so don't. Never treat "run a scenario and
+  approve it" as pre-authorization to skip confirming the approve step specifically — running and
+  approving are two separate real actions, each needing its own confirmation where required.
 • For "any data quality issues with this scenario" / "does this run look OK", use
   check_scenario_validations rather than eyeballing the raw numbers yourself — it runs the same
   fixed checklist the dashboard's own "Run validations" button does, so the pass/warn/fail verdicts
@@ -615,16 +618,18 @@ TOOL_CONFIG = {
                 "name": "approve_scenario",
                 "description": (
                     "Approve a completed scenario, making it the live forecast that powers Overview "
-                    "& Forecasts for every user. THIS IS A REAL, VISIBLE CHANGE. Always call this "
-                    "tool once first WITHOUT confirm (or confirm=false) to preview what it would "
-                    "approve — it will NOT approve anything on that first call, just return what it "
-                    "found (WAPE, volume error) plus a needs_confirmation flag. Tell the user what "
-                    "you found and ask them to explicitly confirm, THEN call again with confirm=true "
-                    "and the same scenario_id, only after they say yes. Never set confirm=true on "
-                    "the first call, or without the user having actually confirmed in this "
-                    "conversation. Look the scenario up by scenario_id, by label (partial match, "
-                    "e.g. 'the 40% discount scenario'), or omit both for 'approve the latest run' "
-                    "(the user's most recently requested scenario)."
+                    "& Forecasts for every user. THIS IS A REAL, VISIBLE CHANGE. Call this tool "
+                    "WITHOUT confirm (or confirm=false) to preview what it would approve — it will "
+                    "NOT approve anything on that call, just return what it found (WAPE, volume "
+                    "error) plus a needs_confirmation flag. Tell the user what you found and ask "
+                    "them to confirm, THEN STOP — end your turn there and wait. Only call this tool "
+                    "again with confirm=true in a LATER message, after the user's own next message "
+                    "explicitly confirms. Calling it again with confirm=true in THIS SAME turn, "
+                    "right after the preview and without a real reply from the user in between, is "
+                    "refused by the backend and wastes a turn — there is no way to skip the wait, "
+                    "so don't attempt it. Look the scenario up by scenario_id, by label (partial "
+                    "match, e.g. 'the 40% discount scenario'), or omit both for 'approve the latest "
+                    "run' (the user's most recently requested scenario)."
                 ),
                 "inputSchema": {"json": {
                     "type": "object",
@@ -980,7 +985,7 @@ def _run_data_validations(meta, result):
     return checks
 
 
-def execute_tool(name, inputs, claims):
+def execute_tool(name, inputs, claims, request_state):
     if name == 'run_scenario':
         body = {
             'label':        inputs.get('label') or 'Started by Lyra',
@@ -1036,11 +1041,22 @@ def execute_tool(name, inputs, claims):
                     'message': f'"{match.get("label") or match["id"]}" is already the approved/live '
                                f'scenario — nothing to do.'}
 
-        # Two-call confirm gate: this changes what's live for every user, so
-        # the FIRST call (confirm omitted/false) only ever previews what
-        # would happen — it never approves. Only a second call with
-        # confirm=true, made after the user has explicitly said yes, does.
+        # Two-call confirm gate: this changes what's live for every user. The
+        # FIRST call (confirm omitted/false) only ever previews — it never
+        # approves — and records this scenario as "previewed this request"
+        # below. Only a confirm=true call from a request where NO preview
+        # happened in THIS invocation is honored — this is the part that
+        # actually matters: Nova's own bounded tool-use loop can (and, once
+        # in testing, did) chain a preview and an immediate confirm=true
+        # call within the SAME request, with no real human reply in
+        # between, silently defeating a gate that only lived in the prompt.
+        # request_state is fresh per HTTP request/handler() invocation, so
+        # this rejects that same-request chain outright — confirm=true can
+        # only succeed on a genuinely later request, which only happens
+        # once the user has actually typed something new.
+        previewed = request_state.setdefault('approve_previewed_ids', set())
         if not inputs.get('confirm'):
+            previewed.add(match['id'])
             return {
                 'needs_confirmation': True,
                 'scenario_id': match['id'],
@@ -1053,9 +1069,15 @@ def execute_tool(name, inputs, claims):
                     f'it replaces the live forecast that currently powers Overview & Forecasts for '
                     f'every user. Tell the user what you found and ask them to explicitly confirm '
                     f'— only call this again with confirm=true and this same scenario_id after '
-                    f'they say yes. Do not approve without an explicit confirmation.'
+                    f'they say yes IN THEIR NEXT MESSAGE. Do not approve without that.'
                 ),
             }
+
+        if match['id'] in previewed:
+            return {'error': 'Refused: confirm=true arrived in the same request as the preview — '
+                              'no real user reply happened in between. A genuine confirmation from '
+                              'the user is required first: ask them, then wait for their next '
+                              'message before calling this tool again with confirm=true.'}
 
         astatus, aresult = _invoke_scenarios_api('POST', f"/scenarios/{match['id']}/approve", claims)
         if astatus != 200:
@@ -1502,6 +1524,12 @@ def handler(event, context):
         point_to = None
         reply = ''
         seen_tool_calls = set()  # (name, sorted-inputs) already executed this request
+        # Fresh per request — carries cross-tool-call state within this one
+        # invocation (currently: which scenario ids approve_scenario has
+        # already previewed here, so a confirm=true can't succeed without a
+        # genuine new request in between). Never persisted or shared across
+        # requests/users — that's the whole point of it.
+        request_state = {}
         # Bounded loop rather than a single follow-up call: Nova sometimes
         # chains a second tool call (e.g. point_to_ui then run_scenario)
         # before it's ready to produce the final text, so one fixed
@@ -1540,7 +1568,7 @@ def handler(event, context):
                     if call_sig in seen_tool_calls:
                         repeated_call = True
                     seen_tool_calls.add(call_sig)
-                    result = execute_tool(tu['name'], inputs, claims)
+                    result = execute_tool(tu['name'], inputs, claims, request_state)
                     tool_result_blocks.append({'toolResult': {
                         'toolUseId': tu['toolUseId'],
                         'content': [{'json': result}],
