@@ -1,6 +1,7 @@
 import csv
 import io
 import json
+import math
 import re
 import datetime as dt
 import boto3
@@ -277,30 +278,38 @@ def _get_forecast_data():
     return _cache['forecast_data']
 
 
-def build_data_summary():
+def _sku_row(sku_id, sku_data, bt, trail_win):
+    """One SKU's summary stats (backtest volume/WAPE/accuracy, forward
+    forecast total, trend vs. an equally-sized trailing-actual window) —
+    factored out of build_data_summary() so compare_skus can look up the
+    exact same numbers for just two SKUs without recomputing the whole
+    catalog inline."""
+    a, f = sku_data['a'], sku_data['f']
+    vol = sum(x for x in a if x is not None)
+    num = sum(abs(x - y) for x, y in zip(a, f) if x is not None)
+    wape = round(100 * num / vol, 2) if vol else 0
+    fwd = sum(x for x in f[bt:] if x is not None)
+    trail_actual = sum(x for x in a[max(0, bt - trail_win):bt] if x is not None) if trail_win else 0
+    trend = round(100 * (fwd - trail_actual) / trail_actual, 1) if trail_win and trail_actual else None
+    return {'sku': sku_id, 'vol': vol, 'wape': wape, 'acc': round(100 - wape, 1), 'fwd': fwd, 'trend': trend}
+
+
+def _all_sku_rows():
+    """Every SKU's _sku_row(), sorted by backtest volume and tiered
+    High/Medium/Lower — cached per warm invocation since both
+    build_data_summary() (every request) and compare_skus (on demand) need
+    the exact same ranked/tiered list, and tiering requires the whole
+    catalog's ranks, not just the SKUs in question."""
+    if 'sku_rows' in _cache:
+        return _cache['sku_rows']
+
     data = _get_forecast_data()
-
-    # backtestWeeks marks where real actuals end and the forward-only
-    # forecast begins; older cached results may not have the field.
     bt = data.get('backtestWeeks', len(data['weeks']))
-
     total_weeks = len(data['weeks'])
-    fwd_weeks   = total_weeks - bt
-    trail_win   = min(fwd_weeks, bt) if fwd_weeks else 0
+    fwd_weeks = total_weeks - bt
+    trail_win = min(fwd_weeks, bt) if fwd_weeks else 0
 
-    rows = []
-    for sku, d in data['skus'].items():
-        a, f = d['a'], d['f']
-        vol = sum(x for x in a if x is not None)
-        num = sum(abs(x - y) for x, y in zip(a, f) if x is not None)
-        wape = round(100 * num / vol, 2) if vol else 0
-        fwd = sum(x for x in f[bt:] if x is not None)
-        # Trend: total forward forecast vs. an equally-sized trailing actual
-        # window — same comparison the dashboard itself shows, so Lyra's
-        # reasoning about a SKU's trajectory matches what the user sees.
-        trail_actual = sum(x for x in a[max(0, bt - trail_win):bt] if x is not None) if trail_win else 0
-        trend = round(100 * (fwd - trail_actual) / trail_actual, 1) if trail_win and trail_actual else None
-        rows.append({'sku': sku, 'vol': vol, 'wape': wape, 'acc': round(100 - wape, 1), 'fwd': fwd, 'trend': trend})
+    rows = [_sku_row(sku, d, bt, trail_win) for sku, d in data['skus'].items()]
     rows.sort(key=lambda x: -x['vol'])
 
     # Forward-looking confidence tier by backtest-volume rank — same tiering
@@ -312,6 +321,37 @@ def build_data_summary():
     for i, r in enumerate(rows):
         pct = i / n
         r['tier'] = 'High' if pct < 0.15 else 'Medium' if pct < 0.5 else 'Lower'
+    _cache['sku_rows'] = rows
+    return rows
+
+
+def _config_summary(meta):
+    """Plain-English scenario config, e.g. 'known prices, weather signal,
+    calibrated, 28-day refresh' — same fields/phrasing as the dashboard's
+    own configDescription() in js/scenarios.js, so a chat comparison reads
+    the same way the Compare modal would."""
+    parts = [
+        'known prices' if meta.get('known_prices') else 'no known prices',
+        'weather signal' if meta.get('weather') else 'no weather signal',
+        'calibrated' if meta.get('calibrate') else 'not calibrated',
+        f"{meta.get('refresh_days')}-day refresh",
+    ]
+    if meta.get('custom_input'):
+        parts.append('custom input file')
+    return ', '.join(parts)
+
+
+def build_data_summary():
+    data = _get_forecast_data()
+
+    # backtestWeeks marks where real actuals end and the forward-only
+    # forecast begins; older cached results may not have the field.
+    bt = data.get('backtestWeeks', len(data['weeks']))
+
+    total_weeks = len(data['weeks'])
+    fwd_weeks   = total_weeks - bt
+
+    rows = _all_sku_rows()  # already volume-sorted and tiered High/Medium/Lower
 
     tot_a          = sum(x for x in data['all']['a'] if x is not None)
     tot_f_backtest = sum(x for x in data['all']['f'][:bt] if x is not None)
@@ -491,6 +531,30 @@ Rules:
   defaults (known_prices=true, weather=true, calibrate=true,
   refresh_days=28) — don't ask clarifying questions for settings they didn't mention, just use
   the defaults and say so in your reply.
+• Approving a scenario (approve_scenario) makes it the live forecast for every user — treat it like
+  any other real, hard-to-reverse action. Call it once to see what it would approve (this never
+  actually approves anything), tell the user what you found, and only call it again with
+  confirm=true after they've explicitly said yes in this conversation. Never set confirm=true
+  pre-emptively, and never treat "run a scenario and approve it" as pre-authorization to skip
+  confirming the approve step specifically — running and approving are two separate real actions.
+• For "any data quality issues with this scenario" / "does this run look OK", use
+  check_scenario_validations rather than eyeballing the raw numbers yourself — it runs the same
+  fixed checklist the dashboard's own "Run validations" button does, so the pass/warn/fail verdicts
+  match exactly. Lead with any failed checks, then warnings; don't restate passed checks in detail,
+  a brief "everything else checked out" covers them.
+• For "compare scenario X and Y" (two specific runs), use compare_scenarios — never eyeball two
+  check_scenario_status calls yourself, its numbers (including the forward-horizon delta, which
+  backtest-period WAPE/volume-error alone can't show) are the ones the dashboard's own Compare view
+  shows. Both scenarios must be identified by name or id; if the user only names one, ask which
+  second scenario they mean rather than guessing.
+• For "compare SKU-X and SKU-Y" (two SKUs within the CURRENT live forecast, not two scenarios), use
+  compare_skus instead — different tool, different question.
+• For a total over a DATE RANGE rather than one specific date (e.g. "how does next month look for
+  SKU-003", "total forecast for Q2"), use get_forecast_range — never sum multiple
+  explain_forecast_day/get_zip_forecast calls yourself or estimate. It rounds to whichever weeks
+  the range overlaps and tells you exactly which ones — say so if the range doesn't line up exactly
+  with week boundaries, rather than implying the total is precisely bounded by the user's exact
+  dates.
 • Whenever your answer tells the user where to go or what to click in the dashboard, also call the
   point_to_ui tool with the relevant nav item, in addition to writing your normal text reply — do
   not use it instead of a reply.
@@ -548,6 +612,74 @@ TOOL_CONFIG = {
         },
         {
             "toolSpec": {
+                "name": "approve_scenario",
+                "description": (
+                    "Approve a completed scenario, making it the live forecast that powers Overview "
+                    "& Forecasts for every user. THIS IS A REAL, VISIBLE CHANGE. Always call this "
+                    "tool once first WITHOUT confirm (or confirm=false) to preview what it would "
+                    "approve — it will NOT approve anything on that first call, just return what it "
+                    "found (WAPE, volume error) plus a needs_confirmation flag. Tell the user what "
+                    "you found and ask them to explicitly confirm, THEN call again with confirm=true "
+                    "and the same scenario_id, only after they say yes. Never set confirm=true on "
+                    "the first call, or without the user having actually confirmed in this "
+                    "conversation. Look the scenario up by scenario_id, by label (partial match, "
+                    "e.g. 'the 40% discount scenario'), or omit both for 'approve the latest run' "
+                    "(the user's most recently requested scenario)."
+                ),
+                "inputSchema": {"json": {
+                    "type": "object",
+                    "properties": {
+                        "scenario_id": {"type": "string", "description": "e.g. scn-1234567890-abcdef. Omit to look up by label or use the most recent."},
+                        "label":       {"type": "string", "description": "Full or partial scenario name. Omit if scenario_id is given."},
+                        "confirm":     {"type": "boolean", "description": "Only true on the SECOND call, after the user has explicitly confirmed. Default false."},
+                    },
+                }},
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "check_scenario_validations",
+                "description": (
+                    "Run the same basic data-quality checklist as the scenario detail modal's 'Run "
+                    "validations' button — negative units, non-finite values, weekly date "
+                    "continuity, SKU/aggregate reconciliation, per-SKU WAPE outliers, SKUs that "
+                    "collapse to a zero forward forecast, abrupt forward-forecast swings, and "
+                    "overall volume-error sanity. Use for any 'any data quality issues with this "
+                    "scenario' / 'does this run look OK' style question. Look it up by scenario_id, "
+                    "by label, or omit both for the most recently requested scenario."
+                ),
+                "inputSchema": {"json": {
+                    "type": "object",
+                    "properties": {
+                        "scenario_id": {"type": "string", "description": "e.g. scn-1234567890-abcdef. Omit to look up by label or use the most recent."},
+                        "label":       {"type": "string", "description": "Full or partial scenario name. Omit if scenario_id is given."},
+                    },
+                }},
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "compare_scenarios",
+                "description": (
+                    "Compare two completed scenarios side by side — config, overall WAPE, backtest "
+                    "actual/forecast units and volume error, and (when either has a forward-only "
+                    "horizon beyond its backtest) forward-forecast totals and the percent delta "
+                    "between them. Identify EACH scenario by its own scenario_id or label — this "
+                    "tool needs two specific scenarios and has no 'most recent' fallback for either."
+                ),
+                "inputSchema": {"json": {
+                    "type": "object",
+                    "properties": {
+                        "scenario_id_a": {"type": "string", "description": "First scenario's id."},
+                        "label_a":       {"type": "string", "description": "First scenario's name (partial match), if scenario_id_a isn't known."},
+                        "scenario_id_b": {"type": "string", "description": "Second scenario's id."},
+                        "label_b":       {"type": "string", "description": "Second scenario's name (partial match), if scenario_id_b isn't known."},
+                    },
+                }},
+            }
+        },
+        {
+            "toolSpec": {
                 "name": "explain_forecast_day",
                 "description": (
                     "Explain why the forecast is high/low on a SPECIFIC date — real day-level "
@@ -591,6 +723,49 @@ TOOL_CONFIG = {
                         "date": {"type": "string", "description": "ISO date, e.g. 2026-03-23. Only meaningful together with zip — returns that specific week's actual/forecast for this sku+zip instead of the full-horizon totals."},
                     },
                     "required": ["sku"],
+                }},
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "compare_skus",
+                "description": (
+                    "Compare two SKUs side by side on the current live forecast — backtest volume, "
+                    "WAPE, accuracy, forward forecast total, trend, and confidence tier for each. "
+                    "Use for any 'compare SKU-X and SKU-Y' style question."
+                ),
+                "inputSchema": {"json": {
+                    "type": "object",
+                    "properties": {
+                        "sku_a": {"type": "string", "description": "e.g. SKU-003."},
+                        "sku_b": {"type": "string", "description": "e.g. SKU-005."},
+                    },
+                    "required": ["sku_a", "sku_b"],
+                }},
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "get_forecast_range",
+                "description": (
+                    "Sum real actual/forecast units over a date range (e.g. 'how does next month "
+                    "look for SKU-003', 'forecast for all SKUs from March 1 to March 31'). Rounds "
+                    "the range to whichever weeks it overlaps (this data is weekly-grain, not "
+                    "daily) — the tool returns exactly which weeks it summed, plus how many of "
+                    "those were backtest vs. forward-only. Omit sku for the all-SKU catalog total; "
+                    "add zip (only together with sku) to scope to one postal code. For a single "
+                    "date instead of a range, use explain_forecast_day or get_zip_forecast instead "
+                    "— they give richer single-week context (holiday/weather/attribution)."
+                ),
+                "inputSchema": {"json": {
+                    "type": "object",
+                    "properties": {
+                        "start_date": {"type": "string", "description": "ISO date, e.g. 2026-03-01."},
+                        "end_date":   {"type": "string", "description": "ISO date, e.g. 2026-03-31."},
+                        "sku":        {"type": "string", "description": "e.g. SKU-003. Omit for the all-SKU catalog total."},
+                        "zip":        {"type": "string", "description": "Postal code — only valid together with sku."},
+                    },
+                    "required": ["start_date", "end_date"],
                 }},
             }
         },
@@ -647,6 +822,164 @@ def _invoke_scenarios_api(method, path, claims, body=None):
     return status, result_body
 
 
+def _match_scenario(inputs, scenarios, claims, allow_default=True):
+    """Resolve {scenario_id, label} inputs against a scenario list — the
+    lookup check_scenario_status has always used, factored out now that
+    approve_scenario and check_scenario_validations need the identical
+    logic. Returns (match, None) on success, or (None, result) where
+    result is what the tool should return as-is (an error, or a
+    multiple_matches disambiguation for the model to relay to the user).
+    allow_default=False for compare_scenarios, which needs two SPECIFIC
+    scenarios — silently falling back to "most recent" for a missing one
+    would compare the wrong thing without ever surfacing that as an error.
+    """
+    sid = (inputs.get('scenario_id') or '').strip()
+    label_query = (inputs.get('label') or '').strip().lower()
+
+    if sid:
+        match = next((s for s in scenarios if s['id'] == sid), None)
+        if not match:
+            return None, {'error': f'no scenario found with id {sid}'}
+        return match, None
+
+    if label_query:
+        matches = [s for s in scenarios if label_query in (s.get('label') or '').lower()]
+        if not matches:
+            return None, {'error': f'no scenario found with a label matching "{inputs.get("label")}"'}
+        if len(matches) > 1:
+            return None, {'multiple_matches': [{'id': m['id'], 'label': m['label']} for m in matches[:10]],
+                    'message': 'More than one scenario matches that label — ask the user which '
+                               'one they mean, or call this again with the exact scenario_id.'}
+        return matches[0], None
+
+    if allow_default:
+        email = claims.get('email')
+        mine = [s for s in scenarios if s.get('requested_by') == email]
+        if not mine:
+            return None, {'message': 'No scenarios found for this user yet.'}
+        return mine[0], None  # list_scenarios already sorts newest-first
+
+    return None, {'error': 'specify a scenario_id or label for this scenario'}
+
+
+def _run_data_validations(meta, result):
+    """Python port of scenarios.js's runDataValidations — the exact same 8
+    checks, thresholds, and wording, so a chat answer always matches what
+    clicking "Run validations" in the scenario detail modal would show."""
+    checks = []
+
+    def add(check_name, status, detail):
+        checks.append({'name': check_name, 'status': status, 'detail': detail})
+
+    weeks = result.get('weeks') or []
+    all_ = result.get('all') or {'a': [], 'f': []}
+    skus = result.get('skus') or {}
+    bt = result.get('backtestWeeks', len(weeks))
+    sku_ids = list(skus.keys())
+
+    # 1. Negative units — shipped-unit forecasts/actuals should never be negative.
+    neg_count, neg_skus = 0, set()
+    for sid in sku_ids:
+        o = skus[sid]
+        for v in list(o.get('f') or []) + list(o.get('a') or []):
+            if v is not None and v < 0:
+                neg_count += 1
+                neg_skus.add(sid)
+    add('No negative unit values', 'fail' if neg_count else 'pass',
+        f'{neg_count} negative value(s) across {len(neg_skus)} SKU(s).' if neg_count
+        else 'All actual and forecast values are ≥ 0.')
+
+    # 2. Non-finite values (NaN / Infinity) — would silently break charts/KPIs downstream.
+    bad_count = 0
+    for sid in sku_ids:
+        o = skus[sid]
+        for v in list(o.get('f') or []) + list(o.get('a') or []):
+            if isinstance(v, (int, float)) and not math.isfinite(v):
+                bad_count += 1
+    add('No NaN / infinite values', 'fail' if bad_count else 'pass',
+        f'{bad_count} non-finite value(s) found in the result data.' if bad_count
+        else 'All actual and forecast values are finite numbers.')
+
+    # 3. Weekly date continuity — every week should be exactly 7 days after the last.
+    gap_issues = 0
+    for i in range(1, len(weeks)):
+        try:
+            d0, d1 = dt.date.fromisoformat(weeks[i - 1]), dt.date.fromisoformat(weeks[i])
+            if (d1 - d0).days != 7:
+                gap_issues += 1
+        except ValueError:
+            gap_issues += 1
+    add('Weekly date continuity', 'warn' if gap_issues else 'pass',
+        f'{gap_issues} week-to-week gap(s) are not exactly 7 days apart.' if gap_issues
+        else f'All {len(weeks)} weeks are evenly spaced 7 days apart.')
+
+    # 4. Per-SKU actuals should sum to the aggregate — catches a SKU dropped
+    # (or double-counted) between the per-SKU and all-SKU series.
+    sum_sku_a = sum(v for sid in sku_ids for v in (skus[sid].get('a') or [])[:bt] if v is not None)
+    sum_all_a = sum(v for v in (all_.get('a') or [])[:bt] if v is not None)
+    diff_pct = (abs(sum_sku_a - sum_all_a) / sum_all_a * 100) if sum_all_a else 0
+    add('SKU totals reconcile with the all-SKU aggregate', 'warn' if diff_pct > 1 else 'pass',
+        f'Per-SKU actuals sum to {round(sum_sku_a):,} vs. aggregate {round(sum_all_a):,} '
+        f'({diff_pct:.2f}% difference).')
+
+    # 5. Per-SKU WAPE outliers — SKUs scoring far worse than the overall number.
+    overall = result.get('overallWape') or 0
+    outliers = []
+    for sid in sku_ids:
+        o = skus[sid]
+        a, f = o.get('a') or [], o.get('f') or []
+        vol = num = 0
+        for i, x in enumerate(a):
+            if x is None:
+                continue
+            vol += x
+            fv = f[i] if i < len(f) and f[i] is not None else 0
+            num += abs(x - fv)
+        if not vol:
+            continue
+        wape = 100 * num / vol
+        if wape > max(75, overall * 2):
+            outliers.append(f'{sid} ({wape:.0f}%)')
+    add('No extreme per-SKU WAPE outliers', 'warn' if outliers else 'pass',
+        (f'{len(outliers)} SKU(s) scoring far above the {overall:.1f}% overall WAPE: ' +
+         ', '.join(outliers[:6]) + ('…' if len(outliers) > 6 else '')) if outliers
+        else f"No SKU's WAPE is far above the {overall:.1f}% overall.")
+
+    # 6. SKUs with real history that collapse to a zero forward forecast.
+    zero_fwd = []
+    for sid in sku_ids:
+        o = skus[sid]
+        a, f = o.get('a') or [], o.get('f') or []
+        hist_vol = sum(v for v in a[:bt] if v is not None)
+        fwd = f[bt:]
+        fwd_sum = sum(v for v in fwd if v is not None)
+        if hist_vol > 0 and fwd and fwd_sum == 0:
+            zero_fwd.append(sid)
+    add('No SKU collapses to a zero forward forecast', 'warn' if zero_fwd else 'pass',
+        (f'{len(zero_fwd)} SKU(s) had real volume but forecast 0 units for the entire forward '
+         f'horizon: ' + ', '.join(zero_fwd[:6]) + ('…' if len(zero_fwd) > 6 else '')) if zero_fwd
+        else 'Every SKU with historical volume has a non-zero forward forecast.')
+
+    # 7. Abrupt week-over-week swings in the aggregate forward forecast.
+    fwd_all = (all_.get('f') or [])[bt:]
+    spikes = 0
+    for j in range(1, len(fwd_all)):
+        p, c = fwd_all[j - 1], fwd_all[j]
+        if p and p > 0 and c is not None and (c / p > 3 or c / p < 0.33):
+            spikes += 1
+    add('No abrupt week-over-week jumps in the forward forecast', 'warn' if spikes else 'pass',
+        f'{spikes} week-to-week swing(s) of 3x or more in the aggregate forward forecast.' if spikes
+        else 'The aggregate forward forecast moves smoothly week to week.')
+
+    # 8. Overall volume error within a sane range.
+    ve = meta.get('volume_error')
+    add('Overall volume error within a sane range', 'warn' if (ve is not None and abs(ve) > 20) else 'pass',
+        f"Volume error is {'+' if ve is not None and ve > 0 else ''}{ve:.2f}%." if ve is not None
+        else 'No volume error recorded for this scenario.')
+
+    return checks
+
+
 def execute_tool(name, inputs, claims):
     if name == 'run_scenario':
         body = {
@@ -667,28 +1000,9 @@ def execute_tool(name, inputs, claims):
             return {'error': result.get('error', 'failed to list scenarios')}
         scenarios = result.get('scenarios', [])
 
-        sid = (inputs.get('scenario_id') or '').strip()
-        label_query = (inputs.get('label') or '').strip().lower()
-
-        if sid:
-            match = next((s for s in scenarios if s['id'] == sid), None)
-            if not match:
-                return {'error': f'no scenario found with id {sid}'}
-        elif label_query:
-            matches = [s for s in scenarios if label_query in (s.get('label') or '').lower()]
-            if not matches:
-                return {'error': f'no scenario found with a label matching "{inputs.get("label")}"'}
-            if len(matches) > 1:
-                return {'multiple_matches': [{'id': m['id'], 'label': m['label']} for m in matches[:10]],
-                        'message': 'More than one scenario matches that label — ask the user which '
-                                   'one they mean, or call this again with the exact scenario_id.'}
-            match = matches[0]
-        else:
-            email = claims.get('email')
-            mine = [s for s in scenarios if s.get('requested_by') == email]
-            if not mine:
-                return {'message': 'No scenarios found for this user yet.'}
-            match = mine[0]  # list_scenarios already sorts newest-first
+        match, err = _match_scenario(inputs, scenarios, claims)
+        if err is not None:
+            return err
 
         out = dict(match)
         if match.get('status') == 'completed':
@@ -703,6 +1017,140 @@ def execute_tool(name, inputs, claims):
                 ranked.sort(key=lambda r: r['volume'], reverse=True)
                 out['top_skus_by_volume'] = ranked[:8]
         return out
+
+    if name == 'approve_scenario':
+        status, result = _invoke_scenarios_api('GET', '/scenarios', claims)
+        if status != 200:
+            return {'error': result.get('error', 'failed to list scenarios')}
+        scenarios = result.get('scenarios', [])
+
+        match, err = _match_scenario(inputs, scenarios, claims)
+        if err is not None:
+            return err
+
+        if match.get('status') != 'completed':
+            return {'error': f'"{match.get("label") or match["id"]}" isn\'t ready to approve — '
+                              f'its status is {match.get("status")}.'}
+        if match.get('approved'):
+            return {'already_approved': True, 'scenario_id': match['id'], 'label': match.get('label'),
+                    'message': f'"{match.get("label") or match["id"]}" is already the approved/live '
+                               f'scenario — nothing to do.'}
+
+        # Two-call confirm gate: this changes what's live for every user, so
+        # the FIRST call (confirm omitted/false) only ever previews what
+        # would happen — it never approves. Only a second call with
+        # confirm=true, made after the user has explicitly said yes, does.
+        if not inputs.get('confirm'):
+            return {
+                'needs_confirmation': True,
+                'scenario_id': match['id'],
+                'label': match.get('label'),
+                'wape': match.get('wape'),
+                'volume_error': match.get('volume_error'),
+                'message': (
+                    f'Found "{match.get("label") or match["id"]}" (WAPE '
+                    f'{match.get("wape")}%, volume error {match.get("volume_error")}%). Approving '
+                    f'it replaces the live forecast that currently powers Overview & Forecasts for '
+                    f'every user. Tell the user what you found and ask them to explicitly confirm '
+                    f'— only call this again with confirm=true and this same scenario_id after '
+                    f'they say yes. Do not approve without an explicit confirmation.'
+                ),
+            }
+
+        astatus, aresult = _invoke_scenarios_api('POST', f"/scenarios/{match['id']}/approve", claims)
+        if astatus != 200:
+            return {'error': aresult.get('error', 'failed to approve the scenario')}
+        return {'approved': True, 'scenario_id': match['id'], 'label': match.get('label')}
+
+    if name == 'check_scenario_validations':
+        status, result = _invoke_scenarios_api('GET', '/scenarios', claims)
+        if status != 200:
+            return {'error': result.get('error', 'failed to list scenarios')}
+        scenarios = result.get('scenarios', [])
+
+        match, err = _match_scenario(inputs, scenarios, claims)
+        if err is not None:
+            return err
+        if match.get('status') != 'completed':
+            return {'error': f'"{match.get("label") or match["id"]}" has no result to validate yet '
+                              f'— its status is {match.get("status")}.'}
+
+        rstatus, rresult = _invoke_scenarios_api('GET', f"/scenarios/{match['id']}/result", claims)
+        if rstatus != 200:
+            return {'error': rresult.get('error', "failed to load this scenario's result")}
+
+        checks = _run_data_validations(match, rresult)
+        counts = {'pass': 0, 'warn': 0, 'fail': 0}
+        for c in checks:
+            counts[c['status']] += 1
+        return {'scenario_id': match['id'], 'label': match.get('label'),
+                'summary': {'passed': counts['pass'], 'warnings': counts['warn'], 'failed': counts['fail']},
+                'checks': checks}
+
+    if name == 'compare_scenarios':
+        status, result = _invoke_scenarios_api('GET', '/scenarios', claims)
+        if status != 200:
+            return {'error': result.get('error', 'failed to list scenarios')}
+        scenarios = result.get('scenarios', [])
+
+        # allow_default=False on both — comparing needs two SPECIFIC
+        # scenarios; silently defaulting a missing one to "most recent"
+        # would silently compare the wrong thing instead of surfacing an error.
+        match_a, err_a = _match_scenario(
+            {'scenario_id': inputs.get('scenario_id_a'), 'label': inputs.get('label_a')},
+            scenarios, claims, allow_default=False)
+        if err_a is not None:
+            return {'first_scenario': err_a}
+        match_b, err_b = _match_scenario(
+            {'scenario_id': inputs.get('scenario_id_b'), 'label': inputs.get('label_b')},
+            scenarios, claims, allow_default=False)
+        if err_b is not None:
+            return {'second_scenario': err_b}
+        if match_a['id'] == match_b['id']:
+            return {'error': 'those are the same scenario — pick two different ones to compare'}
+        for m in (match_a, match_b):
+            if m.get('status') != 'completed':
+                return {'error': f'"{m.get("label") or m["id"]}" has no result yet — its status is '
+                                  f'{m.get("status")}.'}
+
+        ra_status, ra = _invoke_scenarios_api('GET', f"/scenarios/{match_a['id']}/result", claims)
+        rb_status, rb = _invoke_scenarios_api('GET', f"/scenarios/{match_b['id']}/result", claims)
+        if ra_status != 200 or rb_status != 200:
+            return {'error': 'failed to load one or both scenario results'}
+
+        # Same totals the dashboard's own Compare modal shows: backtest-period
+        # actual/forecast/volume-error, plus (when present) the forward-only
+        # horizon total — the genuinely forward-looking number, since two
+        # scenarios sharing the same historical data have identical
+        # backtest-period WAPE/volume-error and can't show a Future Price /
+        # discount scenario's actual impact any other way.
+        def totals(r):
+            bw = r.get('backtestWeeks', len(r['weeks']))
+            a = sum(x for x in r['all']['a'][:bw] if x is not None)
+            f = sum(x for x in r['all']['f'][:bw] if x is not None)
+            err = (100 * (f - a) / a) if a else 0
+            fwd_slice = r['all']['f'][bw:]
+            fwd = sum(x for x in fwd_slice if x is not None) if fwd_slice else None
+            return {'actual_units': round(a), 'forecast_units': round(f), 'volume_error_pct': round(err, 2),
+                    'forward_forecast_units': round(fwd) if fwd is not None else None,
+                    'forward_weeks': len(fwd_slice)}
+
+        ta, tb = totals(ra), totals(rb)
+        fwd_delta = None
+        if ta['forward_weeks'] and tb['forward_weeks'] and ta['forward_forecast_units']:
+            fwd_delta = round(100 * (tb['forward_forecast_units'] - ta['forward_forecast_units'])
+                               / ta['forward_forecast_units'], 2)
+
+        wape_a, wape_b = ra['overallWape'], rb['overallWape']
+        return {
+            'a': {'scenario_id': match_a['id'], 'label': match_a.get('label'), 'config': _config_summary(match_a),
+                  'overall_wape': wape_a, 'weeks': len(ra['weeks']), 'skus': len(ra['skus']), **ta},
+            'b': {'scenario_id': match_b['id'], 'label': match_b.get('label'), 'config': _config_summary(match_b),
+                  'overall_wape': wape_b, 'weeks': len(rb['weeks']), 'skus': len(rb['skus']), **tb},
+            'lower_wape': (match_a.get('label') if wape_a < wape_b
+                            else match_b.get('label') if wape_b < wape_a else None),
+            'forward_horizon_delta_pct': fwd_delta,
+        }
 
     if name == 'explain_forecast_day':
         date_str = (inputs.get('date') or '').strip()
@@ -888,10 +1336,102 @@ def execute_tool(name, inputs, claims):
             out['trend_vs_trailing_actual'] = trend
         return out
 
+    if name == 'compare_skus':
+        sku_a = (inputs.get('sku_a') or '').strip()
+        sku_b = (inputs.get('sku_b') or '').strip()
+        if not sku_a or not sku_b:
+            return {'error': 'both sku_a and sku_b are required'}
+        if sku_a == sku_b:
+            return {'error': 'those are the same SKU — pick two different ones to compare'}
+
+        by_id = {r['sku']: r for r in _all_sku_rows()}
+        row_a, row_b = by_id.get(sku_a), by_id.get(sku_b)
+        if not row_a:
+            return {'error': f'no SKU found matching "{sku_a}"'}
+        if not row_b:
+            return {'error': f'no SKU found matching "{sku_b}"'}
+
+        return {
+            'a': row_a, 'b': row_b,
+            'higher_volume': row_a['sku'] if row_a['vol'] >= row_b['vol'] else row_b['sku'],
+            'lower_wape': row_a['sku'] if row_a['wape'] <= row_b['wape'] else row_b['sku'],
+        }
+
+    if name == 'get_forecast_range':
+        start_str = (inputs.get('start_date') or '').strip()
+        end_str = (inputs.get('end_date') or '').strip()
+        try:
+            start_d = dt.date.fromisoformat(start_str)
+            end_d = dt.date.fromisoformat(end_str)
+        except ValueError:
+            return {'error': 'start_date/end_date must be valid ISO dates (YYYY-MM-DD).'}
+        if end_d < start_d:
+            return {'error': 'end_date is before start_date.'}
+
+        data = _get_forecast_data()
+        sku = (inputs.get('sku') or '').strip()
+        zip_code = (inputs.get('zip') or '').strip()
+        if zip_code and not sku:
+            return {'error': 'zip requires sku — a postal-code breakdown only exists within a specific SKU'}
+
+        if sku:
+            sku_data = data['skus'].get(sku)
+            if not sku_data:
+                return {'error': f'no SKU found matching "{sku}"'}
+            if zip_code:
+                zd = (sku_data.get('byZip') or {}).get(zip_code)
+                if not zd:
+                    ranked = sorted((sku_data.get('byZip') or {}).keys())
+                    return {'error': f'no postal code "{zip_code}" found for {sku}',
+                            'available_zips': ranked[:15]}
+                series_a, series_f, series_label = zd['a'], zd['f'], f'{sku} · {zip_code}'
+            else:
+                series_a, series_f, series_label = sku_data['a'], sku_data['f'], sku
+        else:
+            series_a, series_f, series_label = data['all']['a'], data['all']['f'], 'all SKUs'
+
+        bt = data.get('backtestWeeks', len(data['weeks']))
+        matched_idx = []
+        for i, w in enumerate(data['weeks']):
+            week_start = dt.date.fromisoformat(w)
+            week_end = week_start + dt.timedelta(days=6)
+            # a week counts if it overlaps the requested range at all, even partially
+            if week_end < start_d or week_start > end_d:
+                continue
+            matched_idx.append(i)
+
+        if not matched_idx:
+            return {'error': f'{start_str} to {end_str} falls outside the range of this forecast '
+                              f'({data["weeks"][0]} to {data["weeks"][-1]}).'}
+
+        actual_sum, has_actual, forecast_sum = 0, False, 0.0
+        for i in matched_idx:
+            a_val, f_val = series_a[i], series_f[i]
+            if a_val is not None:
+                actual_sum += a_val
+                has_actual = True
+            if f_val is not None:
+                forecast_sum += f_val
+
+        return {
+            'series': series_label,
+            'weeks_matched': [data['weeks'][i] for i in matched_idx],
+            'week_count': len(matched_idx),
+            'backtest_weeks_included': sum(1 for i in matched_idx if i < bt),
+            'forward_weeks_included': sum(1 for i in matched_idx if i >= bt),
+            'actual_units': round(actual_sum) if has_actual else None,
+            'forecast_units': round(forecast_sum, 1),
+        }
+
     if name == 'point_to_ui':
         return {'ok': True}  # actual UI effect happens client-side; this just satisfies the tool-result contract
 
     return {'error': f'unknown tool {name}'}
+
+
+_TOOL_NAMES = [t['toolSpec']['name'] for t in TOOL_CONFIG['tools']]
+_TOOL_TAG_RE = re.compile(
+    r'</?(?:' + '|'.join(re.escape(n) for n in _TOOL_NAMES) + r')\b[^>]*>', re.DOTALL)
 
 
 def _text_of(message):
@@ -904,10 +1444,12 @@ def _text_of(message):
             # tag, and occasionally narrates a tool call as fake inline markup
             # (e.g. <point_to_ui(target="X")>...</point_to_ui>) instead of a
             # real toolUse block — none of these are meant for the end user to
-            # see literally, so strip them all.
+            # see literally, so strip them all. _TOOL_TAG_RE is built from
+            # TOOL_CONFIG itself so a newly added tool is covered automatically
+            # instead of silently missing here (get_zip_forecast was, once).
             text = re.sub(r'<thinking>.*?</thinking>\s*', '', text, flags=re.DOTALL)
             text = re.sub(r'</?reply>', '', text)
-            text = re.sub(r'</?(?:run_scenario|check_scenario_status|explain_forecast_day|point_to_ui)\b[^>]*>', '', text, flags=re.DOTALL)
+            text = _TOOL_TAG_RE.sub('', text)
             return text.strip()
     return ''
 
