@@ -911,6 +911,26 @@
   @keyframes orb{0%{box-shadow:0 0 0 0 rgba(200,242,78,.4)}70%{box-shadow:0 0 0 9px rgba(200,242,78,0)}100%{box-shadow:0 0 0 0 rgba(200,242,78,0)}}
   .cb-x{background:none;border:none;color:var(--muted);font-size:24px;line-height:1;cursor:pointer;transition:color .2s}
   .cb-x:hover{color:var(--text)}
+  .cb-head-actions{display:flex;align-items:center;gap:10px}
+  .cb-icon-btn{display:flex;align-items:center;justify-content:center;width:22px;height:22px;
+    background:none;border:none;color:var(--muted);cursor:pointer;transition:color .2s}
+  .cb-icon-btn:hover{color:var(--text)}
+  .cb-icon-btn svg{width:16px;height:16px}
+  /* Maximize — same bottom/right anchor as the normal panel (26px, matching
+     the base rule's own max-height:calc(100vh - 52px) so the two stay in
+     sync), just grown to fill most of the viewport instead of toggling to a
+     different corner/layout. max-width keeps it from looking absurd on a
+     huge monitor. */
+  .cb-panel.maximized{width:calc(100vw - 52px);max-width:1200px;height:calc(100vh - 52px)}
+  @media(max-width:560px){
+    /* Mobile's own .cb-panel rule (below) already goes edge-to-edge with
+       left+right margins instead of a bottom/right anchor — maximized's
+       width:calc(100vw - 52px) would win on specificity over that width:
+       auto and throw the margins off-balance (no matching "left" override
+       here to keep it symmetric), so just no-op the width difference;
+       mobile is already effectively maximized. */
+    .cb-panel.maximized{width:auto}
+  }
   /* Chat tabs — multiple parallel conversations in the same panel, like
      browser tabs. Scroll strip stays flexible, the "+" button is pinned
      outside it so it's always reachable regardless of how many tabs are

@@ -1063,8 +1063,24 @@
   }
   function cbCloseFn(){document.getElementById('cbPanel').classList.remove('open');
     document.getElementById('cbLaunch').classList.remove('hide');}
+  // Maximize — grows the panel to fill most of the viewport (see the
+  // .maximized CSS) instead of the usual small floating box. State just
+  // lives on the class, so it deliberately carries over across close/
+  // reopen within the session (closing doesn't reset it), same as a
+  // remembered window size.
+  const CB_MAXIMIZE_ICON = '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>';
+  const CB_RESTORE_ICON   = '<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>';
+  function cbToggleMaximize(){
+    const panel = document.getElementById('cbPanel');
+    const btn = document.getElementById('cbMaximize');
+    const isMax = panel.classList.toggle('maximized');
+    btn.querySelector('svg').innerHTML = isMax ? CB_RESTORE_ICON : CB_MAXIMIZE_ICON;
+    btn.setAttribute('aria-label', isMax ? 'Restore' : 'Maximize');
+    btn.setAttribute('title', isMax ? 'Restore' : 'Maximize');
+  }
   document.getElementById('cbLaunch').onclick=cbOpen;
   document.getElementById('cbClose').onclick=cbCloseFn;
+  document.getElementById('cbMaximize').onclick=cbToggleMaximize;
   document.getElementById('cbTabAdd').onclick=cbNewTab;
   document.getElementById('cbForm').addEventListener('submit',e=>{
     e.preventDefault(); const i=document.getElementById('cbText'); const v=i.value; i.value=''; cbCloseSlashMenu(); cbAsk(v);});
