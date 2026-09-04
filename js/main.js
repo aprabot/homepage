@@ -404,8 +404,18 @@
     const fcSkel=document.getElementById('fcChartSkel');
     if(fcSkel)fcSkel.style.display='none';
     let N=Math.min(curWeeks,s.a.length), st=s.a.length-N;
-    if(hideBacktest && DATA.backtestWeeks!=null){
-      st=Math.max(st,DATA.backtestWeeks); N=s.a.length-st;
+    if(DATA.backtestWeeks!=null){
+      if(hideBacktest){
+        st=Math.max(st,DATA.backtestWeeks); N=s.a.length-st;
+      } else {
+        // Showing backtest: always widen to the full series, ignoring
+        // curWeeks — otherwise a small period filter (e.g. 12W) computes a
+        // trailing window that lands entirely inside the forward-only
+        // range, and clicking "Show Backtest" reveals nothing new. curWeeks
+        // itself is left untouched, so toggling back to "Hide Backtest"
+        // correctly restores whatever period was selected before.
+        st=0; N=s.a.length;
+      }
     }
     const weeks=DATA.weeks.slice(st), a=s.a.slice(st), f=s.f.slice(st), w=s.w.slice(st);
     const box=document.getElementById('forecastChart'), cv=document.getElementById('fcCanvas');
