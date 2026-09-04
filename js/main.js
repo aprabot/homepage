@@ -596,11 +596,11 @@
 
   // Renders a small inline chart INTO an existing bot message bubble —
   // chart is {type:'sku_compare', a:{sku,series}, b:{sku,series}} or
-  // {type:'range_bar', series, actual, forecast} from the chat response.
-  // Same canvas-color convention as the real dashboard charts (fixed hex,
-  // not theme-driven — drawChart/drawOverviewTrend do the same, since a
-  // mid-gray/brand palette reads fine on both light and dark card
-  // backgrounds without branching).
+  // {type:'range_trend', series, weeks, actual, forecast} from the chat
+  // response. Same canvas-color convention as the real dashboard charts
+  // (fixed hex, not theme-driven — drawChart/drawOverviewTrend do the
+  // same, since a mid-gray/brand palette reads fine on both light and
+  // dark card backgrounds without branching).
   function cbRenderChart(container,chart){
     if(!chart||!container)return;
     const wrap=document.createElement('div'); wrap.className='cb-chart';
@@ -611,39 +611,59 @@
     wrap.appendChild(cv); container.appendChild(wrap);
 
     if(chart.type==='sku_compare'){
-      cbDrawSparkCompare(ctx,W,H,chart);
+      cbDrawTwoLines(ctx,W,H,chart.a.series,'#54E6C4',chart.b.series,'#C8F24E');
       const legend=document.createElement('div'); legend.className='cb-chart-legend';
       legend.innerHTML=`<span><i style="background:#54E6C4"></i>${chart.a.sku}</span>`+
                         `<span><i style="background:#C8F24E"></i>${chart.b.sku}</span>`;
       wrap.appendChild(legend);
-    } else if(chart.type==='range_bar'){
-      cbDrawRangeBar(ctx,W,H,chart);
+    } else if(chart.type==='range_trend'){
+      const weeks=chart.weeks||[], actual=chart.actual||[], forecast=chart.forecast||[];
+      const hasActual=actual.some(v=>v!=null);
+      if(weeks.length<=1){
+        // A single matched week has no trend to draw (a line needs 2+
+        // points) — fall back to a plain bar pair for that one week,
+        // same shape as before, just scoped to the one-week case where
+        // it's actually the right visualization instead of the only one.
+        cbDrawSingleWeekBars(ctx,W,H,actual[0],forecast[0]);
+      } else {
+        // Forecast dashed to match the real dashboard chart's own
+        // actual(solid)/forecast(dashed) convention — unlike sku_compare,
+        // these two lines ARE an actual/forecast pair, not two peers.
+        cbDrawTwoLines(ctx,W,H,actual,'#54E6C4',forecast,'#C8F24E',[5,3]);
+      }
+      const legend=document.createElement('div'); legend.className='cb-chart-legend';
+      legend.innerHTML=(hasActual?'<span><i style="background:#54E6C4"></i>Actual</span>':'')+
+                        '<span><i style="background:#C8F24E"></i>Forecast</span>';
+      wrap.appendChild(legend);
     } else { return; }
     cbBody().scrollTop=cbBody().scrollHeight;
   }
 
-  function cbDrawSparkCompare(ctx,W,H,chart){
-    const a=chart.a.series||[], b=chart.b.series||[];
+  // Shared by both chart types — two lines over the same index axis,
+  // nulls skipped rather than interpolated (a gap in the line is more
+  // honest than pretending there's a value where there isn't one).
+  function cbDrawTwoLines(ctx,W,H,a,colorA,b,colorB,dashB){
+    a=a||[]; b=b||[];
     const all=a.concat(b).filter(v=>v!=null);
     if(!all.length)return;
     const max=Math.max(...all)*1.1||1, pad=6;
     const N=Math.max(a.length,b.length,1);
     const X=i=>pad+i*(W-pad*2)/(N-1||1), Y=v=>H-pad-(v/max)*(H-pad*2);
-    const line=(arr,color)=>{
-      ctx.strokeStyle=color; ctx.lineWidth=1.8; ctx.beginPath();
+    const line=(arr,color,dash)=>{
+      ctx.strokeStyle=color; ctx.lineWidth=1.8; ctx.setLineDash(dash||[]); ctx.beginPath();
       let started=false;
       arr.forEach((v,i)=>{
         if(v==null)return;
         const x=X(i),y=Y(v);
         if(!started){ctx.moveTo(x,y);started=true;} else ctx.lineTo(x,y);
       });
-      ctx.stroke();
+      ctx.stroke(); ctx.setLineDash([]);
     };
-    line(a,'#54E6C4'); line(b,'#C8F24E');
+    line(a,colorA); line(b,colorB,dashB);
   }
 
-  function cbDrawRangeBar(ctx,W,H,chart){
-    const vals=[{label:'Actual',v:chart.actual,color:'#54E6C4'},{label:'Forecast',v:chart.forecast,color:'#C8F24E'}]
+  function cbDrawSingleWeekBars(ctx,W,H,actualV,forecastV){
+    const vals=[{label:'Actual',v:actualV,color:'#54E6C4'},{label:'Forecast',v:forecastV,color:'#C8F24E'}]
       .filter(x=>x.v!=null);
     if(!vals.length)return;
     const max=Math.max(...vals.map(x=>x.v))*1.2||1;

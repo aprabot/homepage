@@ -607,7 +607,7 @@ Rules:
 • For "compare SKU-X and SKU-Y" (two SKUs within the CURRENT live forecast, not two scenarios), use
   compare_skus instead — different tool, different question.
 • compare_skus and get_forecast_range both also render a small inline chart in the chat automatically
-  (a two-line comparison, or an actual-vs-forecast bar) — you don't control this and it needs no
+  (a two-SKU line comparison, or the actual/forecast weekly trend for a date range) — you don't control this and it needs no
   separate mention or setup; just answer normally in text. Keep the reply itself to the actual
   numbers/comparison, not a verbal description of what the chart looks like (e.g. not "the lines
   show an upward trend" — the picture already says that).
@@ -1587,6 +1587,7 @@ def execute_tool(name, inputs, claims, request_state):
                               f'({data["weeks"][0]} to {data["weeks"][-1]}).'}
 
         actual_sum, has_actual, forecast_sum = 0, False, 0.0
+        weekly_actual, weekly_forecast = [], []
         for i in matched_idx:
             a_val, f_val = series_a[i], series_f[i]
             if a_val is not None:
@@ -1594,6 +1595,8 @@ def execute_tool(name, inputs, claims, request_state):
                 has_actual = True
             if f_val is not None:
                 forecast_sum += f_val
+            weekly_actual.append(round(a_val, 1) if a_val is not None else None)
+            weekly_forecast.append(round(f_val, 1) if f_val is not None else None)
 
         return {
             'series': series_label,
@@ -1603,6 +1606,15 @@ def execute_tool(name, inputs, claims, request_state):
             'forward_weeks_included': sum(1 for i in matched_idx if i >= bt),
             'actual_units': round(actual_sum) if has_actual else None,
             'forecast_units': round(forecast_sum, 1),
+            # Per-week breakdown (same _downsample cap as compare_skus'
+            # sparkline, though a date-range query rarely spans enough
+            # weeks to actually trigger it) — lets the client draw the
+            # real weekly trend instead of one aggregate total, which
+            # degenerates to a single floating bar whenever the range is
+            # forward-only (actual_units is None for any future range,
+            # the common case for "next month"/"next quarter" questions).
+            'weekly_actual': _downsample(weekly_actual),
+            'weekly_forecast': _downsample(weekly_forecast),
         }
 
     if name == 'point_to_ui':
@@ -1752,10 +1764,11 @@ def handler(event, context):
                         }
                     if tu['name'] == 'get_forecast_range' and 'error' not in result:
                         chart = {
-                            'type': 'range_bar',
+                            'type': 'range_trend',
                             'series': result.get('series'),
-                            'actual': result.get('actual_units'),
-                            'forecast': result.get('forecast_units'),
+                            'weeks': result.get('weeks_matched') or [],
+                            'actual': result.get('weekly_actual') or [],
+                            'forecast': result.get('weekly_forecast') or [],
                         }
                     if tu['name'] == 'explain_forecast_day' and 'error' not in result:
                         # None sku means the currently-selected series should
