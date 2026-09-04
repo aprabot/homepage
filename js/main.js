@@ -480,7 +480,7 @@
   }
 
   /* ===== AI ANALYST CHATBOT (offline, grounded in DATA) ===== */
-  let cbStats=null, cbBooted=false;
+  let cbStats=null;
   function cbGetStats(){
     if(cbStats)return cbStats;
     const rows=Object.keys(DATA.skus).map(a=>{
@@ -727,7 +727,107 @@
   }
 
   const CHAT_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/chat';
-  let cbHistory = [];
+
+  // Chat tabs — multiple independent conversations in the same panel, like
+  // browser tabs. Each tab owns its own API-context history (same shape
+  // cbHistory used to be) and a replay `log` of what's been shown on
+  // screen (rendered html + optional chart), used to reconstruct cbBody
+  // when switching back to a tab rather than re-fetching anything. Kept
+  // in-memory only (same as the old single-conversation cbHistory was) —
+  // reloading the page resets every tab, not just the active one.
+  let cbTabs = [];
+  let cbActiveTabId = null;
+  let cbTabSeq = 0;
+
+  function cbNewTabObj(){
+    cbTabSeq++;
+    return {id:'t'+cbTabSeq, title:'New chat', history:[], log:[], booted:false};
+  }
+  function cbActiveTab(){
+    return cbTabs.find(t=>t.id===cbActiveTabId) || null;
+  }
+  // Auto-names a tab from its first user message, once — later messages
+  // don't rename it, same as most chat products' "first message = title".
+  function cbSetTabTitle(t, text){
+    if(t.title!=='New chat')return;
+    t.title = text.length>28 ? text.slice(0,28)+'…' : text;
+    cbRenderTabsStrip();
+  }
+  // Pushes to cbBody AND records into the active tab's replay log, so a
+  // later switch back to this tab can reconstruct it. Plain cbPush (no
+  // logging) is used only during that reconstruction itself, to avoid
+  // re-recording what's already in the log.
+  function cbLog(html, who, chart){
+    const el = cbPush(html, who);
+    const t = cbActiveTab();
+    if(t) t.log.push({html:html, who:who, chart:chart||null});
+    if(chart) cbRenderChart(el, chart);
+    return el;
+  }
+  function cbRenderActiveTab(){
+    const body = cbBody(); if(!body)return;
+    body.innerHTML = '';
+    const t = cbActiveTab();
+    if(!t)return;
+    if(!t.booted){
+      t.booted = true;
+      cbLog(`Hi — I'm <b>Lyra</b>, your AI demand analyst. Ask me anything about the 2024 forecast backtest, or tap a suggestion below. 👇`, 'bot');
+    } else {
+      t.log.forEach(function(entry){
+        const el = cbPush(entry.html, entry.who);
+        if(entry.chart) cbRenderChart(el, entry.chart);
+      });
+    }
+  }
+  function cbRenderTabsStrip(){
+    const wrap = document.getElementById('cbTabsScroll');
+    if(!wrap)return;
+    wrap.innerHTML = '';
+    cbTabs.forEach(function(t){
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = 'cb-tab' + (t.id===cbActiveTabId ? ' active' : '');
+      pill.title = t.title;
+      const label = document.createElement('span');
+      label.className = 'cb-tab-label'; label.textContent = t.title;
+      const x = document.createElement('span');
+      x.className = 'cb-tab-x'; x.setAttribute('aria-label','Close chat'); x.textContent = '×';
+      pill.appendChild(label); pill.appendChild(x);
+      pill.onclick = function(e){
+        if(e.target===x){ e.stopPropagation(); cbCloseTab(t.id); return; }
+        cbSwitchTab(t.id);
+      };
+      wrap.appendChild(pill);
+    });
+  }
+  function cbSwitchTab(id){
+    if(id===cbActiveTabId)return;
+    cbActiveTabId = id;
+    cbRenderActiveTab();
+    cbRenderTabsStrip();
+  }
+  function cbNewTab(){
+    const t = cbNewTabObj();
+    cbTabs.push(t);
+    cbActiveTabId = t.id;
+    cbRenderActiveTab();
+    cbRenderTabsStrip();
+    setTimeout(()=>{const i=document.getElementById('cbText'); if(i)i.focus();},50);
+  }
+  // Always leaves at least one tab open — closing the last one starts a
+  // fresh one instead of leaving the panel with no active conversation.
+  function cbCloseTab(id){
+    const idx = cbTabs.findIndex(t=>t.id===id);
+    if(idx===-1)return;
+    cbTabs.splice(idx,1);
+    if(cbTabs.length===0){ cbNewTab(); return; }
+    if(id===cbActiveTabId){
+      const next = cbTabs[Math.max(0, idx-1)];
+      cbActiveTabId = next.id;
+      cbRenderActiveTab();
+    }
+    cbRenderTabsStrip();
+  }
 
   function cbNavLi(name){
     var items=document.querySelectorAll('.dnav li');
@@ -877,8 +977,16 @@
 
   function cbAsk(q){
     if(!q.trim())return;
-    cbPush(q.replace(/</g,'&lt;'),'user');
-    cbHistory.push({role:'user',content:q});
+    // Captured now, not read again later — the response arrives async and
+    // the user may have switched (or closed) tabs by then. Every use below
+    // targets THIS tab specifically, not "whatever's active when the
+    // response lands".
+    const askedTab = cbActiveTab();
+    if(!askedTab)return;
+    const qEsc = q.replace(/</g,'&lt;');
+    cbLog(qEsc,'user');
+    askedTab.history.push({role:'user',content:q});
+    cbSetTabTitle(askedTab, q);
 
     const typ=document.createElement('div'); typ.className='cb-typing-row';
     typ.innerHTML='<span class="cb-avatar-sm cb-thinking">'+LYRA_AVATAR_SVG+'<span class="cb-think-badge">\u{1F4AD}</span></span>'
@@ -907,7 +1015,7 @@
       headers:Object.assign({'Content-Type':'application/json'}, cbToken?{'Authorization':'Bearer '+cbToken}:{}),
       body:JSON.stringify({
         message: q,
-        history: cbHistory.slice(0,-1).slice(-8),
+        history: askedTab.history.slice(0,-1).slice(-8),
         extra_instructions: extraHint,
         temperature: tp.temperature,
         max_tokens: sp.max_tokens
@@ -915,11 +1023,22 @@
     })
     .then(function(r){return r.json();})
     .then(function(d){
-      typ.remove(); if(cbOrbEl) cbOrbEl.classList.remove('cb-thinking');
+      // Still the visible tab? Render live (and run the on-screen side
+      // effects below). Otherwise just record it into that tab's own log/
+      // history — cbRenderActiveTab() replays it correctly whenever the
+      // user switches back, and side effects that touch the rest of the
+      // page (annotate/point-to/open a scenario/confetti) are skipped
+      // rather than firing for a question the user isn't looking at.
+      const stillActive = askedTab.id===cbActiveTabId;
+      if(stillActive){ typ.remove(); if(cbOrbEl) cbOrbEl.classList.remove('cb-thinking'); }
       const reply=d.reply||'Sorry, something went wrong — please try again.';
-      const msgEl=cbPush(cbMd(reply),'bot');
-      cbHistory.push({role:'assistant',content:reply});
-      if(d.chart) cbRenderChart(msgEl,d.chart);
+      if(stillActive){
+        cbLog(cbMd(reply),'bot',d.chart);
+      } else {
+        askedTab.log.push({html:cbMd(reply), who:'bot', chart:d.chart||null});
+      }
+      askedTab.history.push({role:'assistant',content:reply});
+      if(!stillActive)return;
       if(d.annotate) cbAnnotateChart(d.annotate);
       if(d.point_to) cbPointTo(d.point_to);
       if(d.generate_report) generateReport();
@@ -927,21 +1046,26 @@
       if(d.celebrate) cbCelebrate();
     })
     .catch(function(){
-      typ.remove(); if(cbOrbEl) cbOrbEl.classList.remove('cb-thinking');
-      cbPush('Connection error — please try again.','bot');
+      const stillActive = askedTab.id===cbActiveTabId;
+      if(stillActive){
+        typ.remove(); if(cbOrbEl) cbOrbEl.classList.remove('cb-thinking');
+        cbLog('Connection error — please try again.','bot');
+      } else {
+        askedTab.log.push({html:'Connection error — please try again.', who:'bot', chart:null});
+      }
     });
   }
   function cbOpen(){
     document.getElementById('cbPanel').classList.add('open');
     document.getElementById('cbLaunch').classList.add('hide');
-    if(!cbBooted){cbBooted=true;
-      cbPush(`Hi — I'm <b>Lyra</b>, your AI demand analyst. Ask me anything about the 2024 forecast backtest, or tap a suggestion below. 👇`,'bot');}
+    if(cbTabs.length===0) cbNewTab(); // first-ever open — start the first tab
     setTimeout(()=>document.getElementById('cbText').focus(),120);
   }
   function cbCloseFn(){document.getElementById('cbPanel').classList.remove('open');
     document.getElementById('cbLaunch').classList.remove('hide');}
   document.getElementById('cbLaunch').onclick=cbOpen;
   document.getElementById('cbClose').onclick=cbCloseFn;
+  document.getElementById('cbTabAdd').onclick=cbNewTab;
   document.getElementById('cbForm').addEventListener('submit',e=>{
     e.preventDefault(); const i=document.getElementById('cbText'); const v=i.value; i.value=''; cbAsk(v);});
   document.getElementById('cbChips').querySelectorAll('button').forEach(b=>b.onclick=()=>cbAsk(b.textContent));
