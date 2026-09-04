@@ -278,6 +278,27 @@ def _get_forecast_data():
     return _cache['forecast_data']
 
 
+def _annotation_label(explain_result):
+    """Best-effort short label for the chart annotation explain_forecast_day
+    triggers — same priority order Lyra herself is told to lead with
+    (holiday, then weather, then weekend), so the label on the chart always
+    matches whatever reason she actually gives in her text reply. Falls back
+    to the bare date so there's always SOMETHING to show at the point, even
+    with no notable qualitative driver — the value is in showing WHERE she's
+    talking about, not just why."""
+    if explain_result.get('holiday'):
+        return '🎌 ' + explain_result['holiday']
+    weather = explain_result.get('weather')
+    if weather:
+        if weather.get('hot_share', 0) > 0.5:
+            return '☀️ Hot week'
+        if weather.get('cold_share', 0) > 0.5:
+            return '❄️ Cold week'
+    if explain_result.get('is_weekend'):
+        return '📅 Weekend'
+    return '📍 ' + (explain_result.get('date') or '')
+
+
 def _downsample(arr, target=40):
     """Even-stride downsample for compact chart payloads — an inline chat
     sparkline doesn't need full weekly resolution, and this keeps both the
@@ -539,6 +560,13 @@ Rules:
   instead, quote THAT message's specific reason verbatim-ish (it names the actual cause, e.g. a
   covered-date-range boundary or attribution still computing) — don't substitute or blend in
   weather_note's "future date" reason, that's a separate, unrelated field about a different thing.
+• Every explain_forecast_day call also does something real and visible on its own: it switches the
+  Forecasts chart to the right SKU (or the all-SKU view) and draws a pulsing marker with a callout
+  right on the exact point on the line you're discussing — the user can watch you point at it. This
+  happens automatically; you don't control it and it needs no separate mention beyond something
+  natural like "look at the chart" if it fits. Don't also call point_to_ui at Forecasts for this —
+  same as generate_report/open_scenario, it's already shown directly, a nav highlight on top of that
+  is redundant.
 • You can actually start a new forecast pipeline run using the run_scenario tool, and check on a
   run's progress — or its top SKUs by volume, once completed — with check_scenario_status, which
   can look a scenario up by name (label) as well as by id; you don't need to list scenarios
@@ -1662,6 +1690,7 @@ def handler(event, context):
         open_scenario_id = None
         celebrate = False
         chart = None
+        annotate = None
         reply = ''
         seen_tool_calls = set()  # (name, sorted-inputs) already executed this request
         # Fresh per request — carries cross-tool-call state within this one
@@ -1728,6 +1757,15 @@ def handler(event, context):
                             'actual': result.get('actual_units'),
                             'forecast': result.get('forecast_units'),
                         }
+                    if tu['name'] == 'explain_forecast_day' and 'error' not in result:
+                        # None sku means the currently-selected series should
+                        # switch to the all-SKU aggregate — series is
+                        # 'all SKUs' in that case, a real SKU id otherwise.
+                        annotate = {
+                            'sku': result.get('series') if result.get('series') != 'all SKUs' else None,
+                            'week_of': result.get('week_of'),
+                            'label': _annotation_label(result),
+                        }
                     tool_result_blocks.append({'toolResult': {
                         'toolUseId': tu['toolUseId'],
                         'content': [{'json': result}],
@@ -1765,7 +1803,8 @@ def handler(event, context):
             'statusCode': 200,
             'headers':    {**CORS, 'Content-Type': 'application/json'},
             'body':       json.dumps({'reply': reply, 'point_to': point_to, 'generate_report': trigger_report,
-                                       'open_scenario_id': open_scenario_id, 'celebrate': celebrate, 'chart': chart}),
+                                       'open_scenario_id': open_scenario_id, 'celebrate': celebrate, 'chart': chart,
+                                       'annotate': annotate}),
         }
 
     except Exception as exc:

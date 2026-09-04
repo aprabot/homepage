@@ -856,6 +856,19 @@
   .fc-tip .rw{display:flex;align-items:center;gap:7px;line-height:1.5}
   .fc-tip .rw i{width:8px;height:8px;border-radius:2px;flex:0 0 auto}
   .fc-tip .rw b{margin-left:auto;color:var(--text)}
+  /* Lyra's chart annotation — a pulsing ring + callout dropped right on the
+     data point explain_forecast_day is talking about (cbAnnotateChart in
+     main.js), positioned in the same coordinate space as fcGeom.X()/Yu()
+     so it lands exactly on the real line. */
+  .cb-chart-annot{position:absolute;z-index:6;pointer-events:none;transform:translate(-50%,-50%)}
+  .cb-chart-ring{width:14px;height:14px;border-radius:50%;background:rgba(255,59,59,.3);
+    border:2px solid #ff3b3b;animation:cbRingPulse 1.4s ease-out infinite}
+  @keyframes cbRingPulse{0%{box-shadow:0 0 0 0 rgba(255,59,59,.5)}70%{box-shadow:0 0 0 12px rgba(255,59,59,0)}100%{box-shadow:0 0 0 0 rgba(255,59,59,0)}}
+  .cb-chart-callout{position:absolute;left:50%;bottom:24px;transform:translateX(-50%);white-space:nowrap;
+    background:#ff3b3b;color:#fff;font-family:var(--mono);font-size:11px;font-weight:600;
+    padding:5px 10px;border-radius:8px;box-shadow:0 4px 14px -4px rgba(255,59,59,.6)}
+  .cb-chart-callout::after{content:'';position:absolute;left:50%;top:100%;transform:translateX(-50%);
+    border:5px solid transparent;border-top-color:#ff3b3b}
   .chart-legend{display:flex;gap:20px;margin-top:14px;font-family:var(--mono);font-size:11.5px;color:var(--muted)}
   .chart-legend span{display:flex;align-items:center;gap:7px}
   .chart-legend i{width:13px;height:3px;border-radius:2px;display:inline-block}

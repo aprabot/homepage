@@ -712,6 +712,56 @@
     },{once:true});
   }
 
+  // Draws a pulsing ring + callout right on the real forecast chart, at the
+  // exact point explain_forecast_day is talking about — annot is
+  // {sku, week_of, label} from the chat response. Switches to Forecasts and
+  // selects the right series first (or the all-SKU view when sku is null),
+  // widens the visible window so the target week is guaranteed on screen
+  // regardless of whatever period was showing, then positions the overlay
+  // using the SAME axis geometry (fcGeom) drawChart() itself just computed
+  // — not a reimplementation of the chart's math.
+  var cbAnnotEl=null, cbAnnotTimer=null;
+  function cbClearAnnotation(){
+    if(cbAnnotTimer){ clearTimeout(cbAnnotTimer); cbAnnotTimer=null; }
+    if(cbAnnotEl){ cbAnnotEl.remove(); cbAnnotEl=null; }
+  }
+  function cbAnnotateChart(annot){
+    if(!annot||!annot.week_of)return;
+    cbClearAnnotation();
+    goToPanel('Forecasts');
+
+    // Widen first so selectSku's own drawChart() call below already uses
+    // the full window — avoids drawing twice.
+    hideBacktest=false;
+    curWeeks=1000;
+    const hideBtBtn=document.getElementById('hideBacktestBtn');
+    if(hideBtBtn){ hideBtBtn.classList.remove('on'); hideBtBtn.textContent='Hide Backtest'; }
+
+    const input=document.getElementById('skuInput');
+    if(annot.sku){ if(input)input.value=annot.sku; selectSku(annot.sku); }
+    else { if(input)input.value=''; selectSku('ALL'); }
+    // selectSku leaves curSel untouched (rather than throwing) when the SKU
+    // isn't found — this catches that silent-failure case instead of
+    // annotating against a stale, unrelated chart draw.
+    if(curSel!==(annot.sku||'ALL'))return;
+
+    if(!fcGeom)return;
+    const idx=fcGeom.weeks.indexOf(annot.week_of);
+    if(idx<0)return; // shouldn't happen (the week came from this same forecast), but don't guess a position
+    const v=fcGeom.a[idx]!=null?fcGeom.a[idx]:fcGeom.f[idx];
+    if(v==null)return;
+    const x=fcGeom.X(idx), y=fcGeom.Yu(v);
+
+    const wrap=document.createElement('div');
+    wrap.className='cb-chart-annot';
+    wrap.style.left=x+'px'; wrap.style.top=y+'px';
+    const safeLabel=(annot.label||annot.week_of).replace(/&/g,'&amp;').replace(/</g,'&lt;');
+    wrap.innerHTML='<div class="cb-chart-ring"></div><div class="cb-chart-callout">'+safeLabel+'</div>';
+    document.getElementById('forecastChart').appendChild(wrap);
+    cbAnnotEl=wrap;
+    cbAnnotTimer=setTimeout(cbClearAnnotation,7000);
+  }
+
   // A brief, tasteful confetti burst for real milestones — a scenario Lyra
   // just approved, or one of the user's own runs flipping to completed
   // while they're still around (see checkRunCompletion in scenarios.js).
@@ -807,6 +857,7 @@
       const msgEl=cbPush(cbMd(reply),'bot');
       cbHistory.push({role:'assistant',content:reply});
       if(d.chart) cbRenderChart(msgEl,d.chart);
+      if(d.annotate) cbAnnotateChart(d.annotate);
       if(d.point_to) cbPointTo(d.point_to);
       if(d.generate_report) generateReport();
       if(d.open_scenario_id && typeof viewScenario==='function') viewScenario(d.open_scenario_id);
