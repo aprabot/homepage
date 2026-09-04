@@ -1792,6 +1792,18 @@ def handler(event, context):
                     reply = _text_of(resp2['output']['message'])
                 break
 
+        # A more specific action already shown/navigated directly beats a
+        # mere nav highlight — suppress point_to_ui's effect whenever one of
+        # these fired, regardless of whether the model ALSO called
+        # point_to_ui. It sometimes still does despite being told not to in
+        # the system prompt (observed: flaky, not every call) — the same
+        # "enforce it in code, not just the prompt" lesson approve_scenario's
+        # confirm gate already needed. A prompt instruction shapes behavior
+        # and avoids the wasted extra tool round-trip most of the time, but
+        # isn't a guarantee, so this is the actual guarantee.
+        if annotate or trigger_report or open_scenario_id:
+            point_to = None
+
         if not reply:
             reply = ("I've opened it for you." if open_scenario_id
                       else "I've generated your downloadable report — it should open in a new tab, or "
