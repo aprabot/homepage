@@ -812,15 +812,15 @@ TOOL_CONFIG = {
                     "item, in addition to your normal text reply. Call this whenever your answer "
                     "tells the user where to go or what to click — e.g. running a forecast "
                     "(Scenarios), checking accuracy or trends (Forecasts or AI Insights), reviewing "
-                    "SKUs (Overview), changing preferences (Settings), or the setup wizard "
-                    "(Getting Started)."
+                    "SKUs (Overview), changing preferences (Settings), background/domain knowledge "
+                    "(Knowledge Base), or the setup wizard (Getting Started)."
                 ),
                 "inputSchema": {"json": {
                     "type": "object",
                     "properties": {
                         "target": {"type": "string", "enum": [
                             "Overview", "Forecasts", "Scenarios", "AI Insights",
-                            "Settings", "Getting Started",
+                            "Settings", "Knowledge Base", "Getting Started",
                         ]},
                     },
                     "required": ["target"],
@@ -851,7 +851,7 @@ TOOL_CONFIG = {
     ]
 }
 
-NAV_TARGETS = {"Overview", "Forecasts", "Scenarios", "AI Insights", "Settings", "Getting Started"}
+NAV_TARGETS = {"Overview", "Forecasts", "Scenarios", "AI Insights", "Settings", "Knowledge Base", "Getting Started"}
 
 
 def _claims(event):
