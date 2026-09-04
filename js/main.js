@@ -680,6 +680,7 @@
       cbPush(cbMd(reply),'bot');
       cbHistory.push({role:'assistant',content:reply});
       if(d.point_to) cbPointTo(d.point_to);
+      if(d.generate_report) generateReport();
     })
     .catch(function(){
       typ.remove(); if(cbOrbEl) cbOrbEl.classList.remove('cb-thinking');

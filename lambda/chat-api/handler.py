@@ -570,6 +570,12 @@ Rules:
 • Whenever your answer tells the user where to go or what to click in the dashboard, also call the
   point_to_ui tool with the relevant nav item, in addition to writing your normal text reply — do
   not use it instead of a reply.
+• When the user asks to see, generate, download, export, or get a copy of the report (the print-
+  ready one under Settings → Downloadable Report — chart, SKU tables, AI Insights, backtest
+  reference), call generate_report to open it directly instead of just telling them to go find it
+  themselves. It uses whatever sections/row-count they already have configured in Settings — it
+  can't customize that from chat, so if they ask for something only Settings controls (e.g. "only
+  show 10 SKUs"), tell them to set that in Settings → Downloadable Report first, then ask again.
 • The GENERAL FORECASTING KNOWLEDGE section below is background domain knowledge (industry
   concepts, common causes of forecast issues, terminology like WAPE/bias/FVA/bullwhip effect) — use
   it to explain WHY something happens or to name a real phenomenon, never to state a number. The
@@ -818,6 +824,27 @@ TOOL_CONFIG = {
                     },
                     "required": ["target"],
                 }},
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "generate_report",
+                "description": (
+                    "Open the downloadable forecast report (the same print-ready report Settings → "
+                    "Downloadable Report generates — chart, SKU tables, AI Insights, backtest "
+                    "reference), using whatever sections/row-count the user already has configured "
+                    "in Settings. The actual generation happens client-side, asynchronously, after "
+                    "this call returns — it opens in a new tab normally, but the browser may block "
+                    "that as a pop-up (triggering from chat isn't a direct click), in which case it "
+                    "downloads a file instead; there's no way to know from here which one actually "
+                    "happened, so don't assert either specifically — say it's ready as a new tab or "
+                    "a download. Call this whenever the user asks to see, generate, download, "
+                    "export, or get a copy of the report — do not just tell them to go to Settings "
+                    "when they can be handed it directly. No inputs — it can't customize which "
+                    "sections are included from chat; point them to Settings → Downloadable Report "
+                    "for that."
+                ),
+                "inputSchema": {"json": {"type": "object", "properties": {}}},
             }
         },
     ]
@@ -1471,6 +1498,9 @@ def execute_tool(name, inputs, claims, request_state):
     if name == 'point_to_ui':
         return {'ok': True}  # actual UI effect happens client-side; this just satisfies the tool-result contract
 
+    if name == 'generate_report':
+        return {'ok': True}  # actual report generation happens client-side; see handler()'s generate_report flag
+
     return {'error': f'unknown tool {name}'}
 
 
@@ -1545,6 +1575,7 @@ def handler(event, context):
         inference_config = {'maxTokens': toks, 'temperature': temp}
 
         point_to = None
+        trigger_report = False
         reply = ''
         seen_tool_calls = set()  # (name, sorted-inputs) already executed this request
         # Fresh per request — carries cross-tool-call state within this one
@@ -1582,6 +1613,8 @@ def handler(event, context):
                         target = inputs.get('target')
                         if target in NAV_TARGETS:
                             point_to = target
+                    if tu['name'] == 'generate_report':
+                        trigger_report = True
                     # Nova occasionally gets stuck re-issuing the exact same
                     # tool call indefinitely (observed: point_to_ui with an
                     # unchanged target, 8+ times in a row) — no fixed
@@ -1619,12 +1652,15 @@ def handler(event, context):
                 break
 
         if not reply:
-            reply = "Done — I've highlighted it in the sidebar for you." if point_to else "Done!"
+            reply = ("I've generated your downloadable report — it should open in a new tab, or "
+                      "download directly if your browser blocks the pop-up." if trigger_report
+                      else "Done — I've highlighted it in the sidebar for you." if point_to
+                      else "Done!")
 
         return {
             'statusCode': 200,
             'headers':    {**CORS, 'Content-Type': 'application/json'},
-            'body':       json.dumps({'reply': reply, 'point_to': point_to}),
+            'body':       json.dumps({'reply': reply, 'point_to': point_to, 'generate_report': trigger_report}),
         }
 
     except Exception as exc:
