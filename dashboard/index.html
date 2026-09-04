@@ -42,7 +42,18 @@
   .sinput{flex:1;background:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:9px 13px;font-size:.85rem;color:var(--text);font-family:inherit;outline:none}
   .sinput:focus{border-color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
   .stest-msg{font-size:.8rem;margin-top:10px;min-height:18px}
-  .stest-msg.ok{color:#54E6C4}.stest-msg.err{color:#ff6b6b}
+  .stest-msg.ok{color:#54E6C4}.stest-msg.err{color:#ff6b6b}.stest-msg.warn{color:#ffcf5c}
+
+  /* Soft, non-blocking data-quality warnings on an onboarding upload —
+     never stop the wizard or the upload itself, just flag things worth a
+     second look (a missing column, an unparseable date, an implausible
+     value). Amber, distinct from the red .err used for real upload
+     failures. */
+  .ob-warn-list{list-style:none;margin-top:8px;padding:10px 12px;
+    background:rgba(255,207,92,.08);border:1px solid rgba(255,207,92,.25);border-radius:9px}
+  .ob-warn-list li{display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--text);line-height:1.5}
+  .ob-warn-list li+li{margin-top:6px}
+  .ob-warn-list li::before{content:'⚠';flex:none;color:#ffcf5c;font-size:12px;line-height:1.6}
 
   /* Theme pill toggle */
   .theme-pill{display:flex;background:var(--ink);border:1px solid var(--line-2);border-radius:100px;padding:3px;gap:3px}
@@ -806,6 +817,7 @@
             <label for="obAreaFile">What's your serviceable area? Upload a list of postal codes (CSV or TXT, one per line)</label>
             <input type="file" id="obAreaFile" class="file-input" accept=".csv,.txt">
             <p class="stest-msg" id="obAreaStatus" style="margin-top:6px"></p>
+            <ul id="obAreaWarnings" class="ob-warn-list" style="display:none"></ul>
           </div>
 
           <div id="obMap" style="height:320px;border-radius:12px;overflow:hidden;margin-top:14px;border:1px solid var(--line)"></div>
@@ -823,6 +835,7 @@
               <a href="apra_forecast_input_template.xlsx" download style="color:var(--signal)">Download template →</a>
             </p>
             <p class="stest-msg" id="obHistStatus" style="margin-top:6px"></p>
+            <ul id="obHistWarnings" class="ob-warn-list" style="display:none"></ul>
           </div>
 
           <div id="obHistChartWrap" style="display:none;margin-top:14px">
@@ -865,6 +878,7 @@
             <input type="file" id="obWeatherFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
             <p class="stest-msg" style="margin-top:6px;color:var(--muted)">.xlsx with a Weather sheet, or .csv/.tsv/.txt with date and temperature columns.</p>
             <p class="stest-msg" id="obWeatherFileStatus" style="margin-top:6px"></p>
+            <ul id="obWeatherWarnings" class="ob-warn-list" style="display:none"></ul>
             <div id="obWeatherChartWrap" style="display:none;margin-top:14px">
               <div class="ch" style="margin-bottom:8px"><h4 style="font-size:13.5px">Temperature over time (from your Weather sheet)</h4></div>
               <canvas id="obWeatherChart" style="width:100%;height:200px;display:block;border-radius:12px;border:1px solid var(--line)"></canvas>

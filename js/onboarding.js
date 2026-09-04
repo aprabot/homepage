@@ -269,6 +269,98 @@
     });
   }
 
+  /* ===== Soft, non-blocking upload validation ==========================
+     Every check here is a WARNING only — nothing blocks the upload or lets
+     the wizard proceed differently. The real forecast run downstream is
+     the actual source of truth on whether the data is usable; these are
+     just an early, plain-English heads-up about the most common mistakes
+     (wrong column names, a stray non-numeric row, an implausible value)
+     before the user waits minutes to find out from a training run instead. */
+
+  function renderWarnings(listId, warnings) {
+    var el = document.getElementById(listId);
+    if (!el) return;
+    if (!warnings || !warnings.length) { el.style.display = 'none'; el.innerHTML = ''; return; }
+    el.innerHTML = warnings.map(function (w) {
+      return '<li>' + w.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</li>';
+    }).join('');
+    el.style.display = '';
+  }
+
+  function validateShipmentRows(rows) {
+    var warnings = [];
+    if (!rows.length) {
+      warnings.push('The file appears to be empty — no rows were found.');
+      return warnings;
+    }
+    var dateCol = findCol(rows[0], DATE_COLS);
+    var unitsCol = findCol(rows[0], UNITS_COLS);
+    var asinCol = findCol(rows[0], ASIN_COLS);
+    if (!dateCol) warnings.push('No recognizable date column found (expected one of: ' + DATE_COLS.join(', ') + ') — shipment volume can’t be charted or checked further.');
+    if (!unitsCol) warnings.push('No recognizable units column found (expected one of: ' + UNITS_COLS.join(', ') + ') — shipment volume can’t be charted or checked further.');
+    if (!asinCol) warnings.push('No recognizable SKU/ASIN column found (expected one of: ' + ASIN_COLS.join(', ') + ') — newly launched SKUs can’t be auto-detected.');
+    if (!dateCol || !unitsCol) return warnings; // nothing further to check without both
+
+    var badDates = 0, badUnits = 0, negUnits = 0, totalUnits = 0, days = {};
+    rows.forEach(function (row) {
+      var d = new Date(row[dateCol]);
+      if (isNaN(d.getTime())) { badDates++; return; }
+      days[d.toISOString().slice(0, 10)] = true;
+      var u = parseFloat(row[unitsCol]);
+      if (isNaN(u)) { badUnits++; return; }
+      if (u < 0) negUnits++;
+      totalUnits += u;
+    });
+
+    if (badDates) warnings.push(badDates + ' row(s) had a date that couldn’t be parsed and were skipped.');
+    if (badUnits) warnings.push(badUnits + ' row(s) had a non-numeric units value and were skipped.');
+    if (negUnits) warnings.push(negUnits + ' row(s) had a negative units value — shipped units are normally ≥ 0.');
+    var dayCount = Object.keys(days).length;
+    if (dayCount && dayCount < 60) warnings.push('Only ' + dayCount + ' distinct day(s) of history found — forecasts are usually more reliable with several months of data.');
+    if (dayCount && totalUnits === 0) warnings.push('Every parsed row totals 0 units — double check this is the right file.');
+
+    return warnings;
+  }
+
+  function validateWeatherRows(rows) {
+    var warnings = [];
+    if (!rows.length) {
+      warnings.push('No weather rows found — check the file has a date and a temperature column (or a sheet named "Weather" for .xlsx).');
+      return warnings;
+    }
+    var dateCol = findCol(rows[0], DATE_COLS);
+    var tempCol = findCol(rows[0], TEMP_COLS);
+    if (!dateCol) warnings.push('No recognizable date column found (expected one of: ' + DATE_COLS.join(', ') + ').');
+    if (!tempCol) warnings.push('No recognizable temperature column found (expected one of: ' + TEMP_COLS.join(', ') + ').');
+    if (!dateCol || !tempCol) return warnings;
+
+    var badDates = 0, badTemp = 0, extreme = 0;
+    rows.forEach(function (row) {
+      var d = new Date(row[dateCol]);
+      if (isNaN(d.getTime())) { badDates++; return; }
+      var t = parseFloat(row[tempCol]);
+      if (isNaN(t)) { badTemp++; return; }
+      if (t < -60 || t > 60) extreme++; // plausible Celsius range — catches a Fahrenheit mix-up or a bad parse
+    });
+    if (badDates) warnings.push(badDates + ' row(s) had a date that couldn’t be parsed and were skipped.');
+    if (badTemp) warnings.push(badTemp + ' row(s) had a non-numeric temperature value and were skipped.');
+    if (extreme) warnings.push(extreme + ' row(s) have a temperature outside a plausible range (-60°C to 60°C) — worth double-checking the column or units.');
+    return warnings;
+  }
+
+  function validatePostalCodes(codes, country) {
+    var warnings = [];
+    if (!codes.length) { warnings.push('No postal codes were found in the file.'); return warnings; }
+    var seen = {}, dupes = 0, invalid = 0;
+    codes.forEach(function (c) {
+      if (seen[c]) dupes++; else seen[c] = true;
+      if (!validPostal(c, country)) invalid++;
+    });
+    if (invalid) warnings.push(invalid + ' of ' + codes.length + ' postal code(s) don’t look valid for the selected country and will be skipped.');
+    if (dupes) warnings.push(dupes + ' duplicate postal code(s) found.');
+    return warnings;
+  }
+
   // Sums shipped units per calendar day across every SKU/postal code, then
   // buckets into weeks if there are too many distinct days to read as a chart.
   function aggregateByDate(rows) {
@@ -491,6 +583,8 @@
       });
       Object.assign(newSkuState, flagged);
       renderNewSkuList();
+
+      renderWarnings('obHistWarnings', validateShipmentRows(rows));
     }).catch(function () {
       document.getElementById('obHistChartWrap').style.display = 'none';
     });
@@ -512,6 +606,7 @@
       weatherChartPoints = aggregateAvgByDate(rows);
       weatherLoaded = false;
       loadWeatherPreview();
+      renderWarnings('obWeatherWarnings', validateWeatherRows(rows));
     }).catch(function () {});
   }
 
@@ -860,6 +955,7 @@
     document.getElementById('obHistChartWrap').style.display = 'none';
     document.getElementById('obWeatherFileStatus').textContent = '';
     document.getElementById('obWeatherChartWrap').style.display = 'none';
+    ['obAreaWarnings', 'obHistWarnings', 'obWeatherWarnings'].forEach(function (id) { renderWarnings(id, []); });
     renderNewSkuList();
     renderHolidayList();
     showStep(1);
@@ -910,6 +1006,7 @@
         reader.onload = function () {
           var codes = String(reader.result).split(/[\r\n,]+/)
             .map(function (s) { return s.trim(); }).filter(Boolean);
+          renderWarnings('obAreaWarnings', validatePostalCodes(codes, currentCountry()));
           plotBulk(codes, currentCountry());
         };
         reader.readAsText(file);
