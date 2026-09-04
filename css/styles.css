@@ -733,6 +733,15 @@
   .dcard.clickable:hover{border-color:var(--signal);transform:translateY(-2px)}
   .dcard{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px}
   .dcard .ch{display:flex;align-items:center;justify-content:space-between;margin-bottom:18px}
+  /* Forecasts filter row (SKU search, ZIP, period, Show Backtest) — kept
+     on one line always (flex-wrap:nowrap set inline) rather than letting
+     the last control (Show Backtest) wrap onto its own row whenever the
+     card's grid column isn't wide enough for all of them, which it
+     usually isn't (the card sits in a 1.7fr/1fr grid, not the full page
+     width). Scrolls horizontally instead, same pattern as .cb-tabs-scroll.*/
+  .fc-filter-row{padding-bottom:4px;scrollbar-width:thin}
+  .fc-filter-row::-webkit-scrollbar{height:4px}
+  .fc-filter-row::-webkit-scrollbar-thumb{background:var(--line-2);border-radius:4px}
   .dcard .ch h4{font-family:var(--display);font-weight:600;font-size:1.15rem;letter-spacing:-.01em}
   .dcard .ch .seg{display:flex;gap:4px;background:var(--ink);border:1px solid var(--line);border-radius:8px;padding:3px}
   .dcard .ch .seg button{background:none;border:none;color:var(--muted);font-family:var(--mono);font-size:11px;

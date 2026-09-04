@@ -199,21 +199,21 @@
         <div class="dcard">
           <div class="ch" style="flex-wrap:wrap;gap:12px">
             <h4>Forecast vs actuals — shipped units</h4>
-            <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-              <div class="sku-search">
+            <div class="fc-filter-row" style="display:flex;gap:10px;align-items:center;flex-wrap:nowrap;overflow-x:auto">
+              <div class="sku-search" style="flex:0 0 auto">
                 <input id="skuInput" list="skuList" placeholder="Search SKU… (blank = all)">
                 <datalist id="skuList"></datalist>
               </div>
-              <div class="sku-search">
+              <div class="sku-search" style="flex:0 0 auto">
                 <select id="zipInput" disabled title="Pick a SKU first to filter by its postal codes">
                   <option value="">All postal codes</option>
                 </select>
               </div>
-              <div class="seg" id="periodSeg">
+              <div class="seg" id="periodSeg" style="flex:0 0 auto">
                 <button data-w="12">12W</button><button data-w="26">26W</button><button class="on" data-w="52">52W</button>
                 <button data-w="custom" id="periodCustomBtn">Custom</button>
               </div>
-              <div class="qty-wrap" id="periodCustomWrap" style="display:none">
+              <div class="qty-wrap" id="periodCustomWrap" style="display:none;flex:0 0 auto">
                 <input type="number" id="periodCustomInput" min="1" max="1000" placeholder="Weeks">
                 <div class="qty-steppers">
                   <button type="button" class="qty-step" id="periodCustomUp" aria-label="Increase weeks" tabindex="-1">
@@ -224,7 +224,7 @@
                   </button>
                 </div>
               </div>
-              <button class="dbtn on" id="hideBacktestBtn" style="display:none;padding:7px 12px;font-size:12.5px;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Show Backtest</button>
+              <button class="dbtn on" id="hideBacktestBtn" style="display:none;flex:0 0 auto;padding:7px 12px;font-size:12.5px;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Show Backtest</button>
             </div>
           </div>
           <div class="selbar">
