@@ -169,7 +169,7 @@ def get_result(scenario_id):
     return _resp(200, result)
 
 
-def approve_scenario(scenario_id):
+def approve_scenario(scenario_id, event):
     result = _read_json(f'scenarios/{scenario_id}/result.json')
     if result is None:
         return _resp(404, {'error': 'no completed result for this scenario'})
@@ -177,6 +177,13 @@ def approve_scenario(scenario_id):
     _write_json('forecast/latest.json', result)
 
     idx = _read_json('scenarios/index.json', default={'scenarios': []})
+    # Captured before the loop overwrites 'approved' below — this scenario's
+    # own index entry (for label/wape/volume_error) and whichever OTHER
+    # scenario was previously live (for the audit entry's "replaced" field;
+    # None on a first-ever approval, or if re-approving the same one).
+    this_entry = next((s for s in idx['scenarios'] if s['id'] == scenario_id), {})
+    previous_id = next((s['id'] for s in idx['scenarios']
+                        if s.get('approved') and s['id'] != scenario_id), None)
     for s in idx['scenarios']:
         s['approved'] = (s['id'] == scenario_id)
     _write_json('scenarios/index.json', idx)
@@ -185,7 +192,31 @@ def approve_scenario(scenario_id):
     config['approved'] = True
     _write_json(f'scenarios/{scenario_id}/config.json', config)
 
+    # Audit trail — who approved what, when, replacing what. Append-only,
+    # separate from scenarios/index.json (which only ever tracks the
+    # CURRENTLY approved one) so history survives being superseded later.
+    # Same claims shape whether this call came from the UI's own Approve
+    # button or via chat-api's approve_scenario tool (_invoke_scenarios_api
+    # builds an identical fake_event), so both are attributed the same way.
+    log = _read_json('scenarios/approval_log.json', default={'entries': []})
+    log['entries'].append({
+        'scenario_id': scenario_id,
+        'label': this_entry.get('label') or config.get('label', 'Untitled scenario'),
+        'approved_by': _claims(event).get('email', 'unknown'),
+        'approved_at': _now(),
+        'replaced_scenario_id': previous_id,
+        'wape': this_entry.get('wape'),
+        'volume_error': this_entry.get('volume_error'),
+    })
+    _write_json('scenarios/approval_log.json', log)
+
     return _resp(200, {'approved': scenario_id})
+
+
+def list_approvals():
+    log = _read_json('scenarios/approval_log.json', default={'entries': []})
+    entries = sorted(log['entries'], key=lambda e: e.get('approved_at', ''), reverse=True)
+    return _resp(200, {'approvals': entries})
 
 
 def handler(event, context):
@@ -197,11 +228,14 @@ def handler(event, context):
     try:
         m = re.match(r'^/scenarios/([^/]+)/approve$', path)
         if method == 'POST' and m:
-            return approve_scenario(m.group(1))
+            return approve_scenario(m.group(1), event)
 
         m = re.match(r'^/scenarios/([^/]+)/result$', path)
         if method == 'GET' and m:
             return get_result(m.group(1))
+
+        if method == 'GET' and path == '/scenarios/approvals':
+            return list_approvals()
 
         if method == 'GET' and path == '/scenarios':
             return list_scenarios()

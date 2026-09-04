@@ -138,10 +138,61 @@
       .catch(function () { /* leave table as-is on transient error */ });
   }
 
+  /* ── Approval history — durable audit trail (who approved which
+     scenario, when, and what it replaced), separate from the Revision
+     history table above which only ever shows the CURRENTLY approved
+     scenario, not who put it there or what came before it. ── */
+  function fmtAbsolute(iso) {
+    if (!iso) return '—';
+    var d = new Date(iso);
+    return d.toLocaleDateString(undefined, { year: 'numeric', month: 'short', day: 'numeric' }) +
+      ' ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+  }
+
+  function labelFor(id) {
+    if (!id) return null;
+    var s = lastScenarios.find(function (x) { return x.id === id; });
+    return s ? (s.label || 'Untitled') : id; // fall back to the raw id if it's since been pruned from the list
+  }
+
+  function renderApprovals(entries) {
+    var body = document.getElementById('approvalsBody');
+    var empty = document.getElementById('approvalsEmpty');
+    if (!body) return;
+
+    if (!entries.length) {
+      body.innerHTML = '';
+      if (empty) empty.style.display = '';
+      return;
+    }
+    if (empty) empty.style.display = 'none';
+
+    body.innerHTML = entries.map(function (e) {
+      var replaced = e.replaced_scenario_id
+        ? escapeHtml(labelFor(e.replaced_scenario_id) || e.replaced_scenario_id)
+        : '<span class="dsubtle" style="margin:0">— (first approval)</span>';
+      return '<tr>' +
+        '<td style="font-weight:600">' + escapeHtml(e.label || e.scenario_id) + '</td>' +
+        '<td class="dsubtle" style="margin:0">' + escapeHtml((e.approved_by || 'unknown').split('@')[0]) + '</td>' +
+        '<td class="dsubtle" style="margin:0" title="' + escapeHtml(e.approved_at || '') + '">' + fmtAbsolute(e.approved_at) + '</td>' +
+        '<td class="dsubtle" style="margin:0">' + replaced + '</td>' +
+        '<td>' + (e.wape != null ? e.wape.toFixed(2) + '%' : '—') + '</td>' +
+        '<td>' + (e.volume_error != null ? (e.volume_error > 0 ? '+' : '') + e.volume_error.toFixed(2) + '%' : '—') + '</td>' +
+        '</tr>';
+    }).join('');
+  }
+
+  function loadApprovals() {
+    return fetch(SCENARIOS_API + '/approvals', { headers: authHeaders() })
+      .then(function (r) { return r.json(); })
+      .then(function (d) { renderApprovals(d.approvals || []); })
+      .catch(function () { /* leave table as-is on transient error */ });
+  }
+
   window.refreshScenarios = function (btn) {
     var icon = btn && btn.querySelector('svg');
     if (icon) icon.classList.add('spin');
-    loadScenarios().then(function () {
+    Promise.all([loadScenarios(), loadApprovals()]).then(function () {
       if (icon) icon.classList.remove('spin');
     });
   };
@@ -416,6 +467,9 @@
       .then(function (r) {
         if (!r.ok) throw new Error('approve failed');
         return loadScenarios();
+      })
+      .then(function () {
+        return loadApprovals(); // pick up the new audit entry the approve call just wrote
       })
       .then(function () {
         try { localStorage.removeItem('apra_forecast_cache'); } catch (e) {}
@@ -1150,7 +1204,11 @@
   /* ── init: load once on page load so the notification bell has data
      immediately, regardless of which tab the user starts on ── */
   document.addEventListener('DOMContentLoaded', function () {
-    loadScenarios();
+    // Sequenced (not parallel): renderApprovals looks up replaced-scenario
+    // labels from lastScenarios, which loadScenarios() is what populates —
+    // firing both at once would render approvals with raw ids the first
+    // time, self-correcting only on the next refresh.
+    loadScenarios().then(loadApprovals);
 
     var bell = document.getElementById('notifBell');
     var drop = document.getElementById('notifDrop');
