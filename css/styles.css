@@ -987,10 +987,22 @@
   .cb-speak-btn.speaking{background:var(--signal-soft);color:var(--signal);animation:cbSpeakPulse 1.2s ease-in-out infinite}
   @keyframes cbSpeakPulse{0%,100%{opacity:1}50%{opacity:.55}}
   .cb-speak-btn svg{width:13px;height:13px}
-  .cb-msg .cb-speak-btn{display:flex;margin-top:8px;width:22px;height:22px}
-  .cb-msg .cb-speak-btn svg{width:11px;height:11px}
+  /* Row of small action buttons under a message bubble (copy on both
+     sides, +speak on bot replies only) — replaces the old single-button
+     "sits on its own line" rule now that a bot bubble can hold two. */
+  .cb-msg-actions{display:flex;gap:6px;margin-top:8px}
+  .cb-msg-actions .cb-speak-btn{width:22px;height:22px;margin-top:0}
+  .cb-msg-actions .cb-speak-btn svg{width:11px;height:11px}
   [data-theme="light"] .cb-speak-btn{background:rgba(0,0,0,.06)}
   [data-theme="light"] .cb-speak-btn:hover{background:rgba(0,0,0,.1)}
+  /* User bubbles are solid --signal (bright green) with dark text, unlike
+     bot bubbles' dark --ink-3 — the default light-on-dark button colours
+     above would be nearly invisible there, so the copy button on a user
+     message gets its own dark-on-green treatment instead. */
+  .cb-msg.user .cb-copy-btn{background:rgba(10,14,21,.14);color:#0A0E15}
+  .cb-msg.user .cb-copy-btn:hover{background:rgba(10,14,21,.24)}
+  .cb-copy-btn.copied{background:var(--signal-soft);color:var(--signal)}
+  .cb-msg.user .cb-copy-btn.copied{background:rgba(10,14,21,.24);color:#0A0E15}
   /* Inline mini-charts (sku_compare sparkline, range_bar) — appended into
      a bot message's own bubble by cbRenderChart, so an answer about a
      SKU comparison or a date-range total shows the picture right there

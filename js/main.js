@@ -602,6 +602,8 @@
      starting a new one cancels whatever's already playing, which also
      resets that button's own state via its onend/onerror handler. ===== */
   const CB_SPEAK_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M11 5 6 9H2v6h4l5 4V5Z"/><path d="M15.5 8.5a5 5 0 0 1 0 7"/><path d="M18.5 5.5a9 9 0 0 1 0 13"/></svg>';
+  const CB_COPY_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>';
+  const CB_CHECK_ICON='<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
   let cbSpeakingBtn=null;
   function cbStripHtml(html){
     const tmp=document.createElement('div');
@@ -635,15 +637,54 @@
     return btn;
   }
 
+  // Copy-to-clipboard for a message bubble — plain text (HTML tags/line
+  // breaks stripped via cbStripHtml, same source cbSpeakBtn already reads
+  // for narration) rather than the raw HTML, so pasting elsewhere doesn't
+  // carry markup. Reuses .cb-speak-btn's base look (same circular button)
+  // rather than inventing new sizing/hover rules for a second small icon
+  // button living in the same spot.
+  function cbCopyBtn(text,extraClass){
+    if(!text)return null;
+    const btn=document.createElement('button');
+    btn.type='button'; btn.className='cb-speak-btn cb-copy-btn'+(extraClass?' '+extraClass:'');
+    btn.setAttribute('aria-label','Copy this message');
+    btn.title='Copy';
+    btn.innerHTML=CB_COPY_ICON;
+    let resetTimer=null;
+    btn.onclick=()=>{
+      if(!navigator.clipboard||!navigator.clipboard.writeText)return;
+      navigator.clipboard.writeText(text).then(()=>{
+        clearTimeout(resetTimer);
+        btn.innerHTML=CB_CHECK_ICON; btn.classList.add('copied');
+        btn.setAttribute('aria-label','Copied');
+        resetTimer=setTimeout(()=>{
+          btn.innerHTML=CB_COPY_ICON; btn.classList.remove('copied');
+          btn.setAttribute('aria-label','Copy this message');
+        },1400);
+      }).catch(()=>{});
+    };
+    return btn;
+  }
+
   const cbBody=()=>document.getElementById('cbBody');
   function cbPush(text,who){
     const d=document.createElement('div'); d.className='cb-msg '+who; d.innerHTML=text;
     cbBody().appendChild(d); cbBody().scrollTop=cbBody().scrollHeight;
     d.querySelectorAll('.lk').forEach(l=>l.onclick=()=>cbChart(l.dataset.sku));
+    // Copy applies to both sides of the conversation (this is what "I can't
+    // copy the text I send to Lyra" was actually about — turns out manual
+    // select+copy already worked, but there was no visible affordance for
+    // it, same gap most chat products solve with exactly this button);
+    // narration stays bot-only, unchanged.
+    const plainText=cbStripHtml(text);
+    const actions=document.createElement('div'); actions.className='cb-msg-actions';
+    const copyBtn=cbCopyBtn(plainText);
+    if(copyBtn)actions.appendChild(copyBtn);
     if(who==='bot'){
-      const btn=cbSpeakBtn(cbStripHtml(text));
-      if(btn)d.appendChild(btn);
+      const speakBtn=cbSpeakBtn(plainText);
+      if(speakBtn)actions.appendChild(speakBtn);
     }
+    if(actions.children.length)d.appendChild(actions);
     return d;
   }
 
