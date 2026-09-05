@@ -569,9 +569,9 @@
     padding:13px 14px;color:var(--text);font-family:var(--body);font-size:15px;transition:border-color .2s,box-shadow .2s}
   .field input:focus{outline:none;border-color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
   .login-card .btn-pri{width:100%;justify-content:center;margin-top:8px;padding:13px}
-  .remember-row{display:flex;align-items:flex-start;gap:9px;margin:2px 0 16px;cursor:pointer;
+  .remember-row{display:flex;align-items:center;gap:9px;margin:2px 0 16px;cursor:pointer;
     font-size:.85rem;color:var(--text)}
-  .remember-row input{margin-top:3px;flex:0 0 auto;cursor:pointer}
+  .remember-row input{flex:0 0 auto;cursor:pointer}
   .auth-error{min-height:18px;font-size:.85rem;color:#ff6b6b;margin:0 0 6px;line-height:1.4}
   .pwd-reqs{list-style:none;margin:8px 0 0;padding:0;display:flex;flex-wrap:wrap;gap:4px 16px}
   .req{font-size:.72rem;font-weight:500;color:var(--muted);transition:color .2s}
