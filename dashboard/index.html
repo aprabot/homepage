@@ -31,11 +31,21 @@
 
   /* Settings panel */
   .settings-body{padding:28px 32px;overflow-y:auto;flex:1;min-height:0}
-  .settings-body h1{font-size:1.5rem;font-weight:700;color:var(--text);margin-bottom:6px}
+  .settings-body h1{font-family:var(--display);font-weight:600;font-size:1.9rem;letter-spacing:-.025em;
+    color:var(--text);margin-bottom:6px}
   .settings-body>.dsubtle{margin-bottom:28px}
-  .scard{background:var(--ink-2);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:16px}
-  .scard h4{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:16px}
-  .srow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:10px 0}
+  .scard{background:var(--ink-2);border:1px solid var(--line);border-radius:14px;padding:24px 26px;margin-bottom:18px;
+    transition:border-color .2s}
+  .scard-head{display:flex;align-items:center;gap:10px;margin-bottom:18px}
+  .scard-ic{width:28px;height:28px;border-radius:8px;flex:0 0 auto;display:flex;align-items:center;justify-content:center}
+  .scard-ic svg{width:14px;height:14px}
+  .scard-ic.c-signal{background:var(--signal-soft);color:var(--signal);border:1px solid rgba(200,242,78,.25)}
+  .scard-ic.c-mint{background:rgba(84,230,196,.14);color:var(--mint);border:1px solid rgba(84,230,196,.25)}
+  .scard-ic.c-blue{background:rgba(122,162,255,.14);color:#7AA2FF;border:1px solid rgba(122,162,255,.25)}
+  .scard h4{font-size:.8rem;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin:0}
+  .srow{display:flex;align-items:center;justify-content:space-between;gap:16px;padding:12px 6px;
+    margin:0 -6px;border-radius:9px;transition:background .15s}
+  .srow:hover{background:rgba(127,127,150,.06)}
   .srow+.srow{border-top:1px solid var(--line)}
   .srow-label{font-size:.9rem;font-weight:600;color:var(--text);margin-bottom:2px}
   .srow-desc{font-size:.78rem;color:var(--muted)}
@@ -43,6 +53,16 @@
   .sinput:focus{border-color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
   .stest-msg{font-size:.8rem;margin-top:10px;min-height:18px}
   .stest-msg.ok{color:#54E6C4}.stest-msg.err{color:#ff6b6b}.stest-msg.warn{color:#ffcf5c}
+  /* Boolean On/Off pills (Downloadable Report) get a semantic colour on
+     top of the plain theme-pill look — green when the active state is
+     "on", muted when it's "off" — so which sections are included reads
+     at a glance instead of needing to read the button text. Scoped to
+     [data-val] so this doesn't touch the theme/style/tone/rows pill
+     groups, which aren't a boolean either/or. */
+  .theme-pill button[data-val="on"].active{background:var(--signal-soft);color:var(--signal)}
+  .theme-pill button[data-val="off"].active{background:rgba(127,127,150,.14);color:var(--muted)}
+  .settings-avatar{width:40px;height:40px;border-radius:50%;background:linear-gradient(135deg,var(--signal),var(--mint));
+    display:flex;align-items:center;justify-content:center;font-weight:700;color:#0A0E15;font-size:16px;flex:0 0 auto}
 
   /* Soft, non-blocking data-quality warnings on an onboarding upload —
      never stop the wizard or the upload itself, just flag things worth a
@@ -435,7 +455,10 @@
 
       <!-- Appearance -->
       <div class="scard">
-        <h4>Appearance</h4>
+        <div class="scard-head">
+          <span class="scard-ic c-signal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.5"/><line x1="12" y1="2" x2="12" y2="5" stroke-linecap="round"/><line x1="12" y1="19" x2="12" y2="22" stroke-linecap="round"/><line x1="4.93" y1="4.93" x2="6.7" y2="6.7" stroke-linecap="round"/><line x1="17.3" y1="17.3" x2="19.07" y2="19.07" stroke-linecap="round"/><line x1="2" y1="12" x2="5" y2="12" stroke-linecap="round"/><line x1="19" y1="12" x2="22" y2="12" stroke-linecap="round"/></svg></span>
+          <h4>Appearance</h4>
+        </div>
         <div class="srow">
           <div>
             <div class="srow-label">Theme</div>
@@ -454,7 +477,10 @@
 
       <!-- Lyra parameters -->
       <div class="scard">
-        <h4>Lyra — AI Analyst</h4>
+        <div class="scard-head">
+          <span class="scard-ic c-mint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" stroke-linejoin="round"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" stroke-linejoin="round"/></svg></span>
+          <h4>Lyra — AI Analyst</h4>
+        </div>
 
         <!-- Response style -->
         <div class="srow" style="flex-wrap:wrap;gap:12px">
@@ -517,7 +543,10 @@
 
       <!-- Downloadable report -->
       <div class="scard">
-        <h4>Downloadable Report</h4>
+        <div class="scard-head">
+          <span class="scard-ic c-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-linejoin="round"/><path d="M14 2v6h6M8 13h8M8 17h6" stroke-linecap="round"/></svg></span>
+          <h4>Downloadable Report</h4>
+        </div>
         <p class="dsubtle" style="margin:-4px 0 4px;font-size:12.5px">Choose what's included the next time you generate the PDF report from the sidebar.</p>
 
         <div class="srow" style="flex-wrap:wrap;gap:12px">
@@ -586,12 +615,19 @@
 
       <!-- Account -->
       <div class="scard">
-        <h4>Account</h4>
+        <div class="scard-head">
+          <span class="scard-ic c-signal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" stroke-linecap="round"/></svg></span>
+          <h4>Account</h4>
+        </div>
         <div class="srow">
-          <div>
-            <div class="srow-label">Email</div>
-            <div class="srow-desc" id="settingsEmail">—</div>
+          <div style="display:flex;align-items:center;gap:14px">
+            <div class="settings-avatar" id="settingsAvatar">U</div>
+            <div>
+              <div class="srow-label" id="settingsEmail">—</div>
+              <div class="srow-desc">Signed in — Demand Planner</div>
+            </div>
           </div>
+          <button class="dbtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" onclick="logout()">Sign out</button>
         </div>
       </div>
     </div>
@@ -1274,10 +1310,12 @@
     activatePill('reportMoversGroup',  'report_movers',  'on');
     activatePill('reportBacktestGroup','report_backtest','on');
     activatePill('reportRowsGroup',    'report_rows',    '15');
-    /* email */
+    /* email + avatar initial, mirroring applyUser()'s own header avatar */
     var emailEl=document.getElementById('settingsEmail');
     var nameEl =document.getElementById('userName');
     if(emailEl&&nameEl) emailEl.textContent=nameEl.textContent||'—';
+    var avatarEl=document.getElementById('settingsAvatar');
+    if(avatarEl&&nameEl&&nameEl.textContent) avatarEl.textContent=nameEl.textContent.charAt(0).toUpperCase();
   }
 
   function setTheme(t){
