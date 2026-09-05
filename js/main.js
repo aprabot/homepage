@@ -1090,8 +1090,17 @@
   }
   document.getElementById('cbLaunch').onclick=cbOpen;
   document.getElementById('cbClose').onclick=cbCloseFn;
-  document.getElementById('cbMaximize').onclick=cbToggleMaximize;
-  document.getElementById('cbTabAdd').onclick=cbNewTab;
+  // cbMaximize/cbTabAdd only exist on the dashboard's own copy of this chat
+  // panel — the marketing page (index.html) reuses this same main.js
+  // against an older, simpler markup (no maximize button, no tabs bar), so
+  // an unguarded lookup here throws and kills every line after it in this
+  // script, including the chips/slash-command/voice-input setup further
+  // down (confirmed 2026-09-05: this was silently broken on the marketing
+  // page until this guard was added).
+  const cbMaximizeBtn=document.getElementById('cbMaximize');
+  if(cbMaximizeBtn) cbMaximizeBtn.onclick=cbToggleMaximize;
+  const cbTabAddBtn=document.getElementById('cbTabAdd');
+  if(cbTabAddBtn) cbTabAddBtn.onclick=cbNewTab;
   document.getElementById('cbForm').addEventListener('submit',e=>{
     e.preventDefault(); const i=document.getElementById('cbText'); const v=i.value; i.value=''; cbCloseSlashMenu(); cbAsk(v);});
   document.getElementById('cbChips').querySelectorAll('button').forEach(b=>b.onclick=()=>cbAsk(b.textContent));
@@ -1121,6 +1130,13 @@
   (function(){
     const cbTextEl = document.getElementById('cbText');
     const menuEl = document.getElementById('cbSlashMenu');
+    // cbSlashMenu doesn't exist on the marketing page's older copy of this
+    // panel (see the cbMaximize/cbTabAdd comment above for why that's
+    // possible at all) — without this, typing "/" in that page's own demo
+    // chat would throw the first time closeMenu()/renderMenu() touched a
+    // null menuEl. window.cbCloseSlashMenu still needs to exist either way
+    // since the form-submit handler above calls it unconditionally.
+    if(!cbTextEl || !menuEl){ window.cbCloseSlashMenu=function(){}; return; }
     let matches = [];
     let activeIdx = 0;
 

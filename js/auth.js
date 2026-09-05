@@ -58,6 +58,32 @@ var APRA_AUTH = (function () {
     localStorage.removeItem('apra_access');
     localStorage.removeItem('apra_id');
     localStorage.removeItem('apra_refresh');
+    localStorage.removeItem('apra_remember');
+  }
+
+  // "Keep me signed in" — the ID/access tokens Cognito issues are short-
+  // lived (1hr, this app client's default), so without this every user
+  // gets bounced back to login every hour regardless of activity. The
+  // refresh token this app client already gets (ALLOW_REFRESH_TOKEN_AUTH
+  // is enabled) lasts 30 days — this silently trades a spent access/id
+  // token for a fresh pair using it, only when the user opted in at login.
+  function refreshSession() {
+    var refreshToken = localStorage.getItem('apra_refresh');
+    if (!refreshToken) return Promise.reject(new Error('no refresh token stored'));
+    return cognitoPost('InitiateAuth', {
+      AuthFlow: 'REFRESH_TOKEN_AUTH',
+      ClientId: CLIENT_ID,
+      AuthParameters: { REFRESH_TOKEN: refreshToken }
+    }).then(function (data) {
+      var result = data.AuthenticationResult || {};
+      if (!result.IdToken) throw new Error('refresh did not return new tokens');
+      // REFRESH_TOKEN_AUTH doesn't reissue a refresh token (no rotation on
+      // this app client) — only access/id actually renew, the existing
+      // refresh token stays valid until its own 30-day expiry.
+      localStorage.setItem('apra_access', result.AccessToken);
+      localStorage.setItem('apra_id',     result.IdToken);
+      return result;
+    });
   }
 
   function applyUser(email) {
@@ -77,12 +103,22 @@ var APRA_AUTH = (function () {
     window.location.href = '/dashboard';
   }
 
-  /* restore session on load — redirect to dashboard if already signed in */
+  /* restore session on load — redirect to dashboard if already signed in.
+     An expired id token with "Keep me signed in" checked at login gets one
+     silent refresh attempt before giving up — this is what actually lets a
+     return visit skip re-entering credentials for up to the refresh
+     token's own 30-day life, not just whatever's left of the 1hr id token. */
   var _stored = localStorage.getItem('apra_id');
   if (_stored) {
     var _p = parseJwt(_stored);
     if (_p.exp && _p.exp * 1000 > Date.now()) {
       window.location.replace('/dashboard');
+    } else if (localStorage.getItem('apra_remember') === '1' && localStorage.getItem('apra_refresh')) {
+      refreshSession().then(function () {
+        window.location.replace('/dashboard');
+      }).catch(function () {
+        clearSession();
+      });
     } else {
       clearSession();
     }
@@ -93,6 +129,7 @@ var APRA_AUTH = (function () {
     friendlyError: friendlyError,
     setSession:   setSession,
     clearSession: clearSession,
+    refreshSession: refreshSession,
     applyUser:    applyUser,
     enterDashboard: enterDashboard,
     getSignupEmail: function () { return _signupEmail; },
@@ -118,6 +155,7 @@ function doLogin(e) {
   e.preventDefault();
   var email    = (document.getElementById('uid').value  || '').trim();
   var password =  document.getElementById('pwd').value  || '';
+  var remember =  document.getElementById('rememberMe');
   var errEl    =  document.getElementById('auth-error');
   var btn      =  e.target.querySelector('button[type=submit]');
 
@@ -137,6 +175,11 @@ function doLogin(e) {
       return;
     }
     APRA_AUTH.setSession(data.AuthenticationResult);
+    // Drives the silent-refresh-on-return-visit check in auth.js's own
+    // restore-session-on-load logic — unchecked means a return visit after
+    // the 1hr id token lapses goes back to a normal login, same as today.
+    if (remember && remember.checked) localStorage.setItem('apra_remember', '1');
+    else localStorage.removeItem('apra_remember');
     APRA_AUTH.enterDashboard(email);
   }).catch(function (err) {
     if (errEl) errEl.textContent = APRA_AUTH.friendlyError(err.message);
