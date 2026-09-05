@@ -382,6 +382,33 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
     asin_ids = list(asin_totals.index)
     anon = {asin: f"SKU-{i+1:03d}" for i, asin in enumerate(asin_ids)}
 
+    # Volume-weighted average selling price per ASIN, over its full raw
+    # history (not just the backtest window) — a stable "typical price" per
+    # SKU rather than one skewed by a single promo-heavy week. avg_our_price
+    # is already the transaction price (see the Knowledge Base's own
+    # Pricing Terminology: "the list/selling price feature"), not something
+    # avg_discount_amt needs subtracted from — so revenue = units x this
+    # price is a real (if approximate — no exact per-order figure exists in
+    # this dataset) estimate, not a made-up number. Read from
+    # raw_history_path specifically because tsv_path (the backtest output)
+    # only ever has actual_units/forecast_units — price never survives
+    # forecast.py's own pipeline that far, only the raw input has it.
+    avg_price_by_asin = {}
+    if raw_history_path and os.path.exists(raw_history_path):
+        try:
+            price_df = pd.read_csv(raw_history_path, sep='\t',
+                                    usecols=['asin', 'shipped_units', 'avg_our_price'])
+            price_df = price_df.dropna(subset=['avg_our_price'])
+            if not price_df.empty:
+                price_df['weighted'] = price_df['avg_our_price'] * price_df['shipped_units']
+                grp = price_df.groupby('asin').agg(weighted=('weighted', 'sum'),
+                                                     units=('shipped_units', 'sum'))
+                avg_price_by_asin = (grp['weighted'] / grp['units']).to_dict()
+        except Exception as exc:
+            # Price is an annotation on top of the real forecast output,
+            # never worth failing an otherwise-successful run over.
+            print(f"AVG_PRICE_CALC_FAILED: {exc} — SKUs will have no avgPrice this run")
+
     future_wk_asin = None
     future_wk_asin_zip = None
     future_weeks = []
@@ -461,7 +488,11 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
                     zf[i] = round(float(row['f']))
             by_zip[str(zip_code)] = {'a': za, 'f': zf}
 
-        skus[anon[asin]] = {'a': a, 'f': f, 'byZip': by_zip}
+        sku_entry = {'a': a, 'f': f, 'byZip': by_zip}
+        avg_price = avg_price_by_asin.get(asin)
+        if avg_price is not None:
+            sku_entry['avgPrice'] = round(float(avg_price), 2)
+        skus[anon[asin]] = sku_entry
 
     all_a = [None] * n
     all_f = [None] * n

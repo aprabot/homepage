@@ -422,7 +422,15 @@ def _sku_row(sku_id, sku_data, bt, trail_win):
     forecast total, trend vs. an equally-sized trailing-actual window) —
     factored out of build_data_summary() so compare_skus can look up the
     exact same numbers for just two SKUs without recomputing the whole
-    catalog inline."""
+    catalog inline.
+
+    avg_price/revenue_est: added so "$ value" / revenue questions have a
+    real number to point to instead of "no price data" — avgPrice is a
+    volume-weighted average selling price over the SKU's full raw history
+    (scenario-runner's transform_to_weekly(), not computed here), so
+    revenue_est = vol x avgPrice is an ESTIMATE (this dataset has no exact
+    per-order revenue figure), not a made-up one. None on older cached
+    results from before this field existed."""
     a, f = sku_data['a'], sku_data['f']
     vol = sum(x for x in a if x is not None)
     num = sum(abs(x - y) for x, y in zip(a, f) if x is not None)
@@ -430,7 +438,10 @@ def _sku_row(sku_id, sku_data, bt, trail_win):
     fwd = sum(x for x in f[bt:] if x is not None)
     trail_actual = sum(x for x in a[max(0, bt - trail_win):bt] if x is not None) if trail_win else 0
     trend = round(100 * (fwd - trail_actual) / trail_actual, 1) if trail_win and trail_actual else None
-    return {'sku': sku_id, 'vol': vol, 'wape': wape, 'acc': round(100 - wape, 1), 'fwd': fwd, 'trend': trend}
+    avg_price = sku_data.get('avgPrice')
+    revenue_est = round(vol * avg_price, 2) if avg_price is not None else None
+    return {'sku': sku_id, 'vol': vol, 'wape': wape, 'acc': round(100 - wape, 1), 'fwd': fwd, 'trend': trend,
+            'avg_price': avg_price, 'revenue_est': revenue_est}
 
 
 def _all_sku_rows():
@@ -513,13 +524,19 @@ def build_data_summary():
         "",
         "--- SKU DETAIL (volume-sorted; vol/WAPE/acc are backtest-only, forward_fcst is the forecast "
         "beyond the backtest, trend compares forward_fcst to an equally-sized trailing-actual window, "
-        "confidence is the tier explained below) ---",
+        "confidence is the tier explained below. avg_price is a volume-weighted average selling price "
+        "over each SKU's full history; revenue_est = vol x avg_price is an ESTIMATE — this dataset has "
+        "no exact per-order revenue figure, so always call it an estimate when quoting it, never state "
+        "it as precise transaction revenue. n/a on either means no price data survived for that SKU.) ---",
     ]
     for r in rows:
         trend_str = f"{r['trend']:+.1f}%" if r['trend'] is not None else "n/a"
+        price_str = f"{r['avg_price']:.2f}" if r['avg_price'] is not None else "n/a"
+        revenue_str = f"{r['revenue_est']:,.0f}" if r['revenue_est'] is not None else "n/a"
         lines.append(
             f"  {r['sku']:20s}  vol={r['vol']:>9,}  WAPE={r['wape']:.1f}%  acc={r['acc']:.1f}%  "
-            f"forward_fcst={r['fwd']:>8,}  trend={trend_str:>7s}  confidence={r['tier']}")
+            f"forward_fcst={r['fwd']:>8,}  trend={trend_str:>7s}  confidence={r['tier']}  "
+            f"avg_price={price_str:>8s}  revenue_est={revenue_str:>12s}")
 
     # Actual volume by postal code, summed across ALL SKUs — the dashboard
     # itself only ever shows this per-SKU (the "By postal code" table you
@@ -942,8 +959,10 @@ TOOL_CONFIG = {
                 "name": "compare_skus",
                 "description": (
                     "Compare two SKUs side by side on the current live forecast — backtest volume, "
-                    "WAPE, accuracy, forward forecast total, trend, and confidence tier for each. "
-                    "Use for any 'compare SKU-X and SKU-Y' style question."
+                    "WAPE, accuracy, forward forecast total, trend, confidence tier, and average "
+                    "selling price + an ESTIMATED revenue (volume x average price — this dataset has "
+                    "no exact per-order revenue, so always call it an estimate) for each. Use for any "
+                    "'compare SKU-X and SKU-Y' style question, including $ value / revenue comparisons."
                 ),
                 "inputSchema": {"json": {
                     "type": "object",
