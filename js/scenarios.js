@@ -8,6 +8,7 @@
   var SCENARIOS_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/scenarios';
   var pollTimer = null;
   var lastScenarios = [];
+  var lastApprovals = [];
   var selectedForCompare = [];
   var sdVisible = { a: true, f: true };
   var cmpVisible = { a: true, fA: true, fB: true };
@@ -138,10 +139,15 @@
       .catch(function () { /* leave table as-is on transient error */ });
   }
 
-  /* ── Approval history — durable audit trail (who approved which
-     scenario, when, and what it replaced), separate from the Revision
-     history table above which only ever shows the CURRENTLY approved
-     scenario, not who put it there or what came before it. ── */
+  /* ── Approval audit trail (who approved which scenario, when, and what
+     it replaced) — append-only in the backend (scenarios/approval_log.json),
+     so a scenario that was approved and later superseded keeps its history.
+     Previously rendered as its own standalone "Approval history" table
+     covering every scenario at once; now just cached here and rendered
+     per-scenario, inline inside that scenario's own detail view (see
+     approvalsFor() / renderScenarioDetail's "Approval audit" card below) —
+     one scenario's approve/replace story belongs with that scenario, not in
+     a separate list you have to cross-reference by name. ── */
   function fmtAbsolute(iso) {
     if (!iso) return '—';
     var d = new Date(iso);
@@ -155,38 +161,18 @@
     return s ? (s.label || 'Untitled') : id; // fall back to the raw id if it's since been pruned from the list
   }
 
-  function renderApprovals(entries) {
-    var body = document.getElementById('approvalsBody');
-    var empty = document.getElementById('approvalsEmpty');
-    if (!body) return;
-
-    if (!entries.length) {
-      body.innerHTML = '';
-      if (empty) empty.style.display = '';
-      return;
-    }
-    if (empty) empty.style.display = 'none';
-
-    body.innerHTML = entries.map(function (e) {
-      var replaced = e.replaced_scenario_id
-        ? escapeHtml(labelFor(e.replaced_scenario_id) || e.replaced_scenario_id)
-        : '<span class="dsubtle" style="margin:0">— (first approval)</span>';
-      return '<tr>' +
-        '<td style="font-weight:600">' + escapeHtml(e.label || e.scenario_id) + '</td>' +
-        '<td class="dsubtle" style="margin:0">' + escapeHtml((e.approved_by || 'unknown').split('@')[0]) + '</td>' +
-        '<td class="dsubtle" style="margin:0" title="' + escapeHtml(e.approved_at || '') + '">' + fmtAbsolute(e.approved_at) + '</td>' +
-        '<td class="dsubtle" style="margin:0">' + replaced + '</td>' +
-        '<td>' + (e.wape != null ? e.wape.toFixed(2) + '%' : '—') + '</td>' +
-        '<td>' + (e.volume_error != null ? (e.volume_error > 0 ? '+' : '') + e.volume_error.toFixed(2) + '%' : '—') + '</td>' +
-        '</tr>';
-    }).join('');
+  // This scenario's own approval entries, most-recent first (the backend
+  // already sorts the full log that way) — usually zero or one, but more
+  // than one if it was approved, superseded, then approved again later.
+  function approvalsFor(scenarioId) {
+    return lastApprovals.filter(function (e) { return e.scenario_id === scenarioId; });
   }
 
   function loadApprovals() {
     return fetch(SCENARIOS_API + '/approvals', { headers: authHeaders() })
       .then(function (r) { return r.json(); })
-      .then(function (d) { renderApprovals(d.approvals || []); })
-      .catch(function () { /* leave table as-is on transient error */ });
+      .then(function (d) { lastApprovals = d.approvals || []; })
+      .catch(function () { /* leave cache as-is on transient error */ });
   }
 
   window.refreshScenarios = function (btn) {
@@ -980,6 +966,33 @@
       }).join('') +
       '</tbody></table></div></div>';
 
+    // This scenario's own approve/replace history — folded in here instead
+    // of a separate cross-scenario table (see approvalsFor()'s comment).
+    // Usually empty (never approved) or one entry; more than one only if it
+    // was approved, later superseded, then approved again.
+    var approvalEntries = approvalsFor(meta.id);
+    if (approvalEntries.length) {
+      bodyHtml += '<div class="dcard" style="margin-top:16px;padding:16px">' +
+        '<div class="ch"><h4>Approval audit</h4>' +
+        '<span class="dsubtle" style="margin:0;font-size:.8rem">who approved this run, and what it replaced</span></div>' +
+        '<div class="table-wrap"><table class="dtable"><thead><tr>' +
+        '<th>Approved by</th><th>When</th><th>Replaced</th><th>WAPE</th><th>Volume error</th>' +
+        '</tr></thead><tbody>' +
+        approvalEntries.map(function (e) {
+          var replaced = e.replaced_scenario_id
+            ? escapeHtml(labelFor(e.replaced_scenario_id) || e.replaced_scenario_id)
+            : '<span class="dsubtle" style="margin:0">— (first approval)</span>';
+          return '<tr>' +
+            '<td class="dsubtle" style="margin:0">' + escapeHtml((e.approved_by || 'unknown').split('@')[0]) + '</td>' +
+            '<td class="dsubtle" style="margin:0" title="' + escapeHtml(e.approved_at || '') + '">' + fmtAbsolute(e.approved_at) + '</td>' +
+            '<td class="dsubtle" style="margin:0">' + replaced + '</td>' +
+            '<td>' + (e.wape != null ? e.wape.toFixed(2) + '%' : '—') + '</td>' +
+            '<td>' + (e.volume_error != null ? (e.volume_error > 0 ? '+' : '') + e.volume_error.toFixed(2) + '%' : '—') + '</td>' +
+            '</tr>';
+        }).join('') +
+        '</tbody></table></div></div>';
+    }
+
     // Filled in when the validations pill above is clicked — its checklist
     // is already computed (checks), so this is just a render, not a re-run.
     bodyHtml += '<div id="sdValidations"></div>';
@@ -1204,10 +1217,11 @@
   /* ── init: load once on page load so the notification bell has data
      immediately, regardless of which tab the user starts on ── */
   document.addEventListener('DOMContentLoaded', function () {
-    // Sequenced (not parallel): renderApprovals looks up replaced-scenario
-    // labels from lastScenarios, which loadScenarios() is what populates —
-    // firing both at once would render approvals with raw ids the first
-    // time, self-correcting only on the next refresh.
+    // Sequenced (not parallel): labelFor() (used when a scenario detail's
+    // Approval audit card renders a "Replaced" cell) looks up labels from
+    // lastScenarios, which loadScenarios() is what populates — firing both
+    // at once risks a detail view opened right after load showing a raw id
+    // instead of a label the first time.
     loadScenarios().then(loadApprovals);
 
     var bell = document.getElementById('notifBell');
