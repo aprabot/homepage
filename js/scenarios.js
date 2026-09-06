@@ -11,6 +11,8 @@
   var lastApprovals = [];
   var SCENARIOS_PAGE_SIZE = 10;
   var scenariosPage = 1; // 1-indexed; client-side only — /scenarios always returns the full list
+  var scenariosSearch = '';        // lowercased, matched against label + requested_by
+  var scenariosStatusFilter = 'all'; // 'all' | 'approved' | 'completed' | 'running' | 'failed'
   var selectedForCompare = [];
   var sdVisible = { a: true, f: true };
   var cmpVisible = { a: true, fA: true, fB: true };
@@ -81,24 +83,56 @@
     return '<span class="pill" style="color:var(--muted);border-color:var(--line-2);background:var(--ink-3)">Completed</span>';
   }
 
+  // Status-filter predicate — 'completed' means "completed but not (yet)
+  // approved" so it's mutually exclusive with 'approved' (matching the
+  // distinct pills statusPill() shows: a completed+approved scenario always
+  // reads "Approved", never "Completed").
+  function matchesStatusFilter(s) {
+    switch (scenariosStatusFilter) {
+      case 'approved':  return !!s.approved;
+      case 'completed': return s.status === 'completed' && !s.approved;
+      case 'running':   return s.status === 'running';
+      case 'failed':    return s.status === 'failed';
+      default:          return true; // 'all'
+    }
+  }
+
+  function matchesScenariosSearch(s) {
+    if (!scenariosSearch) return true;
+    var hay = ((s.label || '') + ' ' + (s.requested_by || '')).toLowerCase();
+    return hay.indexOf(scenariosSearch) > -1;
+  }
+
   function render(scenarios) {
-    lastScenarios = scenarios; // full list — compare/labelFor/notifications/etc. all need every scenario, not just the visible page
+    lastScenarios = scenarios; // full, UNFILTERED list — compare/labelFor/notifications/etc. all need every scenario, not just the visible/filtered page
     var body = document.getElementById('scenariosBody');
     var empty = document.getElementById('scenariosEmpty');
+    var noMatch = document.getElementById('scenariosNoMatch');
     if (!body) return;
 
     if (!scenarios.length) {
       body.innerHTML = '';
       if (empty) empty.style.display = '';
+      if (noMatch) noMatch.style.display = 'none';
       renderScenariosPagination(0, 1);
       return;
     }
     if (empty) empty.style.display = 'none';
 
-    var totalPages = Math.max(1, Math.ceil(scenarios.length / SCENARIOS_PAGE_SIZE));
-    if (scenariosPage > totalPages) scenariosPage = totalPages; // clamp — e.g. the list shrank, or a prior scenario was pruned
+    var filtered = scenarios.filter(function (s) { return matchesStatusFilter(s) && matchesScenariosSearch(s); });
+
+    if (!filtered.length) {
+      body.innerHTML = '';
+      if (noMatch) noMatch.style.display = '';
+      renderScenariosPagination(0, 1);
+      return;
+    }
+    if (noMatch) noMatch.style.display = 'none';
+
+    var totalPages = Math.max(1, Math.ceil(filtered.length / SCENARIOS_PAGE_SIZE));
+    if (scenariosPage > totalPages) scenariosPage = totalPages; // clamp — e.g. a filter narrowed the list, or it shrank
     if (scenariosPage < 1) scenariosPage = 1;
-    var pageItems = scenarios.slice((scenariosPage - 1) * SCENARIOS_PAGE_SIZE, scenariosPage * SCENARIOS_PAGE_SIZE);
+    var pageItems = filtered.slice((scenariosPage - 1) * SCENARIOS_PAGE_SIZE, scenariosPage * SCENARIOS_PAGE_SIZE);
 
     body.innerHTML = pageItems.map(function (s) {
       var canCompare = s.status === 'completed';
@@ -120,7 +154,7 @@
     }).join('');
 
     updateCompareBtn();
-    renderScenariosPagination(scenarios.length, totalPages);
+    renderScenariosPagination(filtered.length, totalPages);
   }
 
   // Prev/Next + "Page X of Y · N scenarios total" — hidden entirely when
@@ -376,6 +410,32 @@
     btn.classList.add('active');
     if (group.id === 'rf-source') {
       document.getElementById('rf-upload-row').style.display = btn.dataset.v === 'custom' ? '' : 'none';
+    }
+  });
+
+  // Revision history filters — status seg (All/Approved/Completed/Running/
+  // Failed) and free-text search (label + requester), both applied client-
+  // side in render() since /scenarios already returns everything. Any
+  // change jumps back to page 1 so the new result set is never viewed
+  // starting from a page number that may no longer exist for it.
+  document.addEventListener('click', function (e) {
+    var btn = e.target.closest('#scenariosStatusSeg button');
+    if (!btn) return;
+    document.querySelectorAll('#scenariosStatusSeg button').forEach(function (b) { b.classList.remove('on'); });
+    btn.classList.add('on');
+    scenariosStatusFilter = btn.dataset.status;
+    scenariosPage = 1;
+    render(lastScenarios);
+  });
+
+  document.addEventListener('DOMContentLoaded', function () {
+    var searchInput = document.getElementById('scenariosSearchInput');
+    if (searchInput) {
+      searchInput.addEventListener('input', function () {
+        scenariosSearch = searchInput.value.trim().toLowerCase();
+        scenariosPage = 1;
+        render(lastScenarios);
+      });
     }
   });
 

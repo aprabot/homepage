@@ -326,9 +326,19 @@
       </div>
 
       <div class="dcard" style="margin-top:24px">
-        <div class="ch">
+        <div class="ch" style="flex-wrap:wrap;gap:12px">
           <h4>Revision history</h4>
-          <div style="display:flex;gap:8px;align-items:center">
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+            <div class="sku-search" style="flex:0 0 auto">
+              <input type="text" id="scenariosSearchInput" placeholder="Search by name or requester…" style="width:200px">
+            </div>
+            <div class="seg" id="scenariosStatusSeg">
+              <button type="button" class="on" data-status="all">All</button>
+              <button type="button" data-status="approved">Approved</button>
+              <button type="button" data-status="completed">Completed</button>
+              <button type="button" data-status="running">Running</button>
+              <button type="button" data-status="failed">Failed</button>
+            </div>
             <button class="dbtn" id="refreshScenariosBtn" style="padding:7px 10px;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" onclick="refreshScenarios(this)" aria-label="Refresh">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
@@ -349,6 +359,7 @@
           </table>
         </div>
         <p class="dsubtle" id="scenariosEmpty" style="margin:32px 0 12px;text-align:center;display:none">No scenarios yet — run your first forecast above.</p>
+        <p class="dsubtle" id="scenariosNoMatch" style="margin:32px 0 12px;text-align:center;display:none">No scenarios match this search/filter.</p>
         <div id="scenariosPagination" style="display:none;align-items:center;justify-content:center;gap:14px;margin-top:14px"></div>
       </div>
     </div>
