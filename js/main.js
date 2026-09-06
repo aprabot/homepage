@@ -576,8 +576,8 @@
 
   const LYRA_AVATAR_SVG = '<svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">'
     + '<ellipse cx="16" cy="14.5" rx="9" ry="7.6" fill="#2B2118"/>'
-    + '<circle cx="16" cy="6.3" r="3.6" fill="#2B2118"/>'
     + '<ellipse cx="16" cy="19" rx="7.8" ry="9" fill="#E8B685"/>'
+    + '<circle cx="16" cy="8" r="7.2" fill="#2B2118"/>'
     + '<rect x="6" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>'
     + '<rect x="19" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>'
     + '<line x1="13" y1="18.6" x2="19" y2="18.6" stroke="#54E6C4" stroke-width="1.3" stroke-linecap="round"/>'
@@ -592,8 +592,12 @@
     + '<circle cx="20" cy="22.6" r="0.35" fill="#c47a5a" opacity=".5"/>'
     + '<circle cx="21.5" cy="22" r="0.35" fill="#c47a5a" opacity=".5"/>'
     + '<path d="M13 24.5 Q16 27 19 24.5" stroke="#a5623f" stroke-width="1.2" stroke-linecap="round" fill="none"/>'
-    + '<rect x="23.7" y="9.5" width="1.5" height="7.5" rx="0.6" fill="#C8F24E" transform="rotate(20 23.7 9.5)"/>'
     + '<path d="M9 31 Q13 28 16 27.5 Q19 28 23 31" fill="#7AA2FF" opacity="0.65"/>'
+    + '<g transform="rotate(-35 16 8)">'
+    + '<rect x="4" y="7.1" width="24" height="1.8" rx="0.9" fill="#EDEFF3"/>'
+    + '<rect x="4" y="6.9" width="4.2" height="2.2" rx="1" fill="#C8F24E"/>'
+    + '<rect x="25.3" y="7.25" width="2.7" height="1.5" rx="0.5" fill="#232A3D"/>'
+    + '</g>'
     + '</svg>';
 
   /* ===== Voice narration (Web Speech API) — read a reply, the AI Insights
