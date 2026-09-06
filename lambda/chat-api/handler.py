@@ -585,6 +585,27 @@ def build_data_summary():
         "  " + "  ".join(f"{w:.1f}%" for w in data['all']['w'][:bt]),
     ]
 
+    # Peak/highest forecasted week(s), forward horizon only, all-SKU total —
+    # added because there was previously NO way to ground a "which week/
+    # period is the peak/highest forecasted" question: no tool searches for
+    # a maximum across the horizon (get_forecast_range only sums a range the
+    # caller already has to name; explain_forecast_day only explains one
+    # given date), so this used to get answered by fabricating a plausible-
+    # looking date/number instead of computing one. Precomputed here the
+    # same way worst_wk/best_wk are, so the answer is always a real number.
+    fwd_week_totals = [(i, v) for i, v in enumerate(data['all']['f'][bt:], start=bt) if v is not None]
+    if fwd_week_totals:
+        top_fwd_weeks = sorted(fwd_week_totals, key=lambda x: -x[1])[:5]
+        lines += [
+            "",
+            "--- PEAK FORECASTED WEEKS (forward horizon only, total forecast units summed across ALL "
+            "SKUs, highest first — this is the ONLY reliable source for 'which week/period is the "
+            "peak/highest forecasted' style questions; never estimate this from memory or by eyeballing "
+            "get_forecast_range's per-week series, which is downsampled and not meant for finding a "
+            "maximum) ---",
+            *[f"  {data['weeks'][i]}  total_forecast_units={v:,.0f}" for i, v in top_fwd_weeks],
+        ]
+
     # Real holiday (Japan's actual public-holiday calendar, same as
     # forecast.py uses as a model feature) and weather context per week —
     # lets Lyra correlate a spike or drop with an actual cause instead of
@@ -648,6 +669,13 @@ Rules:
   highest volume"), use the TOP POSTAL CODES BY VOLUME section below — never guess or invent a zip
   code. If that section is empty or missing, say zip-level data isn't available for this forecast
   rather than making one up.
+• For any "which week/period is the peak/highest forecasted (across all SKUs or overall)" style
+  question, use the PEAK FORECASTED WEEKS section below — never try to compute or estimate this
+  yourself (there is no tool that searches for a maximum across the horizon; get_forecast_range only
+  sums a range you already name, and its per-week series is downsampled, not exhaustive, so scanning
+  it for a max will give a wrong week/number). If the section doesn't cover the exact SKU or window
+  the user asked about (e.g. one specific SKU rather than all SKUs, or the backtest instead of the
+  forward horizon), say plainly that level of breakdown isn't available rather than guessing.
 • Before calling get_zip_forecast or explain_forecast_day with a date, check FIRST whether the user
   actually gave ONE date or TWO (a "from X to Y" / "between X and Y" phrasing, or any other way of
   naming a start and an end — even a short 2-3 day span). Two dates is a RANGE: use
@@ -1722,9 +1750,21 @@ def execute_tool(name, inputs, claims, request_state):
             weekly_actual.append(round(a_val, 1) if a_val is not None else None)
             weekly_forecast.append(round(f_val, 1) if f_val is not None else None)
 
+        weeks_full = [data['weeks'][i] for i in matched_idx]
         return {
             'series': series_label,
-            'weeks_matched': [data['weeks'][i] for i in matched_idx],
+            # Downsampled with the exact same call (same length in, same
+            # default target) as weekly_actual/weekly_forecast below, so all
+            # three arrays pick the identical stride of indices and stay
+            # aligned position-for-position. Previously this returned the
+            # FULL-length date list next to two DOWNSAMPLED value arrays —
+            # for any range over 40 weeks (e.g. "the whole forward horizon")
+            # the arrays had different lengths, so both the model and the
+            # inline chart it feeds (see 'range_trend' below) would pair a
+            # value at index i with the wrong date, silently. That's part of
+            # what produced a wrong date+number for a "peakiest week" style
+            # question instead of an error.
+            'weeks_matched': _downsample(weeks_full),
             'week_count': len(matched_idx),
             'backtest_weeks_included': sum(1 for i in matched_idx if i < bt),
             'forward_weeks_included': sum(1 for i in matched_idx if i >= bt),
