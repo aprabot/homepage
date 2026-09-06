@@ -1113,7 +1113,9 @@
     setTimeout(()=>document.getElementById('cbText').focus(),120);
   }
   function cbCloseFn(){document.getElementById('cbPanel').classList.remove('open');
-    document.getElementById('cbLaunch').classList.remove('hide');}
+    document.getElementById('cbLaunch').classList.remove('hide');
+    closeLyraOnlyMode(); // don't let it leak into the next open — closing chat always exits it
+  }
   // Maximize — grows the panel to fill most of the viewport (see the
   // .maximized CSS) instead of the usual small floating box. State just
   // lives on the class, so it deliberately carries over across close/
@@ -1122,6 +1124,12 @@
   const CB_MAXIMIZE_ICON = '<path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/>';
   const CB_RESTORE_ICON   = '<path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7"/>';
   function cbToggleMaximize(){
+    // While in Lyra-only mode, this same button (already showing the
+    // Restore icon, since lyra-only implies maximized-or-bigger) backs out
+    // of lyra-only instead of doing a normal maximize/restore toggle — one
+    // click returns to the ordinary floating panel, matching what Restore
+    // already means everywhere else in this button.
+    if(cbLyraOnlyActive){ closeLyraOnlyMode(); return; }
     const panel = document.getElementById('cbPanel');
     const btn = document.getElementById('cbMaximize');
     const isMax = panel.classList.toggle('maximized');
@@ -1129,6 +1137,48 @@
     btn.setAttribute('aria-label', isMax ? 'Restore' : 'Maximize');
     btn.setAttribute('title', isMax ? 'Restore' : 'Maximize');
   }
+  // Easter egg: 5 clicks on Lyra's header avatar within a short window
+  // opens "Lyra-only mode" — a full-viewport, chrome-free takeover of the
+  // chat with a full-body illustration of her alongside it (see the
+  // .cb-lyra-figure/.lyra-only CSS). #cbOrb only exists on the dashboard's
+  // real Lyra panel — the marketing page reuses this same script for its
+  // own "Apy" widget, whose orb is an empty, id-less span, so this simply
+  // never wires there (same existence-guard pattern as cbMaximizeBtn below).
+  let cbLyraOnlyActive = false;
+  function openLyraOnlyMode(){
+    if(!document.getElementById('cbPanel').classList.contains('open')) cbOpen();
+    cbLyraOnlyActive = true;
+    document.getElementById('cbPanel').classList.add('lyra-only');
+    const badge = document.getElementById('cbLyraOnlyBadge');
+    if(badge) badge.hidden = false;
+    const btn = document.getElementById('cbMaximize');
+    if(btn){ btn.querySelector('svg').innerHTML = CB_RESTORE_ICON; btn.setAttribute('aria-label','Restore'); btn.setAttribute('title','Restore'); }
+    setTimeout(()=>document.getElementById('cbText').focus(),150);
+  }
+  function closeLyraOnlyMode(){
+    if(!cbLyraOnlyActive) return;
+    cbLyraOnlyActive = false;
+    document.getElementById('cbPanel').classList.remove('lyra-only');
+    const badge = document.getElementById('cbLyraOnlyBadge');
+    if(badge) badge.hidden = true;
+    const btn = document.getElementById('cbMaximize');
+    if(btn){ btn.querySelector('svg').innerHTML = CB_MAXIMIZE_ICON; btn.setAttribute('aria-label','Maximize'); btn.setAttribute('title','Maximize'); }
+  }
+  (function(){
+    const orbEl = document.getElementById('cbOrb');
+    if(!orbEl) return;
+    let clicks = 0, resetTimer = null;
+    orbEl.addEventListener('click', function(){
+      clicks++;
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(()=>{ clicks = 0; }, 1100);
+      if(clicks >= 5){
+        clicks = 0;
+        clearTimeout(resetTimer);
+        cbLyraOnlyActive ? closeLyraOnlyMode() : openLyraOnlyMode();
+      }
+    });
+  })();
   document.getElementById('cbLaunch').onclick=cbOpen;
   document.getElementById('cbClose').onclick=cbCloseFn;
   // cbMaximize/cbTabAdd only exist on the dashboard's own copy of this chat
@@ -1270,7 +1320,13 @@
         cycleTab(e.code==='BracketRight' ? 1 : -1);
         return;
       }
-      if(e.key==='Escape' && panelOpen) cbCloseFn();
+      if(e.key==='Escape' && panelOpen){
+        // First Escape backs out of Lyra-only mode (to the ordinary panel);
+        // only a second one, once no longer in it, closes the panel outright
+        // — matches how the maximize/restore button behaves in this mode.
+        if(cbLyraOnlyActive){ closeLyraOnlyMode(); return; }
+        cbCloseFn();
+      }
     });
   })();
 

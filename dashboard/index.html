@@ -1087,62 +1087,114 @@
   </button>
 
   <div class="cb-panel" id="cbPanel" aria-hidden="true">
-    <div class="cb-head">
-      <div class="cb-id">
-        <span class="cb-orb">
-          <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <ellipse cx="16" cy="14.5" rx="9" ry="7.6" fill="#2B2118"/>
-            <circle cx="16" cy="6.3" r="3.6" fill="#2B2118"/>
-            <ellipse cx="16" cy="19" rx="7.8" ry="9" fill="#E8B685"/>
-            <rect x="6" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>
-            <rect x="19" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>
-            <line x1="13" y1="18.6" x2="19" y2="18.6" stroke="#54E6C4" stroke-width="1.3" stroke-linecap="round"/>
-            <line x1="6" y1="18" x2="4" y2="17" stroke="#54E6C4" stroke-width="1.1" stroke-linecap="round"/>
-            <line x1="26" y1="18" x2="28" y2="17" stroke="#54E6C4" stroke-width="1.1" stroke-linecap="round"/>
-            <ellipse cx="9.4" cy="18.8" rx="1.4" ry="1.6" fill="#1a1a2e"/>
-            <ellipse cx="22.6" cy="18.8" rx="1.4" ry="1.6" fill="#1a1a2e"/>
-            <circle cx="10.1" cy="18.1" r="0.5" fill="white"/>
-            <circle cx="23.3" cy="18.1" r="0.5" fill="white"/>
-            <circle cx="10.5" cy="22" r="0.35" fill="#c47a5a" opacity=".5"/>
-            <circle cx="12" cy="22.6" r="0.35" fill="#c47a5a" opacity=".5"/>
-            <circle cx="20" cy="22.6" r="0.35" fill="#c47a5a" opacity=".5"/>
-            <circle cx="21.5" cy="22" r="0.35" fill="#c47a5a" opacity=".5"/>
-            <path d="M13 24.5 Q16 27 19 24.5" stroke="#a5623f" stroke-width="1.2" stroke-linecap="round" fill="none"/>
-            <rect x="23.7" y="9.5" width="1.5" height="7.5" rx="0.6" fill="#C8F24E" transform="rotate(20 23.7 9.5)"/>
-            <path d="M9 31 Q13 28 16 27.5 Q19 28 23 31" fill="#7AA2FF" opacity="0.65"/>
-          </svg>
-        </span>
-        <div><b>Lyra</b><span>AI demand analyst</span></div>
+    <!-- Lyra-only mode's full-body figure — hidden unless #cbPanel has the
+         .lyra-only class (see the 5-click easter egg wiring in js/main.js).
+         Reuses the exact head/face artwork from the .cb-orb icon above,
+         scaled up, so she's instantly recognizable as the same character. -->
+    <div class="cb-lyra-figure" id="cbLyraFigure" aria-hidden="true">
+      <svg class="cb-lyra-figure-svg" viewBox="0 0 200 480" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <ellipse cx="100" cy="430" rx="70" ry="14" fill="#000" opacity=".28"/>
+        <path d="M62 300 Q40 320 44 400 Q46 430 60 452 L82 452 Q76 400 78 300 Z" fill="#232A3D"/>
+        <path d="M138 300 Q160 320 156 400 Q154 430 140 452 L118 452 Q124 400 122 300 Z" fill="#1C2233"/>
+        <path d="M56 448 L86 448 L88 460 Q76 466 54 460 Z" fill="#15181F"/>
+        <path d="M114 448 L144 448 L146 460 Q134 466 112 460 Z" fill="#0F1218"/>
+        <path d="M70 120 Q40 128 34 175 L40 270 Q42 296 60 306 L82 300 Q72 250 74 190 Q75 150 82 122 Z" fill="#7AA2FF" opacity=".18"/>
+        <path d="M130 120 Q160 128 166 175 L160 270 Q158 296 140 306 L118 300 Q128 250 126 190 Q125 150 118 122 Z" fill="#7AA2FF" opacity=".18"/>
+        <path d="M56 180 Q30 200 26 248 Q24 272 34 284 L48 276 Q42 240 48 205 Z" fill="#232A3D"/>
+        <path d="M144 180 Q170 200 174 248 Q176 272 166 284 L152 276 Q158 240 152 205 Z" fill="#1C2233"/>
+        <ellipse cx="34" cy="288" rx="12" ry="10" fill="#E8B685"/>
+        <ellipse cx="166" cy="288" rx="12" ry="10" fill="#E8B685"/>
+        <g transform="rotate(-8 34 288)">
+          <rect x="10" y="256" width="46" height="60" rx="5" fill="#EDEFF3"/>
+          <rect x="10" y="256" width="46" height="10" rx="5" fill="#54E6C4"/>
+          <rect x="18" y="286" width="8" height="20" fill="#7AA2FF"/>
+          <rect x="29" y="278" width="8" height="28" fill="#C8F24E"/>
+          <rect x="40" y="270" width="8" height="36" fill="#54E6C4"/>
+        </g>
+        <path d="M68 120 Q100 104 132 120 Q150 132 152 175 Q154 230 144 290 Q140 312 100 316 Q60 312 56 290 Q46 230 48 175 Q50 132 68 120 Z" fill="#232A3D"/>
+        <path d="M92 122 Q100 150 92 200 L86 300 Q100 308 114 300 L108 200 Q100 150 108 122 Q100 116 92 122 Z" fill="#7AA2FF" opacity=".55"/>
+        <g transform="translate(41.6,-1.7) scale(3.55)">
+          <ellipse cx="16" cy="14.5" rx="9" ry="7.6" fill="#2B2118"/>
+          <circle cx="16" cy="6.3" r="3.6" fill="#2B2118"/>
+          <ellipse cx="16" cy="19" rx="7.8" ry="9" fill="#E8B685"/>
+          <rect x="6" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>
+          <rect x="19" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>
+          <line x1="13" y1="18.6" x2="19" y2="18.6" stroke="#54E6C4" stroke-width="1.3" stroke-linecap="round"/>
+          <line x1="6" y1="18" x2="4" y2="17" stroke="#54E6C4" stroke-width="1.1" stroke-linecap="round"/>
+          <line x1="26" y1="18" x2="28" y2="17" stroke="#54E6C4" stroke-width="1.1" stroke-linecap="round"/>
+          <ellipse cx="9.4" cy="18.8" rx="1.4" ry="1.6" fill="#1a1a2e"/>
+          <ellipse cx="22.6" cy="18.8" rx="1.4" ry="1.6" fill="#1a1a2e"/>
+          <circle cx="10.1" cy="18.1" r="0.5" fill="white"/>
+          <circle cx="23.3" cy="18.1" r="0.5" fill="white"/>
+          <circle cx="10.5" cy="22" r="0.35" fill="#c47a5a" opacity=".5"/>
+          <circle cx="12" cy="22.6" r="0.35" fill="#c47a5a" opacity=".5"/>
+          <circle cx="20" cy="22.6" r="0.35" fill="#c47a5a" opacity=".5"/>
+          <circle cx="21.5" cy="22" r="0.35" fill="#c47a5a" opacity=".5"/>
+          <path d="M13 24.5 Q16 27 19 24.5" stroke="#a5623f" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+          <rect x="23.7" y="9.5" width="1.5" height="7.5" rx="0.6" fill="#C8F24E" transform="rotate(20 23.7 9.5)"/>
+          <path d="M9 31 Q13 28 16 27.5 Q19 28 23 31" fill="#7AA2FF" opacity="0.65"/>
+        </g>
+      </svg>
+      <div class="cb-lyra-figure-caption">✨ Lyra-only mode</div>
+    </div>
+    <div class="cb-panel-chat" id="cbPanelChat">
+      <div class="cb-head">
+        <div class="cb-id">
+          <span class="cb-orb" id="cbOrb">
+            <svg viewBox="0 0 32 32" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <ellipse cx="16" cy="14.5" rx="9" ry="7.6" fill="#2B2118"/>
+              <circle cx="16" cy="6.3" r="3.6" fill="#2B2118"/>
+              <ellipse cx="16" cy="19" rx="7.8" ry="9" fill="#E8B685"/>
+              <rect x="6" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>
+              <rect x="19" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>
+              <line x1="13" y1="18.6" x2="19" y2="18.6" stroke="#54E6C4" stroke-width="1.3" stroke-linecap="round"/>
+              <line x1="6" y1="18" x2="4" y2="17" stroke="#54E6C4" stroke-width="1.1" stroke-linecap="round"/>
+              <line x1="26" y1="18" x2="28" y2="17" stroke="#54E6C4" stroke-width="1.1" stroke-linecap="round"/>
+              <ellipse cx="9.4" cy="18.8" rx="1.4" ry="1.6" fill="#1a1a2e"/>
+              <ellipse cx="22.6" cy="18.8" rx="1.4" ry="1.6" fill="#1a1a2e"/>
+              <circle cx="10.1" cy="18.1" r="0.5" fill="white"/>
+              <circle cx="23.3" cy="18.1" r="0.5" fill="white"/>
+              <circle cx="10.5" cy="22" r="0.35" fill="#c47a5a" opacity=".5"/>
+              <circle cx="12" cy="22.6" r="0.35" fill="#c47a5a" opacity=".5"/>
+              <circle cx="20" cy="22.6" r="0.35" fill="#c47a5a" opacity=".5"/>
+              <circle cx="21.5" cy="22" r="0.35" fill="#c47a5a" opacity=".5"/>
+              <path d="M13 24.5 Q16 27 19 24.5" stroke="#a5623f" stroke-width="1.2" stroke-linecap="round" fill="none"/>
+              <rect x="23.7" y="9.5" width="1.5" height="7.5" rx="0.6" fill="#C8F24E" transform="rotate(20 23.7 9.5)"/>
+              <path d="M9 31 Q13 28 16 27.5 Q19 28 23 31" fill="#7AA2FF" opacity="0.65"/>
+            </svg>
+          </span>
+          <div><b>Lyra</b><span>AI demand analyst</span><span class="cb-lyra-only-badge" id="cbLyraOnlyBadge" hidden>✨ Pure AI mode</span></div>
+        </div>
+        <div class="cb-head-actions">
+          <button class="cb-icon-btn" id="cbMaximize" aria-label="Maximize" title="Maximize">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+          </button>
+          <button class="cb-x" id="cbClose" aria-label="Close">×</button>
+        </div>
       </div>
-      <div class="cb-head-actions">
-        <button class="cb-icon-btn" id="cbMaximize" aria-label="Maximize" title="Maximize">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
+      <div class="cb-tabs" id="cbTabsBar">
+        <div class="cb-tabs-scroll" id="cbTabsScroll"></div>
+        <button type="button" class="cb-tab-add" id="cbTabAdd" aria-label="New chat" title="New chat">+</button>
+      </div>
+      <div class="cb-body" id="cbBody"></div>
+      <div class="cb-chips" id="cbChips">
+        <button>What's our overall accuracy?</button>
+        <button>Top selling SKUs</button>
+        <button>Which SKUs forecast best?</button>
+        <button>Worst week for error</button>
+        <button>Is the model biased?</button>
+      </div>
+      <form class="cb-input" id="cbForm">
+        <div class="cb-slash-menu" id="cbSlashMenu" hidden></div>
+        <input id="cbText" placeholder="Ask about the forecast data… (try /)" autocomplete="off">
+        <button type="button" id="cbMicBtn" aria-label="Speak your question" title="Speak your question">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a4 4 0 0 0-4 4v6a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
         </button>
-        <button class="cb-x" id="cbClose" aria-label="Close">×</button>
-      </div>
+        <button type="submit" aria-label="Send">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </button>
+      </form>
     </div>
-    <div class="cb-tabs" id="cbTabsBar">
-      <div class="cb-tabs-scroll" id="cbTabsScroll"></div>
-      <button type="button" class="cb-tab-add" id="cbTabAdd" aria-label="New chat" title="New chat">+</button>
-    </div>
-    <div class="cb-body" id="cbBody"></div>
-    <div class="cb-chips" id="cbChips">
-      <button>What's our overall accuracy?</button>
-      <button>Top selling SKUs</button>
-      <button>Which SKUs forecast best?</button>
-      <button>Worst week for error</button>
-      <button>Is the model biased?</button>
-    </div>
-    <form class="cb-input" id="cbForm">
-      <div class="cb-slash-menu" id="cbSlashMenu" hidden></div>
-      <input id="cbText" placeholder="Ask about the forecast data… (try /)" autocomplete="off">
-      <button type="button" id="cbMicBtn" aria-label="Speak your question" title="Speak your question">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 1a4 4 0 0 0-4 4v6a4 4 0 0 0 8 0V5a4 4 0 0 0-4-4Z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>
-      </button>
-      <button type="submit" aria-label="Send">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 12h14M13 6l6 6-6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      </button>
-    </form>
   </div>
 </div>
 

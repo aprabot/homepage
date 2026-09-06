@@ -943,6 +943,43 @@
        mobile is already effectively maximized. */
     .cb-panel.maximized{width:auto}
   }
+  /* Lyra-only mode — an easter egg (5 clicks on the header avatar, see
+     js/main.js) that goes further than Maximize: a true full-viewport
+     takeover, chrome-free, with a full-body illustration of Lyra alongside
+     the chat. .cb-panel-chat wraps everything the panel already had
+     (head/tabs/body/chips/input) so it can sit as one flex item next to
+     the new figure column without changing any of their own CSS — outside
+     lyra-only mode .cb-panel-chat is the panel's only child, so it just
+     fills it exactly as those elements did before this wrapper existed. */
+  .cb-panel-chat{display:flex;flex-direction:column;flex:1;min-width:0;min-height:0;overflow:hidden}
+  .cb-lyra-figure{display:none;flex-direction:column;align-items:center;justify-content:flex-end;
+    width:260px;flex:0 0 260px;padding:28px 14px 34px;overflow:hidden;
+    background:radial-gradient(ellipse at 50% 18%,rgba(84,230,196,.16),transparent 62%),var(--ink);
+    border-right:1px solid var(--line-2)}
+  .cb-lyra-figure-svg{width:100%;max-width:230px;height:auto;filter:drop-shadow(0 20px 40px rgba(0,0,0,.45))}
+  .cb-lyra-figure-caption{margin-top:16px;font-family:var(--mono);font-size:11px;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--signal);opacity:.9;white-space:nowrap}
+  .cb-panel.lyra-only{position:fixed!important;inset:0!important;bottom:auto!important;right:auto!important;
+    width:100vw!important;height:100vh!important;max-width:none!important;max-height:none!important;
+    border-radius:0;flex-direction:row;z-index:500}
+  .cb-panel.lyra-only .cb-lyra-figure{display:flex}
+  .cb-panel.lyra-only .cb-panel-chat{max-width:760px;margin:0 auto;border-left:1px solid var(--line-2);
+    border-right:1px solid var(--line-2)}
+  /* [hidden] must win over the class's own display — an author-stylesheet
+     class rule beats the UA stylesheet's [hidden]{display:none} regardless
+     of which comes first in this file, so without this override the badge
+     shows up immediately instead of only once Lyra-only mode is entered. */
+  .cb-lyra-only-badge{display:inline-flex;align-items:center;gap:4px;margin-left:8px;padding:2px 9px;
+    border-radius:100px;background:var(--signal-soft);color:var(--signal);font-family:var(--mono);
+    font-size:10px;letter-spacing:.05em;text-transform:uppercase;vertical-align:middle}
+  .cb-lyra-only-badge[hidden]{display:none}
+  @media(max-width:760px){
+    /* Not enough width for a 260px side figure alongside a usable chat
+       column — the chat itself still goes full-screen in lyra-only mode,
+       just without the illustration taking up room it can't spare. */
+    .cb-panel.lyra-only .cb-lyra-figure{display:none}
+    .cb-panel.lyra-only .cb-panel-chat{max-width:none;border:none}
+  }
   /* Chat tabs — multiple parallel conversations in the same panel, like
      browser tabs. Scroll strip stays flexible, the "+" button is pinned
      outside it so it's always reachable regardless of how many tabs are
