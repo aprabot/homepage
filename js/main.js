@@ -578,11 +578,11 @@
     + '<ellipse cx="16" cy="14.5" rx="9" ry="7.6" fill="#2B2118"/>'
     + '<ellipse cx="16" cy="19" rx="7.8" ry="9" fill="#E8B685"/>'
     + '<circle cx="16" cy="8" r="7.2" fill="#2B2118"/>'
-    + '<rect x="6" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>'
-    + '<rect x="19" y="16" width="7" height="5.6" rx="2" stroke="#54E6C4" stroke-width="1.3" fill="rgba(84,230,196,0.1)"/>'
-    + '<line x1="13" y1="18.6" x2="19" y2="18.6" stroke="#54E6C4" stroke-width="1.3" stroke-linecap="round"/>'
-    + '<line x1="6" y1="18" x2="4" y2="17" stroke="#54E6C4" stroke-width="1.1" stroke-linecap="round"/>'
-    + '<line x1="26" y1="18" x2="28" y2="17" stroke="#54E6C4" stroke-width="1.1" stroke-linecap="round"/>'
+    + '<rect x="6" y="16" width="7" height="5.6" rx="2" stroke="var(--lyra-frame,#54E6C4)" stroke-width="1.3" fill="var(--lyra-frame-fill,rgba(84,230,196,0.1))"/>'
+    + '<rect x="19" y="16" width="7" height="5.6" rx="2" stroke="var(--lyra-frame,#54E6C4)" stroke-width="1.3" fill="var(--lyra-frame-fill,rgba(84,230,196,0.1))"/>'
+    + '<line x1="13" y1="18.6" x2="19" y2="18.6" stroke="var(--lyra-frame,#54E6C4)" stroke-width="1.3" stroke-linecap="round"/>'
+    + '<line x1="6" y1="18" x2="4" y2="17" stroke="var(--lyra-frame,#54E6C4)" stroke-width="1.1" stroke-linecap="round"/>'
+    + '<line x1="26" y1="18" x2="28" y2="17" stroke="var(--lyra-frame,#54E6C4)" stroke-width="1.1" stroke-linecap="round"/>'
     + '<ellipse cx="9.4" cy="18.8" rx="1.4" ry="1.6" fill="#1a1a2e"/>'
     + '<ellipse cx="22.6" cy="18.8" rx="1.4" ry="1.6" fill="#1a1a2e"/>'
     + '<circle cx="10.1" cy="18.1" r="0.5" fill="white"/>'
@@ -1163,11 +1163,32 @@
     const btn = document.getElementById('cbMaximize');
     if(btn){ btn.querySelector('svg').innerHTML = CB_MAXIMIZE_ICON; btn.setAttribute('aria-label','Maximize'); btn.setAttribute('title','Maximize'); }
   }
+  // Frame color cycle — a lighter click bonus alongside the 5x Lyra-only
+  // trigger below: every click on her avatar cycles her glasses frame to
+  // the next color here, applied via the --lyra-frame/--lyra-frame-fill
+  // CSS custom properties that every copy of her artwork's stroke/fill
+  // attributes reference (var(--lyra-frame,#54E6C4) etc.) — one place to
+  // set, and it updates the launcher icon, header orb, tour card, full-
+  // body figure, and any freshly-created thinking-indicator avatar all at
+  // once, with no per-element DOM work. Deliberately session-only: a
+  // plain in-memory index, never written to localStorage, so it resets to
+  // the default teal on every fresh page load rather than becoming a
+  // saved preference.
+  const FRAME_COLORS = ['#54E6C4', '#C8F24E', '#7AA2FF', '#FF6B9D', '#B18CFF', '#FFA94D'];
+  let frameColorIdx = 0;
+  function cycleFrameColor(){
+    frameColorIdx = (frameColorIdx + 1) % FRAME_COLORS.length;
+    const c = FRAME_COLORS[frameColorIdx];
+    const n = parseInt(c.slice(1), 16);
+    document.documentElement.style.setProperty('--lyra-frame', c);
+    document.documentElement.style.setProperty('--lyra-frame-fill', `rgba(${(n>>16)&255},${(n>>8)&255},${n&255},0.1)`);
+  }
   (function(){
     const orbEl = document.getElementById('cbOrb');
     if(!orbEl) return;
     let clicks = 0, resetTimer = null;
     orbEl.addEventListener('click', function(){
+      cycleFrameColor();
       clicks++;
       clearTimeout(resetTimer);
       resetTimer = setTimeout(()=>{ clicks = 0; }, 1100);
