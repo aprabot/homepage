@@ -593,11 +593,6 @@
     + '<circle cx="21.5" cy="22" r="0.35" fill="#c47a5a" opacity=".5"/>'
     + '<path d="M13 24.5 Q16 27 19 24.5" stroke="#a5623f" stroke-width="1.2" stroke-linecap="round" fill="none"/>'
     + '<path d="M9 31 Q13 28 16 27.5 Q19 28 23 31" fill="#7AA2FF" opacity="0.65"/>'
-    + '<g transform="rotate(-35 16 8)">'
-    + '<rect x="4" y="7.1" width="24" height="1.8" rx="0.9" fill="#EDEFF3"/>'
-    + '<rect x="4" y="6.9" width="4.2" height="2.2" rx="1" fill="#C8F24E"/>'
-    + '<rect x="25.3" y="7.25" width="2.7" height="1.5" rx="0.5" fill="#232A3D"/>'
-    + '</g>'
     + '</svg>';
 
   /* ===== Voice narration (Web Speech API) — read a reply, the AI Insights
