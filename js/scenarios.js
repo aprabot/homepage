@@ -9,6 +9,8 @@
   var pollTimer = null;
   var lastScenarios = [];
   var lastApprovals = [];
+  var SCENARIOS_PAGE_SIZE = 10;
+  var scenariosPage = 1; // 1-indexed; client-side only — /scenarios always returns the full list
   var selectedForCompare = [];
   var sdVisible = { a: true, f: true };
   var cmpVisible = { a: true, fA: true, fB: true };
@@ -80,7 +82,7 @@
   }
 
   function render(scenarios) {
-    lastScenarios = scenarios;
+    lastScenarios = scenarios; // full list — compare/labelFor/notifications/etc. all need every scenario, not just the visible page
     var body = document.getElementById('scenariosBody');
     var empty = document.getElementById('scenariosEmpty');
     if (!body) return;
@@ -88,11 +90,17 @@
     if (!scenarios.length) {
       body.innerHTML = '';
       if (empty) empty.style.display = '';
+      renderScenariosPagination(0, 1);
       return;
     }
     if (empty) empty.style.display = 'none';
 
-    body.innerHTML = scenarios.map(function (s) {
+    var totalPages = Math.max(1, Math.ceil(scenarios.length / SCENARIOS_PAGE_SIZE));
+    if (scenariosPage > totalPages) scenariosPage = totalPages; // clamp — e.g. the list shrank, or a prior scenario was pruned
+    if (scenariosPage < 1) scenariosPage = 1;
+    var pageItems = scenarios.slice((scenariosPage - 1) * SCENARIOS_PAGE_SIZE, scenariosPage * SCENARIOS_PAGE_SIZE);
+
+    body.innerHTML = pageItems.map(function (s) {
       var canCompare = s.status === 'completed';
       var checked = selectedForCompare.indexOf(s.id) > -1 ? 'checked' : '';
       var approveBtn = (s.status === 'completed' && !s.approved)
@@ -112,6 +120,30 @@
     }).join('');
 
     updateCompareBtn();
+    renderScenariosPagination(scenarios.length, totalPages);
+  }
+
+  // Prev/Next + "Page X of Y · N scenarios total" — hidden entirely when
+  // everything fits on one page, so a small list looks exactly like it did
+  // before pagination existed.
+  function renderScenariosPagination(totalCount, totalPages) {
+    var bar = document.getElementById('scenariosPagination');
+    if (!bar) return;
+    if (totalPages <= 1) { bar.style.display = 'none'; bar.innerHTML = ''; return; }
+    bar.style.display = 'flex';
+    bar.innerHTML =
+      '<button type="button" class="dbtn" id="scenariosPrevBtn" style="padding:6px 12px;font-size:12.5px;' +
+      'background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)"' +
+      (scenariosPage <= 1 ? ' disabled' : '') + '>← Prev</button>' +
+      '<span class="dsubtle" style="margin:0;font-size:12.5px">Page ' + scenariosPage + ' of ' + totalPages +
+      ' · ' + totalCount.toLocaleString() + ' scenario' + (totalCount === 1 ? '' : 's') + ' total</span>' +
+      '<button type="button" class="dbtn" id="scenariosNextBtn" style="padding:6px 12px;font-size:12.5px;' +
+      'background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)"' +
+      (scenariosPage >= totalPages ? ' disabled' : '') + '>Next →</button>';
+    var prevBtn = document.getElementById('scenariosPrevBtn');
+    var nextBtn = document.getElementById('scenariosNextBtn');
+    if (prevBtn) prevBtn.onclick = function () { scenariosPage--; render(lastScenarios); };
+    if (nextBtn) nextBtn.onclick = function () { scenariosPage++; render(lastScenarios); };
   }
 
   function escapeHtml(s) {
@@ -423,6 +455,7 @@
           return;
         }
         window.closeRunForecastModal();
+        scenariosPage = 1; // jump back to the top page so the just-started run is visible right away
         loadScenarios();
       })
       .catch(function (err) {
