@@ -14,10 +14,19 @@
 
   var map = null, markersLayer = null, areaLayer = null;
   var histKey = null;
-  var TOTAL_STEPS = 6;
+  var TOTAL_STEPS = 7;
   var step = 1;
   var holidayCountryLoaded = null; // which country's defaults are currently loaded into holidayState
   var weatherLoaded = false; // whether the Weather step's data has already been resolved once
+
+  // Latest warnings from each upload's own validation pass (see "Soft,
+  // non-blocking upload validation" below) — stashed here so the final
+  // "Review your data" step (7) can show one consolidated recap without
+  // re-parsing any file. [] means "checked, nothing to flag", not
+  // "not uploaded" — see renderValidationSummary()'s own uploaded check.
+  var lastAreaWarnings = [];
+  var lastHistWarnings = [];
+  var lastWeatherWarnings = [];
 
   // id -> {firstDate: Date|null, totalUnits: number|null, auto: bool} — auto
   // entries come from scanning the uploaded data, manual ones from the text
@@ -584,7 +593,8 @@
       Object.assign(newSkuState, flagged);
       renderNewSkuList();
 
-      renderWarnings('obHistWarnings', validateShipmentRows(rows));
+      lastHistWarnings = validateShipmentRows(rows);
+      renderWarnings('obHistWarnings', lastHistWarnings);
     }).catch(function () {
       document.getElementById('obHistChartWrap').style.display = 'none';
     });
@@ -606,7 +616,8 @@
       weatherChartPoints = aggregateAvgByDate(rows);
       weatherLoaded = false;
       loadWeatherPreview();
-      renderWarnings('obWeatherWarnings', validateWeatherRows(rows));
+      lastWeatherWarnings = validateWeatherRows(rows);
+      renderWarnings('obWeatherWarnings', lastWeatherWarnings);
     }).catch(function () {});
   }
 
@@ -800,6 +811,55 @@
 
     if (n === 5) loadDefaultHolidays();
     if (n === 6) loadWeatherPreview();
+    if (n === 7) renderValidationSummary();
+  }
+
+  // Final-step recap of the same soft validation warnings shown inline on
+  // steps 2/3/6 as each file was uploaded — one consolidated look before
+  // "Prepare my model", rather than only ever seeing each file's own
+  // checks in isolation. Still purely informational: every check here is
+  // a warning, never a block (see the section comment above these
+  // functions), so this never disables the button below it.
+  function renderValidationSummary() {
+    var pill = document.getElementById('obValidationPill');
+    var body = document.getElementById('obValidationSummary');
+    if (!pill || !body) return;
+
+    var areaFile = document.getElementById('obAreaFile');
+    var sections = [
+      { label: 'Serviceable area (postal codes)', warnings: lastAreaWarnings, uploaded: !!(areaFile && areaFile.files.length), required: false },
+      { label: 'Historical shipment data', warnings: lastHistWarnings, uploaded: !!histKey, required: true },
+      { label: 'Weather', warnings: lastWeatherWarnings, uploaded: weatherChartPoints.length > 0, required: false },
+    ];
+
+    var totalWarnings = sections.reduce(function (n, s) { return n + (s.uploaded ? s.warnings.length : 0); }, 0);
+    var missingRequired = sections.some(function (s) { return s.required && !s.uploaded; });
+    pill.className = 'pill ' + (missingRequired ? 'risk' : totalWarnings ? 'warn' : 'ok');
+    pill.textContent = missingRequired
+      ? 'Missing required data'
+      : totalWarnings
+        ? totalWarnings + ' warning' + (totalWarnings > 1 ? 's' : '')
+        : 'All checks passed';
+
+    body.innerHTML = sections.map(function (s) {
+      // Unlike the "not provided (optional)" cases, a missing REQUIRED
+      // upload is the actual reason "Prepare my model" below is disabled —
+      // called out with a risk pill instead of blending in as just another
+      // optional skip, so it isn't a mystery why the button won't click.
+      var statusPill = !s.uploaded
+        ? (s.required
+          ? '<span class="pill risk" style="margin-left:6px">not uploaded — required</span>'
+          : '<span class="dsubtle" style="margin:0 0 0 6px">not provided (optional)</span>')
+        : (s.warnings.length
+          ? '<span class="pill warn" style="margin-left:6px">' + s.warnings.length + ' warning' + (s.warnings.length > 1 ? 's' : '') + '</span>'
+          : '<span class="pill ok" style="margin-left:6px">looks good</span>');
+      var list = (s.uploaded && s.warnings.length)
+        ? '<ul class="ob-warn-list" style="display:block;margin-top:6px">' +
+          s.warnings.map(function (w) { return '<li>' + w.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</li>'; }).join('') +
+          '</ul>'
+        : '';
+      return '<div style="margin-bottom:16px"><b>' + s.label + '</b>' + statusPill + list + '</div>';
+    }).join('');
   }
 
   var POLL_MS = 8000;
@@ -941,6 +1001,9 @@
     holidayCountryLoaded = null;
     weatherLoaded = false;
     weatherChartPoints = [];
+    lastAreaWarnings = [];
+    lastHistWarnings = [];
+    lastWeatherWarnings = [];
 
     document.getElementById('obReady').style.display = 'none';
     document.getElementById('obFailed').style.display = 'none';
@@ -1006,7 +1069,8 @@
         reader.onload = function () {
           var codes = String(reader.result).split(/[\r\n,]+/)
             .map(function (s) { return s.trim(); }).filter(Boolean);
-          renderWarnings('obAreaWarnings', validatePostalCodes(codes, currentCountry()));
+          lastAreaWarnings = validatePostalCodes(codes, currentCountry());
+          renderWarnings('obAreaWarnings', lastAreaWarnings);
           plotBulk(codes, currentCountry());
         };
         reader.readAsText(file);
