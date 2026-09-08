@@ -77,6 +77,20 @@ REQUIRED_INPUT_COLS = {
 }
 
 
+INLINE_EXPLAIN_MAX_SERIES = 60  # see _count_series()'s call site for why
+
+
+def _count_series(path):
+    """Distinct ASIN x postal_code series in a finalized RAW_INPUT tsv —
+    used to decide whether --explain is safe to run inline (see that call
+    site's own comment). Cheap: only reads the two key columns, not the
+    whole file."""
+    import pandas as pd
+    df = pd.read_csv(path, sep='\t', usecols=lambda c: c.strip().lower() in ('asin', 'postal_code'))
+    df.columns = [c.strip().lower() for c in df.columns]
+    return df[['asin', 'postal_code']].drop_duplicates().shape[0]
+
+
 def _validate_custom_input(path):
     import pandas as pd
     df = pd.read_csv(path, sep='\t', nrows=5)
@@ -599,14 +613,24 @@ def handler(event, context):
         if weather and not has_custom_weather:
             s3.download_file(BUCKET, 'raw/weather.tsv', RAW_WEATHER)
 
-        # --explain stays inline (in this same forecast.py call) for custom
-        # (user-uploaded) inputs — those are always small and never close to
-        # Lambda's timeout. It's ONLY the default full-catalog run (217 series
-        # x 364 forward days) that's too slow to fit --explain inline (confirmed
-        # 2026-09-03: exceeds even Lambda's 900s hard ceiling) — that case gets
-        # explain data from a separate async invoke of aprabot-explain-runner
-        # instead, further down.
-        inline_explain = bool(custom_input_key)
+        # --explain stays inline (in this same forecast.py call) only when the
+        # input is actually small enough for that to be safe. This USED to be
+        # a blanket "custom upload == always small" assumption — wrong
+        # whenever someone's custom upload IS full-catalog scale (confirmed
+        # 2026-09-08: a 217-series custom upload hit this exact path, ran the
+        # backtest fine, then the Lambda hit its hard 900s ceiling mid-explain
+        # and was killed with no chance to write a 'failed' status — the
+        # scenario was left stuck at 'running' forever). The actual
+        # discriminator is series count, not where the data came from: the
+        # platform default full-catalog run (217 series x 364 forward days)
+        # was already confirmed too slow for inline --explain on 2026-09-03
+        # (backtest ~240s + ~2.5s/explain-day extrapolates past 900s on its
+        # own) — INLINE_EXPLAIN_MAX_SERIES sits comfortably under that so any
+        # upload of comparable scale takes the same safe path, custom or not.
+        # Either way, explain isn't lost — just deferred to the same async
+        # aprabot-explain-runner invoke the full-catalog case already uses,
+        # further down.
+        inline_explain = _count_series(RAW_INPUT) <= INLINE_EXPLAIN_MAX_SERIES
 
         args = [sys.executable, '-u', FORECAST_PY,
                 '--input', RAW_INPUT,
@@ -658,18 +682,26 @@ def handler(event, context):
             explain_by_sku = build_explain_by_sku(os.path.join(OUTDIR, 'forecast_explain.json'), anon)
             for sku, days in explain_by_sku.items():
                 _write_json(f'scenarios/{scenario_id}/explain/{sku}.json', days)
-        else:
-            # Full catalog run — --explain doesn't fit inline at this scale
-            # (confirmed 2026-09-03: backtest ~240s + a measured ~2.5s/explain-day
-            # meant the forward+explain phase alone extrapolated to ~900s on its
-            # own, exceeding even Lambda's hard ceiling). Explain is instead a
-            # separate, async, best-effort enhancement: aprabot-explain-runner
-            # gets its own fresh Lambda budget and reuses this run's best_iter
-            # (via backtest_2025.meta.json) to refit an equivalent model without
+        elif not custom_input_key:
+            # Full catalog run (the platform default) — --explain doesn't fit
+            # inline at this scale (confirmed 2026-09-03: backtest ~240s + a
+            # measured ~2.5s/explain-day meant the forward+explain phase alone
+            # extrapolated to ~900s on its own, exceeding even Lambda's hard
+            # ceiling). Explain is instead a separate, async, best-effort
+            # enhancement: aprabot-explain-runner gets its own fresh Lambda
+            # budget and reuses this run's best_iter (via
+            # backtest_2025.meta.json) to refit an equivalent model without
             # redoing the expensive backtest. This scenario is already
             # 'completed' by the time it's invoked — if it fails, chat-api's
             # explain_forecast_day tool just reports quantitative attribution
             # as unavailable, nothing here depends on it succeeding.
+            #
+            # Only safe for the DEFAULT dataset — explain-runner has no
+            # concept of custom_input_key, it always downloads the platform's
+            # own raw/With_Price.tsv. Sending it here for a custom upload
+            # would silently compute explain data against the WRONG dataset
+            # and attribute it to this scenario. See the branch below for the
+            # large-custom-upload case instead.
             meta_path = os.path.join(OUTDIR, 'backtest_2025.meta.json')
             meta = _read_local_json(meta_path, default={})
             best_iter = meta.get('best_iter')
@@ -693,6 +725,18 @@ def handler(event, context):
             else:
                 print(f"EXPLAIN_INVOKE_WARNING[{scenario_id}]: no best_iter in "
                       f"{meta_path}, skipping explain-runner invoke")
+        else:
+            # A custom upload too large for inline --explain, with no async
+            # path that can correctly serve it (explain-runner only knows the
+            # platform default — see comment above). Skip explain entirely
+            # rather than risk it silently. The scenario still completes
+            # normally with a real result; explain_forecast_day just reports
+            # quantitative attribution as unavailable for it, same as any
+            # other run explain-runner fails for.
+            print(f"EXPLAIN_SKIPPED[{scenario_id}]: custom upload has "
+                  f"{_count_series(RAW_INPUT)} series (> {INLINE_EXPLAIN_MAX_SERIES}), "
+                  f"too large for inline --explain and explain-runner can't serve a "
+                  f"custom dataset — completing without explain data.")
 
         config = _read_json(f'scenarios/{scenario_id}/config.json', default={})
         config.update({
