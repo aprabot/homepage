@@ -18,6 +18,18 @@ KEY            = os.environ.get('FORECAST_KEY', 'forecast/latest.json')
 WEATHER_KEY    = os.environ.get('WEATHER_KEY', 'raw/weather.tsv')
 MODEL          = os.environ.get('MODEL_ID',    'amazon.nova-lite-v1:0')
 SCENARIOS_API_FUNCTION = os.environ.get('SCENARIOS_API_FUNCTION', 'aprabot-scenarios-api')
+# Pre-staged demo input for run_scenario's discount_scenario flag — a real
+# custom upload (Shipments = the actual full catalog, unchanged, + a Future
+# Price sheet applying a flat 20% discount off each SKU's own historical
+# average price, for every real ASIN x postal_code combination, across the
+# full 364-day forward horizon) sitting in S3 ahead of time so a live demo
+# doesn't depend on an on-stage file upload or on-the-fly generation.
+# 2026-09-08: built and verified locally (both that scenario-runner's own
+# Future Price column/validation logic accepts it, and that forecast.py
+# actually produces a different forward forecast when fed it) before this
+# key was wired in. Must live under uploads/ — scenarios-api's
+# create_scenario rejects any custom_input_key that doesn't.
+DISCOUNT_DEMO_KEY = 'uploads/demo-20pct-discount-all-products/apra_demo_20pct_discount_all_products.xlsx'
 KNOWLEDGE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'forecasting_knowledge.md')
 KNOWLEDGE_KEY  = os.environ.get('KNOWLEDGE_KEY', 'knowledge/forecasting_knowledge.md')
 # RAG index for the knowledge base — see build_knowledge_index()/retrieve_
@@ -729,6 +741,14 @@ Rules:
   defaults (known_prices=true, weather=true, calibrate=true,
   refresh_days=28) — don't ask clarifying questions for settings they didn't mention, just use
   the defaults and say so in your reply.
+• If the run they're asking for involves a discount or promo across the catalog (e.g. "generate a
+  forecast with a 20% discount on all products"), set run_scenario's discount_scenario flag instead
+  of trying to describe the discount through the other settings — those don't carry price
+  information at all, only discount_scenario actually changes what data the run uses. It's a single
+  fixed preset (flat 20% off every SKU's own average price, for the whole forward year) — if what
+  they're asking for doesn't match that (a different %, or only some SKUs), say plainly that this
+  preset doesn't cover it rather than running the flat-20%-all-products preset anyway and implying
+  it matches their request.
 • When the user asks to see, open, show, pull up, or look at a specific scenario (as opposed to
   asking a question you can just answer in text), use open_scenario — it opens the real detail
   modal (chart, top SKUs, validations, Approve) directly, so hand it to them rather than describing
@@ -808,6 +828,23 @@ TOOL_CONFIG = {
                         "weather":      {"type": "boolean", "description": "Add temperature/precipitation as exogenous features. Default true."},
                         "calibrate":    {"type": "boolean", "description": "Leakage-free rolling bias correction each refresh block. Default true."},
                         "refresh_days": {"type": "integer", "description": "How often lags re-seed with real actuals: 7, 14, or 28. Default 28."},
+                        "discount_scenario": {
+                            "type": "boolean",
+                            "description": (
+                                "Set true ONLY when the user asks to run/generate a scenario with a "
+                                "discount or promo applied across the catalog (e.g. 'a 20% discount on "
+                                "all products'). Runs against a real, pre-staged input file — the actual "
+                                "catalog's Shipments data plus a Future Price sheet applying a flat 20% "
+                                "discount off each SKU's own historical average price, for every real "
+                                "SKU x postal code, across the whole forward year — instead of the "
+                                "platform default dataset. Forces known_prices on regardless of what's "
+                                "passed for it, since the discount sheet is silently ignored otherwise. "
+                                "There is only this one preset (a flat 20% off everything) — if the user "
+                                "asks for a different discount depth or only specific SKUs, say this "
+                                "preset doesn't match that and don't set this flag instead of silently "
+                                "running the wrong scenario."
+                            ),
+                        },
                     },
                 }},
             }
@@ -1267,13 +1304,19 @@ def _run_data_validations(meta, result):
 
 def execute_tool(name, inputs, claims, request_state):
     if name == 'run_scenario':
+        is_discount_demo = bool(inputs.get('discount_scenario'))
         body = {
-            'label':        inputs.get('label') or 'Started by Lyra',
-            'known_prices': inputs.get('known_prices', True),
+            'label':        inputs.get('label') or ('20% discount — all products' if is_discount_demo else 'Started by Lyra'),
+            # Forced on for the discount preset — custom_input_key's Future
+            # Price sheet is silently ignored by scenario-runner whenever
+            # known_prices is false, regardless of what was requested.
+            'known_prices': True if is_discount_demo else inputs.get('known_prices', True),
             'weather':      inputs.get('weather', True),
             'calibrate':    inputs.get('calibrate', True),
             'refresh_days': inputs.get('refresh_days', 28),
         }
+        if is_discount_demo:
+            body['custom_input_key'] = DISCOUNT_DEMO_KEY
         status, result = _invoke_scenarios_api('POST', '/scenarios', claims, body)
         if status != 202:
             return {'error': result.get('error', 'failed to start the scenario run')}
