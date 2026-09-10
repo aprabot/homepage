@@ -335,6 +335,7 @@
     if (lastKnown !== null && approvedId !== lastKnown) {
       try { localStorage.removeItem('apra_forecast_cache'); } catch (e) {}
       if (typeof loadForecast === 'function') loadForecast(true);
+      if (typeof window.invalidateInsights === 'function') window.invalidateInsights();
     }
     try { localStorage.setItem(APPROVED_ID_KEY, approvedId || ''); } catch (e) {}
   }
@@ -553,6 +554,12 @@
       .then(function () {
         try { localStorage.removeItem('apra_forecast_cache'); } catch (e) {}
         if (typeof loadForecast === 'function') loadForecast(true); // refresh Overview/Forecasts with the newly-approved data
+        // AI Insights (headline/summary/findings) has its own separate cache
+        // with no TTL — without this, Generate report and the AI Insights
+        // tab both kept showing the PREVIOUS approved scenario's insights
+        // until a hard reload, even though the numbers above already
+        // refreshed correctly.
+        if (typeof window.invalidateInsights === 'function') window.invalidateInsights();
       })
       .catch(function (err) {
         if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }

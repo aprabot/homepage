@@ -23,6 +23,21 @@
     return fetchPromise;
   };
 
+  // lastData never expired on its own (no TTL, unlike apra_forecast_cache) —
+  // approving a new scenario left both the AI Insights tab and Generate
+  // report's embedded insights (headline/summary/findings) frozen on
+  // whatever was cached before, until a full page reload reset this
+  // closure's state. Called from approveScenario() right alongside its own
+  // forecast-cache invalidation, so the very next access (opening AI
+  // Insights, or generating a report) fetches fresh instead of reusing this.
+  // Deliberately just clears state rather than eagerly re-fetching — no
+  // point spending the round-trip if nothing looks at insights again this
+  // session.
+  window.invalidateInsights = function () {
+    loaded = false;
+    lastData = null;
+  };
+
   function fmtDate(iso) {
     if (!iso) return '';
     var d = new Date(iso);
