@@ -871,7 +871,11 @@
 
           <div class="ob-step" id="obStep2" style="display:none">
           <div class="field">
-            <label for="obAreaFile">What's your serviceable area? Upload a list of postal codes (CSV or TXT, one per line)</label>
+            <label for="obAreaFile">What's your serviceable area? Upload your channel &amp; distributor to pincode mapping (CSV or TXT)</label>
+            <p class="stest-msg" style="margin-top:6px;color:var(--muted)">
+              Needs a header row with <b>channel</b>, <b>distributor</b>, and <b>pincode</b> columns, e.g.:<br>
+              <span class="mono" style="font-size:12px">channel,distributor,pincode<br>Retail,ABC Distributors,110001</span>
+            </p>
             <input type="file" id="obAreaFile" class="file-input" accept=".csv,.txt">
             <p class="stest-msg" id="obAreaStatus" style="margin-top:6px"></p>
             <ul id="obAreaWarnings" class="ob-warn-list" style="display:none"></ul>

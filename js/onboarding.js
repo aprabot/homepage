@@ -28,6 +28,12 @@
   var lastHistWarnings = [];
   var lastWeatherWarnings = [];
 
+  // Parsed rows from the serviceable-area upload — {channel, distributor,
+  // pincode} per row. Not consumable by forecast.py yet (same status as
+  // newSkuState/holidayState below), so just saved into the onboarding
+  // profile JSON for future use rather than dropped.
+  var channelDistributorRows = [];
+
   // id -> {firstDate: Date|null, totalUnits: number|null, auto: bool} — auto
   // entries come from scanning the uploaded data, manual ones from the text
   // field on the "Newly launched SKUs" step. firstDate/totalUnits are null
@@ -357,16 +363,62 @@
     return warnings;
   }
 
-  function validatePostalCodes(codes, country) {
+  // Serviceable-area file is a channel/distributor/pincode mapping, not a
+  // bare pincode list — header row required (channel, distributor, pincode;
+  // "postal_code"/"postal code" also accepted for the last one, matching
+  // the terminology used everywhere else in the product). No quoted-field
+  // handling — same simplicity level the old plain-pincode parsing already
+  // had for this upload; the richer per-cell parsing lives in the .xlsx
+  // Shipments/Price/Weather path via SheetJS, not here.
+  var AREA_CHANNEL_COLS     = ['channel'];
+  var AREA_DISTRIBUTOR_COLS = ['distributor'];
+  var AREA_PINCODE_COLS     = ['pincode', 'postal_code', 'postal code'];
+
+  function parseChannelDistributorFile(text) {
+    var lines = String(text).split(/\r\n|\r|\n/).map(function (l) { return l.trim(); }).filter(Boolean);
+    if (!lines.length) return { rows: [], headerFound: false };
+
+    var header = lines[0].split(',').map(function (h) { return h.trim().toLowerCase(); });
+    var channelIdx     = header.findIndex(function (h) { return AREA_CHANNEL_COLS.indexOf(h) > -1; });
+    var distributorIdx = header.findIndex(function (h) { return AREA_DISTRIBUTOR_COLS.indexOf(h) > -1; });
+    var pincodeIdx      = header.findIndex(function (h) { return AREA_PINCODE_COLS.indexOf(h) > -1; });
+    if (pincodeIdx === -1) return { rows: [], headerFound: false }; // no recognizable header at all
+
+    var rows = lines.slice(1).map(function (line) {
+      var cells = line.split(',').map(function (c) { return c.trim(); });
+      return {
+        channel:     channelIdx > -1 ? (cells[channelIdx] || '') : '',
+        distributor: distributorIdx > -1 ? (cells[distributorIdx] || '') : '',
+        pincode:     cells[pincodeIdx] || '',
+      };
+    }).filter(function (r) { return r.pincode; });
+
+    return { rows: rows, headerFound: true, hasChannelCol: channelIdx > -1, hasDistributorCol: distributorIdx > -1 };
+  }
+
+  function validateChannelDistributorRows(parsed, country) {
     var warnings = [];
-    if (!codes.length) { warnings.push('No postal codes were found in the file.'); return warnings; }
-    var seen = {}, dupes = 0, invalid = 0;
-    codes.forEach(function (c) {
-      if (seen[c]) dupes++; else seen[c] = true;
-      if (!validPostal(c, country)) invalid++;
+    if (!parsed.headerFound) {
+      warnings.push('No recognizable header row found (expected columns: channel, distributor, pincode) — ' +
+        'the file will be treated as having no serviceable-area data.');
+      return warnings;
+    }
+    if (!parsed.hasChannelCol) warnings.push('No "channel" column found — channel will be blank for every row.');
+    if (!parsed.hasDistributorCol) warnings.push('No "distributor" column found — distributor will be blank for every row.');
+    if (!parsed.rows.length) { warnings.push('No pincode rows were found in the file.'); return warnings; }
+
+    var seen = {}, dupes = 0, invalid = 0, missingChannel = 0, missingDistributor = 0;
+    parsed.rows.forEach(function (r) {
+      var key = r.channel + '|' + r.distributor + '|' + r.pincode;
+      if (seen[key]) dupes++; else seen[key] = true;
+      if (!validPostal(r.pincode, country)) invalid++;
+      if (parsed.hasChannelCol && !r.channel) missingChannel++;
+      if (parsed.hasDistributorCol && !r.distributor) missingDistributor++;
     });
-    if (invalid) warnings.push(invalid + ' of ' + codes.length + ' postal code(s) don’t look valid for the selected country and will be skipped.');
-    if (dupes) warnings.push(dupes + ' duplicate postal code(s) found.');
+    if (invalid) warnings.push(invalid + ' of ' + parsed.rows.length + ' pincode(s) don’t look valid for the selected country and will be skipped.');
+    if (dupes) warnings.push(dupes + ' duplicate channel/distributor/pincode row(s) found.');
+    if (missingChannel) warnings.push(missingChannel + ' row(s) have a pincode but no channel value.');
+    if (missingDistributor) warnings.push(missingDistributor + ' row(s) have a pincode but no distributor value.');
     return warnings;
   }
 
@@ -827,7 +879,7 @@
 
     var areaFile = document.getElementById('obAreaFile');
     var sections = [
-      { label: 'Serviceable area (postal codes)', warnings: lastAreaWarnings, uploaded: !!(areaFile && areaFile.files.length), required: false },
+      { label: 'Serviceable area (channel/distributor/pincode)', warnings: lastAreaWarnings, uploaded: !!(areaFile && areaFile.files.length), required: false },
       { label: 'Historical shipment data', warnings: lastHistWarnings, uploaded: !!histKey, required: true },
       { label: 'Weather', warnings: lastWeatherWarnings, uploaded: weatherChartPoints.length > 0, required: false },
     ];
@@ -868,10 +920,11 @@
   var pollCount = 0;
   var ONBOARDING_SCENARIO_KEY = 'apra_onboarding_scenario_id';
 
-  // Holidays and newly-launched SKUs aren't consumable by forecast.py yet (no
-  // CLI support for either) — saved as a JSON profile for future use rather
-  // than silently dropped. Filed as .txt since that's already an allowed
-  // upload extension; only the S3 content-type metadata is cosmetically off.
+  // Holidays, newly-launched SKUs, and the channel/distributor/pincode
+  // mapping aren't consumable by forecast.py yet (no CLI support for any of
+  // them) — saved as a JSON profile for future use rather than silently
+  // dropped. Filed as .txt since that's already an allowed upload
+  // extension; only the S3 content-type metadata is cosmetically off.
   function buildOnboardingProfile() {
     var profile = {
       country: currentCountry(),
@@ -884,6 +937,7 @@
         var h = holidayState[key];
         return { date: h.date.toISOString().slice(0, 10), name: h.name, auto: h.auto };
       }),
+      channel_distributor_mapping: channelDistributorRows,
     };
     return new File([JSON.stringify(profile, null, 2)], 'onboarding-profile.txt', { type: 'application/json' });
   }
@@ -1004,6 +1058,7 @@
     lastAreaWarnings = [];
     lastHistWarnings = [];
     lastWeatherWarnings = [];
+    channelDistributorRows = [];
 
     document.getElementById('obReady').style.display = 'none';
     document.getElementById('obFailed').style.display = 'none';
@@ -1067,11 +1122,13 @@
       uploadFile(file, statusEl).then(function () {
         var reader = new FileReader();
         reader.onload = function () {
-          var codes = String(reader.result).split(/[\r\n,]+/)
-            .map(function (s) { return s.trim(); }).filter(Boolean);
-          lastAreaWarnings = validatePostalCodes(codes, currentCountry());
+          var parsed = parseChannelDistributorFile(String(reader.result));
+          channelDistributorRows = parsed.rows;
+          lastAreaWarnings = validateChannelDistributorRows(parsed, currentCountry());
           renderWarnings('obAreaWarnings', lastAreaWarnings);
-          plotBulk(codes, currentCountry());
+          // The map only cares about the pincode itself, not which channel/
+          // distributor serves it.
+          plotBulk(parsed.rows.map(function (r) { return r.pincode; }), currentCountry());
         };
         reader.readAsText(file);
       }).catch(function () {});
