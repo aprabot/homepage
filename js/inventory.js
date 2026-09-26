@@ -1,18 +1,19 @@
 /* ============================================================
-   APRABot dashboard — Monthly Inventory Planning
-   (rendered independently on BOTH the Overview and AI Insights panels)
+   APRABot dashboard — Inventory panel
 
    Renders the Cycle Stock / Safety Stock / Total Monthly Inventory data
    scenario-runner computes per SKU x pincode x calendar month (see
    lambda/scenario-runner/handler.py's compute_monthly_inventory(), built
-   from Monthly_Inventory_Methodology.docx) — a completely separate data
-   source and load path from js/insights.js's Bedrock-generated headline/
-   summary/findings, so this never depends on that other fetch succeeding.
+   from Monthly_Inventory_Methodology.docx) on its own dedicated nav page
+   — a completely separate data source and load path from js/insights.js's
+   Bedrock-generated AI Insights content, so this never depends on that
+   other fetch succeeding.
 
-   One fetch, two independent "views" (each its own SKU/pincode selection,
-   KPIs, and chart) built by makeDetailView() below — Overview's own
-   drill-down and AI Insights' own drill-down don't share UI state, only
-   the underlying fetched data.
+   makeDetailView() below builds one SKU x pincode drill-down (its own
+   selection, KPIs, and chart) bound to a set of DOM ids — currently
+   instantiated once, for the Inventory page's own drill-down, but kept as
+   a small factory rather than inline code in case a second, independent
+   view is ever needed elsewhere again.
 ============================================================ */
 (function () {
   'use strict';
@@ -48,7 +49,7 @@
 
   // Mirrors js/insights.js's own invalidateInsights() — called from the
   // same two places (approveScenario / checkApprovalChange in
-  // js/scenarios.js) so approving a new scenario doesn't leave either view
+  // js/scenarios.js) so approving a new scenario doesn't leave this page
   // frozen on the previous approved forecast's inventory numbers, the
   // exact staleness bug that fix addressed for AI Insights itself.
   window.invalidateInventory = function () {
@@ -84,7 +85,8 @@
   // a dashed Total line tracing the top of the stack — a deliberate visual
   // match for the source doc's own "two buckets, add them together" framing
   // of how these two numbers relate, not just an arbitrary chart choice.
-  // Shared by both views (takes a canvas element directly, not an id).
+  // Takes a canvas element directly (not an id) so any makeDetailView()
+  // instance can reuse it.
   function drawChart(cv, months, cycleArr, safetyArr, totalArr) {
     if (!cv) return;
     var box = cv.parentElement;
@@ -137,12 +139,13 @@
     ctx.stroke(); ctx.setLineDash([]);
   }
 
-  // One independent SKU x pincode drill-down view, bound to its own set of
-  // DOM ids. Overview and AI Insights each get their own instance (below)
-  // so picking a SKU on one never touches the other's selection — they
-  // just both read from the same lastData. Every method no-ops if its own
-  // element isn't on the page, matching the file's existing defensive
-  // convention (this same script runs regardless of which panel exists).
+  // One SKU x pincode drill-down view, bound to its own set of DOM ids —
+  // a factory rather than inline code so a second independent instance
+  // (its own selection, never touching this one's) is a one-line addition
+  // if this ever needs to appear in more than one place again. Every
+  // method no-ops if its own element isn't on the page, matching the
+  // file's existing defensive convention (this same script runs
+  // regardless of which panel exists on the current page).
   function makeDetailView(ids) {
     var currentSku = null, currentZip = null;
 
@@ -249,25 +252,25 @@
     return { initForData: initForData, wireEvents: wireEvents };
   }
 
-  var insightsView = makeDetailView({
+  // The Inventory page's one drill-down (SKU x pincode selectors, KPIs,
+  // chart, assumptions, CSV download) — see dashboard/index.html's
+  // #inventoryPanel for the matching markup.
+  var detailView = makeDetailView({
     skuSelect: 'invSkuSelect', zipSelect: 'invZipSelect', kpis: 'invKpis',
     chart: 'invChart', asOf: 'invAsOf', assumptions: 'invAssumptions', downloadBtn: 'invDownloadBtn',
   });
-  var overviewDetailView = makeDetailView({
-    skuSelect: 'ovInvSkuSelect', zipSelect: 'ovInvZipSelect', kpis: 'ovInvDetailKpis',
-    chart: 'ovInvChart', assumptions: 'ovInvAssumptions', downloadBtn: 'ovInvDownloadBtn',
-  });
 
-  // Overview's catalog-wide summary — same underlying data as either
-  // drill-down above, just rolled up (every pincode summed per SKU, every
+  // The same page's catalog-wide summary, above the drill-down — same
+  // underlying data, just rolled up (every pincode summed per SKU, every
   // SKU summed for the whole catalog) instead of one SKU x one pincode at
-  // a time. Guarded on the card's own existence like everything else here.
-  function renderOverviewSummary() {
-    var card = document.getElementById('ovInvCard');
-    if (!card) return;
+  // a time. Only called once loadInventory() has already confirmed there
+  // IS data to show (see its success handler below), so skuIds is never
+  // empty here — no separate empty-state handling needed in this function.
+  function renderCatalogSummary() {
+    var el = document.getElementById('ovInvKpis');
+    if (!el) return;
     var i = lastData.months.length - 1;
     var skuIds = Object.keys(lastData.bySku);
-    if (!skuIds.length) { card.style.display = 'none'; return; }
 
     var totalCycle = 0, totalSafety = 0, totalAll = 0;
     var perSku = skuIds.map(function (skuId) {
@@ -286,19 +289,21 @@
     var kpi = function (label, value) {
       return '<div class="kpi"><div class="t">' + label + '</div><div class="v">' + value + '</div></div>';
     };
-    document.getElementById('ovInvKpis').innerHTML =
+    el.innerHTML =
       kpi('Total cycle stock', Math.round(totalCycle).toLocaleString()) +
       kpi('Total safety stock', Math.round(totalSafety).toLocaleString()) +
       kpi('Total inventory needed', Math.round(totalAll).toLocaleString());
-    document.getElementById('ovInvAsOf').textContent = 'As of ' + fmtMonth(lastData.months[i]) + ' · across the full catalog';
+    var asOfEl = document.getElementById('ovInvAsOf');
+    if (asOfEl) asOfEl.textContent = 'As of ' + fmtMonth(lastData.months[i]) + ' · across the full catalog';
 
-    document.getElementById('ovInvMoversList').innerHTML = perSku.slice(0, 5).map(function (r) {
-      var zipCount = Object.keys(lastData.bySku[r.skuId].byZip).length;
-      return '<li><div><div class="nmx">' + r.skuId + '</div><div class="sku">' + zipCount + ' pincode' +
-        (zipCount === 1 ? '' : 's') + '</div></div><span class="chg">' + Math.round(r.total).toLocaleString() + ' units</span></li>';
-    }).join('');
-
-    card.style.display = '';
+    var moversEl = document.getElementById('ovInvMoversList');
+    if (moversEl) {
+      moversEl.innerHTML = perSku.slice(0, 5).map(function (r) {
+        var zipCount = Object.keys(lastData.bySku[r.skuId].byZip).length;
+        return '<li><div><div class="nmx">' + r.skuId + '</div><div class="sku">' + zipCount + ' pincode' +
+          (zipCount === 1 ? '' : 's') + '</div></div><span class="chg">' + Math.round(r.total).toLocaleString() + ' units</span></li>';
+      }).join('');
+    }
   }
 
   window.downloadInventoryCsv = function () {
@@ -326,10 +331,10 @@
     URL.revokeObjectURL(a.href);
   };
 
-  function showInsightsState(state) {
-    // state: 'loading' | 'empty' | 'error' | 'content' — AI Insights
-    // section's own loading/empty/error chrome. Overview's #ovInvCard has
-    // no equivalent chrome; it's just shown/hidden (see renderOverviewSummary).
+  function showState(state) {
+    // state: 'loading' | 'empty' | 'error' | 'content' — the Inventory
+    // page's own loading/empty/error chrome (both the catalog summary and
+    // the drill-down live inside #invContent, so one state covers both).
     document.getElementById('invLoading').style.display = state === 'loading' ? '' : 'none';
     document.getElementById('invEmpty').style.display = state === 'empty' ? '' : 'none';
     document.getElementById('invError').style.display = state === 'error' ? '' : 'none';
@@ -339,31 +344,27 @@
   window.loadInventory = function (force) {
     if (loaded && !force) return;
     if (force) lastData = null;
-    showInsightsState('loading');
+    showState('loading');
 
     fetchInventory()
       .then(function (data) {
         loaded = true;
         var skuIds = Object.keys(data.bySku || {});
-        if (!skuIds.length) { showInsightsState('empty'); return; }
-        showInsightsState('content');
-        insightsView.initForData();
-        overviewDetailView.initForData();
-        renderOverviewSummary();
+        if (!skuIds.length) { showState('empty'); return; }
+        showState('content');
+        renderCatalogSummary();
+        detailView.initForData();
       })
       .catch(function (err) {
         loaded = true;
-        var ovCard = document.getElementById('ovInvCard');
-        if (ovCard) ovCard.style.display = 'none'; // no data to show on Overview either
-        if (err.status === 404) { showInsightsState('empty'); return; }
-        showInsightsState('error');
+        if (err.status === 404) { showState('empty'); return; }
+        showState('error');
         document.getElementById('invError').textContent = 'Could not load inventory data right now (' + err.message + ').';
       });
   };
 
   function init() {
-    insightsView.wireEvents();
-    overviewDetailView.wireEvents();
+    detailView.wireEvents();
   }
 
   document.addEventListener('DOMContentLoaded', init);

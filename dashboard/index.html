@@ -108,6 +108,7 @@
       <li title="Forecasts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Forecasts</span></li>
       <li title="Scenarios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Scenarios</span></li>
       <li title="AI Insights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" stroke-linejoin="round"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" stroke-linejoin="round"/></svg><span class="lbl">AI Insights</span></li>
+      <li title="Inventory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Inventory</span></li>
       <li title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.3-2.5h-4l-.3 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5c.1-.3.1-.6.1-1Z" stroke-linejoin="round"/></svg><span class="lbl">Settings</span></li>
       <li title="Knowledge Base"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7h7M9 11h5" stroke-linecap="round"/></svg><span class="lbl">Knowledge Base</span></li>
     </ul>
@@ -206,42 +207,6 @@
             <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
             <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
           </ul>
-        </div>
-      </div>
-
-      <!-- Monthly Inventory — the same Cycle Stock/Safety Stock data as the
-           AI Insights panel's own section (see js/inventory.js), fully
-           independent here: a catalog-wide summary PLUS its own SKU x
-           pincode drill-down, not just a link over to AI Insights. Hidden
-           entirely (not skeleton'd) until data actually loads/fails, since
-           unlike the KPIs above this is a genuinely NEW, occasionally-absent
-           section (e.g. before the first scenario approved with this
-           feature) rather than something always expected to appear. -->
-      <div class="dcard" id="ovInvCard" style="margin-top:20px;display:none">
-        <div class="ch"><h4>Monthly Inventory</h4><span class="dsubtle" id="ovInvAsOf" style="margin:0;font-size:.8rem"></span></div>
-        <div class="kpis" id="ovInvKpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:0"></div>
-        <div style="margin-top:18px">
-          <h3 style="font-size:12px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Top SKUs by inventory need</h3>
-          <ul class="movers" id="ovInvMoversList"></ul>
-        </div>
-
-        <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--line)">
-          <h3 style="font-size:12px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em">Drill into one SKU × pincode</h3>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
-            <div class="sku-search" style="flex:0 0 auto"><select id="ovInvSkuSelect" style="min-width:140px"></select></div>
-            <div class="sku-search" style="flex:0 0 auto"><select id="ovInvZipSelect" style="min-width:140px"></select></div>
-          </div>
-          <div class="kpis" id="ovInvDetailKpis" style="grid-template-columns:repeat(5,1fr)"></div>
-          <div class="dchart" style="height:220px;margin-top:8px"><canvas id="ovInvChart"></canvas></div>
-          <div class="chart-legend">
-            <span class="lgd-item"><i style="background:#54E6C4"></i>Cycle stock</span>
-            <span class="lgd-item"><i style="background:#C8F24E"></i>Safety stock</span>
-            <span class="lgd-item"><i style="background:#7AA2FF;border-radius:0;height:0;border-top:2px dashed #7AA2FF"></i>Total</span>
-          </div>
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:18px">
-            <p class="dsubtle" style="margin:0;font-size:11.5px;max-width:560px" id="ovInvAssumptions"></p>
-            <button type="button" class="dbtn" id="ovInvDownloadBtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);flex:none">⬇ Download full CSV</button>
-          </div>
         </div>
       </div>
     </div>
@@ -475,24 +440,40 @@
           <button type="button" class="dbtn" id="insightsAskLyraBtn">Ask Lyra →</button>
         </div>
       </div>
+    </div>
 
-      <!-- Monthly Inventory Planning — a separate, independent section from
-           the Bedrock-generated insights above (own loading/error state, own
-           data source: scenario-runner's deterministic Cycle Stock/Safety
-           Stock computation, not an LLM). See js/inventory.js. -->
-      <div class="dcard" id="invCard" style="margin-top:20px">
-        <div class="ch"><h4>Monthly Inventory Planning</h4></div>
-        <p class="dsubtle" style="margin-bottom:0" id="invIntro">Cycle Stock + Safety Stock required per SKU × pincode × month, from the real daily shipment history behind the current approved forecast.</p>
+    <!-- Inventory panel — Cycle Stock + Safety Stock per SKU x pincode x
+         month, from the real daily shipment history behind the current
+         approved forecast (see js/inventory.js and
+         lambda/scenario-runner/handler.py's compute_monthly_inventory(),
+         built from Monthly_Inventory_Methodology.docx). A dedicated page
+         rather than folded into Overview/AI Insights — own loading/empty/
+         error state, own data source (a deterministic computation, not the
+         Bedrock-generated AI Insights content). -->
+    <div class="dbody" id="inventoryPanel" style="display:none">
+      <h1 class="dgreet">Inventory</h1>
+      <p class="dsubtle">Cycle Stock + Safety Stock required per SKU × pincode × month, from the real daily shipment history behind the current approved forecast.</p>
 
-        <div id="invLoading" style="margin-top:18px">
-          <span class="skel-line wide"></span>
-          <span class="skel-line" style="width:60%"></span>
+      <div id="invLoading" style="margin-top:18px">
+        <span class="skel-line wide"></span>
+        <span class="skel-line" style="width:60%"></span>
+      </div>
+      <p class="dsubtle" id="invEmpty" style="margin:20px 0 4px;display:none">No inventory data yet for the current approved forecast — this is computed fresh each time a scenario runs and gets folded in the next time one is approved.</p>
+      <p class="dsubtle" id="invError" style="margin:20px 0 4px;display:none"></p>
+
+      <div id="invContent" style="display:none;margin-top:18px">
+        <div class="dcard">
+          <div class="ch"><h4>Monthly Inventory</h4><span class="dsubtle" id="ovInvAsOf" style="margin:0;font-size:.8rem"></span></div>
+          <div class="kpis" id="ovInvKpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:0"></div>
+          <div style="margin-top:18px">
+            <h3 style="font-size:12px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Top SKUs by inventory need</h3>
+            <ul class="movers" id="ovInvMoversList"></ul>
+          </div>
         </div>
-        <p class="dsubtle" id="invEmpty" style="margin:20px 0 4px;display:none">No inventory data yet for the current approved forecast — this is computed fresh each time a scenario runs and gets folded in the next time one is approved.</p>
-        <p class="dsubtle" id="invError" style="margin:20px 0 4px;display:none"></p>
 
-        <div id="invContent" style="display:none;margin-top:18px">
-          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+        <div class="dcard" style="margin-top:20px">
+          <div class="ch"><h4>Drill into one SKU × pincode</h4></div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:16px 0">
             <div class="sku-search" style="flex:0 0 auto"><select id="invSkuSelect" style="min-width:140px"></select></div>
             <div class="sku-search" style="flex:0 0 auto"><select id="invZipSelect" style="min-width:140px"></select></div>
             <span class="dsubtle" id="invAsOf" style="margin:0 0 0 auto;font-size:12.5px"></span>
@@ -1371,6 +1352,7 @@
       'Forecasts':       document.getElementById('forecastsPanel'),
       'Scenarios':       document.getElementById('scenariosPanel'),
       'AI Insights':     document.getElementById('insightsPanel'),
+      'Inventory':       document.getElementById('inventoryPanel'),
       'Settings':        document.getElementById('settingsPanel'),
       'Knowledge Base':  document.getElementById('knowledgePanel'),
       'Getting Started': document.getElementById('onboardingPanel')
@@ -1396,7 +1378,7 @@
 
         if(isSettings) syncSettingsPanel();
         if(name === 'AI Insights' && window.loadInsights) window.loadInsights();
-        if(name === 'AI Insights' && window.loadInventory) window.loadInventory();
+        if(name === 'Inventory' && window.loadInventory) window.loadInventory();
         if(name === 'Knowledge Base' && window.loadKnowledgeTab) window.loadKnowledgeTab();
       });
     });
@@ -1583,12 +1565,12 @@
   }
 
   loadForecast();
-  // Overview (the default landing panel) now shows a catalog-wide inventory
-  // summary too, so this needs to fire on initial load — not just when the
-  // user clicks into AI Insights — same as loadForecast() above. Safe to
-  // call unconditionally: window.loadInventory is defined by js/inventory.js
-  // (loaded before this inline script) and no-ops if the AI Insights/
-  // Overview markup it targets isn't present on the page.
+  // Fired unconditionally (not just on clicking into the Inventory nav
+  // item) so that page is instant the first time someone opens it, same
+  // reasoning as loadForecast() above. Safe to call regardless of which
+  // panel is actually showing: window.loadInventory is defined by
+  // js/inventory.js (loaded before this inline script) and no-ops if the
+  // Inventory panel's markup isn't present on the current page.
   if (typeof loadInventory === 'function') loadInventory();
 
   /* user chip dropdown */
