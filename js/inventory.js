@@ -1,13 +1,18 @@
 /* ============================================================
-   APRABot dashboard — Monthly Inventory Planning (AI Insights panel)
+   APRABot dashboard — Monthly Inventory Planning
+   (rendered independently on BOTH the Overview and AI Insights panels)
 
    Renders the Cycle Stock / Safety Stock / Total Monthly Inventory data
    scenario-runner computes per SKU x pincode x calendar month (see
    lambda/scenario-runner/handler.py's compute_monthly_inventory(), built
    from Monthly_Inventory_Methodology.docx) — a completely separate data
    source and load path from js/insights.js's Bedrock-generated headline/
-   summary/findings, so this section has its own loading/empty/error state
-   and never depends on that other fetch succeeding.
+   summary/findings, so this never depends on that other fetch succeeding.
+
+   One fetch, two independent "views" (each its own SKU/pincode selection,
+   KPIs, and chart) built by makeDetailView() below — Overview's own
+   drill-down and AI Insights' own drill-down don't share UI state, only
+   the underlying fetched data.
 ============================================================ */
 (function () {
   'use strict';
@@ -20,8 +25,6 @@
   var loaded = false;
   var lastData = null;     // {months, params, bySku} once fetched
   var fetchPromise = null;
-  var currentSku = null;
-  var currentZip = null;
 
   function fetchInventory() {
     if (lastData) return Promise.resolve(lastData);
@@ -45,9 +48,9 @@
 
   // Mirrors js/insights.js's own invalidateInsights() — called from the
   // same two places (approveScenario / checkApprovalChange in
-  // js/scenarios.js) so approving a new scenario doesn't leave this
-  // section frozen on the previous approved forecast's inventory numbers,
-  // the exact staleness bug that fix addressed for AI Insights itself.
+  // js/scenarios.js) so approving a new scenario doesn't leave either view
+  // frozen on the previous approved forecast's inventory numbers, the
+  // exact staleness bug that fix addressed for AI Insights itself.
   window.invalidateInventory = function () {
     loaded = false;
     lastData = null;
@@ -77,43 +80,12 @@
     });
   }
 
-  function populateSkuSelect() {
-    var sel = document.getElementById('invSkuSelect');
-    var skuIds = Object.keys(lastData.bySku).sort(); // SKU-001, SKU-002, ... already volume-ranked
-    sel.innerHTML = skuIds.map(function (id) {
-      return '<option value="' + id + '">' + id + '</option>';
-    }).join('');
-  }
-
-  function populateZipSelect(skuId) {
-    var sel = document.getElementById('invZipSelect');
-    var zips = sortedZipsFor(skuId);
-    sel.innerHTML = zips.map(function (z) {
-      return '<option value="' + escapeHtml(z) + '">' + escapeHtml(z) + '</option>';
-    }).join('');
-  }
-
-  function renderKpis(skuId, zip) {
-    var d = lastData.bySku[skuId].byZip[zip];
-    var i = lastData.months.length - 1;
-    var kpi = function (label, value) {
-      return '<div class="kpi"><div class="t">' + label + '</div><div class="v">' + value + '</div></div>';
-    };
-    document.getElementById('invKpis').innerHTML =
-      kpi('Avg daily demand', d.add[i].toFixed(1)) +
-      kpi('Std dev (daily)', d.sigmaD[i].toFixed(1)) +
-      kpi('Cycle stock', d.cycleStock[i].toLocaleString()) +
-      kpi('Safety stock', d.safetyStock[i].toLocaleString()) +
-      kpi('Total needed', d.total[i].toLocaleString());
-    document.getElementById('invAsOf').textContent = 'As of ' + fmtMonth(lastData.months[i]);
-  }
-
   // Stacked area (Cycle Stock, then Safety Stock stacked on top of it) with
   // a dashed Total line tracing the top of the stack — a deliberate visual
   // match for the source doc's own "two buckets, add them together" framing
   // of how these two numbers relate, not just an arbitrary chart choice.
-  function drawChart(months, cycleArr, safetyArr, totalArr) {
-    var cv = document.getElementById('invChart');
+  // Shared by both views (takes a canvas element directly, not an id).
+  function drawChart(cv, months, cycleArr, safetyArr, totalArr) {
     if (!cv) return;
     var box = cv.parentElement;
     var cw = box.clientWidth || 680, ch = box.clientHeight || 220, dpr = window.devicePixelRatio || 1;
@@ -165,34 +137,131 @@
     ctx.stroke(); ctx.setLineDash([]);
   }
 
-  function renderChart(skuId, zip) {
-    var d = lastData.bySku[skuId].byZip[zip];
-    drawChart(lastData.months, d.cycleStock, d.safetyStock, d.total);
+  // One independent SKU x pincode drill-down view, bound to its own set of
+  // DOM ids. Overview and AI Insights each get their own instance (below)
+  // so picking a SKU on one never touches the other's selection — they
+  // just both read from the same lastData. Every method no-ops if its own
+  // element isn't on the page, matching the file's existing defensive
+  // convention (this same script runs regardless of which panel exists).
+  function makeDetailView(ids) {
+    var currentSku = null, currentZip = null;
+
+    function populateSkuSelect() {
+      var sel = document.getElementById(ids.skuSelect);
+      if (!sel) return;
+      var skuIds = Object.keys(lastData.bySku).sort(); // SKU-001, SKU-002, ... already volume-ranked
+      sel.innerHTML = skuIds.map(function (id) {
+        return '<option value="' + id + '">' + id + '</option>';
+      }).join('');
+    }
+
+    function populateZipSelect(skuId) {
+      var sel = document.getElementById(ids.zipSelect);
+      if (!sel) return;
+      var zips = sortedZipsFor(skuId);
+      sel.innerHTML = zips.map(function (z) {
+        return '<option value="' + escapeHtml(z) + '">' + escapeHtml(z) + '</option>';
+      }).join('');
+    }
+
+    function renderKpis(skuId, zip) {
+      var el = document.getElementById(ids.kpis);
+      if (!el) return;
+      var d = lastData.bySku[skuId].byZip[zip];
+      var i = lastData.months.length - 1;
+      var kpi = function (label, value) {
+        return '<div class="kpi"><div class="t">' + label + '</div><div class="v">' + value + '</div></div>';
+      };
+      el.innerHTML =
+        kpi('Avg daily demand', d.add[i].toFixed(1)) +
+        kpi('Std dev (daily)', d.sigmaD[i].toFixed(1)) +
+        kpi('Cycle stock', d.cycleStock[i].toLocaleString()) +
+        kpi('Safety stock', d.safetyStock[i].toLocaleString()) +
+        kpi('Total needed', d.total[i].toLocaleString());
+      if (ids.asOf) {
+        var asOfEl = document.getElementById(ids.asOf);
+        if (asOfEl) asOfEl.textContent = 'As of ' + fmtMonth(lastData.months[i]);
+      }
+    }
+
+    function renderChart(skuId, zip) {
+      var cv = document.getElementById(ids.chart);
+      if (!cv) return;
+      var d = lastData.bySku[skuId].byZip[zip];
+      drawChart(cv, lastData.months, d.cycleStock, d.safetyStock, d.total);
+    }
+
+    function renderAssumptions() {
+      var el = document.getElementById(ids.assumptions);
+      if (!el) return;
+      var p = lastData.params;
+      var pct = Math.round(p.serviceLevel * 100);
+      el.textContent =
+        'Assumes a ' + p.leadTimeDays + '-day lead time with ' + Math.round(p.leadTimeCv * 100) +
+        '% variability and a ' + pct + '% target service level (Z=' + p.z + ') — placeholders, not ' +
+        'measured from this data. ' + (p.assumptionsNote || '');
+    }
+
+    function renderSelection() {
+      var skuSel = document.getElementById(ids.skuSelect);
+      var zipSel = document.getElementById(ids.zipSelect);
+      if (!skuSel || !zipSel) return;
+      currentSku = skuSel.value;
+      currentZip = zipSel.value;
+      if (!currentSku || !currentZip) return;
+      renderKpis(currentSku, currentZip);
+      renderChart(currentSku, currentZip);
+    }
+
+    // Called once fresh data has landed — populates both selects (default:
+    // first/top SKU and its highest-need pincode) and renders everything.
+    function initForData() {
+      var skuSel = document.getElementById(ids.skuSelect);
+      if (!skuSel) return; // this view's markup isn't on the current page
+      var skuIds = Object.keys(lastData.bySku).sort();
+      if (!skuIds.length) return;
+      populateSkuSelect();
+      populateZipSelect(skuIds[0]);
+      renderAssumptions();
+      renderSelection();
+    }
+
+    function wireEvents() {
+      var skuSel = document.getElementById(ids.skuSelect);
+      var zipSel = document.getElementById(ids.zipSelect);
+      if (!skuSel || !zipSel) return;
+      skuSel.addEventListener('change', function () {
+        populateZipSelect(skuSel.value);
+        renderSelection();
+      });
+      zipSel.addEventListener('change', renderSelection);
+      if (ids.downloadBtn) {
+        var btn = document.getElementById(ids.downloadBtn);
+        if (btn) btn.addEventListener('click', window.downloadInventoryCsv);
+      }
+      // Redraw on resize so the canvas picks up its new on-screen width —
+      // same reasoning as the compare/scenario charts' own resize handling.
+      window.addEventListener('resize', function () {
+        if (currentSku && currentZip && lastData) renderChart(currentSku, currentZip);
+      });
+    }
+
+    return { initForData: initForData, wireEvents: wireEvents };
   }
 
-  function renderAssumptions() {
-    var p = lastData.params;
-    var pct = Math.round(p.serviceLevel * 100);
-    document.getElementById('invAssumptions').textContent =
-      'Assumes a ' + p.leadTimeDays + '-day lead time with ' + Math.round(p.leadTimeCv * 100) +
-      '% variability and a ' + pct + '% target service level (Z=' + p.z + ') — placeholders, not ' +
-      'measured from this data. ' + (p.assumptionsNote || '');
-  }
+  var insightsView = makeDetailView({
+    skuSelect: 'invSkuSelect', zipSelect: 'invZipSelect', kpis: 'invKpis',
+    chart: 'invChart', asOf: 'invAsOf', assumptions: 'invAssumptions', downloadBtn: 'invDownloadBtn',
+  });
+  var overviewDetailView = makeDetailView({
+    skuSelect: 'ovInvSkuSelect', zipSelect: 'ovInvZipSelect', kpis: 'ovInvDetailKpis',
+    chart: 'ovInvChart', assumptions: 'ovInvAssumptions', downloadBtn: 'ovInvDownloadBtn',
+  });
 
-  function renderSelection() {
-    currentSku = document.getElementById('invSkuSelect').value;
-    currentZip = document.getElementById('invZipSelect').value;
-    if (!currentSku || !currentZip) return;
-    renderKpis(currentSku, currentZip);
-    renderChart(currentSku, currentZip);
-  }
-
-  // Overview panel's lightweight catalog-wide summary — same underlying
-  // data as the AI Insights section above, just rolled up (every pincode
-  // summed per SKU, every SKU summed for the whole catalog) instead of the
-  // per-SKU x per-pincode drill-down that section offers. Guarded on the
-  // card's own existence (like everything else here) since Overview is a
-  // different panel that may not always include it.
+  // Overview's catalog-wide summary — same underlying data as either
+  // drill-down above, just rolled up (every pincode summed per SKU, every
+  // SKU summed for the whole catalog) instead of one SKU x one pincode at
+  // a time. Guarded on the card's own existence like everything else here.
   function renderOverviewSummary() {
     var card = document.getElementById('ovInvCard');
     if (!card) return;
@@ -257,8 +326,10 @@
     URL.revokeObjectURL(a.href);
   };
 
-  function showState(state) {
-    // state: 'loading' | 'empty' | 'error' | 'content'
+  function showInsightsState(state) {
+    // state: 'loading' | 'empty' | 'error' | 'content' — AI Insights
+    // section's own loading/empty/error chrome. Overview's #ovInvCard has
+    // no equivalent chrome; it's just shown/hidden (see renderOverviewSummary).
     document.getElementById('invLoading').style.display = state === 'loading' ? '' : 'none';
     document.getElementById('invEmpty').style.display = state === 'empty' ? '' : 'none';
     document.getElementById('invError').style.display = state === 'error' ? '' : 'none';
@@ -268,59 +339,31 @@
   window.loadInventory = function (force) {
     if (loaded && !force) return;
     if (force) lastData = null;
-    showState('loading');
+    showInsightsState('loading');
 
     fetchInventory()
       .then(function (data) {
         loaded = true;
         var skuIds = Object.keys(data.bySku || {});
-        if (!skuIds.length) { showState('empty'); return; }
-        populateSkuSelect();
-        populateZipSelect(skuIds[0]);
-        renderAssumptions();
-        showState('content');
-        renderSelection();
+        if (!skuIds.length) { showInsightsState('empty'); return; }
+        showInsightsState('content');
+        insightsView.initForData();
+        overviewDetailView.initForData();
         renderOverviewSummary();
       })
       .catch(function (err) {
         loaded = true;
         var ovCard = document.getElementById('ovInvCard');
         if (ovCard) ovCard.style.display = 'none'; // no data to show on Overview either
-        if (err.status === 404) { showState('empty'); return; }
-        showState('error');
+        if (err.status === 404) { showInsightsState('empty'); return; }
+        showInsightsState('error');
         document.getElementById('invError').textContent = 'Could not load inventory data right now (' + err.message + ').';
       });
   };
 
   function init() {
-    // Overview's "See more in AI Insights" link — wired independently of
-    // the guard below since it lives in a different section of the page.
-    var seeMore = document.getElementById('ovInvSeeMoreLink');
-    if (seeMore) {
-      seeMore.addEventListener('click', function (e) {
-        e.preventDefault();
-        var target = Array.prototype.filter.call(document.querySelectorAll('.dnav li'), function (li) {
-          return li.textContent.trim() === 'AI Insights';
-        })[0];
-        if (target) target.click();
-      });
-    }
-
-    var skuSelect = document.getElementById('invSkuSelect');
-    if (!skuSelect) return; // this section doesn't exist on every page reusing shared scripts
-
-    skuSelect.addEventListener('change', function () {
-      populateZipSelect(skuSelect.value);
-      renderSelection();
-    });
-    document.getElementById('invZipSelect').addEventListener('change', renderSelection);
-    document.getElementById('invDownloadBtn').addEventListener('click', window.downloadInventoryCsv);
-
-    // Redraw on resize so the canvas picks up its new on-screen width —
-    // same reasoning as the compare/scenario charts' own resize handling.
-    window.addEventListener('resize', function () {
-      if (currentSku && currentZip && lastData) renderChart(currentSku, currentZip);
-    });
+    insightsView.wireEvents();
+    overviewDetailView.wireEvents();
   }
 
   document.addEventListener('DOMContentLoaded', init);

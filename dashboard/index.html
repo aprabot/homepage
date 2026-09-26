@@ -209,21 +209,40 @@
         </div>
       </div>
 
-      <!-- Monthly Inventory snapshot — a lightweight, catalog-wide summary of
-           the same Cycle Stock/Safety Stock data the AI Insights panel lets
-           you drill into per SKU x pincode (see js/inventory.js). Hidden
+      <!-- Monthly Inventory — the same Cycle Stock/Safety Stock data as the
+           AI Insights panel's own section (see js/inventory.js), fully
+           independent here: a catalog-wide summary PLUS its own SKU x
+           pincode drill-down, not just a link over to AI Insights. Hidden
            entirely (not skeleton'd) until data actually loads/fails, since
            unlike the KPIs above this is a genuinely NEW, occasionally-absent
            section (e.g. before the first scenario approved with this
            feature) rather than something always expected to appear. -->
       <div class="dcard" id="ovInvCard" style="margin-top:20px;display:none">
-        <div class="ch"><h4>Monthly Inventory Snapshot</h4><span class="dsubtle" id="ovInvAsOf" style="margin:0;font-size:.8rem"></span></div>
+        <div class="ch"><h4>Monthly Inventory</h4><span class="dsubtle" id="ovInvAsOf" style="margin:0;font-size:.8rem"></span></div>
         <div class="kpis" id="ovInvKpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:0"></div>
         <div style="margin-top:18px">
           <h3 style="font-size:12px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Top SKUs by inventory need</h3>
           <ul class="movers" id="ovInvMoversList"></ul>
         </div>
-        <p class="dsubtle" style="margin:14px 0 0;font-size:11.5px">Per-pincode detail and the full downloadable table are in <a href="#" id="ovInvSeeMoreLink" style="color:var(--signal)">AI Insights</a>.</p>
+
+        <div style="margin-top:24px;padding-top:20px;border-top:1px solid var(--line)">
+          <h3 style="font-size:12px;color:var(--muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:.04em">Drill into one SKU × pincode</h3>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+            <div class="sku-search" style="flex:0 0 auto"><select id="ovInvSkuSelect" style="min-width:140px"></select></div>
+            <div class="sku-search" style="flex:0 0 auto"><select id="ovInvZipSelect" style="min-width:140px"></select></div>
+          </div>
+          <div class="kpis" id="ovInvDetailKpis" style="grid-template-columns:repeat(5,1fr)"></div>
+          <div class="dchart" style="height:220px;margin-top:8px"><canvas id="ovInvChart"></canvas></div>
+          <div class="chart-legend">
+            <span class="lgd-item"><i style="background:#54E6C4"></i>Cycle stock</span>
+            <span class="lgd-item"><i style="background:#C8F24E"></i>Safety stock</span>
+            <span class="lgd-item"><i style="background:#7AA2FF;border-radius:0;height:0;border-top:2px dashed #7AA2FF"></i>Total</span>
+          </div>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:18px">
+            <p class="dsubtle" style="margin:0;font-size:11.5px;max-width:560px" id="ovInvAssumptions"></p>
+            <button type="button" class="dbtn" id="ovInvDownloadBtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);flex:none">⬇ Download full CSV</button>
+          </div>
+        </div>
       </div>
     </div>
 
