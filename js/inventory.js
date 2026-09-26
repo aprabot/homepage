@@ -187,6 +187,51 @@
     renderChart(currentSku, currentZip);
   }
 
+  // Overview panel's lightweight catalog-wide summary — same underlying
+  // data as the AI Insights section above, just rolled up (every pincode
+  // summed per SKU, every SKU summed for the whole catalog) instead of the
+  // per-SKU x per-pincode drill-down that section offers. Guarded on the
+  // card's own existence (like everything else here) since Overview is a
+  // different panel that may not always include it.
+  function renderOverviewSummary() {
+    var card = document.getElementById('ovInvCard');
+    if (!card) return;
+    var i = lastData.months.length - 1;
+    var skuIds = Object.keys(lastData.bySku);
+    if (!skuIds.length) { card.style.display = 'none'; return; }
+
+    var totalCycle = 0, totalSafety = 0, totalAll = 0;
+    var perSku = skuIds.map(function (skuId) {
+      var byZip = lastData.bySku[skuId].byZip;
+      var sCycle = 0, sSafety = 0, sTotal = 0;
+      Object.keys(byZip).forEach(function (zip) {
+        var d = byZip[zip];
+        sCycle += d.cycleStock[i];
+        sSafety += d.safetyStock[i];
+        sTotal += d.total[i];
+      });
+      totalCycle += sCycle; totalSafety += sSafety; totalAll += sTotal;
+      return { skuId: skuId, total: sTotal };
+    }).sort(function (a, b) { return b.total - a.total; });
+
+    var kpi = function (label, value) {
+      return '<div class="kpi"><div class="t">' + label + '</div><div class="v">' + value + '</div></div>';
+    };
+    document.getElementById('ovInvKpis').innerHTML =
+      kpi('Total cycle stock', Math.round(totalCycle).toLocaleString()) +
+      kpi('Total safety stock', Math.round(totalSafety).toLocaleString()) +
+      kpi('Total inventory needed', Math.round(totalAll).toLocaleString());
+    document.getElementById('ovInvAsOf').textContent = 'As of ' + fmtMonth(lastData.months[i]) + ' · across the full catalog';
+
+    document.getElementById('ovInvMoversList').innerHTML = perSku.slice(0, 5).map(function (r) {
+      var zipCount = Object.keys(lastData.bySku[r.skuId].byZip).length;
+      return '<li><div><div class="nmx">' + r.skuId + '</div><div class="sku">' + zipCount + ' pincode' +
+        (zipCount === 1 ? '' : 's') + '</div></div><span class="chg">' + Math.round(r.total).toLocaleString() + ' units</span></li>';
+    }).join('');
+
+    card.style.display = '';
+  }
+
   window.downloadInventoryCsv = function () {
     if (!lastData) return;
     var rows = [['Pincode', 'SKU', 'Month', 'Avg Daily Demand', 'Std Dev Daily Demand',
@@ -235,9 +280,12 @@
         renderAssumptions();
         showState('content');
         renderSelection();
+        renderOverviewSummary();
       })
       .catch(function (err) {
         loaded = true;
+        var ovCard = document.getElementById('ovInvCard');
+        if (ovCard) ovCard.style.display = 'none'; // no data to show on Overview either
         if (err.status === 404) { showState('empty'); return; }
         showState('error');
         document.getElementById('invError').textContent = 'Could not load inventory data right now (' + err.message + ').';
@@ -245,6 +293,19 @@
   };
 
   function init() {
+    // Overview's "See more in AI Insights" link — wired independently of
+    // the guard below since it lives in a different section of the page.
+    var seeMore = document.getElementById('ovInvSeeMoreLink');
+    if (seeMore) {
+      seeMore.addEventListener('click', function (e) {
+        e.preventDefault();
+        var target = Array.prototype.filter.call(document.querySelectorAll('.dnav li'), function (li) {
+          return li.textContent.trim() === 'AI Insights';
+        })[0];
+        if (target) target.click();
+      });
+    }
+
     var skuSelect = document.getElementById('invSkuSelect');
     if (!skuSelect) return; // this section doesn't exist on every page reusing shared scripts
 

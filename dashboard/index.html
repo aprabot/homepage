@@ -208,6 +208,23 @@
           </ul>
         </div>
       </div>
+
+      <!-- Monthly Inventory snapshot — a lightweight, catalog-wide summary of
+           the same Cycle Stock/Safety Stock data the AI Insights panel lets
+           you drill into per SKU x pincode (see js/inventory.js). Hidden
+           entirely (not skeleton'd) until data actually loads/fails, since
+           unlike the KPIs above this is a genuinely NEW, occasionally-absent
+           section (e.g. before the first scenario approved with this
+           feature) rather than something always expected to appear. -->
+      <div class="dcard" id="ovInvCard" style="margin-top:20px;display:none">
+        <div class="ch"><h4>Monthly Inventory Snapshot</h4><span class="dsubtle" id="ovInvAsOf" style="margin:0;font-size:.8rem"></span></div>
+        <div class="kpis" id="ovInvKpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:0"></div>
+        <div style="margin-top:18px">
+          <h3 style="font-size:12px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Top SKUs by inventory need</h3>
+          <ul class="movers" id="ovInvMoversList"></ul>
+        </div>
+        <p class="dsubtle" style="margin:14px 0 0;font-size:11.5px">Per-pincode detail and the full downloadable table are in <a href="#" id="ovInvSeeMoreLink" style="color:var(--signal)">AI Insights</a>.</p>
+      </div>
     </div>
 
     <!-- Forecasts panel -->
@@ -1547,6 +1564,13 @@
   }
 
   loadForecast();
+  // Overview (the default landing panel) now shows a catalog-wide inventory
+  // summary too, so this needs to fire on initial load — not just when the
+  // user clicks into AI Insights — same as loadForecast() above. Safe to
+  // call unconditionally: window.loadInventory is defined by js/inventory.js
+  // (loaded before this inline script) and no-ops if the AI Insights/
+  // Overview markup it targets isn't present on the page.
+  if (typeof loadInventory === 'function') loadInventory();
 
   /* user chip dropdown */
   var uChip = document.getElementById('uChip');
