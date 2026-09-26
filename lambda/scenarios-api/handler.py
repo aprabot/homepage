@@ -176,6 +176,16 @@ def approve_scenario(scenario_id, event):
 
     _write_json('forecast/latest.json', result)
 
+    # Best-effort — inventory.json is an optional companion scenario-runner
+    # writes alongside result.json (see its own compute_monthly_inventory()
+    # docstring for why it can legitimately be absent: an older scenario
+    # from before this existed, or the computation itself best-effort
+    # failing on this run's own data). Never let a missing/unreadable
+    # inventory.json block the approval that already succeeded above.
+    inventory = _read_json(f'scenarios/{scenario_id}/inventory.json')
+    if inventory is not None:
+        _write_json('forecast/latest_inventory.json', inventory)
+
     idx = _read_json('scenarios/index.json', default={'scenarios': []})
     # Captured before the loop overwrites 'approved' below — this scenario's
     # own index entry (for label/wape/volume_error) and whichever OTHER

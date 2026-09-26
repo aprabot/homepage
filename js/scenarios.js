@@ -336,6 +336,7 @@
       try { localStorage.removeItem('apra_forecast_cache'); } catch (e) {}
       if (typeof loadForecast === 'function') loadForecast(true);
       if (typeof window.invalidateInsights === 'function') window.invalidateInsights();
+      if (typeof window.invalidateInventory === 'function') window.invalidateInventory();
     }
     try { localStorage.setItem(APPROVED_ID_KEY, approvedId || ''); } catch (e) {}
   }
@@ -560,6 +561,7 @@
         // until a hard reload, even though the numbers above already
         // refreshed correctly.
         if (typeof window.invalidateInsights === 'function') window.invalidateInsights();
+        if (typeof window.invalidateInventory === 'function') window.invalidateInventory();
       })
       .catch(function (err) {
         if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }

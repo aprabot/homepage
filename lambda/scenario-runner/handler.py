@@ -543,6 +543,127 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
     }, volume_error, anon
 
 
+# ── Monthly inventory (Cycle Stock + Safety Stock) ─────────────────────────
+# Implements the methodology from Monthly_Inventory_Methodology.docx
+# (supplied 2026-09-26): for every SKU x pincode x calendar month, using the
+# real daily shipment history —
+#   Cycle Stock  = ĀDD × Order Cycle Length / 2      (Order Cycle Length := LT)
+#   Safety Stock = Z × √( LT·σd² + ĀDD²·σLT² )
+# ĀDD/σd (average/std-dev of daily demand) are computed fresh per month from
+# the data; LT (lead time), σLT (lead-time std-dev), and Z (service-level
+# factor) are NOT in this dataset — the source doc is explicit that these
+# are placeholder ASSUMPTIONS pending real vendor PO/GRN lead-time records
+# (its own Section 6), not measured figures. Keep presenting them as such
+# wherever this output is shown — never let a placeholder read as a fact.
+INVENTORY_LT_DAYS      = 14.0   # assumed average lead time (days)
+INVENTORY_LT_CV        = 0.75   # assumed lead-time coefficient of variation
+INVENTORY_SERVICE_LEVEL = 0.95  # target fill rate
+INVENTORY_Z            = 1.65   # Z for 95% service level (1.28@90%, 2.05@98%)
+
+
+def compute_monthly_inventory(raw_history_path, anon):
+    """Per (SKU, pincode, calendar month): avg/std daily demand, Cycle
+    Stock, Safety Stock, and their sum, from the real daily raw history
+    (NOT the weekly backtest/forecast — this needs true day-level
+    granularity, and the full multi-year history, not just the ~1-year
+    backtest window).
+
+    Missing calendar days are treated as zero demand (densified before
+    computing daily std-dev) — matches the source doc's own instruction
+    that a day with no recorded sale is a real zero, not a missing value,
+    or day-to-day variability would be understated.
+
+    Returns None (never raises) if raw_history_path is missing/unreadable
+    or has no usable rows — this is a best-effort enhancement on top of the
+    main scenario result, never something that should fail the run.
+    """
+    import numpy as np
+    import pandas as pd
+
+    if not raw_history_path or not os.path.exists(raw_history_path):
+        print(f"INVENTORY_CALC_SKIPPED: raw_history_path={raw_history_path!r} missing or falsy")
+        return None
+    try:
+        # Column NAMES survive a custom upload in whatever case the user's
+        # file had (validation is case-insensitive, but _download_custom_input
+        # writes RAW_INPUT with the original header casing) — same tolerance
+        # _count_series() already needed for exactly this reason, extended
+        # here to also cover the shipped_units/shipment_units alias
+        # REQUIRED_INPUT_COLS itself accepts.
+        wanted = {'ship_day', 'asin', 'postal_code', 'shipped_units', 'shipment_units'}
+        df = pd.read_csv(raw_history_path, sep='\t',
+                          usecols=lambda c: c.strip().lower() in wanted)
+        df.columns = [c.strip().lower() for c in df.columns]
+        if 'shipped_units' not in df.columns and 'shipment_units' in df.columns:
+            df = df.rename(columns={'shipment_units': 'shipped_units'})
+        if not {'ship_day', 'asin', 'postal_code', 'shipped_units'}.issubset(df.columns):
+            print(f"INVENTORY_CALC_SKIPPED: required columns not found after alias handling, "
+                  f"got columns={list(df.columns)}")
+            return None
+
+        df['ship_day'] = pd.to_datetime(df['ship_day'], errors='coerce')
+        df = df.dropna(subset=['ship_day'])
+        df['shipped_units'] = pd.to_numeric(df['shipped_units'], errors='coerce').fillna(0.0)
+        if df.empty:
+            print("INVENTORY_CALC_SKIPPED: no rows left after parsing ship_day/shipped_units")
+            return None
+        print(f"INVENTORY_CALC: {len(df):,} rows, {df['asin'].nunique()} asins, "
+              f"{df['postal_code'].nunique()} postal codes, anon has {len(anon)} entries")
+
+        full_range = pd.date_range(df['ship_day'].min(), df['ship_day'].max(), freq='D')
+        grid = (df.groupby(['asin', 'postal_code', 'ship_day'])['shipped_units'].sum()
+                  .unstack(['asin', 'postal_code'], fill_value=0.0)
+                  .reindex(full_range, fill_value=0.0))
+
+        monthly_mean = grid.resample('MS').mean()
+        monthly_std  = grid.resample('MS').std(ddof=0)  # population std within that month
+        months = [d.strftime('%Y-%m') for d in monthly_mean.index]
+
+        sigma_lt = INVENTORY_LT_CV * INVENTORY_LT_DAYS
+        cycle  = monthly_mean * INVENTORY_LT_DAYS / 2.0
+        safety = INVENTORY_Z * np.sqrt(
+            INVENTORY_LT_DAYS * (monthly_std ** 2) + (monthly_mean ** 2) * (sigma_lt ** 2))
+        total  = cycle + safety
+
+        by_sku = {}
+        for asin in sorted({a for a, _ in grid.columns}):
+            sku_id = anon.get(asin)
+            if sku_id is None:
+                continue  # present in raw history but not in this run's own anon map — skip
+            by_zip = {}
+            for a, z in grid.columns:
+                if a != asin:
+                    continue
+                by_zip[str(z)] = {
+                    'add':         [round(float(x), 1) for x in monthly_mean[(a, z)].values],
+                    'sigmaD':      [round(float(x), 1) for x in monthly_std[(a, z)].values],
+                    'cycleStock':  [round(float(x)) for x in cycle[(a, z)].values],
+                    'safetyStock': [round(float(x)) for x in safety[(a, z)].values],
+                    'total':       [round(float(x)) for x in total[(a, z)].values],
+                }
+            by_sku[sku_id] = {'byZip': by_zip}
+        print(f"INVENTORY_CALC: built {len(by_sku)} sku(s) of {len({a for a, _ in grid.columns})} "
+              f"raw asin(s) — {len(months)} months")
+
+        return {
+            'months': months,
+            'params': {
+                'leadTimeDays': INVENTORY_LT_DAYS,
+                'leadTimeCv': INVENTORY_LT_CV,
+                'serviceLevel': INVENTORY_SERVICE_LEVEL,
+                'z': INVENTORY_Z,
+                'assumptionsNote': (
+                    'Lead time and lead-time variability are not in the source data — '
+                    'assumed placeholders pending real vendor PO/GRN lead-time records, '
+                    'per the methodology doc\'s own Section 6.'),
+            },
+            'bySku': by_sku,
+        }
+    except Exception as exc:
+        print(f"INVENTORY_CALC_FAILED: {exc} — this scenario will have no inventory data")
+        return None
+
+
 def build_explain_by_sku(explain_path, anon):
     """Aggregate forecast.py's --explain output (per postal code, per day,
     per feature pct_effect — see recursive_forecast's docstring for why it's
@@ -675,6 +796,20 @@ def handler(event, context):
         result_json['id'] = scenario_id
 
         _write_json(f'scenarios/{scenario_id}/result.json', result_json)
+
+        # Best-effort — see compute_monthly_inventory()'s own docstring for
+        # why this never raises. Written as its own object rather than
+        # folded into result_json: it's a separate, occasionally-consumed
+        # view (an "Inventory Planning" section, not every panel), and
+        # keeping it out of result.json/forecast/latest.json means the
+        # panels that DO need that file on every page load (Overview,
+        # Forecasts, Scenarios) don't pay to fetch it every time.
+        inventory_json = compute_monthly_inventory(RAW_INPUT, anon)
+        if inventory_json is not None:
+            _write_json(f'scenarios/{scenario_id}/inventory.json', inventory_json)
+            print(f"INVENTORY_CALC: wrote scenarios/{scenario_id}/inventory.json")
+        else:
+            print(f"INVENTORY_CALC: compute_monthly_inventory returned None — nothing written")
 
         if inline_explain:
             # Small custom upload — --explain already ran inline above (fast,

@@ -439,6 +439,44 @@
           <button type="button" class="dbtn" id="insightsAskLyraBtn">Ask Lyra →</button>
         </div>
       </div>
+
+      <!-- Monthly Inventory Planning — a separate, independent section from
+           the Bedrock-generated insights above (own loading/error state, own
+           data source: scenario-runner's deterministic Cycle Stock/Safety
+           Stock computation, not an LLM). See js/inventory.js. -->
+      <div class="dcard" id="invCard" style="margin-top:20px">
+        <div class="ch"><h4>Monthly Inventory Planning</h4></div>
+        <p class="dsubtle" style="margin-bottom:0" id="invIntro">Cycle Stock + Safety Stock required per SKU × pincode × month, from the real daily shipment history behind the current approved forecast.</p>
+
+        <div id="invLoading" style="margin-top:18px">
+          <span class="skel-line wide"></span>
+          <span class="skel-line" style="width:60%"></span>
+        </div>
+        <p class="dsubtle" id="invEmpty" style="margin:20px 0 4px;display:none">No inventory data yet for the current approved forecast — this is computed fresh each time a scenario runs and gets folded in the next time one is approved.</p>
+        <p class="dsubtle" id="invError" style="margin:20px 0 4px;display:none"></p>
+
+        <div id="invContent" style="display:none;margin-top:18px">
+          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin-bottom:16px">
+            <div class="sku-search" style="flex:0 0 auto"><select id="invSkuSelect" style="min-width:140px"></select></div>
+            <div class="sku-search" style="flex:0 0 auto"><select id="invZipSelect" style="min-width:140px"></select></div>
+            <span class="dsubtle" id="invAsOf" style="margin:0 0 0 auto;font-size:12.5px"></span>
+          </div>
+
+          <div class="kpis" id="invKpis" style="grid-template-columns:repeat(5,1fr)"></div>
+
+          <div class="dchart" style="height:220px;margin-top:8px"><canvas id="invChart"></canvas></div>
+          <div class="chart-legend" id="invLegend">
+            <span class="lgd-item"><i style="background:#54E6C4"></i>Cycle stock</span>
+            <span class="lgd-item"><i style="background:#C8F24E"></i>Safety stock</span>
+            <span class="lgd-item"><i style="background:#7AA2FF;border-radius:0;height:0;border-top:2px dashed #7AA2FF"></i>Total</span>
+          </div>
+
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:18px">
+            <p class="dsubtle" style="margin:0;font-size:11.5px;max-width:560px" id="invAssumptions"></p>
+            <button type="button" class="dbtn" id="invDownloadBtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);flex:none">⬇ Download full CSV</button>
+          </div>
+        </div>
+      </div>
     </div>
 
     <!-- Settings panel (hidden by default) -->
@@ -1254,6 +1292,7 @@
 <script src="../js/theme.js"></script>
 <script src="../js/scenarios.js"></script>
 <script src="../js/insights.js"></script>
+<script src="../js/inventory.js"></script>
 <script src="../js/knowledge.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
@@ -1321,6 +1360,7 @@
 
         if(isSettings) syncSettingsPanel();
         if(name === 'AI Insights' && window.loadInsights) window.loadInsights();
+        if(name === 'AI Insights' && window.loadInventory) window.loadInventory();
         if(name === 'Knowledge Base' && window.loadKnowledgeTab) window.loadKnowledgeTab();
       });
     });
