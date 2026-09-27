@@ -176,8 +176,8 @@
         return '<div class="kpi"><div class="t">' + label + '</div><div class="v">' + value + '</div></div>';
       };
       el.innerHTML =
-        kpi('Avg daily demand', d.add[i].toFixed(1)) +
-        kpi('Std dev (daily)', d.sigmaD[i].toFixed(1)) +
+        kpi('Avg daily demand', Math.round(d.add[i]).toLocaleString()) +
+        kpi('Std dev (daily)', Math.round(d.sigmaD[i]).toLocaleString()) +
         kpi('Cycle stock', d.cycleStock[i].toLocaleString()) +
         kpi('Safety stock', d.safetyStock[i].toLocaleString()) +
         kpi('Total needed', d.total[i].toLocaleString());
@@ -207,8 +207,8 @@
       for (var i = lastData.months.length - 1; i >= 0; i--) {
         rows.push(
           '<tr><td>' + fmtMonth(lastData.months[i]) + '</td>' +
-          '<td>' + d.add[i].toFixed(1) + '</td>' +
-          '<td>' + d.sigmaD[i].toFixed(1) + '</td>' +
+          '<td>' + Math.round(d.add[i]).toLocaleString() + '</td>' +
+          '<td>' + Math.round(d.sigmaD[i]).toLocaleString() + '</td>' +
           '<td>' + d.cycleStock[i].toLocaleString() + '</td>' +
           '<td>' + d.safetyStock[i].toLocaleString() + '</td>' +
           '<td>' + d.total[i].toLocaleString() + '</td></tr>'
@@ -359,7 +359,7 @@
       Object.keys(byZip).sort().forEach(function (zip) {
         var d = byZip[zip];
         lastData.months.forEach(function (m, i) {
-          rows.push([zip, skuId, m, d.add[i], d.sigmaD[i], d.cycleStock[i], d.safetyStock[i], d.total[i]]);
+          rows.push([zip, skuId, m, Math.round(d.add[i]), Math.round(d.sigmaD[i]), d.cycleStock[i], d.safetyStock[i], d.total[i]]);
         });
       });
     });
