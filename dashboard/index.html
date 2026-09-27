@@ -463,7 +463,10 @@
 
       <div id="invContent" style="display:none;margin-top:18px">
         <div class="dcard">
-          <div class="ch"><h4>Monthly Inventory</h4><span class="dsubtle" id="ovInvAsOf" style="margin:0;font-size:.8rem"></span></div>
+          <div class="ch">
+            <h4>Monthly Inventory</h4>
+            <div class="sku-search" style="flex:0 0 auto"><select id="ovInvMonthSelect" style="min-width:130px"></select></div>
+          </div>
           <div class="kpis" id="ovInvKpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:0"></div>
           <div style="margin-top:18px">
             <h3 style="font-size:12px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Top SKUs by inventory need</h3>
@@ -486,6 +489,18 @@
             <span class="lgd-item"><i style="background:#54E6C4"></i>Cycle stock</span>
             <span class="lgd-item"><i style="background:#C8F24E"></i>Safety stock</span>
             <span class="lgd-item"><i style="background:#7AA2FF;border-radius:0;height:0;border-top:2px dashed #7AA2FF"></i>Total</span>
+          </div>
+
+          <!-- Same data as the chart above, in exact monthly numbers — the
+               chart shows the shape/trend, this is for reading a specific
+               month's real figures without eyeballing the chart or
+               downloading the CSV. -->
+          <h3 style="font-size:12px;color:var(--muted);margin:22px 0 8px;text-transform:uppercase;letter-spacing:.04em">Monthly breakdown</h3>
+          <div class="table-wrap" style="max-height:320px">
+            <table class="dtable">
+              <thead><tr><th>Month</th><th>Avg daily demand</th><th>Std dev (daily)</th><th>Cycle stock</th><th>Safety stock</th><th>Total needed</th></tr></thead>
+              <tbody id="invMonthlyTableBody"></tbody>
+            </table>
           </div>
 
           <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:18px">

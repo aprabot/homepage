@@ -194,6 +194,29 @@
       drawChart(cv, lastData.months, d.cycleStock, d.safetyStock, d.total);
     }
 
+    // Same series the chart draws, as exact numbers per month — reading a
+    // specific month off the chart means eyeballing pixel height; this is
+    // for when the real figure for, say, March matters. Most recent month
+    // first, matching how someone actually checking "what does the data
+    // say for a given month" would want to scan it (newest first).
+    function renderMonthlyTable(skuId, zip) {
+      var body = document.getElementById(ids.monthlyTable);
+      if (!body) return;
+      var d = lastData.bySku[skuId].byZip[zip];
+      var rows = [];
+      for (var i = lastData.months.length - 1; i >= 0; i--) {
+        rows.push(
+          '<tr><td>' + fmtMonth(lastData.months[i]) + '</td>' +
+          '<td>' + d.add[i].toFixed(1) + '</td>' +
+          '<td>' + d.sigmaD[i].toFixed(1) + '</td>' +
+          '<td>' + d.cycleStock[i].toLocaleString() + '</td>' +
+          '<td>' + d.safetyStock[i].toLocaleString() + '</td>' +
+          '<td>' + d.total[i].toLocaleString() + '</td></tr>'
+        );
+      }
+      body.innerHTML = rows.join('');
+    }
+
     function renderAssumptions() {
       var el = document.getElementById(ids.assumptions);
       if (!el) return;
@@ -214,6 +237,7 @@
       if (!currentSku || !currentZip) return;
       renderKpis(currentSku, currentZip);
       renderChart(currentSku, currentZip);
+      renderMonthlyTable(currentSku, currentZip);
     }
 
     // Called once fresh data has landed — populates both selects (default:
@@ -258,6 +282,7 @@
   var detailView = makeDetailView({
     skuSelect: 'invSkuSelect', zipSelect: 'invZipSelect', kpis: 'invKpis',
     chart: 'invChart', asOf: 'invAsOf', assumptions: 'invAssumptions', downloadBtn: 'invDownloadBtn',
+    monthlyTable: 'invMonthlyTableBody',
   });
 
   // The same page's catalog-wide summary, above the drill-down — same
@@ -266,10 +291,15 @@
   // a time. Only called once loadInventory() has already confirmed there
   // IS data to show (see its success handler below), so skuIds is never
   // empty here — no separate empty-state handling needed in this function.
-  function renderCatalogSummary() {
+  //
+  // monthIdx: which month to summarize — lets #ovInvMonthSelect show any
+  // past month, not just the latest (its own change handler re-calls this
+  // with a different index; initForCatalog() below wires that up and picks
+  // the latest month as the initial default).
+  function renderCatalogSummary(monthIdx) {
     var el = document.getElementById('ovInvKpis');
     if (!el) return;
-    var i = lastData.months.length - 1;
+    var i = monthIdx != null ? monthIdx : lastData.months.length - 1;
     var skuIds = Object.keys(lastData.bySku);
 
     var totalCycle = 0, totalSafety = 0, totalAll = 0;
@@ -293,8 +323,6 @@
       kpi('Total cycle stock', Math.round(totalCycle).toLocaleString()) +
       kpi('Total safety stock', Math.round(totalSafety).toLocaleString()) +
       kpi('Total inventory needed', Math.round(totalAll).toLocaleString());
-    var asOfEl = document.getElementById('ovInvAsOf');
-    if (asOfEl) asOfEl.textContent = 'As of ' + fmtMonth(lastData.months[i]) + ' · across the full catalog';
 
     var moversEl = document.getElementById('ovInvMoversList');
     if (moversEl) {
@@ -304,6 +332,21 @@
           (zipCount === 1 ? '' : 's') + '</div></div><span class="chg">' + Math.round(r.total).toLocaleString() + ' units</span></li>';
       }).join('');
     }
+  }
+
+  // Populates #ovInvMonthSelect (defaulting to the latest month) and wires
+  // its change handler — separate from renderCatalogSummary() itself so
+  // the select only needs populating once per fresh data load, not on
+  // every re-render.
+  function initCatalogSummary() {
+    var sel = document.getElementById('ovInvMonthSelect');
+    if (!sel) { renderCatalogSummary(); return; }
+    sel.innerHTML = lastData.months.map(function (m, idx) {
+      return '<option value="' + idx + '">' + fmtMonth(m) + '</option>';
+    }).join('');
+    sel.value = lastData.months.length - 1;
+    sel.onchange = function () { renderCatalogSummary(parseInt(sel.value, 10)); };
+    renderCatalogSummary(lastData.months.length - 1);
   }
 
   window.downloadInventoryCsv = function () {
@@ -352,7 +395,7 @@
         var skuIds = Object.keys(data.bySku || {});
         if (!skuIds.length) { showState('empty'); return; }
         showState('content');
-        renderCatalogSummary();
+        initCatalogSummary();
         detailView.initForData();
       })
       .catch(function (err) {
