@@ -1,3 +1,4 @@
+import hashlib
 import json
 import boto3
 import os
@@ -5,6 +6,36 @@ import os
 s3 = boto3.client('s3')
 BUCKET = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
 KEY    = os.environ.get('INSIGHTS_KEY', 'insights/latest.json')
+
+# ---- organization scoping — see forecast-api/handler.py for the full
+# rationale (identical copy, no shared layer between these functions). ----
+_FREE_EMAIL_DOMAINS = {
+    'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com',
+    'msn.com', 'yahoo.com', 'ymail.com', 'icloud.com', 'me.com', 'aol.com',
+    'protonmail.com', 'proton.me', 'gmx.com', 'zoho.com',
+}
+_INTERNAL_EMAILS = {
+    'rajat.mahajan.seattle@gmail.com', 'aprabot@gmail.com', 'apurvgsingh@gmail.com',
+    'rishabhtrust@gmail.com', 'ifty.pfk2009@gmail.com',
+}
+
+
+def _org_id(email):
+    email = (email or '').strip().lower()
+    if email in _INTERNAL_EMAILS:
+        return 'aprabot-internal'
+    domain = email.split('@')[-1] if '@' in email else ''
+    if not domain or domain in _FREE_EMAIL_DOMAINS:
+        return 'user-' + hashlib.sha256(email.encode()).hexdigest()[:16]
+    return domain
+
+
+def _claims(event):
+    try:
+        return event['requestContext']['authorizer']['jwt']['claims']
+    except (KeyError, TypeError):
+        return {}
+
 
 CORS = {
     'Access-Control-Allow-Origin':  '*',
@@ -17,7 +48,8 @@ def handler(event, context):
     if method == 'OPTIONS':
         return {'statusCode': 200, 'headers': CORS, 'body': ''}
     try:
-        obj  = s3.get_object(Bucket=BUCKET, Key=KEY)
+        org = _org_id(_claims(event).get('email'))
+        obj  = s3.get_object(Bucket=BUCKET, Key=f'orgs/{org}/{KEY}')
         body = obj['Body'].read().decode('utf-8')
         return {
             'statusCode': 200,

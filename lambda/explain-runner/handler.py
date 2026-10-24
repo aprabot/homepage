@@ -115,6 +115,7 @@ def build_explain_by_sku(explain_path, anon):
 
 
 def handler(event, context):
+    org_id       = event['org_id']
     scenario_id  = event['scenario_id']
     best_iter    = event['best_iter']
     known_prices = bool(event.get('known_prices', True))
@@ -122,13 +123,16 @@ def handler(event, context):
 
     try:
         os.makedirs(OUTDIR, exist_ok=True)
-        anon = _read_json(f'scenarios/{scenario_id}/anon.json')
+        anon = _read_json(f'orgs/{org_id}/scenarios/{scenario_id}/anon.json')
         if not anon:
-            raise RuntimeError(f'scenarios/{scenario_id}/anon.json not found — '
+            raise RuntimeError(f'orgs/{org_id}/scenarios/{scenario_id}/anon.json not found — '
                                 f'was this invoked for a scenario scenario-runner '
                                 f'actually wrote one for?')
 
-        s3.download_file(BUCKET, 'raw/With_Price.tsv', RAW_INPUT)
+        # This org's own default dataset — see scenario-runner's identical
+        # comment. explain-runner is only ever invoked for a default-dataset
+        # (non-custom-upload) run, so this is always the right file.
+        s3.download_file(BUCKET, f'orgs/{org_id}/raw/With_Price.tsv', RAW_INPUT)
         _trim_partial_trailing_week(RAW_INPUT)
         if weather:
             s3.download_file(BUCKET, 'raw/weather.tsv', RAW_WEATHER)
@@ -157,9 +161,9 @@ def handler(event, context):
 
         explain_by_sku = build_explain_by_sku(os.path.join(OUTDIR, 'forecast_explain.json'), anon)
         for sku, days in explain_by_sku.items():
-            _write_json(f'scenarios/{scenario_id}/explain/{sku}.json', days)
+            _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/explain/{sku}.json', days)
 
-        _write_json(f'scenarios/{scenario_id}/explain_status.json', {
+        _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/explain_status.json', {
             'status': 'completed',
             'completed_at': _now(),
             'horizon_days': EXPLAIN_HORIZON_DAYS,
@@ -170,7 +174,7 @@ def handler(event, context):
         err = f"{exc}\n{traceback.format_exc()[-1500:]}"
         print(f"EXPLAIN_RUN_ERROR[{scenario_id}]: {err}")
         try:
-            _write_json(f'scenarios/{scenario_id}/explain_status.json', {
+            _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/explain_status.json', {
                 'status': 'failed',
                 'error': str(exc)[:500],
                 'failed_at': _now(),

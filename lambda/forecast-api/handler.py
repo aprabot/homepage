@@ -1,10 +1,11 @@
+import hashlib
 import json
 import boto3
 import os
 
 s3 = boto3.client('s3')
 BUCKET = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
-KEY    = os.environ.get('FORECAST_KEY', 'forecast/latest.json')
+FORECAST_KEY   = os.environ.get('FORECAST_KEY', 'forecast/latest.json')
 # Companion object scenario-runner writes alongside a scenario's own
 # result.json (see lambda/scenario-runner/handler.py's
 # compute_monthly_inventory()), copied to this key by approve_scenario()
@@ -14,6 +15,47 @@ KEY    = os.environ.get('FORECAST_KEY', 'forecast/latest.json')
 # Lambda proxy integration regardless of the route's own path pattern, so
 # this needed no infra change, just this handler reading the query param.
 INVENTORY_KEY = os.environ.get('FORECAST_INVENTORY_KEY', 'forecast/latest_inventory.json')
+
+# ---- organization scoping ---------------------------------------------
+# Every org-aware Lambda (this one, insights-api, scenarios-api, chat-api)
+# carries its own copy of this — these are small, independently zip-deployed
+# functions with no shared layer, matching how this repo already does it.
+# A corporate email domain IS the org id (any @sagarorg.com user lands in
+# org "sagarorg.com" automatically, no setup). Free webmail domains CANNOT
+# be used directly as an org id — two strangers who both happen to use
+# Gmail must never land in the same org just because they share a mail
+# provider. _INTERNAL_EMAILS is the one explicit exception: APRABot's own
+# team currently signs in with personal Gmail addresses with no domain to
+# group them by, so they're named here instead and share "aprabot-internal".
+# Anyone else on a free-webmail domain not in that list gets a private,
+# single-person org (safe default — isolated, never silently merged).
+_FREE_EMAIL_DOMAINS = {
+    'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com',
+    'msn.com', 'yahoo.com', 'ymail.com', 'icloud.com', 'me.com', 'aol.com',
+    'protonmail.com', 'proton.me', 'gmx.com', 'zoho.com',
+}
+_INTERNAL_EMAILS = {
+    'rajat.mahajan.seattle@gmail.com', 'aprabot@gmail.com', 'apurvgsingh@gmail.com',
+    'rishabhtrust@gmail.com', 'ifty.pfk2009@gmail.com',
+}
+
+
+def _org_id(email):
+    email = (email or '').strip().lower()
+    if email in _INTERNAL_EMAILS:
+        return 'aprabot-internal'
+    domain = email.split('@')[-1] if '@' in email else ''
+    if not domain or domain in _FREE_EMAIL_DOMAINS:
+        return 'user-' + hashlib.sha256(email.encode()).hexdigest()[:16]
+    return domain
+
+
+def _claims(event):
+    try:
+        return event['requestContext']['authorizer']['jwt']['claims']
+    except (KeyError, TypeError):
+        return {}
+
 
 CORS = {
     'Access-Control-Allow-Origin':  '*',
@@ -26,9 +68,10 @@ def handler(event, context):
     if method == 'OPTIONS':
         return {'statusCode': 200, 'headers': CORS, 'body': ''}
 
+    org = _org_id(_claims(event).get('email'))
     qs = event.get('queryStringParameters') or {}
     is_inventory = (qs.get('type') == 'inventory')
-    key = INVENTORY_KEY if is_inventory else KEY
+    key = f'orgs/{org}/' + (INVENTORY_KEY if is_inventory else FORECAST_KEY)
 
     try:
         obj  = s3.get_object(Bucket=BUCKET, Key=key)
@@ -65,6 +108,15 @@ def handler(event, context):
             # current approved forecast yet" message instead of an error.
             return {'statusCode': 404, 'headers': {**CORS, 'Content-Type': 'application/json'},
                     'body': json.dumps({'error': 'no inventory data for the current approved forecast yet'})}
+        if not_found:
+            # Same "not found" gotcha, hit on the base forecast too — and a
+            # now-common real state since org-scoping landed: a brand new
+            # organization that's signed in but hasn't approved its first
+            # scenario yet has genuinely nothing at this key. Clean 404 so
+            # the dashboard can show a "no forecast yet — run and approve a
+            # scenario to get started" empty state instead of an error.
+            return {'statusCode': 404, 'headers': {**CORS, 'Content-Type': 'application/json'},
+                    'body': json.dumps({'error': 'no approved forecast yet for this organization'})}
         return {
             'statusCode': 500,
             'headers': CORS,

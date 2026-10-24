@@ -1,4 +1,5 @@
 import csv
+import hashlib
 import io
 import json
 import math
@@ -29,7 +30,11 @@ SCENARIOS_API_FUNCTION = os.environ.get('SCENARIOS_API_FUNCTION', 'aprabot-scena
 # actually produces a different forward forecast when fed it) before this
 # key was wired in. Must live under uploads/ — scenarios-api's
 # create_scenario rejects any custom_input_key that doesn't.
-DISCOUNT_DEMO_KEY = 'uploads/demo-20pct-discount-all-products/apra_demo_20pct_discount_all_products.xlsx'
+# Lives under aprabot-internal's own org prefix (not global) — scenarios-api
+# now requires every custom_input_key to belong to the calling org, and this
+# fixture is only ever used for APRABot's own team demos anyway. Migrated
+# here (copied, not moved) alongside the rest of the org-scoping rollout.
+DISCOUNT_DEMO_KEY = 'orgs/aprabot-internal/uploads/demo-20pct-discount-all-products/apra_demo_20pct_discount_all_products.xlsx'
 KNOWLEDGE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'forecasting_knowledge.md')
 KNOWLEDGE_KEY  = os.environ.get('KNOWLEDGE_KEY', 'knowledge/forecasting_knowledge.md')
 # RAG index for the knowledge base — see build_knowledge_index()/retrieve_
@@ -46,7 +51,10 @@ CORS = {
     'Access-Control-Allow-Methods': 'GET,POST,PUT,OPTIONS',
 }
 
-_cache = {}   # simple in-process cache across warm invocations
+_cache = {}   # simple in-process cache across warm invocations, keyed by
+              # org id (see _CURRENT_ORG) so a warm container reused for a
+              # different org's request never serves another org's data.
+_CURRENT_ORG = {'id': None}  # set first thing in handler() every invocation
 
 # forecast.py itself already uses jpholiday as a real model feature
 # (is_holiday, days_to/from_holiday, etc.) — this mirrors the same library
@@ -385,14 +393,17 @@ def put_knowledge(event):
 
 
 def _get_forecast_data():
-    """Fetch + parse forecast/latest.json once per warm invocation, shared by
-    build_data_summary() (which turns it into the prompt string) and any tool
-    that needs the structured data directly (e.g. explain_forecast_day,
-    which looks up a specific week's real numbers)."""
-    if 'forecast_data' not in _cache:
-        obj = s3.get_object(Bucket=BUCKET, Key=KEY)
-        _cache['forecast_data'] = json.loads(obj['Body'].read().decode('utf-8'))
-    return _cache['forecast_data']
+    """Fetch + parse this org's forecast/latest.json once per warm
+    invocation, shared by build_data_summary() (which turns it into the
+    prompt string) and any tool that needs the structured data directly
+    (e.g. explain_forecast_day, which looks up a specific week's real
+    numbers). Cached per-org (_CURRENT_ORG, set at the top of handler())
+    so a warm container never serves one org's forecast to another."""
+    cache_key = f"forecast_data:{_CURRENT_ORG['id']}"
+    if cache_key not in _cache:
+        obj = s3.get_object(Bucket=BUCKET, Key=f"orgs/{_CURRENT_ORG['id']}/{KEY}")
+        _cache[cache_key] = json.loads(obj['Body'].read().decode('utf-8'))
+    return _cache[cache_key]
 
 
 def _annotation_label(explain_result):
@@ -462,8 +473,9 @@ def _all_sku_rows():
     build_data_summary() (every request) and compare_skus (on demand) need
     the exact same ranked/tiered list, and tiering requires the whole
     catalog's ranks, not just the SKUs in question."""
-    if 'sku_rows' in _cache:
-        return _cache['sku_rows']
+    cache_key = f"sku_rows:{_CURRENT_ORG['id']}"
+    if cache_key in _cache:
+        return _cache[cache_key]
 
     data = _get_forecast_data()
     bt = data.get('backtestWeeks', len(data['weeks']))
@@ -483,7 +495,7 @@ def _all_sku_rows():
     for i, r in enumerate(rows):
         pct = i / n
         r['tier'] = 'High' if pct < 0.15 else 'Medium' if pct < 0.5 else 'Lower'
-    _cache['sku_rows'] = rows
+    _cache[cache_key] = rows
     return rows
 
 
@@ -1127,6 +1139,29 @@ def _claims(event):
         return {}
 
 
+# ---- organization scoping — see forecast-api/handler.py for the full
+# rationale (identical copy, no shared layer between these functions). ----
+_FREE_EMAIL_DOMAINS = {
+    'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com',
+    'msn.com', 'yahoo.com', 'ymail.com', 'icloud.com', 'me.com', 'aol.com',
+    'protonmail.com', 'proton.me', 'gmx.com', 'zoho.com',
+}
+_INTERNAL_EMAILS = {
+    'rajat.mahajan.seattle@gmail.com', 'aprabot@gmail.com', 'apurvgsingh@gmail.com',
+    'rishabhtrust@gmail.com', 'ifty.pfk2009@gmail.com',
+}
+
+
+def _org_id(email):
+    email = (email or '').strip().lower()
+    if email in _INTERNAL_EMAILS:
+        return 'aprabot-internal'
+    domain = email.split('@')[-1] if '@' in email else ''
+    if not domain or domain in _FREE_EMAIL_DOMAINS:
+        return 'user-' + hashlib.sha256(email.encode()).hexdigest()[:16]
+    return domain
+
+
 def _invoke_scenarios_api(method, path, claims, body=None):
     fake_event = {
         'requestContext': {'http': {'method': method, 'path': path},
@@ -1574,7 +1609,7 @@ def execute_tool(name, inputs, claims, request_state):
                 )
             else:
                 try:
-                    obj = s3.get_object(Bucket=BUCKET, Key=f'scenarios/{scenario_id}/explain/{sku}.json')
+                    obj = s3.get_object(Bucket=BUCKET, Key=f"orgs/{_CURRENT_ORG['id']}/scenarios/{scenario_id}/explain/{sku}.json")
                     explain_days = json.loads(obj['Body'].read().decode('utf-8'))
                 except Exception:
                     explain_days = {}
@@ -1865,10 +1900,23 @@ def handler(event, context):
     if method == 'OPTIONS':
         return {'statusCode': 200, 'headers': CORS, 'body': ''}
 
+    # Knowledge base stays global/shared across every org — it's APRABot's
+    # own forecasting methodology reference (also shipped as a static
+    # fallback file in this Lambda's own package), not customer data, so no
+    # org resolution needed for this route.
     if path == '/knowledge' and method == 'GET':
         return get_knowledge()
     if path == '/knowledge' and method == 'PUT':
         return put_knowledge(event)
+
+    # Every other route is per-org data. Resolved once, first thing, into a
+    # module global rather than threaded as a parameter — this file's tool
+    # functions are many levels deep and already don't take an org/claims
+    # parameter today; a global is what every one of them can see without a
+    # much larger refactor, and it's reset at the very top of every single
+    # invocation (Lambda runs one invocation at a time per container), so a
+    # warm container can never leak a stale org into the next request.
+    _CURRENT_ORG['id'] = _org_id(_claims(event).get('email'))
 
     try:
         body    = json.loads(event.get('body') or '{}')
@@ -1882,12 +1930,13 @@ def handler(event, context):
             return {'statusCode': 400, 'headers': CORS,
                     'body': json.dumps({'error': 'message required'})}
 
-        if 'data' not in _cache:
-            _cache['data'] = build_data_summary()
+        data_cache_key = f"data:{_CURRENT_ORG['id']}"
+        if data_cache_key not in _cache:
+            _cache[data_cache_key] = build_data_summary()
 
         # RAG retrieval (top KNOWLEDGE_TOP_K relevant sections, not the whole
         # KB file) — see retrieve_knowledge()'s own docstring.
-        system = SYSTEM_TMPL.format(knowledge=retrieve_knowledge(message), data=_cache['data'])
+        system = SYSTEM_TMPL.format(knowledge=retrieve_knowledge(message), data=_cache[data_cache_key])
         if extra:
             system += f"\n\nADDITIONAL INSTRUCTIONS: {extra}"
 

@@ -1,3 +1,4 @@
+import hashlib
 import json
 import os
 import re
@@ -11,6 +12,28 @@ s3     = boto3.client('s3')
 lam    = boto3.client('lambda')
 BUCKET = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
 RUNNER = os.environ.get('RUNNER_FUNCTION', 'aprabot-scenario-runner')
+
+# ---- organization scoping — see forecast-api/handler.py for the full
+# rationale (identical copy, no shared layer between these functions). ----
+_FREE_EMAIL_DOMAINS = {
+    'gmail.com', 'googlemail.com', 'outlook.com', 'hotmail.com', 'live.com',
+    'msn.com', 'yahoo.com', 'ymail.com', 'icloud.com', 'me.com', 'aol.com',
+    'protonmail.com', 'proton.me', 'gmx.com', 'zoho.com',
+}
+_INTERNAL_EMAILS = {
+    'rajat.mahajan.seattle@gmail.com', 'aprabot@gmail.com', 'apurvgsingh@gmail.com',
+    'rishabhtrust@gmail.com', 'ifty.pfk2009@gmail.com',
+}
+
+
+def _org_id(email):
+    email = (email or '').strip().lower()
+    if email in _INTERNAL_EMAILS:
+        return 'aprabot-internal'
+    domain = email.split('@')[-1] if '@' in email else ''
+    if not domain or domain in _FREE_EMAIL_DOMAINS:
+        return 'user-' + hashlib.sha256(email.encode()).hexdigest()[:16]
+    return domain
 
 CORS = {
     'Access-Control-Allow-Origin':  '*',
@@ -50,8 +73,8 @@ def _claims(event):
         return {}
 
 
-def list_scenarios():
-    idx = _read_json('scenarios/index.json', default={'scenarios': []})
+def list_scenarios(org):
+    idx = _read_json(f'orgs/{org}/scenarios/index.json', default={'scenarios': []})
     scenarios = sorted(idx['scenarios'], key=lambda s: s.get('created_at', ''), reverse=True)
     return _resp(200, {'scenarios': scenarios})
 
@@ -59,7 +82,7 @@ def list_scenarios():
 ALLOWED_UPLOAD_EXT = {'.xlsx', '.tsv', '.csv', '.txt'}
 
 
-def create_upload_url(event):
+def create_upload_url(org, event):
     try:
         body = json.loads(event.get('body') or '{}')
     except json.JSONDecodeError:
@@ -71,7 +94,7 @@ def create_upload_url(event):
         return _resp(400, {'error': f'filename must end in one of {sorted(ALLOWED_UPLOAD_EXT)}'})
 
     safe_name = re.sub(r'[^A-Za-z0-9_.-]', '_', filename)[:120]
-    key = f"uploads/{uuid.uuid4().hex}/{safe_name}"
+    key = f"orgs/{org}/uploads/{uuid.uuid4().hex}/{safe_name}"
 
     content_type = {
         '.xlsx': 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -85,7 +108,7 @@ def create_upload_url(event):
     return _resp(200, {'upload_url': url, 'key': key, 'content_type': content_type})
 
 
-def create_scenario(event):
+def create_scenario(org, event):
     try:
         body = json.loads(event.get('body') or '{}')
     except json.JSONDecodeError:
@@ -100,7 +123,7 @@ def create_scenario(event):
         refresh_days = 28
 
     custom_input_key = (body.get('custom_input_key') or '').strip()
-    if custom_input_key and not custom_input_key.startswith('uploads/'):
+    if custom_input_key and not custom_input_key.startswith(f'orgs/{org}/uploads/'):
         return _resp(400, {'error': 'invalid custom_input_key'})
 
     scenario_id = f"scn-{int(time.time())}-{uuid.uuid4().hex[:6]}"
@@ -115,16 +138,17 @@ def create_scenario(event):
     }
     if custom_input_key:
         config['custom_input_key'] = custom_input_key
-    _write_json(f'scenarios/{scenario_id}/config.json', config)
+    _write_json(f'orgs/{org}/scenarios/{scenario_id}/config.json', config)
 
-    idx = _read_json('scenarios/index.json', default={'scenarios': []})
+    idx = _read_json(f'orgs/{org}/scenarios/index.json', default={'scenarios': []})
     idx['scenarios'].append({k: config[k] for k in
                               ('id', 'label', 'status', 'known_prices', 'calibrate',
                                'weather', 'refresh_days', 'custom_input',
                                'requested_by', 'created_at', 'approved')})
-    _write_json('scenarios/index.json', idx)
+    _write_json(f'orgs/{org}/scenarios/index.json', idx)
 
     runner_payload = {
+        'org_id': org,
         'scenario_id': scenario_id, 'label': label,
         'known_prices': known_prices, 'calibrate': calibrate,
         'weather': weather, 'refresh_days': refresh_days,
@@ -138,26 +162,25 @@ def create_scenario(event):
     return _resp(202, {'scenario_id': scenario_id, 'status': 'running'})
 
 
-DEFAULT_INPUT_KEY = 'raw/With_Price.tsv'
 DEFAULT_INPUT_FILENAME = 'apra-default-input.tsv'
 
 
-def get_result(scenario_id):
-    result = _read_json(f'scenarios/{scenario_id}/result.json')
+def get_result(org, scenario_id):
+    result = _read_json(f'orgs/{org}/scenarios/{scenario_id}/result.json')
     if result is None:
         return _resp(404, {'error': 'result not found (scenario may still be running or failed)'})
 
     # Presigned download for whatever this scenario actually ran on — the
-    # user's uploaded file if there was one, otherwise the platform default
-    # dataset. Not persisted back to S3, just added to this response.
-    config = _read_json(f'scenarios/{scenario_id}/config.json', default={})
+    # user's uploaded file if there was one, otherwise this org's own
+    # default dataset. Not persisted back to S3, just added to this response.
+    config = _read_json(f'orgs/{org}/scenarios/{scenario_id}/config.json', default={})
     custom_key = config.get('custom_input_key')
     if custom_key:
         filename = custom_key.rsplit('/', 1)[-1]
         key, is_default = custom_key, False
     else:
         filename = DEFAULT_INPUT_FILENAME
-        key, is_default = DEFAULT_INPUT_KEY, True
+        key, is_default = f'orgs/{org}/raw/With_Price.tsv', True
     url = s3.generate_presigned_url(
         'get_object',
         Params={'Bucket': BUCKET, 'Key': key,
@@ -169,12 +192,12 @@ def get_result(scenario_id):
     return _resp(200, result)
 
 
-def approve_scenario(scenario_id, event):
-    result = _read_json(f'scenarios/{scenario_id}/result.json')
+def approve_scenario(org, scenario_id, event):
+    result = _read_json(f'orgs/{org}/scenarios/{scenario_id}/result.json')
     if result is None:
         return _resp(404, {'error': 'no completed result for this scenario'})
 
-    _write_json('forecast/latest.json', result)
+    _write_json(f'orgs/{org}/forecast/latest.json', result)
 
     # Best-effort — inventory.json is an optional companion scenario-runner
     # writes alongside result.json (see its own compute_monthly_inventory()
@@ -182,11 +205,11 @@ def approve_scenario(scenario_id, event):
     # from before this existed, or the computation itself best-effort
     # failing on this run's own data). Never let a missing/unreadable
     # inventory.json block the approval that already succeeded above.
-    inventory = _read_json(f'scenarios/{scenario_id}/inventory.json')
+    inventory = _read_json(f'orgs/{org}/scenarios/{scenario_id}/inventory.json')
     if inventory is not None:
-        _write_json('forecast/latest_inventory.json', inventory)
+        _write_json(f'orgs/{org}/forecast/latest_inventory.json', inventory)
 
-    idx = _read_json('scenarios/index.json', default={'scenarios': []})
+    idx = _read_json(f'orgs/{org}/scenarios/index.json', default={'scenarios': []})
     # Captured before the loop overwrites 'approved' below — this scenario's
     # own index entry (for label/wape/volume_error) and whichever OTHER
     # scenario was previously live (for the audit entry's "replaced" field;
@@ -196,11 +219,11 @@ def approve_scenario(scenario_id, event):
                         if s.get('approved') and s['id'] != scenario_id), None)
     for s in idx['scenarios']:
         s['approved'] = (s['id'] == scenario_id)
-    _write_json('scenarios/index.json', idx)
+    _write_json(f'orgs/{org}/scenarios/index.json', idx)
 
-    config = _read_json(f'scenarios/{scenario_id}/config.json', default={})
+    config = _read_json(f'orgs/{org}/scenarios/{scenario_id}/config.json', default={})
     config['approved'] = True
-    _write_json(f'scenarios/{scenario_id}/config.json', config)
+    _write_json(f'orgs/{org}/scenarios/{scenario_id}/config.json', config)
 
     # Audit trail — who approved what, when, replacing what. Append-only,
     # separate from scenarios/index.json (which only ever tracks the
@@ -208,7 +231,7 @@ def approve_scenario(scenario_id, event):
     # Same claims shape whether this call came from the UI's own Approve
     # button or via chat-api's approve_scenario tool (_invoke_scenarios_api
     # builds an identical fake_event), so both are attributed the same way.
-    log = _read_json('scenarios/approval_log.json', default={'entries': []})
+    log = _read_json(f'orgs/{org}/scenarios/approval_log.json', default={'entries': []})
     log['entries'].append({
         'scenario_id': scenario_id,
         'label': this_entry.get('label') or config.get('label', 'Untitled scenario'),
@@ -218,13 +241,13 @@ def approve_scenario(scenario_id, event):
         'wape': this_entry.get('wape'),
         'volume_error': this_entry.get('volume_error'),
     })
-    _write_json('scenarios/approval_log.json', log)
+    _write_json(f'orgs/{org}/scenarios/approval_log.json', log)
 
     return _resp(200, {'approved': scenario_id})
 
 
-def list_approvals():
-    log = _read_json('scenarios/approval_log.json', default={'entries': []})
+def list_approvals(org):
+    log = _read_json(f'orgs/{org}/scenarios/approval_log.json', default={'entries': []})
     entries = sorted(log['entries'], key=lambda e: e.get('approved_at', ''), reverse=True)
     return _resp(200, {'approvals': entries})
 
@@ -236,25 +259,27 @@ def handler(event, context):
         return {'statusCode': 200, 'headers': CORS, 'body': ''}
 
     try:
+        org = _org_id(_claims(event).get('email'))
+
         m = re.match(r'^/scenarios/([^/]+)/approve$', path)
         if method == 'POST' and m:
-            return approve_scenario(m.group(1), event)
+            return approve_scenario(org, m.group(1), event)
 
         m = re.match(r'^/scenarios/([^/]+)/result$', path)
         if method == 'GET' and m:
-            return get_result(m.group(1))
+            return get_result(org, m.group(1))
 
         if method == 'GET' and path == '/scenarios/approvals':
-            return list_approvals()
+            return list_approvals(org)
 
         if method == 'GET' and path == '/scenarios':
-            return list_scenarios()
+            return list_scenarios(org)
 
         if method == 'POST' and path == '/scenarios':
-            return create_scenario(event)
+            return create_scenario(org, event)
 
         if method == 'POST' and path == '/scenarios/upload-url':
-            return create_upload_url(event)
+            return create_upload_url(org, event)
 
         return _resp(404, {'error': f'no route for {method} {path}'})
 

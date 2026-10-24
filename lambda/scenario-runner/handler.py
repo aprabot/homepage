@@ -54,8 +54,8 @@ def _write_json(key, data):
                    ContentType='application/json')
 
 
-def _update_index(scenario_id, patch):
-    idx = _read_json('scenarios/index.json', default={'scenarios': []})
+def _update_index(org_id, scenario_id, patch):
+    idx = _read_json(f'orgs/{org_id}/scenarios/index.json', default={'scenarios': []})
     found = False
     for s in idx['scenarios']:
         if s['id'] == scenario_id:
@@ -66,7 +66,7 @@ def _update_index(scenario_id, patch):
         entry = {'id': scenario_id}
         entry.update(patch)
         idx['scenarios'].append(entry)
-    _write_json('scenarios/index.json', idx)
+    _write_json(f'orgs/{org_id}/scenarios/index.json', idx)
 
 
 REQUIRED_INPUT_COLS = {
@@ -711,6 +711,7 @@ def build_explain_by_sku(explain_path, anon):
 
 
 def handler(event, context):
+    org_id      = event['org_id']
     scenario_id = event['scenario_id']
     label       = event.get('label', 'Untitled scenario')
     known_prices = bool(event.get('known_prices', True))
@@ -728,7 +729,11 @@ def handler(event, context):
             _trim_partial_trailing_week(RAW_INPUT)
             train_end = _dynamic_train_end(RAW_INPUT)
         else:
-            s3.download_file(BUCKET, 'raw/With_Price.tsv', RAW_INPUT)
+            # This org's own default/base dataset — NOT a shared platform
+            # file. Each org uploads its own raw/With_Price.tsv once (see
+            # README's data-template step); running a forecast against
+            # another org's data here would be a real cross-tenant leak.
+            s3.download_file(BUCKET, f'orgs/{org_id}/raw/With_Price.tsv', RAW_INPUT)
             _trim_partial_trailing_week(RAW_INPUT)
             train_end = TRAIN_END
         if weather and not has_custom_weather:
@@ -795,7 +800,7 @@ def handler(event, context):
         # approve_scenario()) back to the scenario_id whose explain/ data to read.
         result_json['id'] = scenario_id
 
-        _write_json(f'scenarios/{scenario_id}/result.json', result_json)
+        _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/result.json', result_json)
 
         # Best-effort — see compute_monthly_inventory()'s own docstring for
         # why this never raises. Written as its own object rather than
@@ -806,8 +811,8 @@ def handler(event, context):
         # Forecasts, Scenarios) don't pay to fetch it every time.
         inventory_json = compute_monthly_inventory(RAW_INPUT, anon)
         if inventory_json is not None:
-            _write_json(f'scenarios/{scenario_id}/inventory.json', inventory_json)
-            print(f"INVENTORY_CALC: wrote scenarios/{scenario_id}/inventory.json")
+            _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/inventory.json', inventory_json)
+            print(f"INVENTORY_CALC: wrote orgs/{org_id}/scenarios/{scenario_id}/inventory.json")
         else:
             print(f"INVENTORY_CALC: compute_monthly_inventory returned None — nothing written")
 
@@ -816,7 +821,7 @@ def handler(event, context):
             # never close to the timeout), so just aggregate + write it here.
             explain_by_sku = build_explain_by_sku(os.path.join(OUTDIR, 'forecast_explain.json'), anon)
             for sku, days in explain_by_sku.items():
-                _write_json(f'scenarios/{scenario_id}/explain/{sku}.json', days)
+                _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/explain/{sku}.json', days)
         elif not custom_input_key:
             # Full catalog run (the platform default) — --explain doesn't fit
             # inline at this scale (confirmed 2026-09-03: backtest ~240s + a
@@ -841,12 +846,13 @@ def handler(event, context):
             meta = _read_local_json(meta_path, default={})
             best_iter = meta.get('best_iter')
             if best_iter is not None:
-                _write_json(f'scenarios/{scenario_id}/anon.json', anon)
+                _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/anon.json', anon)
                 try:
                     lam.invoke(
                         FunctionName=EXPLAIN_RUNNER_FUNCTION,
                         InvocationType='Event',
                         Payload=json.dumps({
+                            'org_id': org_id,
                             'scenario_id': scenario_id,
                             'best_iter': best_iter,
                             'known_prices': known_prices,
@@ -873,15 +879,15 @@ def handler(event, context):
                   f"too large for inline --explain and explain-runner can't serve a "
                   f"custom dataset — completing without explain data.")
 
-        config = _read_json(f'scenarios/{scenario_id}/config.json', default={})
+        config = _read_json(f'orgs/{org_id}/scenarios/{scenario_id}/config.json', default={})
         config.update({
             'status': 'completed',
             'completed_at': _now(),
             'wape': result_json['overallWape'],
             'volume_error': volume_error,
         })
-        _write_json(f'scenarios/{scenario_id}/config.json', config)
-        _update_index(scenario_id, {
+        _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/config.json', config)
+        _update_index(org_id, scenario_id, {
             'status': 'completed',
             'wape': result_json['overallWape'],
             'volume_error': volume_error,
@@ -894,10 +900,10 @@ def handler(event, context):
         # Best-effort status update — never let a failure here hide the
         # original exception above (it's already printed to CloudWatch).
         try:
-            config = _read_json(f'scenarios/{scenario_id}/config.json', default={})
+            config = _read_json(f'orgs/{org_id}/scenarios/{scenario_id}/config.json', default={})
             config.update({'status': 'failed', 'error': str(exc)[:500], 'failed_at': _now()})
-            _write_json(f'scenarios/{scenario_id}/config.json', config)
-            _update_index(scenario_id, {'status': 'failed', 'error': str(exc)[:500]})
+            _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/config.json', config)
+            _update_index(org_id, scenario_id, {'status': 'failed', 'error': str(exc)[:500]})
         except Exception as inner_exc:
             print(f"SCENARIO_RUN_ERROR[{scenario_id}]: also failed to record status: {inner_exc}")
 
