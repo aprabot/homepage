@@ -1548,6 +1548,15 @@
   var CACHE_KEY     = 'apra_forecast_cache';
   var CACHE_TTL     = 5 * 60 * 1000; /* 5 minutes in ms */
 
+  // GET /forecast now requires the signed-in user's Cognito ID token — the
+  // API resolves it to an organization and serves only that org's data
+  // (previously this route had no authorizer at all). Same header pattern
+  // as js/scenarios.js's authHeaders().
+  function forecastAuthHeaders() {
+    var t = localStorage.getItem('apra_id');
+    return t ? { 'Authorization': 'Bearer ' + t } : {};
+  }
+
   function loadForecast(forceFresh) {
     try {
       if (!forceFresh) {
@@ -1567,7 +1576,7 @@
     // cache-busting query param sidesteps that for this one forced case.
     var url = forceFresh ? FORECAST_API + '?_=' + Date.now() : FORECAST_API;
 
-    fetch(url)
+    fetch(url, { headers: forecastAuthHeaders() })
       .then(function(r){ if(!r.ok) throw new Error(r.status); return r.json(); })
       .then(function(d){
         window.DATA = d;

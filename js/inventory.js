@@ -23,6 +23,14 @@
   // route — see lambda/forecast-api/handler.py's own comment on why.
   var INVENTORY_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/forecast?type=inventory';
 
+  // GET /forecast (this route too) now requires the signed-in user's
+  // Cognito ID token — the API resolves it to an organization and serves
+  // only that org's inventory data. Same header pattern as js/scenarios.js.
+  function authHeaders() {
+    var t = localStorage.getItem('apra_id');
+    return t ? { 'Authorization': 'Bearer ' + t } : {};
+  }
+
   var loaded = false;
   var lastData = null;     // {months, params, bySku} once fetched
   var fetchPromise = null;
@@ -30,7 +38,7 @@
   function fetchInventory() {
     if (lastData) return Promise.resolve(lastData);
     if (fetchPromise) return fetchPromise;
-    fetchPromise = fetch(INVENTORY_API)
+    fetchPromise = fetch(INVENTORY_API, { headers: authHeaders() })
       .then(function (r) {
         if (!r.ok) {
           var err = new Error('HTTP ' + r.status);
