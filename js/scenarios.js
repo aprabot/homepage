@@ -1093,6 +1093,87 @@
     if (cmp && cmp.classList.contains('open')) { window.closeCompareModal(); }
   });
 
+  // Decision support for "does this scenario look safe to approve" — three
+  // anomaly types, each judged against that SKU's OWN historical behavior
+  // rather than one fixed threshold, since normal volatility varies hugely
+  // sku to sku (a bestseller's forecast swinging 10% week to week might be
+  // routine; the same swing on a slow mover could be the model going off
+  // the rails). Mirrored in lambda/chat-api/handler.py's detect_anomalies
+  // tool — same methodology, so the UI and Lyra never disagree about what
+  // counts as anomalous for a given scenario.
+  //   - backtestMisses: a historical week where the model's error badly
+  //     missed that SKU's own typical error (mean + 2.5 std of that SKU's
+  //     own backtest error distribution, with a 35% floor so an already-
+  //     accurate SKU isn't flagged over noise).
+  //   - forwardSwings: a forward week whose forecast moves further, week
+  //     over week, than that SKU's own model curve ever moved across the
+  //     whole backtest window (mean + 3 std of week-over-week % change in
+  //     f, floor 60%).
+  //   - wapeOutliers: a SKU whose own WAPE is markedly worse than this
+  //     scenario's overall WAPE — meaningfully less trustworthy than the
+  //     rest of the catalog in this specific run.
+  function computeScenarioAnomalies(result) {
+    var backtestMisses = [];
+    var forwardSwings = [];
+    var wapeOutliers = [];
+    var weeks = result.weeks || [];
+    var n = result.backtestWeeks || 0;
+    var overallWape = result.overallWape || 0;
+
+    Object.keys(result.skus).forEach(function (skuId) {
+      var o = result.skus[skuId];
+      var a = o.a || [], f = o.f || [];
+
+      var errs = [];
+      for (var i = 0; i < n; i++) {
+        if (a[i] == null) continue;
+        var denom = Math.max(Math.abs(a[i]), 1);
+        errs.push({ i: i, pct: Math.abs(a[i] - (f[i] || 0)) / denom });
+      }
+      if (errs.length >= 8) {
+        var mu = errs.reduce(function (s, e) { return s + e.pct; }, 0) / errs.length;
+        var variance = errs.reduce(function (s, e) { return s + (e.pct - mu) * (e.pct - mu); }, 0) / errs.length;
+        var sigma = Math.sqrt(variance);
+        var threshold = Math.max(mu + 2.5 * sigma, 0.35);
+        errs.forEach(function (e) {
+          if (e.pct >= threshold) {
+            backtestMisses.push({
+              sku: skuId, week: weeks[e.i], actual: a[e.i], forecast: f[e.i] || 0, pctError: e.pct,
+            });
+          }
+        });
+
+        var skuWape = mu * 100;
+        var wapeThreshold = Math.max(overallWape * 2, overallWape + 15);
+        if (skuWape >= wapeThreshold) wapeOutliers.push({ sku: skuId, skuWape: skuWape });
+      }
+
+      var wow = [];
+      for (var j = 1; j < n; j++) {
+        if (f[j - 1] == null || f[j] == null) continue;
+        wow.push(Math.abs(f[j] - f[j - 1]) / Math.max(Math.abs(f[j - 1]), 1));
+      }
+      if (wow.length >= 8) {
+        var wmu = wow.reduce(function (s, v) { return s + v; }, 0) / wow.length;
+        var wvar = wow.reduce(function (s, v) { return s + (v - wmu) * (v - wmu); }, 0) / wow.length;
+        var wthreshold = Math.max(wmu + 3 * Math.sqrt(wvar), 0.6);
+        for (var k = Math.max(n, 1); k < f.length; k++) {
+          if (f[k - 1] == null || f[k] == null) continue;
+          var fbase = Math.max(Math.abs(f[k - 1]), 1);
+          var change = (f[k] - f[k - 1]) / fbase;
+          if (Math.abs(change) >= wthreshold) {
+            forwardSwings.push({ sku: skuId, week: weeks[k], prevForecast: f[k - 1], forecast: f[k], pctChange: change });
+          }
+        }
+      }
+    });
+
+    backtestMisses.sort(function (x, y) { return y.pctError - x.pctError; });
+    forwardSwings.sort(function (x, y) { return Math.abs(y.pctChange) - Math.abs(x.pctChange); });
+    wapeOutliers.sort(function (x, y) { return y.skuWape - x.skuWape; });
+    return { backtestMisses: backtestMisses, forwardSwings: forwardSwings, wapeOutliers: wapeOutliers };
+  }
+
   function renderScenarioDetail(meta, result) {
     var head = document.getElementById('scenarioDetailHead');
     var body = document.getElementById('scenarioDetailBody');
@@ -1205,6 +1286,55 @@
         return '<tr><td class="skucell">' + r.id + '</td><td>' + r.vol.toLocaleString() + '</td><td>' + r.wape.toFixed(1) + '%</td></tr>';
       }).join('') +
       '</tbody></table></div></div>';
+
+    // Decision support before approving — see computeScenarioAnomalies()'s
+    // own docstring for the methodology. Three sub-lists, capped (5-6
+    // rows each) so a genuinely messy scenario doesn't produce an
+    // unreadable wall of rows; a clean scenario gets a reassuring
+    // all-clear instead of an empty section with no signal either way.
+    var anomalies = computeScenarioAnomalies(result);
+    var totalAnomalies = anomalies.backtestMisses.length + anomalies.forwardSwings.length + anomalies.wapeOutliers.length;
+    bodyHtml += '<div class="dcard" style="margin-top:16px;padding:16px">' +
+      '<div class="ch"><h4>Anomalies</h4>' +
+      (totalAnomalies ? '<span class="dsubtle" style="margin:0;font-size:.8rem">worth checking before you approve</span>' : '') +
+      '</div>';
+    if (!totalAnomalies) {
+      bodyHtml += '<p class="dsubtle" style="margin:0;display:flex;align-items:center;gap:8px">' +
+        '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.4" style="flex:none;color:var(--signal)"><path d="M20 6 9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>' +
+        'No anomalies detected — every SKU stayed within its own historical pattern.</p>';
+    } else {
+      if (anomalies.wapeOutliers.length) {
+        bodyHtml += '<div><div class="srow-label" style="margin-bottom:6px">Unreliable SKUs ' +
+          '<span class="dsubtle" style="margin:0;font-weight:400">— WAPE far above this scenario\'s overall ' + result.overallWape.toFixed(1) + '%</span></div>' +
+          '<div class="table-wrap"><table class="dtable"><thead><tr><th>SKU</th><th>SKU WAPE</th></tr></thead><tbody>' +
+          anomalies.wapeOutliers.slice(0, 5).map(function (x) {
+            return '<tr><td class="skucell">' + x.sku + '</td><td><span class="pill risk">' + x.skuWape.toFixed(1) + '%</span></td></tr>';
+          }).join('') + '</tbody></table></div></div>';
+      }
+      if (anomalies.backtestMisses.length) {
+        bodyHtml += '<div style="margin-top:' + (anomalies.wapeOutliers.length ? '16px' : '0') + '">' +
+          '<div class="srow-label" style="margin-bottom:6px">Backtest misses ' +
+          '<span class="dsubtle" style="margin:0;font-weight:400">— weeks the model got unusually wrong for that SKU</span></div>' +
+          '<div class="table-wrap"><table class="dtable"><thead><tr><th>SKU</th><th>Week</th><th>Actual</th><th>Forecast</th><th>Error</th></tr></thead><tbody>' +
+          anomalies.backtestMisses.slice(0, 6).map(function (x) {
+            return '<tr><td class="skucell">' + x.sku + '</td><td class="dsubtle" style="margin:0">' + x.week + '</td>' +
+              '<td>' + x.actual.toLocaleString() + '</td><td>' + Math.round(x.forecast).toLocaleString() + '</td>' +
+              '<td><span class="pill risk">' + (x.pctError * 100).toFixed(0) + '%</span></td></tr>';
+          }).join('') + '</tbody></table></div></div>';
+      }
+      if (anomalies.forwardSwings.length) {
+        bodyHtml += '<div style="margin-top:' + (anomalies.wapeOutliers.length || anomalies.backtestMisses.length ? '16px' : '0') + '">' +
+          '<div class="srow-label" style="margin-bottom:6px">Forward forecast swings ' +
+          '<span class="dsubtle" style="margin:0;font-weight:400">— bigger week-over-week moves than this SKU has historically made</span></div>' +
+          '<div class="table-wrap"><table class="dtable"><thead><tr><th>SKU</th><th>Week</th><th>From</th><th>To</th><th>Change</th></tr></thead><tbody>' +
+          anomalies.forwardSwings.slice(0, 6).map(function (x) {
+            return '<tr><td class="skucell">' + x.sku + '</td><td class="dsubtle" style="margin:0">' + x.week + '</td>' +
+              '<td>' + Math.round(x.prevForecast).toLocaleString() + '</td><td>' + Math.round(x.forecast).toLocaleString() + '</td>' +
+              '<td><span class="pill warn">' + (x.pctChange > 0 ? '+' : '') + (x.pctChange * 100).toFixed(0) + '%</span></td></tr>';
+          }).join('') + '</tbody></table></div></div>';
+      }
+    }
+    bodyHtml += '</div>';
 
     // This scenario's own approve/replace history — folded in here instead
     // of a separate cross-scenario table (see approvalsFor()'s comment).

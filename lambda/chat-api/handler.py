@@ -781,6 +781,13 @@ Rules:
   fixed checklist the dashboard's own "Run validations" button does, so the pass/warn/fail verdicts
   match exactly. Lead with any failed checks, then warnings; don't restate passed checks in detail,
   a brief "everything else checked out" covers them.
+• For "any anomalies" / "does this forecast look safe to approve" / "anything weird about SKU-X",
+  use detect_anomalies rather than eyeballing weeks yourself — it's per-SKU statistical outlier
+  detection (backtest misses, forward-forecast swings, WAPE outliers), judged against each SKU's own
+  history, the same methodology the scenario detail view's own Anomalies card uses. Distinct from
+  check_scenario_validations (structural data-quality, not statistical outliers) — use both if asked
+  something that spans both ("is this scenario OK to approve" genuinely warrants either or both).
+  With no scenario named, this defaults to the currently APPROVED one, not your most recent run.
 • For "compare scenario X and Y" (two specific runs), use compare_scenarios — never eyeball two
   check_scenario_status calls yourself, its numbers (including the forward-horizon delta, which
   backtest-period WAPE/volume-error alone can't show) are the ones the dashboard's own Compare view
@@ -949,6 +956,34 @@ TOOL_CONFIG = {
                     "type": "object",
                     "properties": {
                         "scenario_id": {"type": "string", "description": "e.g. scn-1234567890-abcdef. Omit to look up by label or use the most recent."},
+                        "label":       {"type": "string", "description": "Full or partial scenario name. Omit if scenario_id is given."},
+                    },
+                }},
+            }
+        },
+        {
+            "toolSpec": {
+                "name": "detect_anomalies",
+                "description": (
+                    "Checks whether a scenario's forecast LOOKS statistically sane before approving "
+                    "it — three things, each judged against a SKU's OWN historical behavior rather "
+                    "than one fixed rule: (1) backtest weeks where the model's error badly missed "
+                    "that specific SKU's own typical error, (2) forward weeks whose forecast swings "
+                    "further week-over-week than that SKU's own model curve has ever moved "
+                    "historically, (3) SKUs whose own WAPE is markedly worse than this scenario's "
+                    "overall WAPE. This is NOT the same as check_scenario_validations — that's "
+                    "structural data-quality (negative values, date gaps, reconciliation); this is "
+                    "per-SKU, per-week statistical outlier detection, the same methodology behind the "
+                    "scenario detail view's own 'Anomalies' card. Use for 'any anomalies', 'does this "
+                    "look safe to approve', 'anything weird about SKU-003's forecast' style questions. "
+                    "Omitting scenario_id and label defaults to whichever scenario is CURRENTLY "
+                    "APPROVED (the live forecast), not the user's most recently run one — that's what "
+                    "'any anomalies' almost always means with nothing else specified."
+                ),
+                "inputSchema": {"json": {
+                    "type": "object",
+                    "properties": {
+                        "scenario_id": {"type": "string", "description": "e.g. scn-1234567890-abcdef. Omit to look up by label, or omit both for the currently approved scenario."},
                         "label":       {"type": "string", "description": "Full or partial scenario name. Omit if scenario_id is given."},
                     },
                 }},
@@ -1337,6 +1372,80 @@ def _run_data_validations(meta, result):
     return checks
 
 
+def _detect_anomalies(result):
+    """Python port of scenarios.js's computeScenarioAnomalies — same three
+    checks, same thresholds, so Lyra's answer always matches what the
+    scenario detail view's own Anomalies card shows. Distinct from
+    _run_data_validations' check #7 above (which flags the AGGREGATE
+    forward forecast swinging 3x+ catalog-wide): this is per-SKU, judged
+    against each SKU's OWN historical error/volatility rather than one
+    fixed multiple, since what's "normal" week-to-week movement varies
+    hugely between a bestseller and a slow mover.
+      - backtest_misses: a historical week where the model's error badly
+        missed that SKU's own typical error (mean + 2.5 std of that SKU's
+        own backtest error distribution, 35% floor).
+      - forward_swings: a forward week whose forecast moves further, week
+        over week, than that SKU's own model curve ever moved across the
+        whole backtest window (mean + 3 std of week-over-week % change,
+        60% floor).
+      - wape_outliers: a SKU whose own WAPE is markedly worse than this
+        scenario's overall WAPE.
+    """
+    backtest_misses, forward_swings, wape_outliers = [], [], []
+    weeks = result.get('weeks') or []
+    n = result.get('backtestWeeks', len(weeks))
+    overall_wape = result.get('overallWape', 0)
+
+    for sku_id, o in (result.get('skus') or {}).items():
+        a, f = o.get('a') or [], o.get('f') or []
+
+        errs = []
+        for i in range(n):
+            if i >= len(a) or a[i] is None:
+                continue
+            denom = max(abs(a[i]), 1)
+            fi = f[i] if i < len(f) and f[i] is not None else 0
+            errs.append((i, abs(a[i] - fi) / denom))
+        if len(errs) >= 8:
+            mu = sum(e[1] for e in errs) / len(errs)
+            variance = sum((e[1] - mu) ** 2 for e in errs) / len(errs)
+            threshold = max(mu + 2.5 * (variance ** 0.5), 0.35)
+            for i, pct in errs:
+                if pct >= threshold:
+                    backtest_misses.append({
+                        'sku': sku_id, 'week': weeks[i], 'actual': a[i],
+                        'forecast': f[i] if i < len(f) else None, 'pct_error': round(pct * 100, 1),
+                    })
+            sku_wape = mu * 100
+            if sku_wape >= max(overall_wape * 2, overall_wape + 15):
+                wape_outliers.append({'sku': sku_id, 'sku_wape': round(sku_wape, 1)})
+
+        wow = []
+        for j in range(1, n):
+            if j >= len(f) or f[j - 1] is None or f[j] is None:
+                continue
+            wow.append(abs(f[j] - f[j - 1]) / max(abs(f[j - 1]), 1))
+        if len(wow) >= 8:
+            wmu = sum(wow) / len(wow)
+            wvariance = sum((v - wmu) ** 2 for v in wow) / len(wow)
+            wthreshold = max(wmu + 3 * (wvariance ** 0.5), 0.6)
+            for k in range(max(n, 1), len(f)):
+                if k - 1 >= len(f) or f[k - 1] is None or f[k] is None:
+                    continue
+                fbase = max(abs(f[k - 1]), 1)
+                change = (f[k] - f[k - 1]) / fbase
+                if abs(change) >= wthreshold:
+                    forward_swings.append({
+                        'sku': sku_id, 'week': weeks[k], 'prev_forecast': f[k - 1],
+                        'forecast': f[k], 'pct_change': round(change * 100, 1),
+                    })
+
+    backtest_misses.sort(key=lambda x: -x['pct_error'])
+    forward_swings.sort(key=lambda x: -abs(x['pct_change']))
+    wape_outliers.sort(key=lambda x: -x['sku_wape'])
+    return {'backtest_misses': backtest_misses, 'forward_swings': forward_swings, 'wape_outliers': wape_outliers}
+
+
 def execute_tool(name, inputs, claims, request_state):
     if name == 'run_scenario':
         is_discount_demo = bool(inputs.get('discount_scenario'))
@@ -1483,6 +1592,47 @@ def execute_tool(name, inputs, claims, request_state):
         return {'scenario_id': match['id'], 'label': match.get('label'),
                 'summary': {'passed': counts['pass'], 'warnings': counts['warn'], 'failed': counts['fail']},
                 'checks': checks}
+
+    if name == 'detect_anomalies':
+        status, result = _invoke_scenarios_api('GET', '/scenarios', claims)
+        if status != 200:
+            return {'error': result.get('error', 'failed to list scenarios')}
+        scenarios = result.get('scenarios', [])
+
+        # No scenario named/specified -> default to the currently APPROVED
+        # one (the live forecast everyone's actually looking at) rather
+        # than _match_scenario's own default of "my most recent" — "are
+        # there any anomalies" with no scenario named almost always means
+        # "in what's live right now," not whatever this user last ran.
+        if not inputs.get('scenario_id') and not inputs.get('label'):
+            approved = next((s for s in scenarios if s.get('approved')), None)
+            if not approved:
+                return {'message': 'No scenario is currently approved for this organization yet.'}
+            match, err = approved, None
+        else:
+            match, err = _match_scenario(inputs, scenarios, claims)
+        if err is not None:
+            return err
+        if match.get('status') != 'completed':
+            return {'error': f'"{match.get("label") or match["id"]}" has no result to check yet '
+                              f'— its status is {match.get("status")}.'}
+
+        rstatus, rresult = _invoke_scenarios_api('GET', f"/scenarios/{match['id']}/result", claims)
+        if rstatus != 200:
+            return {'error': rresult.get('error', "failed to load this scenario's result")}
+
+        anomalies = _detect_anomalies(rresult)
+        total = sum(len(v) for v in anomalies.values())
+        # Capped the same as the UI card (5-6 per category) — a chat reply
+        # listing 30+ rows is worse than useless; the full set is one click
+        # away in the scenario's own detail view if genuinely needed.
+        return {
+            'scenario_id': match['id'], 'label': match.get('label'), 'approved': bool(match.get('approved')),
+            'total_anomalies': total,
+            'unreliable_skus': anomalies['wape_outliers'][:5],
+            'backtest_misses': anomalies['backtest_misses'][:6],
+            'forward_forecast_swings': anomalies['forward_swings'][:6],
+        }
 
     if name == 'compare_scenarios':
         status, result = _invoke_scenarios_api('GET', '/scenarios', claims)
