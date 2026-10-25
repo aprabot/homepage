@@ -14,6 +14,7 @@ cognito = boto3.client('cognito-idp')
 BUCKET       = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
 RUNNER       = os.environ.get('RUNNER_FUNCTION', 'aprabot-scenario-runner')
 USER_POOL_ID = os.environ.get('USER_POOL_ID', 'us-east-1_fb34nECGY')
+CHAT_API     = os.environ.get('CHAT_API_FUNCTION', 'aprabot-chat-api')
 
 # ---- organization scoping — see forecast-api/handler.py for the full
 # rationale (identical copy, no shared layer between these functions). ----
@@ -328,6 +329,24 @@ def approve_scenario(org, scenario_id, event):
     this_entry = next((s for s in idx['scenarios'] if s['id'] == scenario_id), {})
     previous_id = next((s['id'] for s in idx['scenarios']
                         if s.get('approved') and s['id'] != scenario_id), None)
+
+    # Best-effort, fire-and-forget — same pattern as scenario-runner's own
+    # async explain-runner invoke. chat-api's _generate_insights() writes
+    # orgs/{org}/insights/latest.json on its own time; approve_scenario()
+    # doesn't wait on it (Bedrock generation takes several seconds, too
+    # slow to make the Approve button hang for) and a failure here must
+    # never undo the approval that's already succeeded above.
+    try:
+        lam.invoke(
+            FunctionName=CHAT_API, InvocationType='Event',
+            Payload=json.dumps({
+                'internal_task': 'generate_insights', 'org_id': org,
+                'scenario_id': scenario_id, 'scenario_label': this_entry.get('label'),
+            }).encode('utf-8'),
+        )
+    except Exception as exc:
+        print(f"INSIGHTS_INVOKE_WARNING[{scenario_id}]: {exc}")
+
     for s in idx['scenarios']:
         s['approved'] = (s['id'] == scenario_id)
     _write_json(f'orgs/{org}/scenarios/index.json', idx)

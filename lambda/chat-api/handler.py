@@ -392,6 +392,105 @@ def put_knowledge(event):
                                  'updated_at': dt.datetime.now(dt.timezone.utc).isoformat()})}
 
 
+INSIGHTS_PROMPT_TMPL = """You are writing a concise executive AI Insights brief for a demand-forecasting \
+dashboard, grounded ONLY in the real data below — never invent a SKU, number, or trend that isn't in it.
+
+{data_summary}
+
+Return ONLY a single JSON object (no markdown fences, no commentary before or after it) with exactly \
+these fields:
+{{
+  "tagline": "a punchy 5-8 word summary line",
+  "headline": "one sentence — the single most important takeaway",
+  "summary": "2-4 sentences giving the overall picture: accuracy, volume trend, what it means for planning",
+  "key_findings": [{{"title": "short label", "detail": "1-2 sentences citing real numbers"}}] (3 to 5 of these),
+  "watch_areas": ["1-2 sentences flagging something that needs attention"] (2 to 3 of these),
+  "opportunities": ["1-2 sentences on a positive trend worth acting on"] (1 to 3 of these)
+}}
+
+Cite real SKU ids and real percentages from the data above. Never state a WAPE, accuracy, or "actual" \
+figure for a forward-only week — those only have a forecast, no ground truth exists for them yet."""
+
+
+def _extract_json_object(text):
+    """Nova's response is usually clean JSON, but strip a stray markdown
+    fence or preamble sentence defensively — same spirit as _text_of()'s
+    own cleanup of the regular chat reply, just for a structured response
+    instead of prose."""
+    start, end = text.find('{'), text.rfind('}')
+    if start == -1 or end == -1 or end <= start:
+        return None
+    try:
+        return json.loads(text[start:end + 1])
+    except json.JSONDecodeError:
+        return None
+
+
+def _generate_insights(org, scenario_id, scenario_label):
+    """Best-effort, fire-and-forget — mirrors compute_monthly_inventory()'s
+    own convention in scenario-runner: never raise past its own boundary,
+    since approve_scenario() has already succeeded by the time this runs
+    and must not be undone by a generation hiccup. Invoked directly (not
+    through API Gateway — see handler()'s own internal_task branch) right
+    after scenarios-api writes this org's new forecast/latest.json, so
+    _get_forecast_data() below naturally picks up the just-approved
+    scenario's data with no extra plumbing to tell it which one.
+
+    Reuses build_data_summary() verbatim — the exact same forecast
+    grounding built for every chat message — so the brief cites the same
+    numbers Lyra herself would if asked the same question directly, not a
+    second, possibly-divergent view of the data.
+    """
+    try:
+        _CURRENT_ORG['id'] = org
+        # Force a fresh read: a warm container's cache may still hold the
+        # PREVIOUS approved scenario's data from an earlier chat request in
+        # this same container, and this absolutely must not generate a
+        # brief for stale data.
+        _cache.pop(f'forecast_data:{org}', None)
+        _cache.pop(f'sku_rows:{org}', None)
+        data_summary = build_data_summary()
+
+        resp = bedrock.converse(
+            modelId=MODEL,
+            system=[{'text': 'You write grounded, concrete executive briefs from real data. '
+                              'Output ONLY valid JSON, nothing else — no markdown fences, no preamble.'}],
+            messages=[{'role': 'user', 'content': [{'text': INSIGHTS_PROMPT_TMPL.format(data_summary=data_summary)}]}],
+            inferenceConfig={'maxTokens': 1500, 'temperature': 0.4},
+        )
+        parsed = _extract_json_object(_text_of(resp['output']['message']))
+        if not parsed or not parsed.get('headline'):
+            print(f"INSIGHTS_GEN_FAILED[{org}/{scenario_id}]: model reply had no usable JSON object")
+            return
+
+        data = _get_forecast_data()
+        bt = data.get('backtestWeeks', len(data['weeks']))
+        insights = {
+            'tagline': parsed.get('tagline'),
+            'headline': parsed.get('headline', ''),
+            'summary': parsed.get('summary', ''),
+            'key_findings': parsed.get('key_findings') or [],
+            'watch_areas': parsed.get('watch_areas') or [],
+            'opportunities': parsed.get('opportunities') or [],
+            'generated_at': dt.datetime.now(dt.timezone.utc).isoformat(),
+            # Computed deterministically rather than trusted from the
+            # model's own output — exact figures, not narrative, belong in
+            # Python, not an LLM's free-text response.
+            'based_on': {
+                'weeks_total': len(data['weeks']), 'backtest_weeks': bt,
+                'forward_weeks': len(data['weeks']) - bt, 'overall_wape': data.get('overallWape'),
+            },
+            # What the UI shows as "generated for" — see js/insights.js's render().
+            'scenario_id': scenario_id,
+            'scenario_label': scenario_label,
+        }
+        s3.put_object(Bucket=BUCKET, Key=f'orgs/{org}/insights/latest.json',
+                       Body=json.dumps(insights).encode('utf-8'), ContentType='application/json')
+        print(f"INSIGHTS_GEN: wrote orgs/{org}/insights/latest.json for scenario {scenario_id}")
+    except Exception as exc:
+        print(f"INSIGHTS_GEN_FAILED[{org}/{scenario_id}]: {exc}")
+
+
 def _get_forecast_data():
     """Fetch + parse this org's forecast/latest.json once per warm
     invocation, shared by build_data_summary() (which turns it into the
@@ -2045,6 +2144,16 @@ def _text_of(message):
 
 
 def handler(event, context):
+    # A direct async Lambda-to-Lambda invoke from scenarios-api's
+    # approve_scenario() (InvocationType='Event', no requestContext at
+    # all — same pattern scenario-runner already uses to kick off
+    # explain-runner) rather than an HTTP request through API Gateway.
+    # Short-circuits before any of the HTTP-path logic below, which
+    # assumes a requestContext/body shape this payload doesn't have.
+    if event.get('internal_task') == 'generate_insights':
+        _generate_insights(event.get('org_id'), event.get('scenario_id'), event.get('scenario_label'))
+        return {'ok': True}
+
     method = (event.get('requestContext') or {}).get('http', {}).get('method', 'POST')
     path   = (event.get('requestContext') or {}).get('http', {}).get('path', '')
     if method == 'OPTIONS':

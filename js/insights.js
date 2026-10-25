@@ -153,6 +153,33 @@
     }
     sub.textContent = parts.join(' · ');
 
+    // Which scenario this brief was generated for — written by chat-api's
+    // _generate_insights(), fired automatically whenever a scenario is
+    // approved (see scenarios-api's approve_scenario()). Older cached
+    // insights.json predating this (or manually re-run some other way)
+    // won't have scenario_id, so hide the line entirely rather than show
+    // it broken — same pattern as the tagline field above.
+    var scenarioRef = document.getElementById('insightsScenarioRef');
+    if (scenarioRef) {
+      scenarioRef.innerHTML = '';
+      if (data.scenario_id) {
+        scenarioRef.appendChild(document.createTextNode('Generated from scenario: '));
+        var link = document.createElement('a');
+        link.href = '#';
+        link.style.color = 'var(--mint)';
+        link.style.textDecoration = 'underline';
+        link.textContent = data.scenario_label || data.scenario_id;
+        link.onclick = function (e) {
+          e.preventDefault();
+          if (typeof window.viewScenario === 'function') window.viewScenario(data.scenario_id);
+        };
+        scenarioRef.appendChild(link);
+        scenarioRef.style.display = '';
+      } else {
+        scenarioRef.style.display = 'none';
+      }
+    }
+
     document.getElementById('insightsLoading').style.display = 'none';
     document.getElementById('insightsError').style.display = 'none';
     document.getElementById('insightsContent').style.display = '';
