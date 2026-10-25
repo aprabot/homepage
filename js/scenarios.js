@@ -250,6 +250,40 @@
       .catch(function () { /* leave cache as-is on transient error */ });
   }
 
+  // Settings > Approval History — the cross-scenario view the comment
+  // above says was deliberately dropped from the main Scenarios panel
+  // (one scenario's story belongs with that scenario, not a list you
+  // cross-reference by name). Brought back here for a different reason:
+  // org-wide activity visibility, so a new customer's team can see who's
+  // approving what without digging through individual scenarios. No new
+  // fetch — reuses lastApprovals, already populated by loadApprovals() on
+  // page load; just re-renders whatever's cached whenever Settings opens.
+  window.renderSettingsApprovals = function () {
+    var body = document.getElementById('settingsApprovalsBody');
+    if (!body) return;
+    if (!lastApprovals.length) {
+      body.innerHTML = '<tr><td colspan="6" class="dsubtle">No scenarios approved yet.</td></tr>';
+      return;
+    }
+    body.innerHTML = lastApprovals.map(function (e) {
+      var replaced = e.replaced_scenario_id
+        ? escapeHtml(labelFor(e.replaced_scenario_id) || e.replaced_scenario_id)
+        : '<span class="dsubtle" style="margin:0">— (first approval)</span>';
+      // e.label is the backend's own snapshot captured at approval time —
+      // preferred over labelFor(e.scenario_id) (an on-the-fly lookup into
+      // lastScenarios) since it stays correct even for a scenario that's
+      // since aged out of that list.
+      return '<tr>' +
+        '<td style="font-weight:600">' + escapeHtml(e.label || labelFor(e.scenario_id) || e.scenario_id) + '</td>' +
+        '<td class="dsubtle" style="margin:0">' + escapeHtml((e.approved_by || 'unknown').split('@')[0]) + '</td>' +
+        '<td class="dsubtle" style="margin:0" title="' + escapeHtml(e.approved_at || '') + '">' + fmtAbsolute(e.approved_at) + '</td>' +
+        '<td class="dsubtle" style="margin:0">' + replaced + '</td>' +
+        '<td>' + (e.wape != null ? e.wape.toFixed(2) + '%' : '—') + '</td>' +
+        '<td>' + (e.volume_error != null ? (e.volume_error > 0 ? '+' : '') + e.volume_error.toFixed(2) + '%' : '—') + '</td>' +
+        '</tr>';
+    }).join('');
+  };
+
   window.refreshScenarios = function (btn) {
     var icon = btn && btn.querySelector('svg');
     if (icon) icon.classList.add('spin');
