@@ -8,10 +8,12 @@ from datetime import datetime, timezone
 
 import boto3
 
-s3     = boto3.client('s3')
-lam    = boto3.client('lambda')
-BUCKET = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
-RUNNER = os.environ.get('RUNNER_FUNCTION', 'aprabot-scenario-runner')
+s3      = boto3.client('s3')
+lam     = boto3.client('lambda')
+cognito = boto3.client('cognito-idp')
+BUCKET       = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
+RUNNER       = os.environ.get('RUNNER_FUNCTION', 'aprabot-scenario-runner')
+USER_POOL_ID = os.environ.get('USER_POOL_ID', 'us-east-1_fb34nECGY')
 
 # ---- organization scoping — see forecast-api/handler.py for the full
 # rationale (identical copy, no shared layer between these functions). ----
@@ -34,6 +36,101 @@ def _org_id(email):
     if not domain or domain in _FREE_EMAIL_DOMAINS:
         return 'user-' + hashlib.sha256(email.encode()).hexdigest()[:16]
     return domain
+
+
+# ---- roles within an org -----------------------------------------------
+# orgs/{org}/members.json: {"admins": ["a@x.com", "b@x.com"]} — ABSENT
+# (not an empty admins list, the whole file missing) means "roles were
+# never configured for this org", which is treated as everyone-admin. This
+# is the key default-permissive choice: every org that exists today (just
+# aprabot-internal) keeps working exactly as before with zero migration,
+# and a brand new org stays fully open until an admin explicitly sets up
+# roles — never silently locks anyone out. Only an org that has actually
+# called set_member_role() once ever sees a real admin/viewer split.
+def _members_key(org):
+    return f'orgs/{org}/scenarios/members.json'
+
+
+def _is_admin(org, email):
+    members = _read_json(_members_key(org))
+    if members is None:
+        return True
+    return (email or '').strip().lower() in members.get('admins', [])
+
+
+def _org_member_emails(org):
+    """Every Cognito user whose own org resolves to this one. The user
+    pool has no native "list by org" query (org is a derived concept, not
+    a stored attribute) — this pool is small (single digits today, low
+    hundreds at most for the foreseeable future), so a full ListUsers scan
+    filtered in Python is simpler and more honest than trying to keep a
+    separate index in sync."""
+    emails = []
+    kwargs = {'UserPoolId': USER_POOL_ID, 'Limit': 60}
+    while True:
+        page = cognito.list_users(**kwargs)
+        for u in page.get('Users', []):
+            email = next((a['Value'] for a in u.get('Attributes', []) if a['Name'] == 'email'), None)
+            if email and _org_id(email) == org:
+                emails.append(email.strip().lower())
+        token = page.get('PaginationToken')
+        if not token:
+            break
+        kwargs['PaginationToken'] = token
+    return emails
+
+
+def list_members(org, caller_email):
+    members = _read_json(_members_key(org))
+    # Unconfigured org: every real member is shown as admin, matching
+    # _is_admin()'s own default — never show a role split that doesn't
+    # actually correspond to what's enforced.
+    admin_set = set(members.get('admins', [])) if members is not None else None
+    result = []
+    for email in sorted(_org_member_emails(org)):
+        is_admin = True if admin_set is None else (email in admin_set)
+        result.append({'email': email, 'role': 'admin' if is_admin else 'viewer'})
+    return _resp(200, {'members': result, 'you_are_admin': _is_admin(org, caller_email)})
+
+
+def set_member_role(org, caller_email, event):
+    if not _is_admin(org, caller_email):
+        return _resp(403, {'error': 'only an admin can change member roles'})
+
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except json.JSONDecodeError:
+        return _resp(400, {'error': 'invalid JSON body'})
+
+    target = (body.get('email') or '').strip().lower()
+    role = (body.get('role') or '').strip().lower()
+    if role not in ('admin', 'viewer'):
+        return _resp(400, {'error': 'role must be "admin" or "viewer"'})
+    if not target or _org_id(target) != org:
+        return _resp(400, {'error': 'email must belong to your own organization'})
+
+    members = _read_json(_members_key(org))
+    if members is None:
+        # First-ever role change for this org — materialize the implicit
+        # "everyone is admin" state into an explicit list before applying
+        # the requested change, so setting ONE person to viewer can never
+        # accidentally demote everyone else who was never actually added.
+        members = {'admins': _org_member_emails(org)}
+
+    admins = set(members.get('admins', []))
+    if role == 'admin':
+        admins.add(target)
+    else:
+        admins.discard(target)
+        if not admins:
+            # Never let an org end up with zero admins — nobody left who
+            # could even undo the mistake short of a manual S3 edit.
+            return _resp(400, {'error': 'cannot remove the last admin — promote someone else first'})
+
+    members['admins'] = sorted(admins)
+    _write_json(_members_key(org), members)
+    return _resp(200, {'email': target, 'role': role})
+
 
 CORS = {
     'Access-Control-Allow-Origin':  '*',
@@ -73,10 +170,12 @@ def _claims(event):
         return {}
 
 
-def list_scenarios(org):
+def list_scenarios(org, caller_email):
     idx = _read_json(f'orgs/{org}/scenarios/index.json', default={'scenarios': []})
     scenarios = sorted(idx['scenarios'], key=lambda s: s.get('created_at', ''), reverse=True)
-    return _resp(200, {'scenarios': scenarios})
+    # Lets the frontend hide/disable the Approve button for a viewer without
+    # a separate request — this list is already fetched on every page load.
+    return _resp(200, {'scenarios': scenarios, 'you_are_admin': _is_admin(org, caller_email)})
 
 
 ALLOWED_UPLOAD_EXT = {'.xlsx', '.tsv', '.csv', '.txt'}
@@ -193,6 +292,14 @@ def get_result(org, scenario_id):
 
 
 def approve_scenario(org, scenario_id, event):
+    approver_email = _claims(event).get('email', '')
+    if not _is_admin(org, approver_email):
+        # Covers both the UI's own Approve button (hidden for a viewer, but
+        # this is the real enforcement — client-side hiding alone is never
+        # a security boundary) and chat-api's approve_scenario tool, which
+        # proxies through this same function via an identical fake_event.
+        return _resp(403, {'error': 'only an admin can approve a scenario for this organization'})
+
     result = _read_json(f'orgs/{org}/scenarios/{scenario_id}/result.json')
     if result is None:
         return _resp(404, {'error': 'no completed result for this scenario'})
@@ -259,7 +366,8 @@ def handler(event, context):
         return {'statusCode': 200, 'headers': CORS, 'body': ''}
 
     try:
-        org = _org_id(_claims(event).get('email'))
+        caller_email = _claims(event).get('email')
+        org = _org_id(caller_email)
 
         m = re.match(r'^/scenarios/([^/]+)/approve$', path)
         if method == 'POST' and m:
@@ -272,8 +380,14 @@ def handler(event, context):
         if method == 'GET' and path == '/scenarios/approvals':
             return list_approvals(org)
 
+        if method == 'GET' and path == '/scenarios/members':
+            return list_members(org, caller_email)
+
+        if method == 'POST' and path == '/scenarios/members/role':
+            return set_member_role(org, caller_email, event)
+
         if method == 'GET' and path == '/scenarios':
-            return list_scenarios(org)
+            return list_scenarios(org, caller_email)
 
         if method == 'POST' and path == '/scenarios':
             return create_scenario(org, event)

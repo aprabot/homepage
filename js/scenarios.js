@@ -9,6 +9,10 @@
   var pollTimer = null;
   var lastScenarios = [];
   var lastApprovals = [];
+  // Defaults true so nothing changes for an org that hasn't set up roles
+  // yet (matches the backend's own default-permissive behavior) — set for
+  // real from GET /scenarios's own you_are_admin field in loadScenarios().
+  var isAdmin = true;
   var SCENARIOS_PAGE_SIZE = 10;
   var scenariosPage = 1; // 1-indexed; client-side only — /scenarios always returns the full list
   var scenariosSearch = '';        // lowercased, matched against label + requested_by
@@ -137,9 +141,11 @@
     body.innerHTML = pageItems.map(function (s) {
       var canCompare = s.status === 'completed';
       var checked = selectedForCompare.indexOf(s.id) > -1 ? 'checked' : '';
-      var approveBtn = (s.status === 'completed' && !s.approved)
-        ? '<button class="dbtn" style="padding:6px 12px;font-size:12px" onclick="event.stopPropagation();approveScenario(\'' + s.id + '\', this)">Approve</button>'
-        : '';
+      var approveBtn = (s.status === 'completed' && !s.approved && isAdmin)
+        ? '<button class="dbtn" style="padding:6px 12px;font-size:12px" onclick="event.stopPropagation();approveScenario(\'' + s.id + '\', this).catch(function(err){alert(err.message);})">Approve</button>'
+        : (s.status === 'completed' && !s.approved
+            ? '<span class="dsubtle" style="margin:0;font-size:11.5px" title="Only an admin for your organization can approve a forecast">Viewer</span>'
+            : '');
       return '<tr onclick="viewScenario(\'' + s.id + '\')" style="cursor:pointer">' +
         '<td>' + (canCompare ? '<input type="checkbox" ' + checked + ' onclick="event.stopPropagation()" onchange="toggleCompareSelect(\'' + s.id + '\',this.checked)">' : '') + '</td>' +
         '<td style="font-weight:600">' + escapeHtml(s.label || 'Untitled') + '</td>' +
@@ -201,7 +207,10 @@
   function loadScenarios() {
     return fetch(SCENARIOS_API, { headers: authHeaders() })
       .then(function (r) { return r.json(); })
-      .then(function (d) { render(d.scenarios || []); })
+      .then(function (d) {
+        isAdmin = d.you_are_admin !== false; // absent (old cache/error shape) -> stay permissive
+        render(d.scenarios || []);
+      })
       .catch(function () { /* leave table as-is on transient error */ });
   }
 
@@ -546,6 +555,14 @@
       headers: authHeaders(),
     })
       .then(function (r) {
+        if (r.status === 403) {
+          // The button itself is hidden for a viewer — reaching this means
+          // either stale UI state (role just changed) or a direct API
+          // call. Re-sync the role/list so the button reflects reality,
+          // then surface a clear reason rather than a generic failure.
+          loadScenarios();
+          throw new Error('Only an admin for your organization can approve a forecast.');
+        }
         if (!r.ok) throw new Error('approve failed');
         return loadScenarios();
       })
@@ -566,6 +583,84 @@
       .catch(function (err) {
         if (btn) { btn.disabled = false; btn.innerHTML = origHtml; }
         throw err;
+      });
+  };
+
+  /* ── Team / roles (Settings > Team) ── */
+  function currentUserEmail() {
+    try {
+      var t = localStorage.getItem('apra_id');
+      var p = JSON.parse(decodeURIComponent(atob(t.split('.')[1].replace(/-/g, '+').replace(/_/g, '/'))
+        .split('').map(function (c) { return '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2); }).join('')));
+      return (p.email || '').toLowerCase();
+    } catch (e) { return ''; }
+  }
+
+  // Loads the Settings > Team card — everyone in the org sees the member
+  // list (read-only), only an admin gets the role toggle. Self-contained
+  // (own fetch, own you_are_admin check) rather than reusing scenarios.js's
+  // own isAdmin module var, since Settings can be opened without Scenarios
+  // ever having loaded.
+  window.loadTeamMembers = function () {
+    var card = document.getElementById('settingsTeamCard');
+    var body = document.getElementById('teamMembersBody');
+    var actionHead = document.getElementById('teamActionHead');
+    if (!card || !body) return;
+
+    fetch(SCENARIOS_API + '/members', { headers: authHeaders() })
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (d) {
+        card.style.display = '';
+        var youAreAdmin = !!d.you_are_admin;
+        var me = currentUserEmail();
+        if (actionHead) actionHead.style.display = youAreAdmin ? '' : 'none';
+
+        body.innerHTML = (d.members || []).map(function (m) {
+          var isSelf = m.email === me;
+          var roleBadge = '<span class="pill' + (m.role === 'admin' ? ' ok' : '') + '">' +
+            (m.role === 'admin' ? 'Admin' : 'Viewer') + '</span>';
+          var action = '';
+          if (youAreAdmin && !isSelf) {
+            var nextRole = m.role === 'admin' ? 'viewer' : 'admin';
+            action = '<button class="dbtn" style="padding:5px 10px;font-size:11.5px" ' +
+              'onclick="setMemberRole(\'' + escapeHtml(m.email) + '\',\'' + nextRole + '\',this)">' +
+              'Make ' + nextRole + '</button>';
+          }
+          return '<tr>' +
+            '<td>' + escapeHtml(m.email) + (isSelf ? ' <span class="dsubtle" style="margin:0">(you)</span>' : '') + '</td>' +
+            '<td>' + roleBadge + '</td>' +
+            '<td>' + action + '</td>' +
+            '</tr>';
+        }).join('') || '<tr><td colspan="3" class="dsubtle">No members found.</td></tr>';
+      })
+      .catch(function () {
+        card.style.display = 'none'; // transient error — don't show a broken/empty team card
+      });
+  };
+
+  window.setMemberRole = function (email, role, btn) {
+    var msg = document.getElementById('teamRoleMsg');
+    if (btn) btn.disabled = true;
+    if (msg) { msg.textContent = ''; msg.className = 'stest-msg'; }
+
+    fetch(SCENARIOS_API + '/members/role', {
+      method: 'POST',
+      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      body: JSON.stringify({ email: email, role: role }),
+    })
+      .then(function (r) {
+        if (!r.ok) return r.json().then(function (d) { throw new Error(d.error || 'could not update role'); });
+        return window.loadTeamMembers();
+      })
+      .then(function () {
+        // The signed-in user's own role may have just changed (an admin
+        // demoting themself via someone else's session, or a second tab) —
+        // re-sync the Approve button's gating too, not just this table.
+        if (typeof loadScenarios === 'function') loadScenarios();
+      })
+      .catch(function (err) {
+        if (msg) { msg.className = 'stest-msg err'; msg.textContent = err.message; }
+        if (btn) btn.disabled = false;
       });
   };
 
@@ -961,9 +1056,11 @@
     var head = document.getElementById('scenarioDetailHead');
     var body = document.getElementById('scenarioDetailBody');
 
-    var approveBtn = (meta.status === 'completed' && !meta.approved)
-      ? '<button class="dbtn" onclick="approveScenario(\'' + meta.id + '\', this).then(closeScenarioDetail)">Approve</button>'
-      : '';
+    var approveBtn = (meta.status === 'completed' && !meta.approved && isAdmin)
+      ? '<button class="dbtn" onclick="approveScenario(\'' + meta.id + '\', this).then(closeScenarioDetail).catch(function(err){alert(err.message);})">Approve</button>'
+      : (meta.status === 'completed' && !meta.approved
+          ? '<span class="dsubtle" style="margin:0" title="Only an admin for your organization can approve a forecast">Viewer — approval requires an admin</span>'
+          : '');
     // result.inputDownload is a presigned URL to whatever this scenario
     // actually ran on — the uploaded file if there was one, otherwise the
     // platform default dataset (see scenarios-api's get_result).

@@ -700,6 +700,26 @@
           </div>
         </div>
       </div>
+
+      <!-- Team -->
+      <div class="scard" id="settingsTeamCard" style="display:none">
+        <div class="scard-head">
+          <span class="scard-ic c-mint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 3-5.8 6.5-5.8s6.5 2.5 6.5 5.8" stroke-linecap="round"/><circle cx="17" cy="8.5" r="2.4"/><path d="M15.2 14.6c2.9.3 4.8 2.4 4.8 5.4" stroke-linecap="round"/></svg></span>
+          <h4>Team</h4>
+        </div>
+        <p class="dsubtle" style="margin:-4px 0 12px;font-size:12.5px">
+          Anyone who signs up with a matching email joins this organization automatically. Only an
+          <b>admin</b> can approve a forecast for everyone to see — a <b>viewer</b> can run scenarios
+          and use everything else, but not approve.
+        </p>
+        <div class="table-wrap">
+          <table class="dtable">
+            <thead><tr><th>Member</th><th>Role</th><th id="teamActionHead" style="display:none"></th></tr></thead>
+            <tbody id="teamMembersBody"><tr><td colspan="3" class="dsubtle">Loading…</td></tr></tbody>
+          </table>
+        </div>
+        <p class="stest-msg" id="teamRoleMsg"></p>
+      </div>
     </div>
 
     <!-- Knowledge Base panel -->
@@ -1456,6 +1476,9 @@
        loadForecast()'s own fetch has resolved (applyOrgName no-ops
        harmlessly against whatever window.DATA currently is) */
     if (typeof applyOrgName === 'function') applyOrgName(window.DATA);
+    /* team members + roles — own fetch, re-run every time Settings opens
+       so a role change in another tab/session shows up on next visit */
+    if (typeof window.loadTeamMembers === 'function') window.loadTeamMembers();
   }
 
   function setTheme(t){
