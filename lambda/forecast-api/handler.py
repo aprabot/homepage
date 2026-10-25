@@ -57,7 +57,7 @@ def _org_display_name(org_id):
     one). Returns None for a personal/single-user org — there's no
     meaningful "org" to label there, so the frontend just omits the line."""
     if org_id == 'aprabot-internal':
-        return 'APRABot'
+        return 'Test Organization'
     if org_id.startswith('user-'):
         return None
     # A real corporate domain — e.g. "sagarorg.com" -> "Sagarorg",
