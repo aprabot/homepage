@@ -530,6 +530,30 @@
       <h1>Settings</h1>
       <p class="dsubtle">Manage your preferences and integrations.</p>
 
+      <!-- Account -->
+      <div class="scard">
+        <div class="scard-head">
+          <span class="scard-ic c-signal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" stroke-linecap="round"/></svg></span>
+          <h4>Account</h4>
+        </div>
+        <div class="srow">
+          <div style="display:flex;align-items:center;gap:14px">
+            <div class="settings-avatar" id="settingsAvatar">U</div>
+            <div>
+              <div class="srow-label" id="settingsEmail">—</div>
+              <div class="srow-desc">Signed in — Demand Planner</div>
+            </div>
+          </div>
+          <button class="dbtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" onclick="logout()">Sign out</button>
+        </div>
+        <div class="srow" id="settingsOrgRow" style="display:none">
+          <div>
+            <div class="srow-label">Organization</div>
+            <div class="srow-desc" id="settingsOrgName">—</div>
+          </div>
+        </div>
+      </div>
+
       <!-- Appearance -->
       <div class="scard">
         <div class="scard-head">
@@ -688,30 +712,6 @@
           <button class="dbtn" style="background:var(--signal);color:#0A0E15;border-color:var(--signal)" onclick="saveReportParams()">Save</button>
         </div>
         <p class="stest-msg" id="reportParamMsg"></p>
-      </div>
-
-      <!-- Account -->
-      <div class="scard">
-        <div class="scard-head">
-          <span class="scard-ic c-signal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" stroke-linecap="round"/></svg></span>
-          <h4>Account</h4>
-        </div>
-        <div class="srow">
-          <div style="display:flex;align-items:center;gap:14px">
-            <div class="settings-avatar" id="settingsAvatar">U</div>
-            <div>
-              <div class="srow-label" id="settingsEmail">—</div>
-              <div class="srow-desc">Signed in — Demand Planner</div>
-            </div>
-          </div>
-          <button class="dbtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" onclick="logout()">Sign out</button>
-        </div>
-        <div class="srow" id="settingsOrgRow" style="display:none">
-          <div>
-            <div class="srow-label">Organization</div>
-            <div class="srow-desc" id="settingsOrgName">—</div>
-          </div>
-        </div>
       </div>
 
       <!-- Team -->
