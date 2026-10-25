@@ -113,23 +113,27 @@ def set_member_role(org, caller_email, event):
     if members is None:
         # First-ever role change for this org — materialize the implicit
         # "everyone is admin" state into an explicit list before applying
-        # the requested change, so setting ONE person to viewer can never
-        # accidentally demote everyone else who was never actually added.
+        # the requested change, so promoting ONE viewer can never be
+        # confused with anyone else's existing standing.
         members = {'admins': _org_member_emails(org)}
 
     admins = set(members.get('admins', []))
-    if role == 'admin':
-        admins.add(target)
-    else:
-        admins.discard(target)
-        if not admins:
-            # Never let an org end up with zero admins — nobody left who
-            # could even undo the mistake short of a manual S3 edit.
-            return _resp(400, {'error': 'cannot remove the last admin — promote someone else first'})
 
+    if role == 'viewer':
+        if target in admins:
+            # Admin status can only be GRANTED through this endpoint, never
+            # revoked — one admin demoting another isn't offered as a
+            # self-service action (removes any risk of one admin locking
+            # another out, or a role fight). A member who isn't already an
+            # admin is already effectively a viewer, so this is a no-op.
+            return _resp(400, {'error': 'an admin cannot be downgraded to viewer — '
+                                         'admin status can only be granted, not revoked'})
+        return _resp(200, {'email': target, 'role': 'viewer'})
+
+    admins.add(target)
     members['admins'] = sorted(admins)
     _write_json(_members_key(org), members)
-    return _resp(200, {'email': target, 'role': role})
+    return _resp(200, {'email': target, 'role': 'admin'})
 
 
 CORS = {

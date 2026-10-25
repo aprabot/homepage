@@ -653,12 +653,17 @@
           var isSelf = m.email === me;
           var roleBadge = '<span class="pill' + (m.role === 'admin' ? ' ok' : '') + '">' +
             (m.role === 'admin' ? 'Admin' : 'Viewer') + '</span>';
+          // Admin status can only be granted, never revoked — see
+          // set_member_role()'s own comment. So the only action a role
+          // toggle ever offers is promoting a viewer; an existing admin's
+          // row gets a plain dash, not a demote button that would just
+          // 400 if clicked.
           var action = '';
           if (youAreAdmin && !isSelf) {
-            var nextRole = m.role === 'admin' ? 'viewer' : 'admin';
-            action = '<button class="dbtn" style="padding:5px 10px;font-size:11.5px" ' +
-              'onclick="setMemberRole(\'' + escapeHtml(m.email) + '\',\'' + nextRole + '\',this)">' +
-              'Make ' + nextRole + '</button>';
+            action = (m.role === 'viewer')
+              ? '<button class="dbtn" style="padding:5px 10px;font-size:11.5px" ' +
+                'onclick="setMemberRole(\'' + escapeHtml(m.email) + '\',\'admin\',this)">Make admin</button>'
+              : '<span class="dsubtle" style="margin:0;font-size:11px" title="Admin status can only be granted, not revoked">—</span>';
           }
           return '<tr>' +
             '<td>' + escapeHtml(m.email) + (isSelf ? ' <span class="dsubtle" style="margin:0">(you)</span>' : '') + '</td>' +
