@@ -693,6 +693,12 @@
           </div>
           <button class="dbtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" onclick="logout()">Sign out</button>
         </div>
+        <div class="srow" id="settingsOrgRow" style="display:none">
+          <div>
+            <div class="srow-label">Organization</div>
+            <div class="srow-desc" id="settingsOrgName">—</div>
+          </div>
+        </div>
       </div>
     </div>
 
@@ -1446,6 +1452,10 @@
     if(emailEl&&nameEl) emailEl.textContent=nameEl.textContent||'—';
     var avatarEl=document.getElementById('settingsAvatar');
     if(avatarEl&&nameEl&&nameEl.textContent) avatarEl.textContent=nameEl.textContent.charAt(0).toUpperCase();
+    /* org name — re-applied here too in case Settings opens before
+       loadForecast()'s own fetch has resolved (applyOrgName no-ops
+       harmlessly against whatever window.DATA currently is) */
+    if (typeof applyOrgName === 'function') applyOrgName(window.DATA);
   }
 
   function setTheme(t){
@@ -1558,16 +1568,25 @@
     return t ? { 'Authorization': 'Bearer ' + t } : {};
   }
 
-  // Shown in the account dropdown (#uDropOrg) once the forecast response
-  // carries it — forecast-api injects org/org_name per-request (see its
-  // own handler.py comment), not stored in the JSON itself, so this only
+  // Shown in the account dropdown (#uDropOrg) and the Settings > Account
+  // card (#settingsOrgRow) once the forecast response carries it —
+  // forecast-api injects org/org_name per-request (see its own
+  // handler.py comment), not stored in the JSON itself, so this only
   // ever reflects the CURRENTLY signed-in user's own org. Omitted (stays
   // hidden) for a personal/single-user account, where org_name is null.
   function applyOrgName(d) {
-    var el = document.getElementById('uDropOrg');
-    if (!el) return;
-    if (d && d.org_name) { el.textContent = d.org_name; el.style.display = ''; }
-    else { el.style.display = 'none'; }
+    var show = !!(d && d.org_name);
+    var dropEl = document.getElementById('uDropOrg');
+    if (dropEl) {
+      if (show) { dropEl.textContent = d.org_name; dropEl.style.display = ''; }
+      else dropEl.style.display = 'none';
+    }
+    var orgRow = document.getElementById('settingsOrgRow');
+    var orgName = document.getElementById('settingsOrgName');
+    if (orgRow && orgName) {
+      if (show) { orgName.textContent = d.org_name; orgRow.style.display = ''; }
+      else orgRow.style.display = 'none';
+    }
   }
 
   function loadForecast(forceFresh) {
