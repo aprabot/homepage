@@ -50,6 +50,25 @@ def _org_id(email):
     return domain
 
 
+def _org_display_name(org_id):
+    """Human-friendly label for the account dropdown — never the raw org
+    id (a bare hash for a personal single-user org would look broken, and
+    a bare domain string is a worse first impression than a title-cased
+    one). Returns None for a personal/single-user org — there's no
+    meaningful "org" to label there, so the frontend just omits the line."""
+    if org_id == 'aprabot-internal':
+        return 'APRABot'
+    if org_id.startswith('user-'):
+        return None
+    # A real corporate domain — e.g. "sagarorg.com" -> "Sagarorg",
+    # "my-company.com" -> "My Company". Just drops the last label (the
+    # TLD) and title-cases what's left; a compound TLD like ".co.in"
+    # isn't special-cased, so it'd leave a trailing "Co" — acceptable for
+    # a cosmetic label, not worth a TLD list for this.
+    labels = org_id.split('.')[:-1] or [org_id]
+    return ' '.join(w.capitalize() for label in labels for w in label.split('-'))
+
+
 def _claims(event):
     try:
         return event['requestContext']['authorizer']['jwt']['claims']
@@ -76,6 +95,16 @@ def handler(event, context):
     try:
         obj  = s3.get_object(Bucket=BUCKET, Key=key)
         body = obj['Body'].read().decode('utf-8')
+        if not is_inventory:
+            # Request-scoped — added to the response only, never persisted
+            # back to S3 (same pattern as scenarios-api's get_result()
+            # adding inputDownload). Lets the dashboard show which org the
+            # signed-in user is in without a dedicated endpoint, piggybacked
+            # on the one request every page already makes on load.
+            data = json.loads(body)
+            data['org'] = org
+            data['org_name'] = _org_display_name(org)
+            body = json.dumps(data)
         return {
             'statusCode': 200,
             # Was max-age=3600 — meant an approved scenario could take up to

@@ -649,6 +649,7 @@
     box-shadow:0 8px 32px rgba(0,0,0,.35);padding:6px;z-index:50}
   .uchip.open .uchip-drop{display:block}
   .udrop-name{padding:8px 10px 6px;font-size:13px;font-weight:600;color:var(--text)}
+  .udrop-org{padding:0 10px 8px;font-size:11.5px;color:var(--muted)}
   .udrop-sep{border:none;border-top:1px solid var(--line);margin:4px 0}
   .udrop-item{display:flex;align-items:center;gap:9px;width:100%;padding:9px 10px;
     background:none;border:none;border-radius:7px;font-size:13.5px;color:var(--muted);
