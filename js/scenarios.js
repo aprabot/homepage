@@ -246,20 +246,22 @@
   function loadApprovals() {
     return fetch(SCENARIOS_API + '/approvals', { headers: authHeaders() })
       .then(function (r) { return r.json(); })
-      .then(function (d) { lastApprovals = d.approvals || []; })
+      .then(function (d) {
+        lastApprovals = d.approvals || [];
+        if (typeof window.renderOrgApprovals === 'function') window.renderOrgApprovals();
+      })
       .catch(function () { /* leave cache as-is on transient error */ });
   }
 
-  // Settings > Approval History — the cross-scenario view the comment
-  // above says was deliberately dropped from the main Scenarios panel
-  // (one scenario's story belongs with that scenario, not a list you
-  // cross-reference by name). Brought back here for a different reason:
-  // org-wide activity visibility, so a new customer's team can see who's
-  // approving what without digging through individual scenarios. No new
-  // fetch — reuses lastApprovals, already populated by loadApprovals() on
-  // page load; just re-renders whatever's cached whenever Settings opens.
-  window.renderSettingsApprovals = function () {
-    var body = document.getElementById('settingsApprovalsBody');
+  // Scenarios > Approval history card — the org-wide cross-scenario view
+  // the comment above originally said was dropped in favor of a per-
+  // scenario-only one. Brought back for activity/trust visibility (who's
+  // approving what), living in Scenarios rather than Settings since that's
+  // where the rest of this data already lives. No new fetch — reuses
+  // lastApprovals, already populated by loadApprovals() on page load;
+  // just re-renders whenever Scenarios' own render() runs.
+  window.renderOrgApprovals = function () {
+    var body = document.getElementById('orgApprovalsBody');
     if (!body) return;
     if (!lastApprovals.length) {
       body.innerHTML = '<tr><td colspan="6" class="dsubtle">No scenarios approved yet.</td></tr>';

@@ -364,6 +364,19 @@
         <p class="dsubtle" id="scenariosNoMatch" style="margin:32px 0 12px;text-align:center;display:none">No scenarios match this search/filter.</p>
         <div id="scenariosPagination" style="display:none;align-items:center;justify-content:center;gap:14px;margin-top:14px"></div>
       </div>
+
+      <div class="dcard" style="margin-top:20px">
+        <div class="ch">
+          <h4>Approval history</h4>
+          <span class="dsubtle" style="margin:0;font-size:.8rem">who approved what, when, and what it replaced — across every scenario</span>
+        </div>
+        <div class="table-wrap" style="max-height:360px">
+          <table class="dtable">
+            <thead><tr><th>Scenario</th><th>Approved by</th><th>When</th><th>Replaced</th><th>WAPE</th><th>Volume error</th></tr></thead>
+            <tbody id="orgApprovalsBody"><tr><td colspan="6" class="dsubtle">Loading…</td></tr></tbody>
+          </table>
+        </div>
+      </div>
     </div>
 
     <!-- AI Insights panel -->
@@ -720,24 +733,6 @@
           </table>
         </div>
         <p class="stest-msg" id="teamRoleMsg"></p>
-      </div>
-
-      <!-- Approval history -->
-      <div class="scard">
-        <div class="scard-head">
-          <span class="scard-ic c-signal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 11l3 3L22 4" stroke-linecap="round" stroke-linejoin="round"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" stroke-linecap="round" stroke-linejoin="round"/></svg></span>
-          <h4>Approval History</h4>
-        </div>
-        <p class="dsubtle" style="margin:-4px 0 12px;font-size:12.5px">
-          Every scenario that's ever been approved as this organization's live forecast — who
-          approved it, when, and what it replaced.
-        </p>
-        <div class="table-wrap" style="max-height:360px">
-          <table class="dtable">
-            <thead><tr><th>Scenario</th><th>Approved by</th><th>When</th><th>Replaced</th><th>WAPE</th><th>Volume error</th></tr></thead>
-            <tbody id="settingsApprovalsBody"><tr><td colspan="6" class="dsubtle">Loading…</td></tr></tbody>
-          </table>
-        </div>
       </div>
     </div>
 
@@ -1498,9 +1493,6 @@
     /* team members + roles — own fetch, re-run every time Settings opens
        so a role change in another tab/session shows up on next visit */
     if (typeof window.loadTeamMembers === 'function') window.loadTeamMembers();
-    /* approval history — no fetch of its own, just re-renders whatever
-       loadApprovals() (fired on page load) already cached */
-    if (typeof window.renderSettingsApprovals === 'function') window.renderSettingsApprovals();
   }
 
   function setTheme(t){
