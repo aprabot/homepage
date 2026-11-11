@@ -237,6 +237,39 @@
       </div>
     </div>
 
+    <!-- Third-party ad platform integrations (Amplify) -->
+    <div class="section-block rv" id="third-party-integrations">
+      <span class="sb-kicker">Third-Party Integrations</span>
+      <h2>How Amplify connects to Meta and Google Ads</h2>
+      <p>APRABot's Amplify module lets you connect your own Meta and Google Ads accounts to build and manage campaigns from inside APRABot. Connecting a platform is always something you initiate and can revoke at any time — we never access an ad account you haven't explicitly connected.</p>
+
+      <div class="callout">
+        <div class="ct">What we access, and why</div>
+        <p>When you connect an ad platform, APRABot requests the minimum access needed to manage campaigns on your behalf: creating, editing, pausing, and reading the performance of campaigns you create through APRABot. We do not access your broader Google or Meta account, personal data on either platform, or any campaigns not created or managed through APRABot.</p>
+      </div>
+
+      <div class="detail-grid">
+        <div class="detail-card">
+          <h3>Data Handling</h3>
+          <ul>
+            <li>OAuth access/refresh tokens are encrypted at rest and never exposed to any APRABot user interface or API response</li>
+            <li>Tokens are scoped per organisation — one organisation's connection can never be used to access another's ad accounts</li>
+            <li>Campaign and performance data pulled from a connected platform is stored only within your organisation's own data</li>
+            <li>Disconnecting a platform revokes APRABot's access immediately; campaigns already running continue on the platform itself but are no longer manageable from APRABot</li>
+            <li>We do not use data obtained through Google or Meta's APIs to train models, for advertising, or for any purpose beyond operating the Amplify features you've enabled</li>
+          </ul>
+        </div>
+        <div class="detail-card">
+          <h3>Google API Services User Data</h3>
+          <ul>
+            <li>APRABot's use of information received from Google APIs adheres to the <a href="https://developers.google.com/terms/api-services-user-data-policy" style="color:var(--signal)" target="_blank" rel="noopener">Google API Services User Data Policy</a>, including its Limited Use requirements</li>
+            <li>Google Ads data is used solely to display and manage your own campaigns inside APRABot's Amplify module</li>
+            <li>Google Ads data is never transferred to third parties and never used for advertising or profiling purposes</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
     <!-- Compliance -->
     <div class="section-block rv">
       <span class="sb-kicker">Compliance</span>
