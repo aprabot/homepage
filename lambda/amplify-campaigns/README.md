@@ -72,6 +72,16 @@ table):
   groups of 50 — Shopify's own cap on `inventory_item_ids` per call), shown the moment an
   org connects Shopify, no action required. The frontend's Refresh button just re-calls
   this same route — it's always a fresh, uncached read already, nothing to invalidate.
+
+  Also merges in real recent sales per variant (`_shopify_recent_sales`: units sold,
+  revenue, in the store's own currency) from actual orders in the last
+  `_SHOPIFY_SALES_WINDOW_DAYS` (60) — genuine history, not a demand estimate, but capped
+  at 60 days because going further back needs Shopify's own `read_all_orders` scope,
+  which requires a separate "protected customer data" review, not just an OAuth scope
+  addition. Best-effort and isolated from the rest of this route: an org that connected
+  before `read_orders` was added to the Shopify OAuth scope will get a 403 on just this
+  part (its existing token predates the scope) — the response still includes real
+  products/inventory, just without the two sales columns, until that org reconnects.
 - **Manual catalog** (`GET/POST /amplify-campaigns/manual-catalog`,
   `PATCH/DELETE /amplify-campaigns/manual-catalog/{id}`) — a plain admin-maintained list
   (`orgs/{org}/amplify/manual_catalog.json`, dict keyed by a generated id), fully

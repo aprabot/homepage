@@ -219,6 +219,24 @@ def get_shopify_products(org):
                     v['inventory_on_hand'] = totals.get(iid) if iid else None
     except urllib.error.HTTPError as exc:
         return _resp(502, {'error': f'Shopify API call failed ({exc.code})'})
+
+    # Best-effort, separate from the products fetch above: needs the
+    # read_orders scope, which an already-connected org's existing token
+    # may not have (scope was added after this feature first shipped) —
+    # omit sales columns rather than fail the whole catalog response if so.
+    try:
+        sales, currency = _shopify_recent_sales(shop, token)
+        for p in products:
+            for v in p['variants']:
+                s = sales.get(v['id'])
+                v['units_sold_60d'] = s['units'] if s else 0
+                v['revenue_60d'] = round(s['revenue'], 2) if s else 0.0
+        return _resp(200, {'products': products, 'sales_currency': currency, 'sales_window_days': 60})
+    except Exception as exc:
+        print(f"SHOPIFY_SALES_LOOKUP_FAILED[{org}]: {exc} — catalog will have no sales columns "
+              f"(expected if this org connected before read_orders was added to the OAuth scope; "
+              f"reconnecting Shopify grants it)")
+        return _resp(200, {'products': products})
     return _resp(200, {'products': products})
 
 
@@ -242,6 +260,43 @@ def _shopify_inventory_on_hand(shop, token, inventory_item_ids):
             iid = lvl['inventory_item_id']
             totals[iid] = totals.get(iid, 0) + (lvl.get('available') or 0)
     return totals
+
+
+_SHOPIFY_SALES_WINDOW_DAYS = 60  # Shopify's own default Orders API window without
+                                   # the separately-approved read_all_orders scope
+
+
+def _shopify_recent_sales(shop, token):
+    """Real units sold + revenue per variant, from real orders in the last
+    _SHOPIFY_SALES_WINDOW_DAYS days — genuine historic sales, not a demand
+    estimate. Longer history needs Shopify's own read_all_orders approval
+    (a separate "protected customer data" review, not just an OAuth scope
+    change), out of scope here. Returns ({variant_id: {units, revenue}},
+    currency) — currency is the shop's own code (e.g. "USD"), read off the
+    first order seen, since line-item prices aren't otherwise labeled."""
+    since = (datetime.now(timezone.utc) - timedelta(days=_SHOPIFY_SALES_WINDOW_DAYS)).strftime('%Y-%m-%dT%H:%M:%SZ')
+    url = (f'https://{shop}/admin/api/{SHOPIFY_API_VERSION}/orders.json'
+           f'?status=any&created_at_min={since}&limit=250&fields=id,currency,line_items')
+    sales = {}
+    currency = None
+    pages = 0
+    while url and pages < 20:  # 5,000 orders/60 days comfortably covers any real store this app serves
+        pages += 1
+        data, link = _shopify_api_get(url, token)
+        for order in data.get('orders', []):
+            currency = currency or order.get('currency')
+            for li in order.get('line_items', []):
+                vid = li.get('variant_id')
+                if vid is None:
+                    continue
+                qty = li.get('quantity') or 0
+                price = float(li.get('price') or 0)
+                entry = sales.setdefault(vid, {'units': 0, 'revenue': 0.0})
+                entry['units'] += qty
+                entry['revenue'] += qty * price
+        m = _SHOPIFY_LINK_NEXT_RE.search(link or '')
+        url = m.group(1) if m else None
+    return sales, currency
 
 
 def get_sku_labels(org):

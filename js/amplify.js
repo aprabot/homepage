@@ -242,10 +242,12 @@
   // it: there's no reliable automatic match between the two (different
   // systems, no shared identifier), so this is a plain read-only view of
   // what's actually in the store, not an attempt to merge the two.
-  function renderShopifyCatalog(products) {
+  function renderShopifyCatalog(products, salesCurrency, salesWindowDays) {
     var empty = document.getElementById('amp-shopify-catalog-empty');
     var table = document.getElementById('amp-shopify-catalog-table');
     var tbody = document.getElementById('amp-shopify-catalog-body');
+    var unitsCol = document.getElementById('amp-shopify-units-col');
+    var revenueCol = document.getElementById('amp-shopify-revenue-col');
     if (!products || !products.length) {
       empty.style.display = '';
       table.style.display = 'none';
@@ -253,6 +255,17 @@
     }
     empty.style.display = 'none';
     table.style.display = '';
+    // Sales columns are only present when the connected store's token has
+    // the read_orders scope (added after Shopify catalog/inventory first
+    // shipped) — omit them entirely for a store that hasn't reconnected
+    // yet, rather than show an all-blank column.
+    var hasSales = products.some(function (p) { return (p.variants || []).some(function (v) { return 'units_sold_60d' in v; }); });
+    unitsCol.style.display = hasSales ? '' : 'none';
+    revenueCol.style.display = hasSales ? '' : 'none';
+    if (hasSales) {
+      unitsCol.textContent = 'Units sold (' + (salesWindowDays || 60) + 'd)';
+      revenueCol.textContent = 'Revenue (' + (salesWindowDays || 60) + 'd)';
+    }
     tbody.innerHTML = '';
     products.forEach(function (p) {
       (p.variants || []).forEach(function (v, i) {
@@ -263,7 +276,10 @@
             (i === 0 ? escHtml(p.title) : '') + '</td>' +
           '<td>' + escHtml(v.title && v.title !== 'Default Title' ? v.title : '') + '</td>' +
           '<td class="mono">' + escHtml(v.sku || '—') + '</td>' +
-          '<td>' + invStr + '</td>';
+          '<td>' + invStr + '</td>' +
+          (hasSales ?
+            '<td>' + (v.units_sold_60d || 0).toLocaleString() + '</td>' +
+            '<td>' + v.revenue_60d.toFixed(2) + ' ' + escHtml(salesCurrency || '') + '</td>' : '');
         tbody.appendChild(tr);
       });
     });
@@ -273,7 +289,8 @@
     fetchShopifyStatus().then(function (connected) {
       if (!connected) { renderShopifyCatalog([]); return; }
       apiFetch(CAMPAIGNS_API + '/shopify-products').then(function (res) {
-        renderShopifyCatalog(res.ok ? res.body.products : []);
+        renderShopifyCatalog(res.ok ? res.body.products : [], res.ok ? res.body.sales_currency : null,
+          res.ok ? res.body.sales_window_days : null);
       });
     });
   }

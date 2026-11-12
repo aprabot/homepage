@@ -76,9 +76,12 @@ PLATFORM_CONFIG = {
         # the shop domain instead of a static value here.
         'authorize_url': None,
         'token_url': None,
-        # Read-only: Amplify only ever consumes Shopify's catalog/inventory
-        # data, never writes to the store.
-        'scope': 'read_products,read_inventory',
+        # Read-only: Amplify only ever consumes Shopify's catalog/inventory/
+        # order data, never writes to the store. read_orders without the
+        # separate (Shopify-approved) read_all_orders scope only returns
+        # orders from the last 60 days — amplify-campaigns' sales lookup is
+        # written to assume that window, not full history.
+        'scope': 'read_products,read_inventory,read_orders',
         'extra_auth_params': {},
         # Shopify access tokens don't expire, so there's no refresh_token —
         # the token exchange returns {"access_token": ...} directly.
