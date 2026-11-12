@@ -363,6 +363,48 @@
       if (!data) return;
       renderProducts(computeSkuStats(data), labels);
     });
+    loadShopifyCatalog();
+  }
+
+  // Shown immediately once Shopify is connected — the real, live catalog,
+  // no per-SKU action needed. Separate from the forecast-SKU table below
+  // it: there's no reliable automatic match between the two (different
+  // systems, no shared identifier), so this is a plain read-only view of
+  // what's actually in the store, not an attempt to merge the two.
+  function renderShopifyCatalog(products) {
+    var empty = document.getElementById('amp-shopify-catalog-empty');
+    var table = document.getElementById('amp-shopify-catalog-table');
+    var tbody = document.getElementById('amp-shopify-catalog-body');
+    if (!products || !products.length) {
+      empty.style.display = '';
+      table.style.display = 'none';
+      return;
+    }
+    empty.style.display = 'none';
+    table.style.display = '';
+    tbody.innerHTML = '';
+    products.forEach(function (p) {
+      (p.variants || []).forEach(function (v, i) {
+        var tr = document.createElement('tr');
+        var invStr = v.inventory_on_hand != null ? v.inventory_on_hand.toLocaleString() : '—';
+        tr.innerHTML =
+          '<td>' + (i === 0 && p.image_url ? '<img class="amp-sku-thumb" src="' + escHtml(p.image_url) + '">' : '') +
+            (i === 0 ? escHtml(p.title) : '') + '</td>' +
+          '<td>' + escHtml(v.title && v.title !== 'Default Title' ? v.title : '') + '</td>' +
+          '<td class="mono">' + escHtml(v.sku || '—') + '</td>' +
+          '<td>' + invStr + '</td>';
+        tbody.appendChild(tr);
+      });
+    });
+  }
+
+  function loadShopifyCatalog() {
+    fetchShopifyStatus().then(function (connected) {
+      if (!connected) { renderShopifyCatalog([]); return; }
+      apiFetch(CAMPAIGNS_API + '/shopify-products').then(function (res) {
+        renderShopifyCatalog(res.ok ? res.body.products : []);
+      });
+    });
   }
 
   /* ---------------- AI Opportunities panel ---------------- */

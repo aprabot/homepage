@@ -59,6 +59,16 @@ data (from `amplify-sync-worker`) accumulates — they're currently moderate, cr
 estimates, not calibrated against this organization's own real ad history (there isn't
 any yet).
 
+## Raw Shopify catalog (`GET /amplify-campaigns/shopify-products`)
+
+Shown directly in the Products panel's own "Your Shopify store" table the moment an org
+connects Shopify — real product/variant names, images, and live on-hand inventory
+(`_shopify_inventory_on_hand`, batched in groups of 50 — Shopify's own cap on
+`inventory_item_ids` per call), with zero per-SKU action required. This is intentionally
+a separate, plain read-only view from the forecast-SKU table below it, not merged with
+it — there's no reliable way to auto-match a Shopify product to a forecast SKU (see
+below), so this just shows what's really in the store rather than guessing.
+
 ## Per-org SKU labels (`GET/PUT /amplify-campaigns/sku-labels`)
 
 The catalog itself is fully anonymized (`SKU-001`, no names/images anywhere in the

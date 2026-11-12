@@ -179,9 +179,11 @@ def _shopify_api_get(url, token):
 
 
 def get_shopify_products(org):
-    """Real, live catalog from the org's connected Shopify store, for the
-    Products panel's picker — never cached/persisted here, always a fresh
-    read, so the picker always reflects what's actually in the store today."""
+    """Real, live catalog from the org's connected Shopify store — used both
+    for the Products panel's "your Shopify store" catalog view (shown
+    immediately once connected, no per-SKU action needed) and the per-SKU
+    picker modal. Never cached/persisted here, always a fresh read, so both
+    always reflect what's actually in the store today, inventory included."""
     shop, token = _get_shopify_token(org)
     if not shop:
         return _resp(404, {'error': 'Shopify is not connected for this organization'})
@@ -206,9 +208,21 @@ def get_shopify_products(org):
                 })
             m = _SHOPIFY_LINK_NEXT_RE.search(link or '')
             url = m.group(1) if m else None
+
+        all_iids = [v['inventory_item_id'] for p in products for v in p['variants']
+                     if v.get('inventory_item_id')]
+        if all_iids:
+            totals = _shopify_inventory_on_hand(shop, token, all_iids)
+            for p in products:
+                for v in p['variants']:
+                    iid = v.get('inventory_item_id')
+                    v['inventory_on_hand'] = totals.get(iid) if iid else None
     except urllib.error.HTTPError as exc:
         return _resp(502, {'error': f'Shopify API call failed ({exc.code})'})
     return _resp(200, {'products': products})
+
+
+_SHOPIFY_INVENTORY_IDS_PER_CALL = 50  # Shopify's own cap on inventory_item_ids per request
 
 
 def _shopify_inventory_on_hand(shop, token, inventory_item_ids):
@@ -217,14 +231,16 @@ def _shopify_inventory_on_hand(shop, token, inventory_item_ids):
     Cycle+Safety Stock methodology in latest_inventory.json: that's "how
     much *should* be stocked" from demand history, this is "how much
     really *is* on the shelf right now" from the store itself."""
-    ids = ','.join(str(i) for i in inventory_item_ids)
-    url = (f'https://{shop}/admin/api/{SHOPIFY_API_VERSION}/inventory_levels.json'
-           f'?inventory_item_ids={ids}&limit=250')
-    data, _link = _shopify_api_get(url, token)
+    ids = [str(i) for i in inventory_item_ids]
     totals = {}
-    for lvl in data.get('inventory_levels', []):
-        iid = lvl['inventory_item_id']
-        totals[iid] = totals.get(iid, 0) + (lvl.get('available') or 0)
+    for i in range(0, len(ids), _SHOPIFY_INVENTORY_IDS_PER_CALL):
+        chunk = ids[i:i + _SHOPIFY_INVENTORY_IDS_PER_CALL]
+        url = (f'https://{shop}/admin/api/{SHOPIFY_API_VERSION}/inventory_levels.json'
+               f'?inventory_item_ids={",".join(chunk)}&limit=250')
+        data, _link = _shopify_api_get(url, token)
+        for lvl in data.get('inventory_levels', []):
+            iid = lvl['inventory_item_id']
+            totals[iid] = totals.get(iid, 0) + (lvl.get('available') or 0)
     return totals
 
 
