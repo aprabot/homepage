@@ -242,15 +242,30 @@
   // it: there's no reliable automatic match between the two (different
   // systems, no shared identifier), so this is a plain read-only view of
   // what's actually in the store, not an attempt to merge the two.
+  function ampThumbOrPlaceholder(imageUrl) {
+    if (imageUrl) return '<img class="amp-sku-thumb" src="' + escHtml(imageUrl) + '">';
+    return '<span class="amp-thumb-placeholder"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="16" height="16">' +
+      '<path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg></span>';
+  }
+
+  function ampInventoryPillClass(n) {
+    if (n == null) return '';
+    if (n <= 0) return 'pill risk';
+    if (n < 10) return 'pill warn';
+    return 'pill ok';
+  }
+
   function renderShopifyCatalog(products, salesCurrency, salesWindowDays) {
     var empty = document.getElementById('amp-shopify-catalog-empty');
     var table = document.getElementById('amp-shopify-catalog-table');
     var tbody = document.getElementById('amp-shopify-catalog-body');
     var unitsCol = document.getElementById('amp-shopify-units-col');
     var revenueCol = document.getElementById('amp-shopify-revenue-col');
+    var kpis = document.getElementById('amp-catalog-kpis');
     if (!products || !products.length) {
       empty.style.display = '';
       table.style.display = 'none';
+      kpis.style.display = 'none';
       return;
     }
     empty.style.display = 'none';
@@ -266,15 +281,39 @@
       unitsCol.textContent = 'Units sold (' + (salesWindowDays || 60) + 'd)';
       revenueCol.textContent = 'Revenue (' + (salesWindowDays || 60) + 'd)';
     }
+
+    // Summary strip — quick at-a-glance totals across the whole catalog.
+    var totalStock = 0, totalSold = 0, totalRevenue = 0;
+    products.forEach(function (p) {
+      (p.variants || []).forEach(function (v) {
+        if (v.inventory_on_hand != null) totalStock += v.inventory_on_hand;
+        totalSold += v.units_sold_60d || 0;
+        totalRevenue += v.revenue_60d || 0;
+      });
+    });
+    kpis.style.display = '';
+    document.getElementById('amp-kpi-products').textContent = products.length.toLocaleString();
+    document.getElementById('amp-kpi-stock').textContent = totalStock.toLocaleString();
+    document.getElementById('amp-kpi-sold-card').style.display = hasSales ? '' : 'none';
+    document.getElementById('amp-kpi-revenue-card').style.display = hasSales ? '' : 'none';
+    if (hasSales) {
+      document.getElementById('amp-kpi-sold').textContent = totalSold.toLocaleString();
+      document.getElementById('amp-kpi-revenue').textContent = totalRevenue.toFixed(2) + ' ' + (salesCurrency || '');
+    }
+
     tbody.innerHTML = '';
     products.forEach(function (p) {
-      (p.variants || []).forEach(function (v, i) {
+      var variants = p.variants || [];
+      variants.forEach(function (v, i) {
         var tr = document.createElement('tr');
-        var invStr = v.inventory_on_hand != null ? v.inventory_on_hand.toLocaleString() : '—';
+        if (i === 0 && variants.length > 1) tr.className = 'amp-group-start';
+        var invStr = v.inventory_on_hand != null
+          ? '<span class="' + ampInventoryPillClass(v.inventory_on_hand) + '">' + v.inventory_on_hand.toLocaleString() + '</span>'
+          : '—';
+        var variantLabel = v.title && v.title !== 'Default Title' ? v.title : '';
         tr.innerHTML =
-          '<td>' + (i === 0 && p.image_url ? '<img class="amp-sku-thumb" src="' + escHtml(p.image_url) + '">' : '') +
-            (i === 0 ? escHtml(p.title) : '') + '</td>' +
-          '<td>' + escHtml(v.title && v.title !== 'Default Title' ? v.title : '') + '</td>' +
+          '<td>' + (i === 0 ? ampThumbOrPlaceholder(p.image_url) + escHtml(p.title) : '') + '</td>' +
+          '<td>' + (i > 0 && variantLabel ? '<span class="amp-variant-indent">↳</span>' : '') + escHtml(variantLabel) + '</td>' +
           '<td class="mono">' + escHtml(v.sku || '—') + '</td>' +
           '<td>' + invStr + '</td>' +
           (hasSales ?
@@ -309,8 +348,7 @@
     items.forEach(function (item) {
       var tr = document.createElement('tr');
       tr.innerHTML =
-        '<td>' + (item.image_url ? '<img class="amp-sku-thumb" src="' + escHtml(item.image_url) + '">' : '') +
-          escHtml(item.name) + '</td>' +
+        '<td>' + ampThumbOrPlaceholder(item.image_url) + escHtml(item.name) + '</td>' +
         '<td class="amp-row-actions"></td>';
       var actionsTd = tr.querySelector('.amp-row-actions');
       var editBtn = document.createElement('button');

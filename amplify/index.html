@@ -44,11 +44,27 @@
   .amp-table{width:100%;border-collapse:collapse;font-size:13.5px}
   .amp-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
     padding:8px 10px;border-bottom:2px solid var(--line-2)}
-  .amp-table td{padding:10px;border-bottom:1px solid var(--line)}
+  .amp-table td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  .amp-table tbody tr:hover td{background:var(--panel)}
+  .amp-table tbody tr.amp-group-start td{border-top:1px solid var(--line-2)}
   .amp-row-actions{display:flex;gap:6px}
   .amp-row-actions .dbtn{padding:5px 11px;font-size:12.5px}
-  .amp-sku-thumb{width:32px;height:32px;border-radius:7px;object-fit:cover;background:var(--panel);
-    border:1px solid var(--line);vertical-align:middle;margin-right:8px}
+  .amp-sku-thumb{width:38px;height:38px;border-radius:8px;object-fit:cover;background:var(--panel);
+    border:1px solid var(--line);vertical-align:middle;margin-right:10px}
+  .amp-thumb-placeholder{width:38px;height:38px;border-radius:8px;background:var(--panel);
+    border:1px dashed var(--line-2);display:inline-flex;align-items:center;justify-content:center;
+    vertical-align:middle;margin-right:10px;color:var(--muted);flex:none}
+  .amp-variant-indent{color:var(--muted);margin-right:5px}
+
+  /* Products panel: catalog summary strip + empty states */
+  .amp-catalog-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+  .amp-catalog-kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .amp-catalog-kpi .t{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:4px}
+  .amp-catalog-kpi .v{font-size:1.3rem;font-weight:600}
+  .amp-empty-card{text-align:center;padding:34px 20px;border:1px dashed var(--line-2);border-radius:12px;color:var(--muted)}
+  .amp-empty-card svg{margin-bottom:10px;opacity:.45}
+  .amp-empty-card p{margin:0;font-size:13px}
+  @media(max-width:880px){.amp-catalog-kpis{grid-template-columns:1fr 1fr}}
 
   /* Overview: revenue chart */
   .amp-chart-box{position:relative;height:220px}
@@ -197,20 +213,33 @@
     <div class="dbody" id="productsPanel" style="display:none">
       <h1 class="dgreet">Amplify — <span class="hl">Products</span></h1>
 
-      <div class="ch" style="margin-top:4px"><h4>Your Shopify store</h4><button type="button" class="dbtn" id="amp-shopify-refresh-btn" style="padding:5px 11px;font-size:12.5px">Refresh</button></div>
+      <div class="amp-catalog-kpis" id="amp-catalog-kpis" style="display:none;margin-top:18px">
+        <div class="amp-catalog-kpi"><div class="t">Products</div><div class="v" id="amp-kpi-products">—</div></div>
+        <div class="amp-catalog-kpi"><div class="t">Units in stock</div><div class="v" id="amp-kpi-stock">—</div></div>
+        <div class="amp-catalog-kpi" id="amp-kpi-sold-card" style="display:none"><div class="t">Units sold</div><div class="v" id="amp-kpi-sold">—</div></div>
+        <div class="amp-catalog-kpi" id="amp-kpi-revenue-card" style="display:none"><div class="t">Revenue</div><div class="v" id="amp-kpi-revenue">—</div></div>
+      </div>
+
+      <div class="ch" style="margin-top:4px;display:flex;align-items:center;justify-content:space-between"><h4>Your Shopify store</h4><button type="button" class="dbtn" id="amp-shopify-refresh-btn" style="padding:5px 11px;font-size:12.5px">Refresh</button></div>
       <p class="dsubtle">Your real, live catalog — shown as soon as Shopify is connected, no setup needed.</p>
       <div class="dcard" style="margin-top:12px" id="amp-shopify-catalog-card">
-        <p class="dsubtle" id="amp-shopify-catalog-empty">Connect Shopify (Getting Started, or Integrations &amp; Settings) to see your real catalog and live inventory here.</p>
+        <div class="amp-empty-card" id="amp-shopify-catalog-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="30" height="30"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <p>Connect Shopify (Getting Started, or Integrations &amp; Settings) to see your real catalog and live inventory here.</p>
+        </div>
         <table class="amp-table" id="amp-shopify-catalog-table" style="display:none">
           <thead><tr><th>Product</th><th>Variant</th><th>SKU</th><th>Inventory on hand</th><th id="amp-shopify-units-col">Units sold</th><th id="amp-shopify-revenue-col">Revenue</th></tr></thead>
           <tbody id="amp-shopify-catalog-body"></tbody>
         </table>
       </div>
 
-      <div class="ch" style="margin-top:28px"><h4>Manual catalog</h4><button type="button" class="dbtn" id="amp-manual-add-btn" style="padding:5px 11px;font-size:12.5px">Add product</button></div>
+      <div class="ch" style="margin-top:28px;display:flex;align-items:center;justify-content:space-between"><h4>Manual catalog</h4><button type="button" class="dbtn" id="amp-manual-add-btn" style="padding:5px 11px;font-size:12.5px">Add product</button></div>
       <p class="dsubtle">Products you maintain yourself — for anything not in Shopify, or if you don't use Shopify at all.</p>
       <div class="dcard" style="margin-top:12px">
-        <p class="dsubtle" id="amp-manual-catalog-empty">No manually-added products yet.</p>
+        <div class="amp-empty-card" id="amp-manual-catalog-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="30" height="30"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <p>No manually-added products yet.</p>
+        </div>
         <table class="amp-table" id="amp-manual-catalog-table" style="display:none">
           <thead><tr><th>Product</th><th></th></tr></thead>
           <tbody id="amp-manual-catalog-body"></tbody>
