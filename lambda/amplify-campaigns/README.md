@@ -59,31 +59,38 @@ data (from `amplify-sync-worker`) accumulates — they're currently moderate, cr
 estimates, not calibrated against this organization's own real ad history (there isn't
 any yet).
 
-## Raw Shopify catalog (`GET /amplify-campaigns/shopify-products`)
+## Products panel: two independent catalogs, not merged
 
-Shown directly in the Products panel's own "Your Shopify store" table the moment an org
-connects Shopify — real product/variant names, images, and live on-hand inventory
-(`_shopify_inventory_on_hand`, batched in groups of 50 — Shopify's own cap on
-`inventory_item_ids` per call), with zero per-SKU action required. This is intentionally
-a separate, plain read-only view from the forecast-SKU table below it, not merged with
-it — there's no reliable way to auto-match a Shopify product to a forecast SKU (see
-below), so this just shows what's really in the store rather than guessing.
+The Products panel shows two plain, separate lists — deliberately not merged with each
+other or with the forecast-SKU system, since there's no reliable shared identifier to
+auto-match any of them (see "Per-org SKU labels" below for why that still matters
+elsewhere, even though the Products panel itself no longer shows the raw forecast-SKU
+table):
+
+- **Shopify catalog** (`GET /amplify-campaigns/shopify-products`) — real product/variant
+  names, images, and live on-hand inventory (`_shopify_inventory_on_hand`, batched in
+  groups of 50 — Shopify's own cap on `inventory_item_ids` per call), shown the moment an
+  org connects Shopify, no action required. The frontend's Refresh button just re-calls
+  this same route — it's always a fresh, uncached read already, nothing to invalidate.
+- **Manual catalog** (`GET/POST /amplify-campaigns/manual-catalog`,
+  `PATCH/DELETE /amplify-campaigns/manual-catalog/{id}`) — a plain admin-maintained list
+  (`orgs/{org}/amplify/manual_catalog.json`, dict keyed by a generated id), fully
+  independent of Shopify and of forecast SKUs. For products Shopify doesn't have, or orgs
+  with no Shopify connection at all.
 
 ## Per-org SKU labels (`GET/PUT /amplify-campaigns/sku-labels`)
 
-The catalog itself is fully anonymized (`SKU-001`, no names/images anywhere in the
-pipeline) by deliberate policy. This is the only place a product gets a human label, and
-only if an org admin sets one (`orgs/{org}/amplify/sku_labels.json`) — real,
-customer-entered, opt-in, never a fabricated name/photo. Falls back to the plain SKU id.
-
-Two ways to set one: type a label/image URL by hand (`source: 'manual'`), or — if the org
-has connected Shopify (see `amplify-oauth`) — pick a real product from their live catalog
-via `GET /amplify-campaigns/shopify-products` (`source: 'shopify'`, also stores
-`shopify_product_id`/`shopify_variant_id`/`shopify_inventory_item_id`). Either way the
-label/image itself is real; Shopify just replaces typing with picking from a live list.
-There's no automatic SKU<->Shopify-product matching — the forecast catalog is anonymized
-by design, so there's no shared identifier to match on. This has to stay a manual,
-org-admin pick.
+The forecast catalog itself is fully anonymized (`SKU-001`, no names/images anywhere in
+the pipeline) by deliberate policy. This endpoint is how a forecast SKU gets a real human
+label/image (`orgs/{org}/amplify/sku_labels.json`) — still read by AI Opportunities and
+the Campaign Builder wizard for each recommendation's display name/photo, even though the
+Products panel no longer shows a UI to edit it (removed in favor of the two independent
+catalogs above — there was no reliable way to auto-match a forecast SKU to a Shopify
+product anyway, so pairing SKU-editing with "browse your Shopify catalog" implied a
+connection that didn't really exist). The endpoint and its validation
+(`sku` must match `SKU-\d+`, `image_url` must be `https://`, admin-only) are unchanged;
+`shopify_product_id`/`shopify_variant_id`/`shopify_inventory_item_id`/`source` fields it
+accepts are still there for any future UI that wants to wire a SKU to a specific product.
 
 `GET /sku-labels` also enriches any Shopify-linked SKU with a live
 `shopify_inventory_on_hand` figure (real on-hand units from the store right now) —

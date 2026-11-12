@@ -122,14 +122,6 @@
     return rows;
   }
 
-  function skuLabel(labels, sku) {
-    var l = labels[sku];
-    return (l && l.label) || sku;
-  }
-  function skuImage(labels, sku) {
-    return (labels[sku] && labels[sku].image_url) || null;
-  }
-
   var labelsCache = null;
   function fetchSkuLabels() {
     if (labelsCache) return Promise.resolve(labelsCache);
@@ -233,137 +225,16 @@
   }
 
   /* ---------------- Products panel ---------------- */
-
-  function renderProducts(stats, labels) {
-    var tbody = document.getElementById('amp-products-body');
-    if (!tbody) return;
-    tbody.innerHTML = '';
-    stats.forEach(function (row) {
-      var tr = document.createElement('tr');
-      var img = skuImage(labels, row.sku);
-      var trendStr = row.trendPct == null ? 'n/a' : (row.trendPct >= 0 ? '+' : '') + row.trendPct.toFixed(1) + '%';
-      var info = labels[row.sku] || {};
-      var invStr = info.shopify_inventory_on_hand != null
-        ? info.shopify_inventory_on_hand.toLocaleString() + ' on hand' : '—';
-      tr.innerHTML =
-        '<td>' + (img ? '<img class="amp-sku-thumb" src="' + escHtml(img) + '">' : '') +
-          escHtml(skuLabel(labels, row.sku)) + '</td>' +
-        '<td>' + Math.round(row.backtestVol).toLocaleString() + '</td>' +
-        '<td>' + trendStr + '</td>' +
-        '<td><span class="pill ' + (row.confidenceTier === 'High' ? 'ok' : row.confidenceTier === 'Medium' ? 'warn' : 'risk') + '">' +
-          row.confidenceTier + '</span></td>' +
-        '<td>' + escHtml(invStr) + '</td>' +
-        '<td><button class="dbtn amp-edit-label-btn" style="padding:5px 11px;font-size:12.5px">Edit label</button></td>';
-      tr.querySelector('.amp-edit-label-btn').onclick = function () { editSkuLabel(row.sku, labels); };
-      tbody.appendChild(tr);
-    });
-  }
-
-  function saveSkuLabel(sku, fields) {
-    return apiFetch(CAMPAIGNS_API + '/sku-labels', {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(Object.assign({ sku: sku }, fields)),
-    }).then(function (res) {
-      if (!res.ok) { alert(res.body.error || 'Could not save label'); return; }
-      labelsCache = null; // force refetch so every panel picks up the change
-      window.loadProducts();
-    });
-  }
-
-  function editSkuLabelManually(sku, labels) {
-    var current = labels[sku] || {};
-    var label = window.prompt('Display name for ' + sku + ' (leave blank to revert to the plain SKU id):', current.label || '');
-    if (label === null) return; // cancelled
-    var imageUrl = window.prompt('Image URL (must start with https://, leave blank for none):', current.image_url || '');
-    if (imageUrl === null) return;
-    saveSkuLabel(sku, { label: label, image_url: imageUrl });
-  }
-
-  // If Shopify is connected, offer picking a real product from the live
-  // catalog instead of typing a label by hand — same end result
-  // (sku_labels.json gets a label/image), just sourced from a real product
-  // the admin picked rather than free text. Falls back to the manual
-  // prompt() flow when Shopify isn't connected.
-  function editSkuLabel(sku, labels) {
-    fetchShopifyStatus().then(function (connected) {
-      if (connected) openShopifyPicker(sku, labels);
-      else editSkuLabelManually(sku, labels);
-    });
-  }
-
-  var pickerSku = null;
-  var pickerLabels = null;
-
-  function openShopifyPicker(sku, labels) {
-    pickerSku = sku;
-    pickerLabels = labels;
-    document.getElementById('amp-picker-sku').textContent = sku;
-    var list = document.getElementById('amp-picker-list');
-    var errEl = document.getElementById('amp-picker-error');
-    errEl.textContent = '';
-    list.innerHTML = '<p class="dsubtle">Loading your Shopify catalog…</p>';
-    document.getElementById('ampShopifyPickerModal').classList.add('open');
-
-    apiFetch(CAMPAIGNS_API + '/shopify-products').then(function (res) {
-      if (!res.ok) {
-        list.innerHTML = '';
-        errEl.textContent = res.body.error || 'Could not load the Shopify catalog';
-        return;
-      }
-      var products = res.body.products || [];
-      if (!products.length) {
-        list.innerHTML = '<p class="dsubtle">No products found in this Shopify store.</p>';
-        return;
-      }
-      list.innerHTML = '';
-      products.forEach(function (p) {
-        var row = document.createElement('div');
-        row.className = 'amp-picker-row';
-        row.innerHTML =
-          (p.image_url ? '<img src="' + escHtml(p.image_url) + '">' : '<img>') +
-          '<div class="title">' + escHtml(p.title) + '</div>' +
-          '<div class="variants"></div>';
-        var variantsEl = row.querySelector('.variants');
-        (p.variants || []).forEach(function (v) {
-          var btn = document.createElement('button');
-          btn.className = 'dbtn';
-          btn.style.cssText = 'padding:4px 10px;font-size:12px';
-          btn.textContent = 'Select' + (v.title && v.title !== 'Default Title' ? ' — ' + v.title : '');
-          btn.onclick = function () { selectShopifyVariant(p, v); };
-          variantsEl.appendChild(btn);
-        });
-        list.appendChild(row);
-      });
-    });
-  }
-
-  function selectShopifyVariant(product, variant) {
-    var label = product.title + (variant.title && variant.title !== 'Default Title' ? ' — ' + variant.title : '');
-    saveSkuLabel(pickerSku, {
-      label: label, image_url: product.image_url || '',
-      shopify_product_id: product.id, shopify_variant_id: variant.id,
-      shopify_inventory_item_id: variant.inventory_item_id,
-    }).then(function () { closeShopifyPicker(); });
-  }
-
-  function closeShopifyPicker() {
-    document.getElementById('ampShopifyPickerModal').classList.remove('open');
-    pickerSku = null; pickerLabels = null;
-  }
-
-  function editSkuLabelManuallyFromPicker() {
-    var sku = pickerSku, labels = pickerLabels;
-    closeShopifyPicker();
-    if (sku) editSkuLabelManually(sku, labels || {});
-  }
+  // Two independent catalogs, deliberately not merged: Shopify (live, read-
+  // only) and a manual list an admin maintains by hand. There's no reliable
+  // automatic match between a forecast SKU and either of these (different
+  // systems, no shared identifier), so the forecast-SKU table that used to
+  // live here is gone — AI Opportunities/Campaign Builder still read
+  // forecast data + sku_labels.json under the hood, unaffected by this.
 
   function loadProducts() {
-    Promise.all([fetchForecastData(), fetchSkuLabels()]).then(function (results) {
-      var data = results[0], labels = results[1];
-      if (!data) return;
-      renderProducts(computeSkuStats(data), labels);
-    });
     loadShopifyCatalog();
+    loadManualCatalog();
   }
 
   // Shown immediately once Shopify is connected — the real, live catalog,
@@ -404,6 +275,80 @@
       apiFetch(CAMPAIGNS_API + '/shopify-products').then(function (res) {
         renderShopifyCatalog(res.ok ? res.body.products : []);
       });
+    });
+  }
+
+  // Manual catalog — a plain, admin-maintained list fully independent of
+  // Shopify and of forecast SKUs (for products Shopify doesn't have, or
+  // orgs with no Shopify connection at all).
+  function renderManualCatalog(items) {
+    var empty = document.getElementById('amp-manual-catalog-empty');
+    var table = document.getElementById('amp-manual-catalog-table');
+    var tbody = document.getElementById('amp-manual-catalog-body');
+    if (!items.length) { empty.style.display = ''; table.style.display = 'none'; return; }
+    empty.style.display = 'none';
+    table.style.display = '';
+    tbody.innerHTML = '';
+    items.forEach(function (item) {
+      var tr = document.createElement('tr');
+      tr.innerHTML =
+        '<td>' + (item.image_url ? '<img class="amp-sku-thumb" src="' + escHtml(item.image_url) + '">' : '') +
+          escHtml(item.name) + '</td>' +
+        '<td class="amp-row-actions"></td>';
+      var actionsTd = tr.querySelector('.amp-row-actions');
+      var editBtn = document.createElement('button');
+      editBtn.className = 'dbtn'; editBtn.textContent = 'Edit';
+      editBtn.onclick = function () { editManualCatalogItem(item); };
+      actionsTd.appendChild(editBtn);
+      var delBtn = document.createElement('button');
+      delBtn.className = 'dbtn'; delBtn.textContent = 'Delete';
+      delBtn.onclick = function () { deleteManualCatalogItem(item); };
+      actionsTd.appendChild(delBtn);
+      tbody.appendChild(tr);
+    });
+  }
+
+  function loadManualCatalog() {
+    apiFetch(CAMPAIGNS_API + '/manual-catalog').then(function (res) {
+      var items = res.ok ? Object.keys(res.body).map(function (k) { return res.body[k]; }) : [];
+      items.sort(function (a, b) { return (a.created_at || '').localeCompare(b.created_at || ''); });
+      renderManualCatalog(items);
+    });
+  }
+
+  function addManualCatalogItem() {
+    var name = window.prompt('Product name:');
+    if (name === null || !name.trim()) return;
+    var imageUrl = window.prompt('Image URL (must start with https://, leave blank for none):', '');
+    if (imageUrl === null) return;
+    apiFetch(CAMPAIGNS_API + '/manual-catalog', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), image_url: imageUrl }),
+    }).then(function (res) {
+      if (!res.ok) { alert(res.body.error || 'Could not add product'); return; }
+      loadManualCatalog();
+    });
+  }
+
+  function editManualCatalogItem(item) {
+    var name = window.prompt('Product name:', item.name || '');
+    if (name === null || !name.trim()) return;
+    var imageUrl = window.prompt('Image URL (must start with https://, leave blank for none):', item.image_url || '');
+    if (imageUrl === null) return;
+    apiFetch(CAMPAIGNS_API + '/manual-catalog/' + item.id, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: name.trim(), image_url: imageUrl }),
+    }).then(function (res) {
+      if (!res.ok) { alert(res.body.error || 'Could not save product'); return; }
+      loadManualCatalog();
+    });
+  }
+
+  function deleteManualCatalogItem(item) {
+    if (!confirm('Delete "' + item.name + '" from the manual catalog?')) return;
+    apiFetch(CAMPAIGNS_API + '/manual-catalog/' + item.id, { method: 'DELETE' }).then(function (res) {
+      if (!res.ok) { alert(res.body.error || 'Could not delete product'); return; }
+      loadManualCatalog();
     });
   }
 
@@ -808,8 +753,6 @@
   window.closeWizard = closeWizard;
   window.wizardGoto = wizardGoto;
   window.submitWizard = submitWizard;
-  window.closeShopifyPicker = closeShopifyPicker;
-  window.editSkuLabelManuallyFromPicker = editSkuLabelManuallyFromPicker;
 
   document.addEventListener('DOMContentLoaded', function () {
     var form = document.getElementById('ampCampaignForm');
@@ -825,5 +768,9 @@
         });
       });
     });
+    var refreshBtn = document.getElementById('amp-shopify-refresh-btn');
+    if (refreshBtn) refreshBtn.addEventListener('click', loadShopifyCatalog);
+    var addBtn = document.getElementById('amp-manual-add-btn');
+    if (addBtn) addBtn.addEventListener('click', addManualCatalogItem);
   });
 })();

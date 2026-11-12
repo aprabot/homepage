@@ -76,7 +76,7 @@ def _is_admin(org, email):
 CORS = {
     'Access-Control-Allow-Origin':  '*',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,DELETE,OPTIONS',
 }
 
 
@@ -302,6 +302,83 @@ def put_sku_labels(org, caller_email, event):
         labels.pop(sku, None)  # both fields cleared — revert to the plain SKU id
     _write_json(_sku_labels_key(org), labels)
     return _resp(200, labels.get(sku, {}))
+
+
+# ---- Manual catalog — orgs/{org}/amplify/manual_catalog.json. Fully
+# independent of both the forecast-SKU system and Shopify: a plain list of
+# products an admin types in directly (name + optional image), for orgs
+# with no Shopify connection, or products Shopify doesn't have. Same
+# "absent = default (empty)" convention as sku_labels.json/limits.json. ----
+def _manual_catalog_key(org):
+    return f'orgs/{org}/amplify/manual_catalog.json'
+
+
+def get_manual_catalog(org):
+    return _resp(200, _read_json(_manual_catalog_key(org), default={}))
+
+
+def create_manual_catalog_item(org, caller_email, event):
+    if not _is_admin(org, caller_email):
+        return _resp(403, {'error': 'only an admin can edit the manual catalog for this organization'})
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except json.JSONDecodeError:
+        return _resp(400, {'error': 'invalid JSON body'})
+
+    name = (body.get('name') or '').strip()[:120]
+    if not name:
+        return _resp(400, {'error': 'name is required'})
+    image_url = (body.get('image_url') or '').strip()[:500]
+    if image_url and not image_url.startswith('https://'):
+        return _resp(400, {'error': 'image_url must be an https:// URL'})
+
+    catalog = _read_json(_manual_catalog_key(org), default={})
+    item_id = uuid.uuid4().hex[:12]
+    now = _now()
+    catalog[item_id] = {'id': item_id, 'name': name, 'image_url': image_url,
+                         'created_by': caller_email, 'created_at': now, 'updated_at': now}
+    _write_json(_manual_catalog_key(org), catalog)
+    return _resp(201, catalog[item_id])
+
+
+def update_manual_catalog_item(org, item_id, caller_email, event):
+    if not _is_admin(org, caller_email):
+        return _resp(403, {'error': 'only an admin can edit the manual catalog for this organization'})
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except json.JSONDecodeError:
+        return _resp(400, {'error': 'invalid JSON body'})
+
+    catalog = _read_json(_manual_catalog_key(org), default={})
+    item = catalog.get(item_id)
+    if item is None:
+        return _resp(404, {'error': 'catalog item not found'})
+
+    if 'name' in body:
+        name = (body['name'] or '').strip()[:120]
+        if not name:
+            return _resp(400, {'error': 'name cannot be empty'})
+        item['name'] = name
+    if 'image_url' in body:
+        image_url = (body['image_url'] or '').strip()[:500]
+        if image_url and not image_url.startswith('https://'):
+            return _resp(400, {'error': 'image_url must be an https:// URL'})
+        item['image_url'] = image_url
+    item['updated_by'] = caller_email
+    item['updated_at'] = _now()
+    _write_json(_manual_catalog_key(org), catalog)
+    return _resp(200, item)
+
+
+def delete_manual_catalog_item(org, item_id, caller_email):
+    if not _is_admin(org, caller_email):
+        return _resp(403, {'error': 'only an admin can edit the manual catalog for this organization'})
+    catalog = _read_json(_manual_catalog_key(org), default={})
+    if item_id not in catalog:
+        return _resp(404, {'error': 'catalog item not found'})
+    del catalog[item_id]
+    _write_json(_manual_catalog_key(org), catalog)
+    return _resp(200, {'deleted': item_id})
 
 
 # ---- DynamoDB item helpers (first table in this stack — see the Amplify
@@ -818,6 +895,18 @@ def handler(event, context):
 
         if method == 'GET' and path == '/amplify-campaigns/shopify-products':
             return get_shopify_products(org)
+
+        if method == 'GET' and path == '/amplify-campaigns/manual-catalog':
+            return get_manual_catalog(org)
+
+        if method == 'POST' and path == '/amplify-campaigns/manual-catalog':
+            return create_manual_catalog_item(org, caller_email, event)
+
+        m = re.match(r'^/amplify-campaigns/manual-catalog/([a-z0-9]+)$', path)
+        if method == 'PATCH' and m:
+            return update_manual_catalog_item(org, m.group(1), caller_email, event)
+        if method == 'DELETE' and m:
+            return delete_manual_catalog_item(org, m.group(1), caller_email)
 
         if method == 'GET' and path == '/amplify-campaigns/recommendations':
             return get_recommendations(org)

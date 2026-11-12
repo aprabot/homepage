@@ -87,13 +87,6 @@
   .amp-ad-card .body{padding:10px 12px}
   .amp-ad-card .cta{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
 
-  /* Shopify product picker */
-  .amp-picker-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)}
-  .amp-picker-row img{width:36px;height:36px;border-radius:6px;object-fit:cover;background:var(--panel);
-    border:1px solid var(--line);flex:none}
-  .amp-picker-row .title{flex:1;font-size:13px}
-  .amp-picker-row .variants{display:flex;flex-direction:column;gap:4px;align-items:flex-end}
-
   /* Campaign modal form (create-from-scratch path) reuses .field/.srow/.theme-pill */
 </style>
 </head>
@@ -204,7 +197,7 @@
     <div class="dbody" id="productsPanel" style="display:none">
       <h1 class="dgreet">Amplify — <span class="hl">Products</span></h1>
 
-      <div class="ch" style="margin-top:4px"><h4>Your Shopify store</h4></div>
+      <div class="ch" style="margin-top:4px"><h4>Your Shopify store</h4><button type="button" class="dbtn" id="amp-shopify-refresh-btn" style="padding:5px 11px;font-size:12.5px">Refresh</button></div>
       <p class="dsubtle">Your real, live catalog — shown as soon as Shopify is connected, no setup needed.</p>
       <div class="dcard" style="margin-top:12px" id="amp-shopify-catalog-card">
         <p class="dsubtle" id="amp-shopify-catalog-empty">Connect Shopify (Getting Started, or Integrations &amp; Settings) to see your real catalog and live inventory here.</p>
@@ -214,12 +207,13 @@
         </table>
       </div>
 
-      <div class="ch" style="margin-top:28px"><h4>Forecast catalog</h4></div>
-      <p class="dsubtle">Anonymized by default (SKU-001, SKU-002, ...) — optionally link each one to a real Shopify product, or give it a manual display name/image, for a nicer view here and in Campaign Builder.</p>
+      <div class="ch" style="margin-top:28px"><h4>Manual catalog</h4><button type="button" class="dbtn" id="amp-manual-add-btn" style="padding:5px 11px;font-size:12.5px">Add product</button></div>
+      <p class="dsubtle">Products you maintain yourself — for anything not in Shopify, or if you don't use Shopify at all.</p>
       <div class="dcard" style="margin-top:12px">
-        <table class="amp-table">
-          <thead><tr><th>Product</th><th>Backtest volume</th><th>Forward trend</th><th>Confidence</th><th>Live inventory</th><th></th></tr></thead>
-          <tbody id="amp-products-body"></tbody>
+        <p class="dsubtle" id="amp-manual-catalog-empty">No manually-added products yet.</p>
+        <table class="amp-table" id="amp-manual-catalog-table" style="display:none">
+          <thead><tr><th>Product</th><th></th></tr></thead>
+          <tbody id="amp-manual-catalog-body"></tbody>
         </table>
       </div>
     </div>
@@ -432,19 +426,6 @@
   </div>
 </div>
 
-<!-- Shopify product picker (Products panel "Edit label", when Shopify is
-     connected) — picks a real product/variant from the live store instead
-     of typing a label by hand. -->
-<div class="modal" id="ampShopifyPickerModal" onclick="if(event.target===this)closeShopifyPicker()">
-  <div class="login-card" style="max-width:520px;width:94vw;text-align:left;max-height:80vh;overflow-y:auto">
-    <button class="x" onclick="closeShopifyPicker()" aria-label="Close">×</button>
-    <h3>Link <span id="amp-picker-sku"></span> to a Shopify product</h3>
-    <p class="sub">Pick the real product this SKU corresponds to — its name, image, and live inventory will show up throughout Amplify.</p>
-    <div id="amp-picker-list" style="margin-top:14px"></div>
-    <p id="amp-picker-error" class="auth-error"></p>
-    <button type="button" class="dbtn" style="width:100%;justify-content:center;margin-top:10px" onclick="editSkuLabelManuallyFromPicker()">Enter a label manually instead</button>
-  </div>
-</div>
 
 <script>
   /* page auth: apply user from token + wire logout — identical pattern to
