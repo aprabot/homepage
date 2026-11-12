@@ -67,12 +67,16 @@
   // generic colored dot or plain text.
   var PLATFORM_ICONS = {
     meta: '<svg class="pf-ic" viewBox="0 0 24 24" width="14" height="14" fill="#0668E1" aria-hidden="true"><path d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z"/></svg>',
-    google: '<svg class="pf-ic" viewBox="0 0 24 24" width="14" height="14" fill="#4285F4" aria-hidden="true"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>'
+    google: '<svg class="pf-ic" viewBox="0 0 24 24" width="14" height="14" fill="#4285F4" aria-hidden="true"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>',
+    shopify: '<svg class="pf-ic" viewBox="0 0 24 24" width="14" height="14" fill="#95BF47" aria-hidden="true"><path d="M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z"/></svg>'
   };
 
   function platformIcon(platform) { return PLATFORM_ICONS[platform] || ''; }
   function platformLabel(platform) {
-    return platform === 'meta' ? 'Meta' : platform === 'google' ? 'Google' : escHtml(platform || '');
+    if (platform === 'meta') return 'Meta';
+    if (platform === 'google') return 'Google';
+    if (platform === 'shopify') return 'Shopify';
+    return escHtml(platform || '');
   }
 
   /* ---------------- shared forecast-data fetch + SKU stats ----------------
@@ -132,6 +136,15 @@
     return apiFetch(CAMPAIGNS_API + '/sku-labels').then(function (res) {
       labelsCache = res.ok ? res.body : {};
       return labelsCache;
+    });
+  }
+
+  var shopifyStatusCache = null;
+  function fetchShopifyStatus() {
+    if (shopifyStatusCache !== null) return Promise.resolve(shopifyStatusCache);
+    return apiFetch(OAUTH_API + '/status').then(function (res) {
+      shopifyStatusCache = !!(res.ok && res.body.shopify && res.body.shopify.status === 'connected');
+      return shopifyStatusCache;
     });
   }
 
@@ -229,6 +242,9 @@
       var tr = document.createElement('tr');
       var img = skuImage(labels, row.sku);
       var trendStr = row.trendPct == null ? 'n/a' : (row.trendPct >= 0 ? '+' : '') + row.trendPct.toFixed(1) + '%';
+      var info = labels[row.sku] || {};
+      var invStr = info.shopify_inventory_on_hand != null
+        ? info.shopify_inventory_on_hand.toLocaleString() + ' on hand' : '—';
       tr.innerHTML =
         '<td>' + (img ? '<img class="amp-sku-thumb" src="' + escHtml(img) + '">' : '') +
           escHtml(skuLabel(labels, row.sku)) + '</td>' +
@@ -236,26 +252,109 @@
         '<td>' + trendStr + '</td>' +
         '<td><span class="pill ' + (row.confidenceTier === 'High' ? 'ok' : row.confidenceTier === 'Medium' ? 'warn' : 'risk') + '">' +
           row.confidenceTier + '</span></td>' +
+        '<td>' + escHtml(invStr) + '</td>' +
         '<td><button class="dbtn amp-edit-label-btn" style="padding:5px 11px;font-size:12.5px">Edit label</button></td>';
       tr.querySelector('.amp-edit-label-btn').onclick = function () { editSkuLabel(row.sku, labels); };
       tbody.appendChild(tr);
     });
   }
 
-  function editSkuLabel(sku, labels) {
-    var current = labels[sku] || {};
-    var label = window.prompt('Display name for ' + sku + ' (leave blank to revert to the plain SKU id):', current.label || '');
-    if (label === null) return; // cancelled
-    var imageUrl = window.prompt('Image URL (must start with https://, leave blank for none):', current.image_url || '');
-    if (imageUrl === null) return;
-    apiFetch(CAMPAIGNS_API + '/sku-labels', {
+  function saveSkuLabel(sku, fields) {
+    return apiFetch(CAMPAIGNS_API + '/sku-labels', {
       method: 'PUT', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ sku: sku, label: label, image_url: imageUrl }),
+      body: JSON.stringify(Object.assign({ sku: sku }, fields)),
     }).then(function (res) {
       if (!res.ok) { alert(res.body.error || 'Could not save label'); return; }
       labelsCache = null; // force refetch so every panel picks up the change
       window.loadProducts();
     });
+  }
+
+  function editSkuLabelManually(sku, labels) {
+    var current = labels[sku] || {};
+    var label = window.prompt('Display name for ' + sku + ' (leave blank to revert to the plain SKU id):', current.label || '');
+    if (label === null) return; // cancelled
+    var imageUrl = window.prompt('Image URL (must start with https://, leave blank for none):', current.image_url || '');
+    if (imageUrl === null) return;
+    saveSkuLabel(sku, { label: label, image_url: imageUrl });
+  }
+
+  // If Shopify is connected, offer picking a real product from the live
+  // catalog instead of typing a label by hand — same end result
+  // (sku_labels.json gets a label/image), just sourced from a real product
+  // the admin picked rather than free text. Falls back to the manual
+  // prompt() flow when Shopify isn't connected.
+  function editSkuLabel(sku, labels) {
+    fetchShopifyStatus().then(function (connected) {
+      if (connected) openShopifyPicker(sku, labels);
+      else editSkuLabelManually(sku, labels);
+    });
+  }
+
+  var pickerSku = null;
+  var pickerLabels = null;
+
+  function openShopifyPicker(sku, labels) {
+    pickerSku = sku;
+    pickerLabels = labels;
+    document.getElementById('amp-picker-sku').textContent = sku;
+    var list = document.getElementById('amp-picker-list');
+    var errEl = document.getElementById('amp-picker-error');
+    errEl.textContent = '';
+    list.innerHTML = '<p class="dsubtle">Loading your Shopify catalog…</p>';
+    document.getElementById('ampShopifyPickerModal').classList.add('open');
+
+    apiFetch(CAMPAIGNS_API + '/shopify-products').then(function (res) {
+      if (!res.ok) {
+        list.innerHTML = '';
+        errEl.textContent = res.body.error || 'Could not load the Shopify catalog';
+        return;
+      }
+      var products = res.body.products || [];
+      if (!products.length) {
+        list.innerHTML = '<p class="dsubtle">No products found in this Shopify store.</p>';
+        return;
+      }
+      list.innerHTML = '';
+      products.forEach(function (p) {
+        var row = document.createElement('div');
+        row.className = 'amp-picker-row';
+        row.innerHTML =
+          (p.image_url ? '<img src="' + escHtml(p.image_url) + '">' : '<img>') +
+          '<div class="title">' + escHtml(p.title) + '</div>' +
+          '<div class="variants"></div>';
+        var variantsEl = row.querySelector('.variants');
+        (p.variants || []).forEach(function (v) {
+          var btn = document.createElement('button');
+          btn.className = 'dbtn';
+          btn.style.cssText = 'padding:4px 10px;font-size:12px';
+          btn.textContent = 'Select' + (v.title && v.title !== 'Default Title' ? ' — ' + v.title : '');
+          btn.onclick = function () { selectShopifyVariant(p, v); };
+          variantsEl.appendChild(btn);
+        });
+        list.appendChild(row);
+      });
+    });
+  }
+
+  function selectShopifyVariant(product, variant) {
+    var label = product.title + (variant.title && variant.title !== 'Default Title' ? ' — ' + variant.title : '');
+    saveSkuLabel(pickerSku, {
+      label: label, image_url: product.image_url || '',
+      shopify_product_id: product.id, shopify_variant_id: variant.id,
+      shopify_inventory_item_id: variant.inventory_item_id,
+    }).then(function () { closeShopifyPicker(); });
+  }
+
+  function closeShopifyPicker() {
+    document.getElementById('ampShopifyPickerModal').classList.remove('open');
+    pickerSku = null; pickerLabels = null;
+  }
+
+  function editSkuLabelManuallyFromPicker() {
+    var sku = pickerSku, labels = pickerLabels;
+    closeShopifyPicker();
+    if (sku) editSkuLabelManually(sku, labels || {});
   }
 
   function loadProducts() {
@@ -420,27 +519,32 @@
   /* ---------------- Connect Accounts (Integrations & Settings) ---------------- */
 
   function renderConnectAccounts(status) {
-    ['meta', 'google'].forEach(function (platform) {
+    ['meta', 'google', 'shopify'].forEach(function (platform) {
       var card = document.getElementById('amp-connect-' + platform);
       if (!card) return;
       var s = status[platform] || { status: 'not_connected' };
       var badge = card.querySelector('.amp-conn-status');
       var btn = card.querySelector('.amp-conn-btn');
+      var shopInput = card.querySelector('.amp-shop-input');
       if (s.status === 'connected') {
         badge.textContent = 'Connected' + (s.external_account_id ? ' — ' + s.external_account_id : '');
         badge.className = 'pill ok amp-conn-status';
         btn.textContent = 'Disconnect';
         btn.onclick = function () { disconnectPlatform(platform); };
-      } else if (s.status === 'revoked') {
-        badge.textContent = 'Disconnected';
-        badge.className = 'pill warn amp-conn-status';
-        btn.textContent = 'Reconnect';
-        btn.onclick = function () { connectPlatform(platform); };
+        if (shopInput) shopInput.style.display = 'none';
       } else {
-        badge.textContent = 'Not connected';
-        badge.className = 'pill risk amp-conn-status';
-        btn.textContent = 'Connect';
-        btn.onclick = function () { connectPlatform(platform); };
+        badge.textContent = s.status === 'revoked' ? 'Disconnected' : 'Not connected';
+        badge.className = (s.status === 'revoked' ? 'pill warn' : 'pill risk') + ' amp-conn-status';
+        btn.textContent = s.status === 'revoked' ? 'Reconnect' : 'Connect';
+        btn.onclick = function () {
+          // Shopify has no fixed authorize URL — it's per-shop — so the
+          // admin has to tell us the shop domain before Connect means
+          // anything; Meta/Google need nothing extra.
+          var shop = shopInput ? shopInput.value.trim() : undefined;
+          if (shopInput && !shop) { shopInput.focus(); return; }
+          connectPlatform(platform, shop);
+        };
+        if (shopInput) shopInput.style.display = '';
       }
     });
   }
@@ -451,8 +555,10 @@
     });
   }
 
-  function connectPlatform(platform) {
-    apiFetch(OAUTH_API + '/' + platform + '/start').then(function (res) {
+  function connectPlatform(platform, shop) {
+    var url = OAUTH_API + '/' + platform + '/start';
+    if (shop) url += '?shop=' + encodeURIComponent(shop);
+    apiFetch(url).then(function (res) {
       if (res.ok) {
         window.location.href = res.body.authorize_url;
       } else if (res.status === 501) {
@@ -467,6 +573,7 @@
   function disconnectPlatform(platform) {
     if (!confirm('Disconnect this ' + platform + ' account? Campaigns already created will keep running on the platform itself, but Amplify will stop being able to manage them until you reconnect.')) return;
     apiFetch(OAUTH_API + '/' + platform + '/disconnect', { method: 'POST' }).then(function () {
+      shopifyStatusCache = null; // re-check on next Products panel visit
       loadConnectAccounts();
     });
   }
@@ -655,6 +762,8 @@
   window.closeWizard = closeWizard;
   window.wizardGoto = wizardGoto;
   window.submitWizard = submitWizard;
+  window.closeShopifyPicker = closeShopifyPicker;
+  window.editSkuLabelManuallyFromPicker = editSkuLabelManuallyFromPicker;
 
   document.addEventListener('DOMContentLoaded', function () {
     var form = document.getElementById('ampCampaignForm');

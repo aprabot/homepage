@@ -2,6 +2,8 @@ import hashlib
 import json
 import os
 import re
+import urllib.error
+import urllib.request
 import uuid
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -15,6 +17,7 @@ from platform_clients import google_mock as google_client
 
 s3  = boto3.client('s3')
 ddb = boto3.resource('dynamodb')
+secretsmanager = boto3.client('secretsmanager')
 BUCKET = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
 TABLE_NAME = os.environ.get('TABLE_NAME', 'aprabot-amplify')
 table = ddb.Table(TABLE_NAME)
@@ -138,8 +141,111 @@ def _sku_labels_key(org):
     return f'orgs/{org}/amplify/sku_labels.json'
 
 
+# ---- Shopify as a product-catalog/inventory data source (not an ad
+# platform — it never joins PLATFORMS/the Campaign Builder). Resolving
+# SKU-### -> a real product is necessarily a manual, org-admin pick (the
+# forecast catalog is anonymized by design, so there's no shared identifier
+# to auto-match against) — this just backs that pick with a real live
+# Shopify catalog instead of free-text label entry. ----
+SHOPIFY_API_VERSION = '2024-10'
+_SHOPIFY_LINK_NEXT_RE = re.compile(r'<([^>]+)>;\s*rel="next"')
+
+
+def _get_shopify_token(org):
+    """(shop_domain, access_token) for this org's connected Shopify store,
+    or (None, None) if not connected. Reads the same CONN#{platform} item +
+    Secrets Manager token amplify-oauth writes — no shared library between
+    Lambdas in this repo (see the _org_id comment above), so this is a
+    small, deliberate duplicate of amplify-oauth's own connection read, not
+    a new concept."""
+    item = table.get_item(Key={'pk': f'ORG#{org}', 'sk': 'CONN#shopify'}).get('Item')
+    if not item or item.get('status') != 'connected':
+        return None, None
+    shop = item.get('external_account_id')
+    token_ref = item.get('token_ref')
+    if not shop or not token_ref:
+        return None, None
+    token = secretsmanager.get_secret_value(SecretId=token_ref)['SecretString']
+    return shop, token
+
+
+def _shopify_api_get(url, token):
+    req = urllib.request.Request(url, headers={'X-Shopify-Access-Token': token,
+                                                 'Accept': 'application/json'})
+    with urllib.request.urlopen(req, timeout=10) as resp:
+        body = json.loads(resp.read().decode('utf-8'))
+        link = resp.headers.get('Link')
+    return body, link
+
+
+def get_shopify_products(org):
+    """Real, live catalog from the org's connected Shopify store, for the
+    Products panel's picker — never cached/persisted here, always a fresh
+    read, so the picker always reflects what's actually in the store today."""
+    shop, token = _get_shopify_token(org)
+    if not shop:
+        return _resp(404, {'error': 'Shopify is not connected for this organization'})
+
+    products = []
+    url = (f'https://{shop}/admin/api/{SHOPIFY_API_VERSION}/products.json'
+           f'?limit=250&fields=id,title,image,variants')
+    pages = 0
+    try:
+        while url and pages < 5:  # 1,250 products comfortably covers any real catalog this app serves
+            pages += 1
+            data, link = _shopify_api_get(url, token)
+            for p in data.get('products', []):
+                products.append({
+                    'id': p['id'], 'title': p.get('title'),
+                    'image_url': (p.get('image') or {}).get('src'),
+                    'variants': [
+                        {'id': v['id'], 'title': v.get('title'), 'sku': v.get('sku'),
+                         'inventory_item_id': v.get('inventory_item_id')}
+                        for v in p.get('variants', [])
+                    ],
+                })
+            m = _SHOPIFY_LINK_NEXT_RE.search(link or '')
+            url = m.group(1) if m else None
+    except urllib.error.HTTPError as exc:
+        return _resp(502, {'error': f'Shopify API call failed ({exc.code})'})
+    return _resp(200, {'products': products})
+
+
+def _shopify_inventory_on_hand(shop, token, inventory_item_ids):
+    """Real on-hand inventory for the given Shopify inventory_item_ids,
+    summed across every location. Supplements — never replaces — the
+    Cycle+Safety Stock methodology in latest_inventory.json: that's "how
+    much *should* be stocked" from demand history, this is "how much
+    really *is* on the shelf right now" from the store itself."""
+    ids = ','.join(str(i) for i in inventory_item_ids)
+    url = (f'https://{shop}/admin/api/{SHOPIFY_API_VERSION}/inventory_levels.json'
+           f'?inventory_item_ids={ids}&limit=250')
+    data, _link = _shopify_api_get(url, token)
+    totals = {}
+    for lvl in data.get('inventory_levels', []):
+        iid = lvl['inventory_item_id']
+        totals[iid] = totals.get(iid, 0) + (lvl.get('available') or 0)
+    return totals
+
+
 def get_sku_labels(org):
     labels = _read_json(_sku_labels_key(org), default={})
+    linked = {sku: info['shopify_inventory_item_id'] for sku, info in labels.items()
+              if info.get('shopify_inventory_item_id')}
+    if linked:
+        shop, token = _get_shopify_token(org)
+        if shop:
+            try:
+                totals = _shopify_inventory_on_hand(shop, token, linked.values())
+                for sku, iid in linked.items():
+                    on_hand = totals.get(int(iid)) if str(iid).isdigit() else totals.get(iid)
+                    if on_hand is not None:
+                        labels[sku] = {**labels[sku], 'shopify_inventory_on_hand': on_hand}
+            except Exception as exc:
+                # Best-effort enrichment — the label data itself (real,
+                # already persisted) must still come back even if Shopify's
+                # API is down/rate-limited right now.
+                print(f"SHOPIFY_INVENTORY_LOOKUP_FAILED[{org}]: {exc}")
     return _resp(200, labels)
 
 
@@ -158,11 +264,24 @@ def put_sku_labels(org, caller_email, event):
     image_url = (body.get('image_url') or '').strip()[:500]
     if image_url and not image_url.startswith('https://'):
         return _resp(400, {'error': 'image_url must be an https:// URL'})
+    # Set when this label came from the Shopify picker rather than manual
+    # entry — opaque ids, just stored as given, no format validation beyond
+    # length (they're never interpreted locally, only echoed back to
+    # Shopify's own API on later inventory lookups).
+    shopify_product_id = (str(body.get('shopify_product_id') or '').strip()[:64]) or None
+    shopify_variant_id = (str(body.get('shopify_variant_id') or '').strip()[:64]) or None
+    shopify_inventory_item_id = (str(body.get('shopify_inventory_item_id') or '').strip()[:64]) or None
 
     labels = _read_json(_sku_labels_key(org), default={})
     if label or image_url:
-        labels[sku] = {'label': label, 'image_url': image_url,
-                        'updated_by': caller_email, 'updated_at': _now()}
+        labels[sku] = {
+            'label': label, 'image_url': image_url,
+            'source': 'shopify' if shopify_product_id else 'manual',
+            'shopify_product_id': shopify_product_id,
+            'shopify_variant_id': shopify_variant_id,
+            'shopify_inventory_item_id': shopify_inventory_item_id,
+            'updated_by': caller_email, 'updated_at': _now(),
+        }
     else:
         labels.pop(sku, None)  # both fields cleared — revert to the plain SKU id
     _write_json(_sku_labels_key(org), labels)
@@ -680,6 +799,9 @@ def handler(event, context):
 
         if method == 'PUT' and path == '/amplify-campaigns/sku-labels':
             return put_sku_labels(org, caller_email, event)
+
+        if method == 'GET' and path == '/amplify-campaigns/shopify-products':
+            return get_shopify_products(org)
 
         if method == 'GET' and path == '/amplify-campaigns/recommendations':
             return get_recommendations(org)

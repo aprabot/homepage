@@ -1,18 +1,22 @@
-"""OAuth connect/disconnect flow for Amplify's Meta + Google Ads integrations.
+"""OAuth connect/disconnect flow for Amplify's Meta + Google Ads integrations,
+plus Shopify — connected not as an ad platform but as a real product-catalog/
+inventory data source for the Products panel (see amplify-campaigns' README).
 
 STATUS (see the Amplify plan, Milestone 0/1): `status` and `disconnect` are
 fully functional against DynamoDB. `start`/`callback` are structurally
 complete (state-nonce round-trip, org correlation, the one place in this
 whole app where org identity can't come from a JWT — see the comment on
-`callback` for why) but return a clear 501 until real Meta/Google app
+`callback` for why) but return a clear 501 until real Meta/Google/Shopify app
 credentials exist (env vars below) — there is nothing to connect to yet.
 Swapping in real credentials + the real token-exchange HTTP calls is
 Milestone 1/2 work, gated on each platform's own app-review timeline, not
 an engineering blocker.
 """
 import hashlib
+import hmac
 import json
 import os
+import re
 import secrets
 import time
 import urllib.error
@@ -43,6 +47,10 @@ PLATFORM_CONFIG = {
         'token_url': 'https://graph.facebook.com/v21.0/oauth/access_token',
         'scope': 'ads_management',
         'extra_auth_params': {},
+        # Meta's token exchange returns {"access_token": ...} — there is no
+        # refresh_token field in this flow at all. token_field says which
+        # key in the token-exchange response callback() should store.
+        'token_field': 'access_token',
     },
     'google': {
         'client_id_env': 'GOOGLE_OAUTH_CLIENT_ID',
@@ -57,8 +65,28 @@ PLATFORM_CONFIG = {
         # would leave us with no way to get a new token if the stored one
         # is ever lost/revoked.
         'extra_auth_params': {'access_type': 'offline', 'prompt': 'consent'},
+        'token_field': 'refresh_token',
+    },
+    'shopify': {
+        'client_id_env': 'SHOPIFY_API_KEY',
+        'client_secret_name': 'amplify/shopify/client_secret',
+        # No single fixed authorize_url/token_url — Shopify's OAuth is
+        # per-shop (https://{shop}.myshopify.com/admin/oauth/...). Both are
+        # built at request time in start()/_exchange_code_for_token() using
+        # the shop domain instead of a static value here.
+        'authorize_url': None,
+        'token_url': None,
+        # Read-only: Amplify only ever consumes Shopify's catalog/inventory
+        # data, never writes to the store.
+        'scope': 'read_products,read_inventory',
+        'extra_auth_params': {},
+        # Shopify access tokens don't expire, so there's no refresh_token —
+        # the token exchange returns {"access_token": ...} directly.
+        'token_field': 'access_token',
     },
 }
+
+_SHOP_DOMAIN_RE = re.compile(r'^[a-z0-9][a-z0-9-]*\.myshopify\.com$')
 
 # ---- organization scoping — identical copy to scenarios-api/handler.py's. ----
 _FREE_EMAIL_DOMAINS = {
@@ -130,7 +158,7 @@ def status(org):
     return _resp(200, out)
 
 
-def start(platform, org, caller_email):
+def start(platform, org, caller_email, shop=None):
     if platform not in PLATFORM_CONFIG:
         return _resp(404, {'error': f'unknown platform {platform}'})
     cfg = PLATFORM_CONFIG[platform]
@@ -143,19 +171,32 @@ def start(platform, org, caller_email):
         return _resp(501, {'error': f'{platform} integration is not yet configured '
                                       f'(pending app review) — nothing to connect to yet'})
 
+    # Shopify has no single fixed authorize_url — it's per-shop
+    # (https://{shop}.myshopify.com/admin/oauth/authorize), so the shop
+    # domain has to come from the caller before we know where to send them.
+    authorize_url = cfg['authorize_url']
+    if platform == 'shopify':
+        shop = (shop or '').strip().lower()
+        if not _SHOP_DOMAIN_RE.match(shop):
+            return _resp(400, {'error': 'shop must look like yourstore.myshopify.com'})
+        authorize_url = f'https://{shop}/admin/oauth/authorize'
+
     # Opaque state nonce, TTL'd in DynamoDB, correlates the callback back to
     # this org — the callback request itself carries no JWT (Meta/Google
     # redirect the browser here with no Authorization header of ours), so
     # this round-trip is the ONLY place in this app where org identity
     # doesn't come directly from a JWT claim. See handler()'s callback route.
     state = secrets.token_urlsafe(24)
-    table.put_item(Item={
+    state_item = {
         'pk': f'OAUTH_STATE#{state}', 'sk': 'STATE',
         'entity_type': 'oauth_state',
         'org_id': org, 'platform': platform, 'initiated_by': caller_email,
         'created_at': _now(),
         'ttl': int(time.time()) + 600,  # 10 minutes to complete the redirect round-trip
-    })
+    }
+    if platform == 'shopify':
+        state_item['shop'] = shop  # cross-checked against callback's own ?shop= param
+    table.put_item(Item=state_item)
 
     params = {
         'client_id': client_id,
@@ -165,7 +206,7 @@ def start(platform, org, caller_email):
         'response_type': 'code',
         **cfg['extra_auth_params'],
     }
-    return _resp(200, {'authorize_url': f"{cfg['authorize_url']}?{urlencode(params)}"})
+    return _resp(200, {'authorize_url': f"{authorize_url}?{urlencode(params)}"})
 
 
 def _get_secret(name):
@@ -188,31 +229,60 @@ def _store_refresh_token(org, platform, refresh_token):
     return name
 
 
-def _exchange_code_for_token(platform, code, client_id, redirect_uri):
-    """POST the real token-exchange request to Meta/Google — plain
+def _exchange_code_for_token(platform, code, client_id, redirect_uri, shop=None):
+    """POST the real token-exchange request to Meta/Google/Shopify — plain
     urllib.request rather than adding a `requests` dependency this Lambda
-    has never needed before. Returns the parsed JSON response, which both
-    platforms return as {access_token, refresh_token/expires fields, ...}
-    on success, or raises with the platform's own error body on failure
-    (surfaced to the caller rather than swallowed, since a failed exchange
-    here means the connection genuinely didn't happen)."""
+    has never needed before. Returns the parsed JSON response (shape varies
+    by platform — see each PLATFORM_CONFIG entry's token_field) on success,
+    or raises with the platform's own error body on failure (surfaced to
+    the caller rather than swallowed, since a failed exchange here means
+    the connection genuinely didn't happen).
+
+    Shopify differs from Meta/Google here in two ways: the token endpoint
+    is per-shop, not a fixed URL, and it wants a plain JSON body (no
+    grant_type/redirect_uri) rather than form-encoded data.
+    """
     cfg = PLATFORM_CONFIG[platform]
     client_secret = _get_secret(cfg['client_secret_name'])
-    data = urlencode({
-        'code': code,
-        'client_id': client_id,
-        'client_secret': client_secret,
-        'redirect_uri': redirect_uri,
-        'grant_type': 'authorization_code',
-    }).encode('utf-8')
-    req = urllib.request.Request(cfg['token_url'], data=data, method='POST',
-                                  headers={'Content-Type': 'application/x-www-form-urlencoded'})
+
+    if platform == 'shopify':
+        token_url = f'https://{shop}/admin/oauth/access_token'
+        payload = json.dumps({
+            'client_id': client_id, 'client_secret': client_secret, 'code': code,
+        }).encode('utf-8')
+        headers = {'Content-Type': 'application/json'}
+    else:
+        token_url = cfg['token_url']
+        payload = urlencode({
+            'code': code,
+            'client_id': client_id,
+            'client_secret': client_secret,
+            'redirect_uri': redirect_uri,
+            'grant_type': 'authorization_code',
+        }).encode('utf-8')
+        headers = {'Content-Type': 'application/x-www-form-urlencoded'}
+
+    req = urllib.request.Request(token_url, data=payload, method='POST', headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=10) as resp:
             return json.loads(resp.read().decode('utf-8'))
     except urllib.error.HTTPError as exc:
         body = exc.read().decode('utf-8', errors='replace')
         raise RuntimeError(f'{platform} token exchange failed ({exc.code}): {body}') from exc
+
+
+def _verify_shopify_hmac(query_params, client_secret):
+    """Shopify's own documented callback-verification algorithm: drop
+    hmac/signature, sort the rest lexicographically by key, join as
+    key=value pairs with &, HMAC-SHA256 against the client secret, compare
+    to the hmac query param. Required by Shopify's own app-review security
+    checklist — without it, a forged callback could be used to associate an
+    attacker-controlled shop/token with a victim org."""
+    params = {k: v for k, v in query_params.items() if k not in ('hmac', 'signature')}
+    message = '&'.join(f'{k}={v}' for k, v in sorted(params.items()))
+    digest = hmac.new(client_secret.encode('utf-8'), message.encode('utf-8'), hashlib.sha256).hexdigest()
+    provided = query_params.get('hmac', '')
+    return hmac.compare_digest(digest, provided)
 
 
 def callback(platform, event):
@@ -235,36 +305,52 @@ def callback(platform, event):
     if not cfg or not client_id:
         return _redirect(f'{AMPLIFY_BASE_URL}?error={platform}_not_yet_configured')
 
+    shop = None
+    if platform == 'shopify':
+        shop = (qs.get('shop') or '').strip().lower()
+        # The shop that initiated the connect (stored in start()) must match
+        # the shop Shopify is redirecting back for — otherwise this callback
+        # could be used to attach a different store's code to this org.
+        if not shop or shop != state_item.get('shop'):
+            return _redirect(f'{AMPLIFY_BASE_URL}?error=shop_mismatch')
+        client_secret = _get_secret(cfg['client_secret_name'])
+        if not _verify_shopify_hmac(qs, client_secret):
+            print(f"OAUTH_CALLBACK_ERROR[{org}/shopify]: hmac verification failed")
+            return _redirect(f'{AMPLIFY_BASE_URL}?error=hmac_verification_failed')
+
     try:
         tokens = _exchange_code_for_token(
-            platform, code, client_id, redirect_uri=f'{OAUTH_API_BASE}/{platform}/callback')
+            platform, code, client_id, redirect_uri=f'{OAUTH_API_BASE}/{platform}/callback', shop=shop)
     except Exception as exc:
         print(f"OAUTH_CALLBACK_ERROR[{org}/{platform}]: {exc}")
         return _redirect(f'{AMPLIFY_BASE_URL}?error=token_exchange_failed')
 
-    refresh_token = tokens.get('refresh_token')
-    if not refresh_token:
+    token = tokens.get(cfg['token_field'])
+    if not token:
         # Expected if this org already connected once before and Google
-        # didn't re-issue one — but start() always sends prompt=consent
-        # specifically to force a fresh one every time, so this should only
-        # happen if that ever regresses. Surfacing it rather than silently
-        # "connecting" with nothing to actually operate on later.
-        print(f"OAUTH_CALLBACK_ERROR[{org}/{platform}]: no refresh_token in response — "
+        # didn't re-issue a refresh_token — but start() always sends
+        # prompt=consent specifically to force a fresh one every time, so
+        # this should only happen if that ever regresses (for Meta/Shopify,
+        # whose token_field is access_token, this firing would mean the
+        # exchange response itself was malformed). Surfacing it rather than
+        # silently "connecting" with nothing to actually operate on later.
+        print(f"OAUTH_CALLBACK_ERROR[{org}/{platform}]: no {cfg['token_field']} in response — "
               f"got keys: {list(tokens.keys())}")
-        return _redirect(f'{AMPLIFY_BASE_URL}?error=no_refresh_token_returned')
+        return _redirect(f'{AMPLIFY_BASE_URL}?error=no_token_returned')
 
-    token_ref = _store_refresh_token(org, platform, refresh_token)
-    # external_account_id isn't known yet at this point — for Google that
-    # needs a listAccessibleCustomers call (requires the Developer Token,
-    # not yet in hand per the Amplify plan's Milestone 1); for Meta a
-    # /me/adaccounts call. Left null until that follow-up lands; nothing in
-    # this app currently depends on it being non-null.
+    token_ref = _store_refresh_token(org, platform, token)
+    # external_account_id: Shopify's is simply the shop domain, known
+    # immediately. For Google that needs a listAccessibleCustomers call
+    # (requires the Developer Token, not yet in hand per the Amplify plan's
+    # Milestone 1); for Meta a /me/adaccounts call. Left null for those
+    # until that follow-up lands; nothing in this app currently depends on
+    # it being non-null.
     table.put_item(Item={
         'pk': f'ORG#{org}', 'sk': f'CONN#{platform}',
         'entity_type': 'connection',
         'platform': platform,
         'status': 'connected',
-        'external_account_id': None,
+        'external_account_id': shop,
         'token_ref': token_ref,
         'connected_by': state_item.get('initiated_by'),
         'connected_at': _now(),
@@ -306,7 +392,8 @@ def handler(event, context):
 
         if method == 'GET' and path.endswith('/start'):
             platform = path.split('/')[-2]
-            return start(platform, org, caller_email)
+            shop = (event.get('queryStringParameters') or {}).get('shop')
+            return start(platform, org, caller_email, shop=shop)
 
         if method == 'POST' and path.endswith('/disconnect'):
             platform = path.split('/')[-2]

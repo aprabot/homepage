@@ -66,6 +66,23 @@ pipeline) by deliberate policy. This is the only place a product gets a human la
 only if an org admin sets one (`orgs/{org}/amplify/sku_labels.json`) — real,
 customer-entered, opt-in, never a fabricated name/photo. Falls back to the plain SKU id.
 
+Two ways to set one: type a label/image URL by hand (`source: 'manual'`), or — if the org
+has connected Shopify (see `amplify-oauth`) — pick a real product from their live catalog
+via `GET /amplify-campaigns/shopify-products` (`source: 'shopify'`, also stores
+`shopify_product_id`/`shopify_variant_id`/`shopify_inventory_item_id`). Either way the
+label/image itself is real; Shopify just replaces typing with picking from a live list.
+There's no automatic SKU<->Shopify-product matching — the forecast catalog is anonymized
+by design, so there's no shared identifier to match on. This has to stay a manual,
+org-admin pick.
+
+`GET /sku-labels` also enriches any Shopify-linked SKU with a live
+`shopify_inventory_on_hand` figure (real on-hand units from the store right now) —
+**alongside**, never replacing, `latest_inventory.json`'s Cycle+Safety Stock numbers.
+Those answer "how much *should* be stocked" from demand history; this answers "how much
+really *is* on the shelf." Best-effort: a Shopify API hiccup just omits that one field,
+never fails the whole response (the label data itself is always real and already
+persisted).
+
 ## Deploy
 
 Pure boto3 — no extra dependencies to install (`boto3`/`botocore` ship with the Lambda
@@ -81,9 +98,13 @@ aws lambda update-function-code --function-name aprabot-amplify-campaigns \
 Env vars: `BUCKET_NAME`, `TABLE_NAME` (default `aprabot-amplify`). Runs under
 `aprabot-amplify-lambda-role` (DynamoDB access scoped to this table, S3 scoped to
 `orgs/*/amplify/*` read/write and `orgs/*/forecast/*` read-only — the latter needed so
-the recommendation engine can read real forecast/inventory data). Routes live on the same
-`ktksptlz75` API Gateway as every other Lambda in this app, behind the same Cognito JWT
-authorizer (`aprabot-cognito-jwt`) already protecting `/scenarios`.
+the recommendation engine can read real forecast/inventory data, plus a narrow
+`secretsmanager:GetSecretValue` on `amplify/*/shopify/*` so `get_shopify_products`/the
+inventory lookup can read an org's stored Shopify token — this Lambda doesn't touch
+Meta/Google tokens at all, those stay exclusive to `amplify-oauth`/`amplify-sync-worker`).
+Routes live on the same `ktksptlz75` API Gateway as every other Lambda in this app,
+behind the same Cognito JWT authorizer (`aprabot-cognito-jwt`) already protecting
+`/scenarios`.
 
 **Note**: the API-level CORS config needed `PATCH` (Milestone 0) and later `PUT`
 (sku-labels) added to `AllowMethods` — same class of bug as the Knowledge Base tab's

@@ -1,17 +1,44 @@
 # aprabot-amplify-oauth
 
-OAuth connect/disconnect flow for Amplify's Meta + Google Ads integrations.
+OAuth connect/disconnect flow for Amplify's Meta + Google Ads integrations, plus
+Shopify — connected not as an ad platform but as a real product-catalog/inventory data
+source for the Products panel (see `amplify-campaigns`' README for that side).
 
-## Status (Milestone 0)
+## Status (Milestone 0/1)
 
 `GET /status` and `POST /{platform}/disconnect` are fully functional against DynamoDB.
 `GET /{platform}/start` and `GET /{platform}/callback` are structurally complete (the
 state-nonce round-trip, org correlation) but `start` returns `501` until that platform's
-real app credentials exist as env vars (`META_APP_ID`, `GOOGLE_OAUTH_CLIENT_ID`) — there's
-nothing to connect to yet, and the frontend's Connect Accounts panel should show that
-platform as pending rather than let a user attempt a connection that can't succeed. This
-is expected, not a bug — see the Amplify plan's Milestone 1/2 for what unblocks it (each
-platform's own app-review timeline, outside engineering's control).
+real app credentials exist as env vars (`META_APP_ID`, `GOOGLE_OAUTH_CLIENT_ID`,
+`SHOPIFY_API_KEY`) — there's nothing to connect to yet, and the frontend's Connect
+Accounts panel should show that platform as pending rather than let a user attempt a
+connection that can't succeed. This is expected, not a bug — each platform's own
+app-review/registration timeline is outside engineering's control. Google's real
+credentials are live (Milestone 1 done); Meta and Shopify are still pending their own
+app review.
+
+## Shopify specifics
+
+Shopify's OAuth differs from Meta/Google in three ways this file handles explicitly,
+not by copy-pasting the Meta/Google path:
+- **Per-shop authorize URL** (`https://{shop}.myshopify.com/admin/oauth/authorize`) —
+  there's no single fixed URL like Meta/Google have, so `start()` requires a `?shop=`
+  query param (validated against `yourstore.myshopify.com`), stored on the state item
+  and cross-checked against the `shop` the callback itself reports.
+- **`token_field` varies by platform** (`PLATFORM_CONFIG[platform]['token_field']`) —
+  Shopify (and Meta) return `access_token`, never `refresh_token` (Shopify tokens don't
+  expire at all). `callback()` reads whichever field that platform's config says, rather
+  than hardcoding `refresh_token` — this also happens to fix a latent bug in the Meta
+  path, which would have hit the same "no token" error once Meta's own review ever
+  cleared.
+- **HMAC callback verification** (`_verify_shopify_hmac`) — a real Shopify app-review
+  requirement (sort query params minus `hmac`/`signature`, join as `key=value&...`,
+  HMAC-SHA256 against the client secret, compare), proving the callback genuinely came
+  from Shopify and not a forged redirect. Meta/Google don't need this — the `state`
+  nonce round-trip is their only CSRF protection and that's sufficient for them.
+
+`external_account_id` is set immediately for Shopify (it's just the shop domain) —
+unlike Meta/Google, which still need a follow-up `/me`-style call neither has yet.
 
 ## The one JWT exception in this whole app
 
@@ -36,9 +63,11 @@ aws lambda update-function-code --function-name aprabot-amplify-oauth \
 
 Env vars: `BUCKET_NAME`, `TABLE_NAME`, `AMPLIFY_BASE_URL` (default
 `https://aprabot.com/amplify/`), `OAUTH_API_BASE` (default this API Gateway's
-`/amplify-oauth` path), plus `META_APP_ID`/`GOOGLE_OAUTH_CLIENT_ID` once each platform's
-app review clears — unset is the correct default state today.
+`/amplify-oauth` path), plus `META_APP_ID`/`GOOGLE_OAUTH_CLIENT_ID`/`SHOPIFY_API_KEY`
+once each platform's app review clears — unset is the correct default state for
+whichever platforms aren't live yet.
 
-Runs under `aprabot-amplify-lambda-role`. Secrets Manager (for refresh tokens, once real
-credentials exist) is NOT yet granted on this role — that IAM grant is explicit Milestone
-1/2 work, deliberately not provisioned ahead of having real secrets to store.
+Runs under `aprabot-amplify-lambda-role`, which has a scoped Secrets Manager grant
+(`amplify/*`, Get/Put/Create/Update/DeleteSecretValue) for refresh/access tokens — granted
+once Google's real credentials went live; Meta and Shopify tokens will land in the same
+place once each has a real app.
