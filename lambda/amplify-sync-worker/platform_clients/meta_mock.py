@@ -26,10 +26,10 @@ def get_performance(connection, external_id, date):
     rng = random.Random(f'{external_id}:{date}')
     impressions = rng.randint(500, 20000)
     clicks = rng.randint(10, max(11, impressions // 20))
-    spend_cents = rng.randint(500, 50000)
+    spend_yen = rng.randint(500, 50000)
     conversions = rng.randint(0, max(1, clicks // 10))
     return {'date': date, 'impressions': impressions, 'clicks': clicks,
-            'spend_cents': spend_cents, 'conversions': conversions}
+            'spend_yen': spend_yen, 'conversions': conversions}
 
 
 def create_campaign(connection, campaign):

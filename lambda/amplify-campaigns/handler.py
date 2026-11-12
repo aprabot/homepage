@@ -22,7 +22,7 @@ table = ddb.Table(TABLE_NAME)
 
 def _json_default(o):
     # boto3's DynamoDB resource API returns all numbers as Decimal — every
-    # numeric attribute this Lambda writes (daily_budget_cents, version) is
+    # numeric attribute this Lambda writes (daily_budget_yen, version) is
     # always a plain int, so round-tripping through int() here is exact,
     # never a float-precision concern.
     if isinstance(o, Decimal):
@@ -73,7 +73,7 @@ def _is_admin(org, email):
 CORS = {
     'Access-Control-Allow-Origin':  '*',
     'Access-Control-Allow-Headers': 'Content-Type,Authorization',
-    'Access-Control-Allow-Methods': 'GET,POST,PATCH,OPTIONS',
+    'Access-Control-Allow-Methods': 'GET,POST,PATCH,PUT,OPTIONS',
 }
 
 
@@ -96,6 +96,11 @@ def _read_json(key, default=None):
         return default
 
 
+def _write_json(key, data):
+    s3.put_object(Bucket=BUCKET, Key=key, Body=json.dumps(data).encode('utf-8'),
+                   ContentType='application/json')
+
+
 def _claims(event):
     try:
         return event['requestContext']['authorizer']['jwt']['claims']
@@ -105,15 +110,63 @@ def _claims(event):
 
 # ---- limits — orgs/{org}/amplify/limits.json, same "absent = default"
 # convention as scenarios/members.json. Server-side enforcement only —
-# never trust a client-side disabled button for a real-money ceiling. ----
-_DEFAULT_DAILY_BUDGET_CENTS_MAX = 50000  # $500/day, conservative v1 default
+# never trust a client-side disabled button for a real-money ceiling.
+#
+# Yen, not USD cents: forecast/latest.json's avgPrice is JPY (the underlying
+# business is Japanese bottled-water demand — real per-unit prices in the
+# 800-2000 range only make sense as yen, never USD). JPY has no commonly-used
+# minor unit, so budgets here are plain integer yen throughout, no x100/÷100
+# "cents" conversion anywhere in this module. ----
+_DEFAULT_DAILY_BUDGET_YEN_MAX = 50000  # ¥50,000/day, conservative v1 default
 
 
 def _budget_ceiling(org):
     limits = _read_json(f'orgs/{org}/amplify/limits.json')
     if limits is None:
-        return _DEFAULT_DAILY_BUDGET_CENTS_MAX
-    return int(limits.get('daily_budget_cents_max', _DEFAULT_DAILY_BUDGET_CENTS_MAX))
+        return _DEFAULT_DAILY_BUDGET_YEN_MAX
+    return int(limits.get('daily_budget_yen_max', _DEFAULT_DAILY_BUDGET_YEN_MAX))
+
+
+# ---- per-org SKU display labels — orgs/{org}/amplify/sku_labels.json, same
+# "absent = default" convention as limits.json/members.json. Real,
+# customer-entered, opt-in: the catalog itself is fully anonymized
+# (SKU-001, no names/images anywhere in the pipeline) by deliberate policy,
+# so this is the ONLY place a product gets a human label, and only if an
+# org admin chooses to set one. Falls back to the plain SKU id — never a
+# fabricated name/photo. ----
+def _sku_labels_key(org):
+    return f'orgs/{org}/amplify/sku_labels.json'
+
+
+def get_sku_labels(org):
+    labels = _read_json(_sku_labels_key(org), default={})
+    return _resp(200, labels)
+
+
+def put_sku_labels(org, caller_email, event):
+    if not _is_admin(org, caller_email):
+        return _resp(403, {'error': 'only an admin can edit product labels for this organization'})
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except json.JSONDecodeError:
+        return _resp(400, {'error': 'invalid JSON body'})
+
+    sku = (body.get('sku') or '').strip()
+    if not re.match(r'^SKU-\d+$', sku):
+        return _resp(400, {'error': 'sku must look like SKU-001'})
+    label = (body.get('label') or '').strip()[:120]
+    image_url = (body.get('image_url') or '').strip()[:500]
+    if image_url and not image_url.startswith('https://'):
+        return _resp(400, {'error': 'image_url must be an https:// URL'})
+
+    labels = _read_json(_sku_labels_key(org), default={})
+    if label or image_url:
+        labels[sku] = {'label': label, 'image_url': image_url,
+                        'updated_by': caller_email, 'updated_at': _now()}
+    else:
+        labels.pop(sku, None)  # both fields cleared — revert to the plain SKU id
+    _write_json(_sku_labels_key(org), labels)
+    return _resp(200, labels.get(sku, {}))
 
 
 # ---- DynamoDB item helpers (first table in this stack — see the Amplify
@@ -168,9 +221,9 @@ def create_campaign(org, caller_email, event, dry_run=False):
     platform = (body.get('platform') or '').strip().lower()
     objective = (body.get('objective') or '').strip().lower()
     try:
-        daily_budget_cents = int(body.get('daily_budget_cents', 0))
+        daily_budget_yen = int(body.get('daily_budget_yen', 0))
     except (TypeError, ValueError):
-        return _resp(400, {'error': 'daily_budget_cents must be an integer'})
+        return _resp(400, {'error': 'daily_budget_yen must be an integer'})
 
     if not name:
         return _resp(400, {'error': 'name is required'})
@@ -178,17 +231,17 @@ def create_campaign(org, caller_email, event, dry_run=False):
         return _resp(400, {'error': f'platform must be one of {sorted(PLATFORMS)}'})
     if objective not in ALLOWED_OBJECTIVES:
         return _resp(400, {'error': f'objective must be one of {sorted(ALLOWED_OBJECTIVES)}'})
-    if daily_budget_cents <= 0:
-        return _resp(400, {'error': 'daily_budget_cents must be positive'})
+    if daily_budget_yen <= 0:
+        return _resp(400, {'error': 'daily_budget_yen must be positive'})
     ceiling = _budget_ceiling(org)
-    if daily_budget_cents > ceiling:
-        return _resp(400, {'error': f'daily_budget_cents exceeds this organization\'s cap '
-                                     f'({ceiling} cents/day) — see Settings to request a higher limit'})
+    if daily_budget_yen > ceiling:
+        return _resp(400, {'error': f'daily_budget_yen exceeds this organization\'s cap '
+                                     f'({ceiling} yen/day) — see Settings to request a higher limit'})
 
     if dry_run:
         return _resp(200, {'dry_run': True, 'would_create': {
             'name': name, 'platform': platform, 'objective': objective,
-            'daily_budget_cents': daily_budget_cents,
+            'daily_budget_yen': daily_budget_yen,
         }})
 
     campaign_id = uuid.uuid4().hex[:16]
@@ -201,7 +254,7 @@ def create_campaign(org, caller_email, event, dry_run=False):
         'platform': platform,
         'name': name,
         'objective': objective,
-        'daily_budget_cents': daily_budget_cents,
+        'daily_budget_yen': daily_budget_yen,
         'status': 'draft',
         'external_id': None,
         'version': 1,
@@ -264,17 +317,17 @@ def update_campaign(org, platform, campaign_id, caller_email, event):
         patch['name'] = (body['name'] or '').strip()
         if not patch['name']:
             return _resp(400, {'error': 'name cannot be empty'})
-    if 'daily_budget_cents' in body:
+    if 'daily_budget_yen' in body:
         try:
-            patch['daily_budget_cents'] = int(body['daily_budget_cents'])
+            patch['daily_budget_yen'] = int(body['daily_budget_yen'])
         except (TypeError, ValueError):
-            return _resp(400, {'error': 'daily_budget_cents must be an integer'})
-        if patch['daily_budget_cents'] <= 0:
-            return _resp(400, {'error': 'daily_budget_cents must be positive'})
+            return _resp(400, {'error': 'daily_budget_yen must be an integer'})
+        if patch['daily_budget_yen'] <= 0:
+            return _resp(400, {'error': 'daily_budget_yen must be positive'})
         ceiling = _budget_ceiling(org)
-        if patch['daily_budget_cents'] > ceiling:
-            return _resp(400, {'error': f'daily_budget_cents exceeds this organization\'s cap '
-                                         f'({ceiling} cents/day)'})
+        if patch['daily_budget_yen'] > ceiling:
+            return _resp(400, {'error': f'daily_budget_yen exceeds this organization\'s cap '
+                                         f'({ceiling} yen/day)'})
     if not patch:
         return _resp(400, {'error': 'no editable fields in request body'})
 
@@ -364,6 +417,223 @@ def list_audit(org):
     return _resp(200, {'entries': resp.get('Items', [])})
 
 
+# ============================================================================
+# AI Opportunities recommendation engine
+#
+# Every number here is derived from real data already in this app
+# (forecast/latest.json, forecast/latest_inventory.json) via a transparent,
+# documented heuristic — never Bedrock-generated, never a placeholder. The
+# constants below ARE the model; they're named and explained so they can be
+# tuned later against real outcomes, not buried as magic numbers.
+# ============================================================================
+
+# Ad-economics assumptions — standard Japanese paid-social e-commerce
+# benchmarks, in yen (see the currency note on _DEFAULT_DAILY_BUDGET_YEN_MAX
+# above — avgPrice is JPY, so every assumption here must be too; mixing a
+# USD-denominated CPM against yen prices is exactly the bug that produced an
+# absurd ~56x ROAS before this was caught and fixed). Revisit these once
+# real campaign performance data (from amplify-sync-worker) accumulates —
+# until then this is a deliberately moderate, credible estimate, not tuned
+# to produce impressive-looking numbers.
+_ASSUMED_CPM_YEN = 300      # ¥300 per 1,000 impressions
+_ASSUMED_CTR = 0.01         # 1% click-through rate
+_ASSUMED_CVR = 0.03         # 3% click-to-purchase conversion rate
+_PREDICTION_BAND = 0.20     # +/-20% range around the point estimate, shown
+                            # as a range rather than false single-number precision
+_MIN_ROAS_TO_RECOMMEND = 1.0  # never recommend a campaign the heuristic itself predicts loses money
+
+# Archetype thresholds.
+_GROWTH_TREND_THRESHOLD_PCT = 10.0   # forward trend must beat this to count as "growing"
+_MIN_HEALTHY_WEEKS_OF_SUPPLY = 2.0   # below this, don't advertise — you'd just stock out faster
+_OVERSTOCK_WEEKS_OF_SUPPLY = 8.0     # above this, there's real excess to move
+
+# Suggested budget = this fraction of the SKU's own near-term forecasted
+# revenue — a conservative ad-spend-to-revenue ratio, not a cap on what the
+# org could spend (the org's own daily budget ceiling, _budget_ceiling(),
+# is the real enforcement; this just sizes a reasonable starting suggestion).
+_BUDGET_REVENUE_FRACTION = 0.15
+_DEFAULT_CAMPAIGN_DURATION_DAYS = 14
+_NEAR_TERM_WEEKS = 4  # "next month" window for trend/inventory sizing
+
+_CONFIDENCE_BY_TIER = {'High': 90, 'Medium': 70, 'Lower': 50}
+
+
+def _forecast_sku_stats(forecast):
+    """Port of js/main.js's computeForwardStats() SKU-ranking pattern (volume-
+    tiered confidence, trend vs. a trailing window of equal length) — reused
+    here rather than reinvented, so a SKU's "trend"/"confidence" means the
+    same thing everywhere in the product, not two different definitions in
+    two different places."""
+    weeks = forecast['weeks']
+    bt = forecast.get('backtestWeeks', len(weeks))
+    total_weeks = len(weeks)
+    fwd_weeks = total_weeks - bt
+    trail_win = min(fwd_weeks, bt) or 1
+
+    def sum_range(arr, s, e):
+        return sum((x or 0) for x in arr[max(0, s):e])
+
+    rows = {}
+    for sku, o in forecast['skus'].items():
+        a, f = o['a'], o['f']
+        backtest_vol = sum_range(a, 0, bt)
+        if backtest_vol <= 0:
+            continue
+        trailing_actual = sum_range(a, bt - trail_win, bt)
+        forward_forecast_all = sum_range(f, bt, total_weeks) if fwd_weeks else 0
+        trend_pct = (100 * (forward_forecast_all - trailing_actual) / trailing_actual
+                     if trailing_actual else None)
+        near_term_forecast = sum_range(f, bt, bt + _NEAR_TERM_WEEKS)
+        rows[sku] = {
+            'backtest_vol': backtest_vol, 'trend_pct': trend_pct,
+            'near_term_forecast': near_term_forecast, 'avg_price': o.get('avgPrice'),
+        }
+
+    by_vol = sorted(rows.items(), key=lambda kv: kv[1]['backtest_vol'], reverse=True)
+    n = len(by_vol) or 1
+    for i, (sku, row) in enumerate(by_vol):
+        pct = i / n
+        row['confidence_tier'] = 'High' if pct < 0.15 else 'Medium' if pct < 0.5 else 'Lower'
+    return rows
+
+
+def _sku_inventory_total(inventory, sku):
+    """Most recent month's inventory total for a SKU, summed across every
+    postal code — inventory/latest_inventory.json's own grain is SKU x ZIP x
+    month (lambda/scenario-runner/handler.py's compute_monthly_inventory());
+    this app only ever needs the SKU-level current total."""
+    by_zip = (inventory.get('bySku', {}).get(sku) or {}).get('byZip', {})
+    if not by_zip:
+        return None
+    total = 0.0
+    for zip_data in by_zip.values():
+        series = zip_data.get('total') or []
+        if series:
+            total += series[-1]  # most recent month
+    return total
+
+
+def get_recommendations(org):
+    forecast = _read_json(f'orgs/{org}/forecast/latest.json')
+    if forecast is None:
+        return _resp(200, {'recommendations': [],
+                            'note': 'no approved forecast yet for this organization'})
+    inventory = _read_json(f'orgs/{org}/forecast/latest_inventory.json', default={})
+    labels = _read_json(_sku_labels_key(org), default={})
+    stats = _forecast_sku_stats(forecast)
+
+    recs = []
+    for sku, row in stats.items():
+        near_term = row['near_term_forecast']
+        avg_price = row['avg_price']
+        if not avg_price or near_term <= 0:
+            continue  # nothing to size a budget/ROAS estimate from
+
+        inv_total = _sku_inventory_total(inventory, sku)
+        avg_weekly_near_term = near_term / _NEAR_TERM_WEEKS
+        weeks_of_supply = (inv_total / avg_weekly_near_term
+                           if inv_total is not None and avg_weekly_near_term > 0 else None)
+
+        trend_pct = row['trend_pct']
+        archetype = None
+        why = []
+        if weeks_of_supply is not None and weeks_of_supply > _OVERSTOCK_WEEKS_OF_SUPPLY:
+            archetype = 'clear_overstock'
+            why = [
+                f'Inventory is at {weeks_of_supply:.1f} weeks of supply — well above near-term '
+                f'forecasted demand ({_OVERSTOCK_WEEKS_OF_SUPPLY:.0f}-week threshold)',
+                'Advertising now can help move excess stock before it ages further',
+            ]
+        elif (trend_pct is not None and trend_pct > _GROWTH_TREND_THRESHOLD_PCT
+              and (weeks_of_supply is None or weeks_of_supply >= _MIN_HEALTHY_WEEKS_OF_SUPPLY)):
+            archetype = 'growth'
+            why = [
+                f'Demand is forecasted to grow {trend_pct:.1f}% over the current forward horizon',
+                (f'Inventory ({weeks_of_supply:.1f} weeks of supply) is healthy — not a constraint '
+                 'on fulfilling increased demand') if weeks_of_supply is not None
+                else 'No inventory constraint data available for this SKU',
+            ]
+        if archetype is None:
+            continue
+
+        ceiling = _budget_ceiling(org)
+        revenue_window_yen = near_term * avg_price
+        suggested_total_yen = round(revenue_window_yen * _BUDGET_REVENUE_FRACTION)
+        suggested_daily_yen = min(
+            round(suggested_total_yen / _DEFAULT_CAMPAIGN_DURATION_DAYS), ceiling)
+        suggested_total_yen = suggested_daily_yen * _DEFAULT_CAMPAIGN_DURATION_DAYS
+
+        impressions = suggested_total_yen / _ASSUMED_CPM_YEN * 1000
+        clicks = impressions * _ASSUMED_CTR
+        purchases_point = clicks * _ASSUMED_CVR
+        predicted_revenue_yen = purchases_point * avg_price
+        roas = (predicted_revenue_yen / suggested_total_yen) if suggested_total_yen else None
+
+        # Don't surface a recommendation the heuristic itself predicts would
+        # lose money — "advertise this" should never come with a sub-1x
+        # predicted return attached, that's self-contradictory advice.
+        if roas is None or roas < _MIN_ROAS_TO_RECOMMEND:
+            continue
+
+        confidence_tier = row['confidence_tier']
+        why.append(f'Using "{confidence_tier}" confidence, based on this SKU\'s sales-volume rank '
+                    f'among the catalog')
+        why.append(f'Predicted purchases assume a ¥{_ASSUMED_CPM_YEN:.0f} CPM, '
+                    f'{_ASSUMED_CTR*100:.1f}% click-through, and {_ASSUMED_CVR*100:.0f}% conversion '
+                    f'rate — industry-benchmark estimates, not measured from this organization\'s '
+                    f'own ad history yet')
+
+        label_info = labels.get(sku, {})
+        recs.append({
+            'sku': sku,
+            'label': label_info.get('label') or sku,
+            'image_url': label_info.get('image_url') or None,
+            'archetype': archetype,
+            'priority': 'high' if archetype == 'growth' else 'watch',
+            'suggested_daily_budget_yen': suggested_daily_yen,
+            'suggested_total_budget_yen': suggested_total_yen,
+            'suggested_duration_days': _DEFAULT_CAMPAIGN_DURATION_DAYS,
+            'predicted_purchases_low': round(purchases_point * (1 - _PREDICTION_BAND)),
+            'predicted_purchases_high': round(purchases_point * (1 + _PREDICTION_BAND)),
+            'predicted_roas': round(roas, 1) if roas is not None else None,
+            'confidence_pct': _CONFIDENCE_BY_TIER[confidence_tier],
+            'trend_pct': round(trend_pct, 1) if trend_pct is not None else None,
+            'weeks_of_supply': round(weeks_of_supply, 1) if weeks_of_supply is not None else None,
+            'why': why,
+        })
+
+    # High-priority (growth) opportunities first, then by predicted ROAS —
+    # surfaces the most convincing cases at the top, same spirit as the
+    # existing report's "fastest movers" ranking.
+    recs.sort(key=lambda r: (r['priority'] != 'high', -(r['predicted_roas'] or 0)))
+    return _resp(200, {'recommendations': recs})
+
+
+def get_campaign_performance(org, platform, campaign_id):
+    """Aggregates the write-once daily snapshots amplify-sync-worker already
+    writes (orgs/{org}/amplify/performance/{platform}/{campaign_id}/{date}.json)
+    into a time series for the Results panel — this reads data that's been
+    populating since Milestone 0, no new write path needed here."""
+    item = _get_campaign_item(org, platform, campaign_id)
+    if item is None:
+        return _resp(404, {'error': 'campaign not found'})
+
+    prefix = f'orgs/{org}/amplify/performance/{platform}/{campaign_id}/'
+    days = []
+    paginator = s3.get_paginator('list_objects_v2')
+    for page in paginator.paginate(Bucket=BUCKET, Prefix=prefix):
+        for obj in page.get('Contents', []):
+            snapshot = _read_json(obj['Key'])
+            if snapshot:
+                days.append(snapshot)
+    days.sort(key=lambda d: d['date'])
+
+    totals = {k: sum(d.get(k, 0) for d in days) for k in
+              ('impressions', 'clicks', 'spend_yen', 'conversions')}
+    return _resp(200, {'campaign_id': campaign_id, 'platform': platform,
+                        'days': days, 'totals': totals})
+
+
 def handler(event, context):
     method = event.get('requestContext', {}).get('http', {}).get('method', 'GET')
     path   = event.get('requestContext', {}).get('http', {}).get('path', '')
@@ -386,6 +656,19 @@ def handler(event, context):
 
         if method == 'GET' and path == '/amplify-campaigns/audit':
             return list_audit(org)
+
+        if method == 'GET' and path == '/amplify-campaigns/sku-labels':
+            return get_sku_labels(org)
+
+        if method == 'PUT' and path == '/amplify-campaigns/sku-labels':
+            return put_sku_labels(org, caller_email, event)
+
+        if method == 'GET' and path == '/amplify-campaigns/recommendations':
+            return get_recommendations(org)
+
+        m = re.match(r'^/amplify-campaigns/([a-z]+)/([^/]+)/performance$', path)
+        if method == 'GET' and m:
+            return get_campaign_performance(org, m.group(1), m.group(2))
 
         m = re.match(r'^/amplify-campaigns/([a-z]+)/([^/]+)/pause$', path)
         if method == 'POST' and m:

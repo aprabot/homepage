@@ -30,7 +30,7 @@
   html,body{height:100%;overflow:hidden}
   #dashboard{position:static!important;z-index:auto!important}
 
-  /* Connect Accounts panel */
+  /* Integrations & Settings panel (OAuth connect/disconnect) */
   .amp-connect-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;max-width:760px}
   .amp-connect-card{border:1px solid var(--line-2);border-radius:12px;padding:20px}
   .amp-connect-card h4{display:flex;align-items:center;gap:10px;margin-bottom:6px}
@@ -40,16 +40,54 @@
   .amp-connect-card .desc{color:var(--muted);font-size:13px;margin-bottom:14px}
   .amp-connect-card .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
 
-  /* Campaigns panel */
+  /* Shared table (Campaigns, Products) */
   .amp-table{width:100%;border-collapse:collapse;font-size:13.5px}
   .amp-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
     padding:8px 10px;border-bottom:2px solid var(--line-2)}
   .amp-table td{padding:10px;border-bottom:1px solid var(--line)}
   .amp-row-actions{display:flex;gap:6px}
   .amp-row-actions .dbtn{padding:5px 11px;font-size:12.5px}
+  .amp-sku-thumb{width:32px;height:32px;border-radius:7px;object-fit:cover;background:var(--panel);
+    border:1px solid var(--line);vertical-align:middle;margin-right:8px}
 
-  /* Campaign modal form reuses .field/.srow/.theme-pill from the dashboard's
-     own modals (css/styles.css) — no new form-styling added here. */
+  /* Overview: revenue chart */
+  .amp-chart-box{position:relative;height:220px}
+
+  /* AI Opportunities recommendation cards */
+  .amp-rec-card{border:1px solid var(--line-2);border-radius:12px;padding:18px 20px;display:flex;
+    gap:18px;align-items:flex-start;flex-wrap:wrap;margin-bottom:14px}
+  .amp-rec-thumb{width:56px;height:56px;border-radius:10px;object-fit:cover;background:var(--panel);
+    border:1px solid var(--line);flex:none}
+  .amp-rec-main{flex:1;min-width:220px}
+  .amp-rec-main h4{margin:0 0 4px;display:flex;align-items:center;gap:8px}
+  .amp-rec-why{list-style:none;margin:10px 0 0;padding:0;font-size:12.5px;color:var(--muted)}
+  .amp-rec-why li{padding:3px 0;display:flex;gap:6px}
+  .amp-rec-why li::before{content:'✓';color:var(--signal);flex:none}
+  .amp-rec-stats{display:grid;grid-template-columns:repeat(2,1fr);gap:10px 18px;min-width:200px;font-size:13px}
+  .amp-rec-stats .lbl{color:var(--muted);font-size:11px;text-transform:uppercase;letter-spacing:.04em}
+  .amp-rec-stats .val{font-weight:600;font-size:15px;margin-top:2px}
+
+  /* Campaign Builder wizard */
+  .amp-wiz-steps{display:flex;align-items:center;gap:8px;margin-bottom:20px;font-size:12.5px;color:var(--muted)}
+  .amp-wiz-steps .step{display:flex;align-items:center;gap:6px}
+  .amp-wiz-steps .step .n{width:20px;height:20px;border-radius:50%;background:var(--panel);
+    border:1px solid var(--line-2);display:flex;align-items:center;justify-content:center;font-size:11px}
+  .amp-wiz-steps .step.active{color:var(--text)}
+  .amp-wiz-steps .step.active .n{background:var(--signal);color:#0A0E15;border-color:var(--signal)}
+  .amp-wiz-steps .sep{width:28px;height:1px;background:var(--line-2)}
+  .amp-wiz-body{display:grid;grid-template-columns:1fr 280px;gap:24px}
+  .amp-wiz-main{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  .amp-wiz-field{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+  .amp-wiz-field .lbl{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
+  .amp-wiz-field .val{font-weight:600;margin-top:3px}
+  .amp-wiz-field .sub{font-size:11.5px;color:var(--muted);margin-top:2px}
+  .amp-ad-preview{border:1px solid var(--line-2);border-radius:12px;padding:14px;background:var(--panel)}
+  .amp-ad-card{border:1px solid var(--line);border-radius:10px;overflow:hidden;background:var(--bg);margin-top:10px}
+  .amp-ad-card img{width:100%;height:140px;object-fit:cover;display:block;background:var(--line)}
+  .amp-ad-card .body{padding:10px 12px}
+  .amp-ad-card .cta{display:flex;justify-content:space-between;align-items:center;margin-top:6px}
+
+  /* Campaign modal form (create-from-scratch path) reuses .field/.srow/.theme-pill */
 </style>
 </head>
 <body>
@@ -64,8 +102,12 @@
     </div>
     <ul class="dnav">
       <li title="Dashboard" onclick="window.location.href='../dashboard/'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span class="lbl">Dashboard</span></li>
-      <li class="active" title="Connect Accounts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1 1" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1-1" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Connect Accounts</span></li>
+      <li class="active" title="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span class="lbl">Overview</span></li>
+      <li title="Products"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Products</span></li>
+      <li title="AI Opportunities"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" stroke-linejoin="round"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" stroke-linejoin="round"/></svg><span class="lbl">AI Opportunities</span></li>
       <li title="Campaigns"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Campaigns</span></li>
+      <li title="Performance"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Performance</span></li>
+      <li title="Integrations &amp; Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.3-2.5h-4l-.3 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5c.1-.3.1-.6.1-1Z" stroke-linejoin="round"/></svg><span class="lbl">Integrations &amp; Settings</span></li>
     </ul>
     <div class="signout" onclick="logout()" title="Sign out">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -97,9 +139,102 @@
       </div>
     </div>
 
-    <!-- Connect Accounts panel -->
-    <div class="dbody" id="connectPanel">
-      <h1 class="dgreet">Amplify — <span class="hl">Connect Accounts</span></h1>
+    <!-- Overview panel -->
+    <div class="dbody" id="overviewPanel">
+      <h1 class="dgreet">Good morning, <span class="hl" id="ovGreetName">there</span>.</h1>
+      <p class="dsubtle">Here's your advertising intelligence for the next 30 days.</p>
+
+      <div class="kpis" style="margin-top:18px">
+        <div class="kpi">
+          <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="t">Projected Revenue</div><div class="v" id="ovKpiRevenue"><span class="skel"></span></div><div class="d" id="ovKpiRevenueSub">next 4 weeks, forecasted</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a8 8 0 0 1 16 0" stroke-linecap="round"/><rect x="2" y="12" width="5" height="7" rx="2"/><rect x="17" y="12" width="5" height="7" rx="2"/><path d="M20 19a4 4 0 0 1-4 4h-2" stroke-linecap="round"/></svg></div>
+          <div class="t">Ad Spend (Recommended)</div><div class="v" id="ovKpiSpend"><span class="skel"></span></div><div class="d">across all AI Opportunities</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="t">Inventory at Risk</div><div class="v" id="ovKpiInventory"><span class="skel"></span></div><div class="d" id="ovKpiInventorySub">SKUs overstocked</div>
+        </div>
+        <div class="kpi">
+          <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" stroke-linejoin="round"/></svg></div>
+          <div class="t">Ad Opportunities</div><div class="v" id="ovKpiOpps"><span class="skel"></span></div><div class="d">AI recommendations</div>
+        </div>
+      </div>
+
+      <div class="dgrid" style="margin-top:22px">
+        <div class="dcard">
+          <div class="ch"><h4>Revenue Forecast</h4><span class="dsubtle" style="margin:0;font-size:.8rem">actual vs. forecast, weekly</span></div>
+          <div class="amp-chart-box"><canvas id="ovRevenueCanvas"></canvas></div>
+        </div>
+        <div class="dcard">
+          <div class="ch"><h4>Top Recommendations</h4><a href="#" onclick="event.preventDefault();document.querySelector('li[title=\'AI Opportunities\']').click()" style="font-size:.8rem;color:var(--signal)">View all →</a></div>
+          <div id="ovTopRecs"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Products panel -->
+    <div class="dbody" id="productsPanel" style="display:none">
+      <h1 class="dgreet">Amplify — <span class="hl">Products</span></h1>
+      <p class="dsubtle">Your catalog is SKU-anonymized by default — optionally give a product a display name/image for a nicer view here and in Campaign Builder.</p>
+      <div class="dcard" style="margin-top:18px">
+        <table class="amp-table">
+          <thead><tr><th>Product</th><th>Backtest volume</th><th>Forward trend</th><th>Confidence</th><th></th></tr></thead>
+          <tbody id="amp-products-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <!-- AI Opportunities panel -->
+    <div class="dbody" id="opportunitiesPanel" style="display:none">
+      <h1 class="dgreet">AI Campaign <span class="hl">Recommendations</span></h1>
+      <p class="dsubtle">Based on your forecast, inventory, and historical performance.</p>
+      <div id="amp-opportunities-list" style="margin-top:18px"></div>
+      <p class="dsubtle" id="amp-opportunities-empty" style="text-align:center;margin:28px 0;display:none">
+        No recommendations right now — check back once more forecast data is available.
+      </p>
+    </div>
+
+    <!-- Campaigns panel -->
+    <div class="dbody" id="campaignsPanel" style="display:none">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
+        <div>
+          <h1 class="dgreet">Amplify — <span class="hl">Campaigns</span></h1>
+          <p class="dsubtle">Create and manage real campaigns across Meta and Google Ads.</p>
+        </div>
+        <button class="dbtn" style="background:var(--signal);color:#0A0E15;border-color:var(--signal)" onclick="openCampaignWizard(null)">+ New Campaign</button>
+      </div>
+
+      <div class="dcard" style="margin-top:18px">
+        <table class="amp-table">
+          <thead><tr><th>Name</th><th>Platform</th><th>Objective</th><th>Daily budget</th><th>Status</th><th></th></tr></thead>
+          <tbody id="amp-campaigns-body"></tbody>
+        </table>
+        <p class="dsubtle" id="amp-campaigns-empty" style="text-align:center;margin:28px 0">
+          No campaigns yet — click "+ New Campaign" to create your first one.
+        </p>
+      </div>
+    </div>
+
+    <!-- Performance panel -->
+    <div class="dbody" id="performancePanel" style="display:none">
+      <h1 class="dgreet">Amplify — <span class="hl">Performance</span></h1>
+      <p class="dsubtle">Results for each campaign — select one to see its daily trend.</p>
+      <div class="dgrid" style="margin-top:18px;grid-template-columns:260px 1fr">
+        <div class="dcard" style="padding:10px">
+          <div id="amp-performance-list"></div>
+        </div>
+        <div class="dcard" id="amp-performance-detail">
+          <p class="dsubtle" style="text-align:center;margin:40px 0">Select a campaign to view its results.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Integrations & Settings panel (OAuth connect/disconnect) -->
+    <div class="dbody" id="integrationsPanel" style="display:none">
+      <h1 class="dgreet">Integrations &amp; <span class="hl">Settings</span></h1>
       <p class="dsubtle">Connect your Meta and Google ad accounts to build and manage campaigns from here.</p>
 
       <div class="amp-connect-grid" style="margin-top:22px">
@@ -121,36 +256,15 @@
         </div>
       </div>
     </div>
-
-    <!-- Campaigns panel -->
-    <div class="dbody" id="campaignsPanel" style="display:none">
-      <div style="display:flex;justify-content:space-between;align-items:flex-end;flex-wrap:wrap;gap:12px">
-        <div>
-          <h1 class="dgreet">Amplify — <span class="hl">Campaigns</span></h1>
-          <p class="dsubtle">Create and manage real campaigns across Meta and Google Ads.</p>
-        </div>
-        <button class="dbtn" style="background:var(--signal);color:#0A0E15;border-color:var(--signal)" onclick="openCampaignModal()">+ New Campaign</button>
-      </div>
-
-      <div class="dcard" style="margin-top:18px">
-        <table class="amp-table">
-          <thead><tr><th>Name</th><th>Platform</th><th>Objective</th><th>Daily budget</th><th>Status</th><th></th></tr></thead>
-          <tbody id="amp-campaigns-body"></tbody>
-        </table>
-        <p class="dsubtle" id="amp-campaigns-empty" style="text-align:center;margin:28px 0">
-          No campaigns yet — click "+ New Campaign" to create your first one.
-        </p>
-      </div>
-    </div>
   </div>
 </div>
 
-<!-- New / edit campaign modal -->
+<!-- Simple create-from-scratch campaign modal (used when NOT starting from a recommendation) -->
 <div class="modal" id="ampCampaignModal" onclick="if(event.target===this)closeCampaignModal()">
   <div class="login-card" style="max-width:440px;text-align:left">
     <button class="x" onclick="closeCampaignModal()" aria-label="Close">×</button>
     <h3 id="amp-modal-title">New campaign</h3>
-    <p class="sub">Real campaign management — see Settings for your organization's daily-budget cap.</p>
+    <p class="sub">Real campaign management — see Integrations &amp; Settings for your organization's daily-budget cap.</p>
     <form id="ampCampaignForm">
       <div class="field">
         <label for="amp-field-name">Campaign name</label>
@@ -173,12 +287,102 @@
         </div>
       </div>
       <div class="field">
-        <label for="amp-field-budget">Daily budget (USD)</label>
-        <input id="amp-field-budget" type="number" step="0.01" min="0.01" placeholder="e.g. 50.00">
+        <label for="amp-field-budget">Daily budget (¥)</label>
+        <input id="amp-field-budget" type="number" step="1" min="1" placeholder="e.g. 5000">
       </div>
       <p id="amp-modal-error" class="auth-error"></p>
       <button type="submit" class="btn btn-pri" style="width:100%;justify-content:center;margin-top:10px">Save</button>
     </form>
+  </div>
+</div>
+
+<!-- Campaign Builder wizard (used when starting from a recommendation, or
+     editing before launch) -->
+<div class="modal" id="ampWizardModal" onclick="if(event.target===this)closeWizard()">
+  <div class="login-card" style="max-width:860px;width:94vw;text-align:left;max-height:88vh;overflow-y:auto">
+    <button class="x" onclick="closeWizard()" aria-label="Close">×</button>
+    <h3 id="amp-wiz-title">Create Meta Campaign</h3>
+    <div class="amp-wiz-steps">
+      <div class="step" data-step="1"><span class="n">1</span> Review Recommendation</div>
+      <div class="sep"></div>
+      <div class="step" data-step="2"><span class="n">2</span> Review &amp; Customize</div>
+      <div class="sep"></div>
+      <div class="step" data-step="3"><span class="n">3</span> Launch</div>
+    </div>
+
+    <!-- Step 1 -->
+    <div class="amp-wiz-page" id="amp-wiz-step1">
+      <div id="amp-wiz-rec-summary"></div>
+      <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:20px">
+        <button class="dbtn" onclick="closeWizard()">Cancel</button>
+        <button class="btn btn-pri" onclick="wizardGoto(2)">Continue →</button>
+      </div>
+    </div>
+
+    <!-- Step 2 -->
+    <div class="amp-wiz-page" id="amp-wiz-step2" style="display:none">
+      <div class="amp-wiz-body">
+        <div class="amp-wiz-main">
+          <div class="field">
+            <label>Campaign Objective</label>
+            <div class="theme-pill" id="wiz-field-objective" style="flex-wrap:wrap">
+              <button type="button" data-v="awareness">Awareness</button>
+              <button type="button" data-v="traffic">Traffic</button>
+              <button type="button" data-v="conversions" class="active">Conversions</button>
+              <button type="button" data-v="sales">Sales</button>
+            </div>
+          </div>
+          <div class="field">
+            <label for="wiz-field-budget">Daily Budget (¥)</label>
+            <input id="wiz-field-budget" type="number" step="1" min="1">
+          </div>
+          <div class="field">
+            <label for="wiz-field-name">Campaign Name</label>
+            <input id="wiz-field-name" type="text" maxlength="120">
+          </div>
+          <div class="field">
+            <label for="wiz-field-duration">Duration (days)</label>
+            <input id="wiz-field-duration" type="number" step="1" min="1" max="90">
+          </div>
+          <div class="field" style="grid-column:1/-1">
+            <label>Platform</label>
+            <div class="theme-pill" id="wiz-field-platform">
+              <button type="button" data-v="meta" class="active">Meta</button>
+              <button type="button" data-v="google">Google</button>
+            </div>
+          </div>
+        </div>
+        <div class="amp-ad-preview">
+          <div class="dsubtle" style="font-size:12px;margin-bottom:6px">Ad Preview</div>
+          <div class="amp-ad-card">
+            <img id="wiz-ad-image" src="" alt="" style="display:none">
+            <div class="body">
+              <div style="font-size:12px;color:var(--muted)">Sponsored</div>
+              <div style="font-weight:600;margin-top:4px" id="wiz-ad-title">Your Store</div>
+              <div class="cta">
+                <span style="font-size:13px" id="wiz-ad-name">Product</span>
+                <button class="dbtn" style="padding:4px 10px;font-size:12px">Shop Now</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <p id="amp-wiz-error" class="auth-error"></p>
+      <div style="display:flex;justify-content:space-between;gap:10px;margin-top:20px">
+        <button class="dbtn" onclick="wizardGoto(1)">← Back</button>
+        <button class="btn btn-pri" onclick="wizardGoto(3)">Review &amp; Launch →</button>
+      </div>
+    </div>
+
+    <!-- Step 3 -->
+    <div class="amp-wiz-page" id="amp-wiz-step3" style="display:none">
+      <div id="amp-wiz-launch-summary"></div>
+      <p id="amp-wiz-launch-error" class="auth-error"></p>
+      <div style="display:flex;justify-content:space-between;gap:10px;margin-top:20px">
+        <button class="dbtn" onclick="wizardGoto(2)">← Back</button>
+        <button class="btn btn-pri" id="amp-wiz-launch-btn" onclick="submitWizard()">Launch Campaign</button>
+      </div>
+    </div>
   </div>
 </div>
 
@@ -192,6 +396,7 @@
       var p=JSON.parse(decodeURIComponent(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')).split('').map(function(c){return'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join('')));
       var display=(p.email||'User').split('@')[0];
       ['userName','uDropName'].forEach(function(id){var el=document.getElementById(id);if(el)el.textContent=display;});
+      var ovName=document.getElementById('ovGreetName'); if(ovName) ovName.textContent=display;
       var av=document.getElementById('userAvatar');if(av)av.textContent=display.charAt(0).toUpperCase();
     }catch(e){}
   })();
@@ -255,8 +460,12 @@
      a separate page from /dashboard/, not more panels on the same one. */
   (function(){
     var panels = {
-      'Connect Accounts': document.getElementById('connectPanel'),
-      'Campaigns':         document.getElementById('campaignsPanel'),
+      'Overview':                document.getElementById('overviewPanel'),
+      'Products':                document.getElementById('productsPanel'),
+      'AI Opportunities':         document.getElementById('opportunitiesPanel'),
+      'Campaigns':                document.getElementById('campaignsPanel'),
+      'Performance':              document.getElementById('performancePanel'),
+      'Integrations & Settings':  document.getElementById('integrationsPanel'),
     };
     var navItems = document.querySelectorAll('.dnav li');
     navItems.forEach(function(li){
@@ -269,15 +478,19 @@
         Object.keys(panels).forEach(function(k){
           if(panels[k]) panels[k].style.display = (k === name) ? '' : 'none';
         });
-        if (name === 'Connect Accounts' && window.loadConnectAccounts) window.loadConnectAccounts();
+        if (name === 'Overview' && window.loadOverview) window.loadOverview();
+        if (name === 'Products' && window.loadProducts) window.loadProducts();
+        if (name === 'AI Opportunities' && window.loadOpportunities) window.loadOpportunities();
         if (name === 'Campaigns' && window.loadCampaigns) window.loadCampaigns();
+        if (name === 'Performance' && window.loadPerformanceList) window.loadPerformanceList();
+        if (name === 'Integrations & Settings' && window.loadConnectAccounts) window.loadConnectAccounts();
       });
     });
     document.addEventListener('DOMContentLoaded', function(){
       var saved;
       try { saved = localStorage.getItem('apra_amplify_panel'); } catch(e) {}
-      if (window.loadConnectAccounts) window.loadConnectAccounts(); // always load — the top panel's data
-      if (!saved || saved === 'Connect Accounts') return;
+      if (window.loadOverview) window.loadOverview(); // always load — the default panel's data
+      if (!saved || saved === 'Overview') return;
       var target = Array.prototype.filter.call(navItems, function(li){ return li.title === saved; })[0];
       if (target) target.click();
     });

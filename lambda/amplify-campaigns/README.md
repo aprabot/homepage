@@ -35,6 +35,37 @@ means changing the two `from platform_clients import ... as ...` lines at the to
 `handler.py`. A campaign named literally `FORCE_FAIL` simulates a platform failure, for
 exercising the idempotency/retry path without needing a real API to fail.
 
+## Currency: yen, not USD cents
+
+Every money field in this module (`daily_budget_yen`, recommendation budgets, performance
+spend) is a plain integer yen — `forecast/latest.json`'s `avgPrice` is JPY (the underlying
+business is Japanese bottled-water demand; real per-unit prices in the 800-2000 range only
+make sense as yen, never USD cents). Mixing a USD-denominated ad-economics assumption
+against yen prices was a real bug caught during development (produced an absurd ~56x
+ROAS) — if you add any new money field here, make sure it's yen, not cents.
+
+## AI Opportunities recommendation engine (`GET /amplify-campaigns/recommendations`)
+
+Every number is derived from real data already in this app (`forecast/latest.json`,
+`forecast/latest_inventory.json`) via a transparent, documented heuristic (see the
+constants block near the top of `handler.py`) — never Bedrock-generated, never a
+placeholder. Two archetypes: **growth** (rising forward trend + healthy inventory) and
+**clear_overstock** (inventory well above near-term forecasted demand). A recommendation
+is never surfaced if the heuristic itself predicts a sub-1x ROAS — "advertise this"
+should never come with a self-contradictory "...but it'll lose money" attached.
+
+Revisit `_ASSUMED_CPM_YEN`/`_ASSUMED_CTR`/`_ASSUMED_CVR` once real campaign performance
+data (from `amplify-sync-worker`) accumulates — they're currently moderate, credible
+estimates, not calibrated against this organization's own real ad history (there isn't
+any yet).
+
+## Per-org SKU labels (`GET/PUT /amplify-campaigns/sku-labels`)
+
+The catalog itself is fully anonymized (`SKU-001`, no names/images anywhere in the
+pipeline) by deliberate policy. This is the only place a product gets a human label, and
+only if an org admin sets one (`orgs/{org}/amplify/sku_labels.json`) — real,
+customer-entered, opt-in, never a fabricated name/photo. Falls back to the plain SKU id.
+
 ## Deploy
 
 Pure boto3 — no extra dependencies to install (`boto3`/`botocore` ship with the Lambda
@@ -49,12 +80,14 @@ aws lambda update-function-code --function-name aprabot-amplify-campaigns \
 
 Env vars: `BUCKET_NAME`, `TABLE_NAME` (default `aprabot-amplify`). Runs under
 `aprabot-amplify-lambda-role` (DynamoDB access scoped to this table, S3 scoped to
-`orgs/*/amplify/*`). Routes live on the same `ktksptlz75` API Gateway as every other
-Lambda in this app, behind the same Cognito JWT authorizer (`aprabot-cognito-jwt`) already
-protecting `/scenarios`.
+`orgs/*/amplify/*` read/write and `orgs/*/forecast/*` read-only — the latter needed so
+the recommendation engine can read real forecast/inventory data). Routes live on the same
+`ktksptlz75` API Gateway as every other Lambda in this app, behind the same Cognito JWT
+authorizer (`aprabot-cognito-jwt`) already protecting `/scenarios`.
 
-**Note**: the API-level CORS config needed `PATCH` added to `AllowMethods` for this
-Lambda's update route — same class of bug as the Knowledge Base tab's PUT-CORS issue
-(the API-level `CorsConfiguration` handles preflight automatically and is separate from
-this Lambda's own response headers; a missing method there is invisible to `curl`/direct
-invoke, only a real browser enforces it).
+**Note**: the API-level CORS config needed `PATCH` (Milestone 0) and later `PUT`
+(sku-labels) added to `AllowMethods` — same class of bug as the Knowledge Base tab's
+PUT-CORS issue (the API-level `CorsConfiguration` handles preflight automatically and is
+separate from this Lambda's own response headers; a missing method there is invisible to
+`curl`/direct invoke, only a real browser enforces it). This Lambda's own `CORS` dict in
+`handler.py` needs to list every method it actually uses too, not just the API-level one.
