@@ -6,15 +6,18 @@ import traceback
 from datetime import datetime, timezone
 
 import boto3
+from boto3.dynamodb.conditions import Key
 
 s3  = boto3.client('s3')
 lam = boto3.client('lambda')
+amplify_table = boto3.resource('dynamodb').Table(os.environ.get('AMPLIFY_TABLE_NAME', 'aprabot-amplify'))
 BUCKET = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
 EXPLAIN_RUNNER_FUNCTION = os.environ.get('EXPLAIN_RUNNER_FUNCTION', 'aprabot-explain-runner')
 
 RAW_INPUT   = '/tmp/With_Price.tsv'
 RAW_WEATHER = '/tmp/weather.tsv'
 RAW_FUTURE_PRICES = '/tmp/future_prices.tsv'
+RAW_AD_SPEND = '/tmp/ad_spend.tsv'
 CUSTOM_RAW  = '/tmp/custom_upload'
 OUTDIR      = '/tmp/out'
 FORECAST_PY = '/var/task/forecast.py'
@@ -710,6 +713,139 @@ def build_explain_by_sku(explain_path, anon):
     return out
 
 
+# ── Ad-spend feedback loop (Amplify campaigns -> forecast.py --ad-spend) ───
+# Real campaign budget becomes a genuine forward-covariate input to the next
+# forecast, via the exact same --future-prices threading mechanism forecast.py
+# already has (see forecast.py's load_ad_spend_calendar / --ad-spend). This is
+# an opt-in, unvalidated-by-backtest mechanism (mirrors --weights/--monotone's
+# own history in this codebase) — ship the real plumbing, don't claim a WAPE
+# improvement from it.
+def _active_sku_campaigns(org_id):
+    """This org's active, SKU-linked Amplify campaigns — paused/draft/ended
+    campaigns represent no real forward spend, and a campaign never pointed
+    at a SKU (created from scratch, not from a recommendation) has nothing
+    to broadcast to postal codes."""
+    items = []
+    kwargs = {'KeyConditionExpression': Key('pk').eq(f'ORG#{org_id}') & Key('sk').begins_with('CAMP#')}
+    while True:
+        resp = amplify_table.query(**kwargs)
+        items.extend(resp.get('Items', []))
+        if 'LastEvaluatedKey' not in resp:
+            break
+        kwargs['ExclusiveStartKey'] = resp['LastEvaluatedKey']
+    return [c for c in items
+            if c.get('status') == 'active' and c.get('sku') and c.get('daily_budget_yen')]
+
+
+def _sku_to_asin_map(org_id):
+    """Resolve Amplify's SKU-### ids back to real ASINs via the currently
+    live/approved scenario's own anon.json. SKU numbering is a rank-by-volume
+    assignment recomputed fresh every scenario run — this is "the mapping
+    Amplify's own UI is showing the org right now" (it reads the same
+    forecast/latest.json), not guaranteed byte-identical to whatever THIS
+    new run will itself produce, but it's the only mapping that makes
+    "SKU-003" a meaningful, consistent id to attribute spend against.
+    """
+    latest = _read_json(f'orgs/{org_id}/forecast/latest.json')
+    if not latest or not latest.get('id'):
+        return {}
+    anon = _read_json(f'orgs/{org_id}/scenarios/{latest["id"]}/anon.json')
+    if not anon:
+        return {}
+    return {sku: asin for asin, sku in anon.items()}
+
+
+def _zip_volume_shares(raw_path, asins):
+    """Each asin's historical shipped_units share by postal_code, over this
+    org's full raw history — the same kind of ZIP-level ratio propagation
+    _apply_seasonal_correction already uses to spread a SKU-level correction
+    down to its ZIP breakdown, reused here to spread a SKU-level ad budget
+    the same way (Amplify campaigns are SKU-only, never ZIP-targeted)."""
+    import pandas as pd
+
+    df = pd.read_csv(raw_path, sep='\t',
+                      usecols=lambda c: c.strip().lower() in ('asin', 'postal_code', 'shipped_units', 'shipment_units'))
+    df.columns = [c.strip().lower() for c in df.columns]
+    if 'shipped_units' not in df.columns and 'shipment_units' in df.columns:
+        df = df.rename(columns={'shipment_units': 'shipped_units'})
+    df = df[df['asin'].isin(asins)]
+    totals = df.groupby(['asin', 'postal_code'])['shipped_units'].sum()
+
+    shares = {}
+    for asin in asins:
+        if asin not in totals.index.get_level_values(0):
+            continue
+        sub = totals.loc[asin]
+        if sub.sum() > 0:
+            shares[asin] = (sub / sub.sum()).to_dict()
+    return shares
+
+
+def _build_ad_spend_tsv(org_id, raw_path, out_path):
+    """Build an --ad-spend calendar (asin, postal_code, ship_day,
+    ad_spend_yen) from this org's live Amplify campaigns. Returns True if a
+    real, non-empty file was written; False if there's nothing real to
+    attribute (no active SKU-linked campaigns, no resolvable SKU->ASIN
+    mapping, or no historical ZIP volume to broadcast against) — the caller
+    omits --ad-spend entirely in that case rather than pass an all-zero file
+    pretending to be a real signal.
+    """
+    import pandas as pd
+
+    campaigns = _active_sku_campaigns(org_id)
+    if not campaigns:
+        return False
+
+    sku_to_asin = _sku_to_asin_map(org_id)
+    if not sku_to_asin:
+        print(f"AD_SPEND_SKIPPED[{org_id}]: no live scenario anon.json to resolve SKU ids against")
+        return False
+
+    resolved = []
+    for c in campaigns:
+        asin = sku_to_asin.get(c['sku'])
+        if asin:
+            resolved.append((asin, c))
+        else:
+            print(f"AD_SPEND_SKIP: campaign {c.get('campaign_id')} sku={c.get('sku')!r} "
+                  f"not in the live scenario's SKU mapping — skipping")
+    if not resolved:
+        return False
+
+    shares = _zip_volume_shares(raw_path, {asin for asin, _ in resolved})
+
+    rows = []
+    for asin, c in resolved:
+        zip_shares = shares.get(asin)
+        if not zip_shares:
+            print(f"AD_SPEND_SKIP: asin={asin} (sku={c['sku']}) has no historical "
+                  f"ZIP volume in this org's raw data — skipping")
+            continue
+        try:
+            start = pd.Timestamp(c['start_date'])
+            end = pd.Timestamp(c['end_date'])
+        except (KeyError, ValueError, TypeError):
+            continue
+        daily_budget = float(c['daily_budget_yen'])
+        for day in pd.date_range(start, end, freq='D'):
+            day_str = day.strftime('%Y-%m-%d')
+            for zip_code, share in zip_shares.items():
+                rows.append({'asin': asin, 'postal_code': zip_code,
+                             'ship_day': day_str, 'ad_spend_yen': daily_budget * share})
+
+    if not rows:
+        return False
+
+    out = pd.DataFrame(rows)
+    # Two campaigns can overlap on the same SKU/ZIP/day (e.g. a new campaign
+    # launched before an old one ends) — sum their spend, don't overwrite.
+    out = (out.groupby(['asin', 'postal_code', 'ship_day'], as_index=False)['ad_spend_yen']
+              .sum())
+    out.to_csv(out_path, sep='\t', index=False)
+    print(f"AD_SPEND: wrote {len(out):,} row(s) to {out_path} from {len(resolved)} campaign(s)")
+    return True
+
+
 def handler(event, context):
     org_id      = event['org_id']
     scenario_id = event['scenario_id']
@@ -776,6 +912,21 @@ def handler(event, context):
         if known_prices and has_custom_future_prices:
             args += ['--future-prices', RAW_FUTURE_PRICES]
 
+        # Amplify campaign spend -> forecast.py covariate. Only for this
+        # org's own default dataset, never a custom "what-if" upload — a
+        # custom upload's SKU-### numbering isn't guaranteed to match the
+        # live scenario's anon.json (could be a different catalog/date
+        # range entirely), so resolving Amplify's sku ids against it there
+        # risks silently attributing spend to the wrong ASIN.
+        has_ad_spend = False
+        if not custom_input_key:
+            try:
+                has_ad_spend = _build_ad_spend_tsv(org_id, RAW_INPUT, RAW_AD_SPEND)
+            except Exception as exc:
+                print(f"AD_SPEND_BUILD_FAILED[{scenario_id}]: {exc} — continuing without --ad-spend")
+        if has_ad_spend:
+            args += ['--ad-spend', RAW_AD_SPEND]
+
         # Lambda's own hard ceiling is 900s; leave ~40s for transform_to_weekly +
         # the S3 writes that follow, which are fast (seconds) but real.
         #
@@ -816,6 +967,15 @@ def handler(event, context):
         else:
             print(f"INVENTORY_CALC: compute_monthly_inventory returned None — nothing written")
 
+        if not custom_input_key:
+            # Persisted unconditionally (not just when explain-runner also
+            # fires below) — this is what lets a LATER scenario run resolve
+            # Amplify's SKU-### ids back to real ASINs for --ad-spend (see
+            # _sku_to_asin_map), which needs this run's own anon.json the
+            # moment it becomes the org's live/approved scenario, regardless
+            # of whether the async explain enhancement below ever runs.
+            _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/anon.json', anon)
+
         if inline_explain:
             # Small custom upload — --explain already ran inline above (fast,
             # never close to the timeout), so just aggregate + write it here.
@@ -846,7 +1006,6 @@ def handler(event, context):
             meta = _read_local_json(meta_path, default={})
             best_iter = meta.get('best_iter')
             if best_iter is not None:
-                _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/anon.json', anon)
                 try:
                     lam.invoke(
                         FunctionName=EXPLAIN_RUNNER_FUNCTION,

@@ -604,16 +604,19 @@
     errEl.textContent = '';
     var name = document.getElementById('wiz-field-name').value.trim();
     var budget = parseInt(document.getElementById('wiz-field-budget').value, 10);
+    var duration = parseInt(document.getElementById('wiz-field-duration').value, 10);
     var platform = pillGet('wiz-field-platform');
     var objective = pillGet('wiz-field-objective');
     if (!name) { errEl.textContent = 'Campaign name is required.'; return; }
     if (!budget || budget <= 0) { errEl.textContent = 'Daily budget must be a positive amount.'; return; }
+    if (!duration || duration <= 0) { errEl.textContent = 'Duration must be a positive number of days.'; return; }
 
     var btn = document.getElementById('amp-wiz-launch-btn');
     btn.disabled = true; btn.textContent = 'Launching…';
     apiFetch(CAMPAIGNS_API, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name: name, platform: platform, objective: objective, daily_budget_yen: budget }),
+      body: JSON.stringify({ name: name, platform: platform, objective: objective, daily_budget_yen: budget,
+        duration_days: duration, sku: wizardRec ? wizardRec.sku : null }),
     }).then(function (res) {
       btn.disabled = false; btn.textContent = 'Launch Campaign';
       if (!res.ok) { errEl.textContent = res.body.error || 'Could not launch the campaign.'; return; }

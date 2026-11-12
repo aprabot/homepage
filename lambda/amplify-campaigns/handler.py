@@ -3,7 +3,7 @@ import json
 import os
 import re
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import boto3
@@ -220,10 +220,19 @@ def create_campaign(org, caller_email, event, dry_run=False):
     name = (body.get('name') or '').strip()
     platform = (body.get('platform') or '').strip().lower()
     objective = (body.get('objective') or '').strip().lower()
+    sku = (body.get('sku') or '').strip() or None  # which product this campaign promotes —
+                                                    # optional (a campaign created from scratch,
+                                                    # not from an AI Opportunity, may not target one
+                                                    # specific SKU), but required for Phase B's
+                                                    # feedback loop to attribute spend to a SKU.
     try:
         daily_budget_yen = int(body.get('daily_budget_yen', 0))
     except (TypeError, ValueError):
         return _resp(400, {'error': 'daily_budget_yen must be an integer'})
+    try:
+        duration_days = int(body.get('duration_days', _DEFAULT_CAMPAIGN_DURATION_DAYS))
+    except (TypeError, ValueError):
+        return _resp(400, {'error': 'duration_days must be an integer'})
 
     if not name:
         return _resp(400, {'error': 'name is required'})
@@ -231,8 +240,12 @@ def create_campaign(org, caller_email, event, dry_run=False):
         return _resp(400, {'error': f'platform must be one of {sorted(PLATFORMS)}'})
     if objective not in ALLOWED_OBJECTIVES:
         return _resp(400, {'error': f'objective must be one of {sorted(ALLOWED_OBJECTIVES)}'})
+    if sku is not None and not re.match(r'^SKU-\d+$', sku):
+        return _resp(400, {'error': 'sku must look like SKU-001'})
     if daily_budget_yen <= 0:
         return _resp(400, {'error': 'daily_budget_yen must be positive'})
+    if duration_days <= 0:
+        return _resp(400, {'error': 'duration_days must be positive'})
     ceiling = _budget_ceiling(org)
     if daily_budget_yen > ceiling:
         return _resp(400, {'error': f'daily_budget_yen exceeds this organization\'s cap '
@@ -241,11 +254,12 @@ def create_campaign(org, caller_email, event, dry_run=False):
     if dry_run:
         return _resp(200, {'dry_run': True, 'would_create': {
             'name': name, 'platform': platform, 'objective': objective,
-            'daily_budget_yen': daily_budget_yen,
+            'sku': sku, 'daily_budget_yen': daily_budget_yen, 'duration_days': duration_days,
         }})
 
     campaign_id = uuid.uuid4().hex[:16]
     now = _now()
+    end_date = (datetime.now(timezone.utc) + timedelta(days=duration_days)).date().isoformat()
     item = {
         'pk': f'ORG#{org}',
         'sk': _campaign_sk(platform, campaign_id),
@@ -254,7 +268,11 @@ def create_campaign(org, caller_email, event, dry_run=False):
         'platform': platform,
         'name': name,
         'objective': objective,
+        'sku': sku,
         'daily_budget_yen': daily_budget_yen,
+        'duration_days': duration_days,
+        'start_date': now[:10],
+        'end_date': end_date,
         'status': 'draft',
         'external_id': None,
         'version': 1,
