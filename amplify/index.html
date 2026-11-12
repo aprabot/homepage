@@ -65,6 +65,13 @@
   .amp-empty-card svg{margin-bottom:10px;opacity:.45}
   .amp-empty-card p{margin:0;font-size:13px}
   @media(max-width:880px){.amp-catalog-kpis{grid-template-columns:1fr 1fr}}
+  .amp-sortable{cursor:pointer;user-select:none;white-space:nowrap}
+  .amp-sortable:hover{color:var(--text)}
+  .amp-sort-arrow{font-size:9px;margin-left:3px;opacity:.7}
+  .amp-spinner{display:inline-block;width:11px;height:11px;border:2px solid currentColor;
+    border-right-color:transparent;border-radius:50%;animation:amp-spin .7s linear infinite;
+    vertical-align:-1px;margin-right:6px}
+  @keyframes amp-spin{to{transform:rotate(360deg)}}
 
   /* Overview: revenue chart */
   .amp-chart-box{position:relative;height:220px}
@@ -225,10 +232,17 @@
       <div class="dcard" style="margin-top:12px" id="amp-shopify-catalog-card">
         <div class="amp-empty-card" id="amp-shopify-catalog-empty">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="30" height="30"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <p>Connect Shopify (Getting Started, or Integrations &amp; Settings) to see your real catalog and live inventory here.</p>
+          <p id="amp-shopify-catalog-empty-text">Connect Shopify (Getting Started, or Integrations &amp; Settings) to see your real catalog and live inventory here.</p>
         </div>
+        <input type="text" id="amp-shopify-search" placeholder="Search by product, variant, or SKU…" style="display:none;width:100%;margin-bottom:12px;background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text);font-family:inherit">
         <table class="amp-table" id="amp-shopify-catalog-table" style="display:none">
-          <thead><tr><th>Product</th><th>Variant</th><th>SKU</th><th>Inventory on hand</th><th id="amp-shopify-units-col">Units sold</th><th id="amp-shopify-revenue-col">Revenue</th></tr></thead>
+          <thead><tr>
+            <th class="amp-sortable" data-sort-key="product">Product</th>
+            <th>Variant</th><th>SKU</th>
+            <th class="amp-sortable" data-sort-key="inventory">Inventory on hand</th>
+            <th class="amp-sortable" id="amp-shopify-units-col" data-sort-key="sold">Units sold</th>
+            <th class="amp-sortable" id="amp-shopify-revenue-col" data-sort-key="revenue">Revenue</th>
+          </tr></thead>
           <tbody id="amp-shopify-catalog-body"></tbody>
         </table>
       </div>

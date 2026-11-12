@@ -2,6 +2,7 @@ import hashlib
 import json
 import os
 import re
+import time
 import urllib.error
 import urllib.request
 import uuid
@@ -18,6 +19,7 @@ from platform_clients import google_mock as google_client
 s3  = boto3.client('s3')
 ddb = boto3.resource('dynamodb')
 secretsmanager = boto3.client('secretsmanager')
+lam = boto3.client('lambda')
 BUCKET = os.environ.get('BUCKET_NAME', 'aprabot-forecast-751835847089')
 TABLE_NAME = os.environ.get('TABLE_NAME', 'aprabot-amplify')
 table = ddb.Table(TABLE_NAME)
@@ -169,31 +171,87 @@ def _get_shopify_token(org):
     return shop, token
 
 
-def _shopify_api_get(url, token):
+def _shopify_api_get(url, token, _retries=2):
+    """GET against Shopify's REST Admin API, rate-limit aware: reads back
+    Shopify's own X-Shopify-Shop-Api-Call-Limit header ("used/limit" against
+    its ~2 req/s leaky bucket) and sleeps briefly once we're close to the
+    cap, and on a real 429 respects the Retry-After header and retries once
+    rather than failing the whole crawl over a transient rate-limit hit."""
     req = urllib.request.Request(url, headers={'X-Shopify-Access-Token': token,
                                                  'Accept': 'application/json'})
-    with urllib.request.urlopen(req, timeout=10) as resp:
-        body = json.loads(resp.read().decode('utf-8'))
-        link = resp.headers.get('Link')
+    try:
+        with urllib.request.urlopen(req, timeout=10) as resp:
+            body = json.loads(resp.read().decode('utf-8'))
+            link = resp.headers.get('Link')
+            limit_header = resp.headers.get('X-Shopify-Shop-Api-Call-Limit')
+    except urllib.error.HTTPError as exc:
+        if exc.code == 429 and _retries > 0:
+            retry_after = float(exc.headers.get('Retry-After', 2))
+            time.sleep(retry_after)
+            return _shopify_api_get(url, token, _retries=_retries - 1)
+        raise
+
+    if limit_header:
+        try:
+            used, cap = (int(x) for x in limit_header.split('/'))
+            if cap and used / cap > 0.8:
+                time.sleep(0.5)  # let the leaky bucket drain before the next call
+        except (ValueError, ZeroDivisionError):
+            pass
     return body, link
 
 
-def get_shopify_products(org):
-    """Real, live catalog from the org's connected Shopify store — used both
-    for the Products panel's "your Shopify store" catalog view (shown
-    immediately once connected, no per-SKU action needed) and the per-SKU
-    picker modal. Never cached/persisted here, always a fresh read, so both
-    always reflect what's actually in the store today, inventory included."""
+# ---- Catalog cache + async sync. The crawl (paginate every product, batch
+# inventory, paginate 60 days of orders) is fast for a small dev store but,
+# at Shopify's own ~2 req/s rate limit, a real store can need 50-150+
+# sequential calls — comfortably past API Gateway's hard, non-raisable 30s
+# Lambda-proxy integration timeout. So the crawl never runs on a request/
+# response path: it's a self-invoked async job (see handler()'s 'job' branch
+# below), and the GET route just reads whatever it last cached. ----
+def _shopify_catalog_cache_key(org):
+    return f'orgs/{org}/amplify/shopify_catalog_cache.json'
+
+
+def _shopify_catalog_status_key(org):
+    return f'orgs/{org}/amplify/shopify_catalog_status.json'
+
+
+def _invoke_shopify_catalog_sync_async(org):
+    lam.invoke(
+        FunctionName=os.environ.get('AWS_LAMBDA_FUNCTION_NAME', 'aprabot-amplify-campaigns'),
+        InvocationType='Event',
+        Payload=json.dumps({'job': 'shopify_catalog_sync', 'org': org}).encode('utf-8'),
+    )
+
+
+_SHOPIFY_PRODUCT_PAGE_SAFETY_CAP = 100  # 25,000 products — a safety ceiling against a
+                                         # runaway loop, not a limit any real catalog
+                                         # should ever actually hit
+_SHOPIFY_ORDER_PAGE_SAFETY_CAP = 200    # 50,000 orders/60 days, same spirit
+
+
+def run_shopify_catalog_sync(org):
+    """The real crawl, run async (see handler()'s 'job' branch) — writes
+    shopify_catalog_status.json (syncing -> completed/failed) and, on
+    success, shopify_catalog_cache.json. Nothing is waiting synchronously
+    for this to return, so it never returns anything meaningful to a caller;
+    all real state lives in those two S3 objects."""
+    status_key = _shopify_catalog_status_key(org)
+    started_at = _now()
+    _write_json(status_key, {'status': 'syncing', 'started_at': started_at})
+
     shop, token = _get_shopify_token(org)
     if not shop:
-        return _resp(404, {'error': 'Shopify is not connected for this organization'})
+        _write_json(status_key, {'status': 'failed', 'error': 'Shopify is not connected',
+                                  'started_at': started_at, 'completed_at': _now()})
+        return
 
-    products = []
-    url = (f'https://{shop}/admin/api/{SHOPIFY_API_VERSION}/products.json'
-           f'?limit=250&fields=id,title,image,variants')
-    pages = 0
     try:
-        while url and pages < 5:  # 1,250 products comfortably covers any real catalog this app serves
+        products = []
+        url = (f'https://{shop}/admin/api/{SHOPIFY_API_VERSION}/products.json'
+               f'?limit=250&fields=id,title,image,variants')
+        pages = 0
+        while url and pages < _SHOPIFY_PRODUCT_PAGE_SAFETY_CAP:
             pages += 1
             data, link = _shopify_api_get(url, token)
             for p in data.get('products', []):
@@ -208,6 +266,9 @@ def get_shopify_products(org):
                 })
             m = _SHOPIFY_LINK_NEXT_RE.search(link or '')
             url = m.group(1) if m else None
+        if url:  # exited only because the safety cap was hit, not because pagination ended
+            print(f"SHOPIFY_SYNC_WARNING[{org}]: hit the {_SHOPIFY_PRODUCT_PAGE_SAFETY_CAP}-page "
+                  f"product safety cap with more pages remaining — cached catalog is truncated")
 
         all_iids = [v['inventory_item_id'] for p in products for v in p['variants']
                      if v.get('inventory_item_id')]
@@ -217,27 +278,68 @@ def get_shopify_products(org):
                 for v in p['variants']:
                     iid = v.get('inventory_item_id')
                     v['inventory_on_hand'] = totals.get(iid) if iid else None
-    except urllib.error.HTTPError as exc:
-        return _resp(502, {'error': f'Shopify API call failed ({exc.code})'})
 
-    # Best-effort, separate from the products fetch above: needs the
-    # read_orders scope, which an already-connected org's existing token
-    # may not have (scope was added after this feature first shipped) —
-    # omit sales columns rather than fail the whole catalog response if so.
-    try:
-        sales, currency = _shopify_recent_sales(shop, token)
-        for p in products:
-            for v in p['variants']:
-                s = sales.get(v['id'])
-                v['units_sold_60d'] = s['units'] if s else 0
-                v['revenue_60d'] = round(s['revenue'], 2) if s else 0.0
-        return _resp(200, {'products': products, 'sales_currency': currency, 'sales_window_days': 60})
+        sales_currency = None
+        try:
+            sales, sales_currency = _shopify_recent_sales(shop, token, org=org)
+            for p in products:
+                for v in p['variants']:
+                    s = sales.get(v['id'])
+                    v['units_sold_60d'] = s['units'] if s else 0
+                    v['revenue_60d'] = round(s['revenue'], 2) if s else 0.0
+        except Exception as exc:
+            # Best-effort — needs read_orders, which an org that connected
+            # before this scope was added won't have yet. The real
+            # catalog/inventory are still worth caching without sales columns.
+            print(f"SHOPIFY_SALES_LOOKUP_FAILED[{org}]: {exc} — caching catalog without sales columns")
+
+        cache = {'products': products, 'sales_window_days': _SHOPIFY_SALES_WINDOW_DAYS}
+        if sales_currency:
+            cache['sales_currency'] = sales_currency
+        _write_json(_shopify_catalog_cache_key(org), cache)
+        _write_json(status_key, {'status': 'completed', 'started_at': started_at,
+                                  'completed_at': _now(), 'product_count': len(products)})
     except Exception as exc:
-        print(f"SHOPIFY_SALES_LOOKUP_FAILED[{org}]: {exc} — catalog will have no sales columns "
-              f"(expected if this org connected before read_orders was added to the OAuth scope; "
-              f"reconnecting Shopify grants it)")
-        return _resp(200, {'products': products})
-    return _resp(200, {'products': products})
+        print(f"SHOPIFY_SYNC_FAILED[{org}]: {exc}")
+        _write_json(status_key, {'status': 'failed', 'error': str(exc)[:500],
+                                  'started_at': started_at, 'completed_at': _now()})
+
+
+def get_shopify_products(org):
+    """Fast read of the cached catalog — see the module note above for why
+    the actual crawl never runs here. Kicks off the first-ever sync for an
+    org that's connected Shopify but never synced; otherwise always returns
+    the current status alongside whatever's cached (which may be a little
+    stale while a newer sync is in flight)."""
+    shop, _token = _get_shopify_token(org)
+    if not shop:
+        return _resp(404, {'error': 'Shopify is not connected for this organization'})
+
+    status = _read_json(_shopify_catalog_status_key(org))
+    if status is None:
+        _invoke_shopify_catalog_sync_async(org)
+        return _resp(200, {'status': 'syncing', 'products': []})
+
+    cache = _read_json(_shopify_catalog_cache_key(org), default={})
+    body = {'status': status.get('status', 'idle'), 'last_synced_at': status.get('completed_at'),
+            'products': cache.get('products', [])}
+    if 'sales_currency' in cache:
+        body['sales_currency'] = cache['sales_currency']
+    if 'sales_window_days' in cache:
+        body['sales_window_days'] = cache['sales_window_days']
+    return _resp(200, body)
+
+
+def trigger_shopify_catalog_sync(org):
+    """POST target for the Products panel's Refresh button."""
+    shop, _token = _get_shopify_token(org)
+    if not shop:
+        return _resp(404, {'error': 'Shopify is not connected for this organization'})
+    status = _read_json(_shopify_catalog_status_key(org))
+    if status and status.get('status') == 'syncing':
+        return _resp(409, {'error': 'a sync is already in progress', 'status': 'syncing'})
+    _invoke_shopify_catalog_sync_async(org)
+    return _resp(200, {'status': 'syncing'})
 
 
 _SHOPIFY_INVENTORY_IDS_PER_CALL = 50  # Shopify's own cap on inventory_item_ids per request
@@ -266,7 +368,7 @@ _SHOPIFY_SALES_WINDOW_DAYS = 60  # Shopify's own default Orders API window witho
                                    # the separately-approved read_all_orders scope
 
 
-def _shopify_recent_sales(shop, token):
+def _shopify_recent_sales(shop, token, org=None):
     """Real units sold + revenue per variant, from real orders in the last
     _SHOPIFY_SALES_WINDOW_DAYS days — genuine historic sales, not a demand
     estimate. Longer history needs Shopify's own read_all_orders approval
@@ -280,7 +382,7 @@ def _shopify_recent_sales(shop, token):
     sales = {}
     currency = None
     pages = 0
-    while url and pages < 20:  # 5,000 orders/60 days comfortably covers any real store this app serves
+    while url and pages < _SHOPIFY_ORDER_PAGE_SAFETY_CAP:
         pages += 1
         data, link = _shopify_api_get(url, token)
         for order in data.get('orders', []):
@@ -296,6 +398,9 @@ def _shopify_recent_sales(shop, token):
                 entry['revenue'] += qty * price
         m = _SHOPIFY_LINK_NEXT_RE.search(link or '')
         url = m.group(1) if m else None
+    if url:  # exited only because the safety cap was hit, not because pagination ended
+        print(f"SHOPIFY_SYNC_WARNING[{org}]: hit the {_SHOPIFY_ORDER_PAGE_SAFETY_CAP}-page "
+              f"order safety cap with more pages remaining — 60-day sales figures are undercounted")
     return sales, currency
 
 
@@ -920,6 +1025,13 @@ def get_campaign_performance(org, platform, campaign_id):
 
 
 def handler(event, context):
+    # Self-invoked async job, not an API Gateway request at all (see
+    # _invoke_shopify_catalog_sync_async) — the one path in this Lambda that
+    # isn't bound by API Gateway's 30s integration timeout.
+    if event.get('job') == 'shopify_catalog_sync':
+        run_shopify_catalog_sync(event['org'])
+        return {'ok': True}
+
     method = event.get('requestContext', {}).get('http', {}).get('method', 'GET')
     path   = event.get('requestContext', {}).get('http', {}).get('path', '')
     qs     = event.get('queryStringParameters') or {}
@@ -950,6 +1062,9 @@ def handler(event, context):
 
         if method == 'GET' and path == '/amplify-campaigns/shopify-products':
             return get_shopify_products(org)
+
+        if method == 'POST' and path == '/amplify-campaigns/shopify-products/sync':
+            return trigger_shopify_catalog_sync(org)
 
         if method == 'GET' and path == '/amplify-campaigns/manual-catalog':
             return get_manual_catalog(org)

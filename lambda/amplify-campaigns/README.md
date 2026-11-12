@@ -68,20 +68,42 @@ elsewhere, even though the Products panel itself no longer shows the raw forecas
 table):
 
 - **Shopify catalog** (`GET /amplify-campaigns/shopify-products`) — real product/variant
-  names, images, and live on-hand inventory (`_shopify_inventory_on_hand`, batched in
-  groups of 50 — Shopify's own cap on `inventory_item_ids` per call), shown the moment an
-  org connects Shopify, no action required. The frontend's Refresh button just re-calls
-  this same route — it's always a fresh, uncached read already, nothing to invalidate.
+  names, images, live on-hand inventory (`_shopify_inventory_on_hand`, batched in groups
+  of 50 — Shopify's own cap on `inventory_item_ids` per call), and recent sales per
+  variant (`_shopify_recent_sales`: units sold, revenue, in the store's own currency,
+  from real orders in the last `_SHOPIFY_SALES_WINDOW_DAYS`/60 days — genuine history,
+  not a demand estimate; further back needs Shopify's own `read_all_orders` scope, a
+  separate "protected customer data" review, out of scope here). Sales are best-effort
+  and isolated from the rest of the crawl: an org that connected before `read_orders` was
+  added to the OAuth scope gets a 403 on just that part — still gets real
+  products/inventory back, just without the two sales columns, until it reconnects.
 
-  Also merges in real recent sales per variant (`_shopify_recent_sales`: units sold,
-  revenue, in the store's own currency) from actual orders in the last
-  `_SHOPIFY_SALES_WINDOW_DAYS` (60) — genuine history, not a demand estimate, but capped
-  at 60 days because going further back needs Shopify's own `read_all_orders` scope,
-  which requires a separate "protected customer data" review, not just an OAuth scope
-  addition. Best-effort and isolated from the rest of this route: an org that connected
-  before `read_orders` was added to the Shopify OAuth scope will get a 403 on just this
-  part (its existing token predates the scope) — the response still includes real
-  products/inventory, just without the two sales columns, until that org reconnects.
+  **The actual crawl never runs on this route.** Shopify's REST Admin API rate limit
+  (~2 req/s) means a real store's full catalog+inventory+orders crawl can need 50-150+
+  sequential calls — comfortably past API Gateway's hard, non-raisable 30s Lambda-proxy
+  integration timeout (this is fixed regardless of the Lambda's own configured timeout).
+  So `run_shopify_catalog_sync(org)` runs as a **self-invoked async job**
+  (`_invoke_shopify_catalog_sync_async`: this same Lambda calls itself via
+  `lam.invoke(InvocationType='Event', Payload={'job': 'shopify_catalog_sync', ...})`,
+  handled by a branch at the very top of `handler()` before the usual API Gateway
+  routing — that invocation path isn't bound by the 30s limit at all, only by this
+  Lambda's own timeout, raised 30s → 300s for exactly this). It writes
+  `orgs/{org}/amplify/shopify_catalog_status.json` (`syncing`/`completed`/`failed`) and,
+  on success, `orgs/{org}/amplify/shopify_catalog_cache.json`. `GET /shopify-products`
+  itself just reads that cache — fast, always well under 30s — alongside the current
+  status; it kicks off the first-ever sync automatically if an org has connected Shopify
+  but never synced. `POST /amplify-campaigns/shopify-products/sync` (the frontend's
+  Refresh button) triggers a fresh one, `409` if one's already running. Also raised the
+  crawl's own internal safety caps (page-count ceilings meant to catch a runaway loop,
+  not a realistic limit) from 1,250 products/5,000 orders to 25,000/50,000, logging a
+  warning rather than silently truncating if one's ever actually hit; added
+  rate-limit-header awareness and a `Retry-After`-respecting 429 retry to
+  `_shopify_api_get`, since a real crawl now makes enough calls to plausibly brush
+  against Shopify's own leaky-bucket limit.
+
+  Needs a scoped `lambda:InvokeFunction` grant on this Lambda's own role, for exactly
+  its own ARN (self-invoke) — added alongside this, not part of the usual
+  S3/DynamoDB/Secrets grants above.
 - **Manual catalog** (`GET/POST /amplify-campaigns/manual-catalog`,
   `PATCH/DELETE /amplify-campaigns/manual-catalog/{id}`) — a plain admin-maintained list
   (`orgs/{org}/amplify/manual_catalog.json`, dict keyed by a generated id), fully

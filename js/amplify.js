@@ -255,21 +255,65 @@
     return 'pill ok';
   }
 
-  function renderShopifyCatalog(products, salesCurrency, salesWindowDays) {
+  // Full catalog lives client-side once fetched — search/sort are purely
+  // local filters over it, no new backend calls needed for either.
+  var shopifyCatalogState = { products: [], salesCurrency: null, salesWindowDays: null,
+    search: '', sortKey: null, sortDir: 1 };
+  var shopifyPollTimer = null;
+
+  function shopifyProductSortValue(p, key) {
+    if (key === 'product') return (p.title || '').toLowerCase();
+    var sum = 0;
+    (p.variants || []).forEach(function (v) {
+      if (key === 'inventory') sum += v.inventory_on_hand || 0;
+      if (key === 'sold') sum += v.units_sold_60d || 0;
+      if (key === 'revenue') sum += v.revenue_60d || 0;
+    });
+    return sum;
+  }
+
+  function shopifyProductMatchesSearch(p, term) {
+    if (!term) return true;
+    term = term.toLowerCase();
+    if ((p.title || '').toLowerCase().indexOf(term) !== -1) return true;
+    return (p.variants || []).some(function (v) {
+      return ((v.title || '').toLowerCase().indexOf(term) !== -1) ||
+        ((v.sku || '').toLowerCase().indexOf(term) !== -1);
+    });
+  }
+
+  function setShopifyEmptyMessage(text) {
+    var el = document.getElementById('amp-shopify-catalog-empty-text');
+    if (el) el.textContent = text;
+  }
+
+  function setShopifyRefreshSpinning(spinning) {
+    var btn = document.getElementById('amp-shopify-refresh-btn');
+    if (!btn) return;
+    btn.disabled = spinning;
+    btn.innerHTML = spinning ? '<span class="amp-spinner"></span>Syncing…' : 'Refresh';
+  }
+
+  function renderShopifyCatalog() {
+    var products = shopifyCatalogState.products;
     var empty = document.getElementById('amp-shopify-catalog-empty');
     var table = document.getElementById('amp-shopify-catalog-table');
     var tbody = document.getElementById('amp-shopify-catalog-body');
     var unitsCol = document.getElementById('amp-shopify-units-col');
     var revenueCol = document.getElementById('amp-shopify-revenue-col');
     var kpis = document.getElementById('amp-catalog-kpis');
+    var searchBox = document.getElementById('amp-shopify-search');
     if (!products || !products.length) {
       empty.style.display = '';
       table.style.display = 'none';
       kpis.style.display = 'none';
+      searchBox.style.display = 'none';
       return;
     }
     empty.style.display = 'none';
     table.style.display = '';
+    searchBox.style.display = '';
+
     // Sales columns are only present when the connected store's token has
     // the read_orders scope (added after Shopify catalog/inventory first
     // shipped) — omit them entirely for a store that hasn't reconnected
@@ -278,11 +322,11 @@
     unitsCol.style.display = hasSales ? '' : 'none';
     revenueCol.style.display = hasSales ? '' : 'none';
     if (hasSales) {
-      unitsCol.textContent = 'Units sold (' + (salesWindowDays || 60) + 'd)';
-      revenueCol.textContent = 'Revenue (' + (salesWindowDays || 60) + 'd)';
+      unitsCol.textContent = 'Units sold (' + (shopifyCatalogState.salesWindowDays || 60) + 'd)';
+      revenueCol.textContent = 'Revenue (' + (shopifyCatalogState.salesWindowDays || 60) + 'd)';
     }
 
-    // Summary strip — quick at-a-glance totals across the whole catalog.
+    // Summary strip reflects the FULL catalog, not the filtered/sorted view.
     var totalStock = 0, totalSold = 0, totalRevenue = 0;
     products.forEach(function (p) {
       (p.variants || []).forEach(function (v) {
@@ -298,11 +342,40 @@
     document.getElementById('amp-kpi-revenue-card').style.display = hasSales ? '' : 'none';
     if (hasSales) {
       document.getElementById('amp-kpi-sold').textContent = totalSold.toLocaleString();
-      document.getElementById('amp-kpi-revenue').textContent = totalRevenue.toFixed(2) + ' ' + (salesCurrency || '');
+      document.getElementById('amp-kpi-revenue').textContent = totalRevenue.toFixed(2) + ' ' + (shopifyCatalogState.salesCurrency || '');
+    }
+
+    // Sort-header arrow indicators.
+    document.querySelectorAll('#amp-shopify-catalog-table .amp-sortable').forEach(function (th) {
+      th.querySelectorAll('.amp-sort-arrow').forEach(function (a) { a.remove(); });
+      if (th.dataset.sortKey === shopifyCatalogState.sortKey) {
+        var arrow = document.createElement('span');
+        arrow.className = 'amp-sort-arrow';
+        arrow.textContent = shopifyCatalogState.sortDir === 1 ? '▲' : '▼';
+        th.appendChild(arrow);
+      }
+    });
+
+    var visible = products.filter(function (p) { return shopifyProductMatchesSearch(p, shopifyCatalogState.search); });
+    if (shopifyCatalogState.sortKey) {
+      var key = shopifyCatalogState.sortKey, dir = shopifyCatalogState.sortDir;
+      visible = visible.slice().sort(function (a, b) {
+        var av = shopifyProductSortValue(a, key), bv = shopifyProductSortValue(b, key);
+        if (av < bv) return -1 * dir;
+        if (av > bv) return 1 * dir;
+        return 0;
+      });
     }
 
     tbody.innerHTML = '';
-    products.forEach(function (p) {
+    if (!visible.length) {
+      var noMatch = document.createElement('tr');
+      noMatch.innerHTML = '<td colspan="6" class="dsubtle" style="text-align:center;padding:20px">No products match "' +
+        escHtml(shopifyCatalogState.search) + '"</td>';
+      tbody.appendChild(noMatch);
+      return;
+    }
+    visible.forEach(function (p) {
       var variants = p.variants || [];
       variants.forEach(function (v, i) {
         var tr = document.createElement('tr');
@@ -318,19 +391,58 @@
           '<td>' + invStr + '</td>' +
           (hasSales ?
             '<td>' + (v.units_sold_60d || 0).toLocaleString() + '</td>' +
-            '<td>' + v.revenue_60d.toFixed(2) + ' ' + escHtml(salesCurrency || '') + '</td>' : '');
+            '<td>' + v.revenue_60d.toFixed(2) + ' ' + escHtml(shopifyCatalogState.salesCurrency || '') + '</td>' : '');
         tbody.appendChild(tr);
       });
     });
   }
 
+  function pollShopifyCatalog() {
+    if (shopifyPollTimer) return; // already polling
+    shopifyPollTimer = setTimeout(function () {
+      shopifyPollTimer = null;
+      loadShopifyCatalog();
+    }, 2500);
+  }
+
   function loadShopifyCatalog() {
     fetchShopifyStatus().then(function (connected) {
-      if (!connected) { renderShopifyCatalog([]); return; }
+      if (!connected) {
+        shopifyCatalogState.products = [];
+        setShopifyRefreshSpinning(false);
+        setShopifyEmptyMessage('Connect Shopify (Getting Started, or Integrations & Settings) to see your real catalog and live inventory here.');
+        renderShopifyCatalog();
+        return;
+      }
       apiFetch(CAMPAIGNS_API + '/shopify-products').then(function (res) {
-        renderShopifyCatalog(res.ok ? res.body.products : [], res.ok ? res.body.sales_currency : null,
-          res.ok ? res.body.sales_window_days : null);
+        if (!res.ok) { setShopifyRefreshSpinning(false); return; }
+        shopifyCatalogState.products = res.body.products || [];
+        shopifyCatalogState.salesCurrency = res.body.sales_currency || null;
+        shopifyCatalogState.salesWindowDays = res.body.sales_window_days || null;
+        if (res.body.status === 'syncing') {
+          setShopifyRefreshSpinning(true);
+          if (!shopifyCatalogState.products.length) {
+            setShopifyEmptyMessage('Syncing your Shopify catalog for the first time — this can take a minute for a large store…');
+          }
+          renderShopifyCatalog();
+          pollShopifyCatalog();
+        } else {
+          setShopifyRefreshSpinning(false);
+          renderShopifyCatalog();
+        }
       });
+    });
+  }
+
+  function refreshShopifyCatalog() {
+    setShopifyRefreshSpinning(true);
+    apiFetch(CAMPAIGNS_API + '/shopify-products/sync', { method: 'POST' }).then(function (res) {
+      if (!res.ok && res.status !== 409) {
+        setShopifyRefreshSpinning(false);
+        alert(res.body.error || 'Could not start a refresh');
+        return;
+      }
+      pollShopifyCatalog();
     });
   }
 
@@ -824,8 +936,21 @@
       });
     });
     var refreshBtn = document.getElementById('amp-shopify-refresh-btn');
-    if (refreshBtn) refreshBtn.addEventListener('click', loadShopifyCatalog);
+    if (refreshBtn) refreshBtn.addEventListener('click', refreshShopifyCatalog);
     var addBtn = document.getElementById('amp-manual-add-btn');
     if (addBtn) addBtn.addEventListener('click', addManualCatalogItem);
+    var searchBox = document.getElementById('amp-shopify-search');
+    if (searchBox) searchBox.addEventListener('input', function () {
+      shopifyCatalogState.search = searchBox.value;
+      renderShopifyCatalog();
+    });
+    document.querySelectorAll('#amp-shopify-catalog-table .amp-sortable').forEach(function (th) {
+      th.addEventListener('click', function () {
+        var key = th.dataset.sortKey;
+        if (shopifyCatalogState.sortKey === key) shopifyCatalogState.sortDir *= -1;
+        else { shopifyCatalogState.sortKey = key; shopifyCatalogState.sortDir = 1; }
+        renderShopifyCatalog();
+      });
+    });
   });
 })();
