@@ -519,33 +519,37 @@
   /* ---------------- Connect Accounts (Integrations & Settings) ---------------- */
 
   function renderConnectAccounts(status) {
+    // querySelectorAll, not getElementById — the same platform's connect
+    // card can appear more than once (Integrations & Settings, and the
+    // Getting Started panel's Shopify CTA), and both must stay in sync
+    // from this one status fetch.
     ['meta', 'google', 'shopify'].forEach(function (platform) {
-      var card = document.getElementById('amp-connect-' + platform);
-      if (!card) return;
-      var s = status[platform] || { status: 'not_connected' };
-      var badge = card.querySelector('.amp-conn-status');
-      var btn = card.querySelector('.amp-conn-btn');
-      var shopInput = card.querySelector('.amp-shop-input');
-      if (s.status === 'connected') {
-        badge.textContent = 'Connected' + (s.external_account_id ? ' — ' + s.external_account_id : '');
-        badge.className = 'pill ok amp-conn-status';
-        btn.textContent = 'Disconnect';
-        btn.onclick = function () { disconnectPlatform(platform); };
-        if (shopInput) shopInput.style.display = 'none';
-      } else {
-        badge.textContent = s.status === 'revoked' ? 'Disconnected' : 'Not connected';
-        badge.className = (s.status === 'revoked' ? 'pill warn' : 'pill risk') + ' amp-conn-status';
-        btn.textContent = s.status === 'revoked' ? 'Reconnect' : 'Connect';
-        btn.onclick = function () {
-          // Shopify has no fixed authorize URL — it's per-shop — so the
-          // admin has to tell us the shop domain before Connect means
-          // anything; Meta/Google need nothing extra.
-          var shop = shopInput ? shopInput.value.trim() : undefined;
-          if (shopInput && !shop) { shopInput.focus(); return; }
-          connectPlatform(platform, shop);
-        };
-        if (shopInput) shopInput.style.display = '';
-      }
+      document.querySelectorAll('.amp-connect-card[data-platform="' + platform + '"]').forEach(function (card) {
+        var s = status[platform] || { status: 'not_connected' };
+        var badge = card.querySelector('.amp-conn-status');
+        var btn = card.querySelector('.amp-conn-btn');
+        var shopInput = card.querySelector('.amp-shop-input');
+        if (s.status === 'connected') {
+          badge.textContent = 'Connected' + (s.external_account_id ? ' — ' + s.external_account_id : '');
+          badge.className = 'pill ok amp-conn-status';
+          btn.textContent = 'Disconnect';
+          btn.onclick = function () { disconnectPlatform(platform); };
+          if (shopInput) shopInput.style.display = 'none';
+        } else {
+          badge.textContent = s.status === 'revoked' ? 'Disconnected' : 'Not connected';
+          badge.className = (s.status === 'revoked' ? 'pill warn' : 'pill risk') + ' amp-conn-status';
+          btn.textContent = s.status === 'revoked' ? 'Reconnect' : 'Connect';
+          btn.onclick = function () {
+            // Shopify has no fixed authorize URL — it's per-shop — so the
+            // admin has to tell us the shop domain before Connect means
+            // anything; Meta/Google need nothing extra.
+            var shop = shopInput ? shopInput.value.trim() : undefined;
+            if (shopInput && !shop) { shopInput.focus(); return; }
+            connectPlatform(platform, shop);
+          };
+          if (shopInput) shopInput.style.display = '';
+        }
+      });
     });
   }
 
