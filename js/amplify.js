@@ -47,16 +47,32 @@
 
   function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;'); }
 
-  // Yen, not USD — forecast/latest.json's avgPrice is JPY (the underlying
-  // business is Japanese bottled-water demand); JPY has no commonly-used
-  // minor unit, so every money value in this module is a plain integer yen.
-  function yen(amount) { return '¥' + Math.round(amount).toLocaleString(); }
+  // Display-only $ relabel (explicit product choice) — every underlying
+  // number here is still a real JPY amount from forecast/latest.json (the
+  // business is Japanese bottled-water demand), just prefixed with $
+  // instead of ¥. NOT a real USD conversion — ¥5000/day literally shows as
+  // "$5,000/day", not its ~$33 real-dollar equivalent. Function kept named
+  // `yen` on purpose: the values passing through it are still yen.
+  function yen(amount) { return '$' + Math.round(amount).toLocaleString(); }
 
   function statusPillClass(status) {
     if (status === 'active') return 'ok';
     if (status === 'paused') return 'warn';
     if (status === 'draft') return 'warn';
     return 'risk';
+  }
+
+  // Real brand marks (Simple Icons, MIT-licensed), inlined so the real Meta
+  // and Google logos show up anywhere a platform is named, instead of a
+  // generic colored dot or plain text.
+  var PLATFORM_ICONS = {
+    meta: '<svg class="pf-ic" viewBox="0 0 24 24" width="14" height="14" fill="#0668E1" aria-hidden="true"><path d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z"/></svg>',
+    google: '<svg class="pf-ic" viewBox="0 0 24 24" width="14" height="14" fill="#4285F4" aria-hidden="true"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>'
+  };
+
+  function platformIcon(platform) { return PLATFORM_ICONS[platform] || ''; }
+  function platformLabel(platform) {
+    return platform === 'meta' ? 'Meta' : platform === 'google' ? 'Google' : escHtml(platform || '');
   }
 
   /* ---------------- shared forecast-data fetch + SKU stats ----------------
@@ -309,7 +325,7 @@
       var tr = document.createElement('tr');
       tr.innerHTML =
         '<td class="mono">' + escHtml(c.name) + '</td>' +
-        '<td><span class="pill ' + (c.platform === 'meta' ? 'ok' : 'warn') + '">' + escHtml(c.platform) + '</span></td>' +
+        '<td><span class="pill ' + (c.platform === 'meta' ? 'ok' : 'warn') + '" style="display:inline-flex;align-items:center;gap:5px">' + platformIcon(c.platform) + platformLabel(c.platform) + '</span></td>' +
         '<td>' + escHtml(c.objective) + '</td>' +
         '<td>' + yen(c.daily_budget_yen) + '/day</td>' +
         '<td><span class="pill ' + statusPillClass(c.status) + '">' + escHtml(c.status) +
@@ -360,7 +376,7 @@
       var item = document.createElement('div');
       item.style.cssText = 'padding:10px 12px;border-radius:8px;cursor:pointer;margin-bottom:4px';
       item.innerHTML = '<div style="font-weight:600;font-size:13.5px">' + escHtml(c.name) + '</div>' +
-        '<div class="dsubtle" style="margin:0;font-size:11.5px">' + escHtml(c.platform) + ' · ' + escHtml(c.status) + '</div>';
+        '<div class="dsubtle" style="margin:0;font-size:11.5px;display:flex;align-items:center;gap:5px">' + platformIcon(c.platform) + platformLabel(c.platform) + ' · ' + escHtml(c.status) + '</div>';
       item.onclick = function () {
         list.querySelectorAll('div[data-active]').forEach(function (x) { x.style.background = ''; x.removeAttribute('data-active'); });
         item.style.background = 'var(--signal-soft)'; item.setAttribute('data-active', '1');
@@ -527,8 +543,9 @@
   function openCampaignWizard(rec) {
     wizardRec = rec;
     wizardStep = 1;
-    document.getElementById('amp-wiz-title').textContent =
-      'Create ' + (rec ? (rec.suggested_platform || 'Meta') : 'Meta') + ' Campaign';
+    var wizPlatform = (rec && rec.suggested_platform) || 'meta';
+    document.getElementById('amp-wiz-title').innerHTML =
+      'Create ' + platformIcon(wizPlatform) + ' ' + platformLabel(wizPlatform) + ' Campaign';
 
     var summary = document.getElementById('amp-wiz-rec-summary');
     if (rec) {
@@ -590,7 +607,7 @@
       document.getElementById('amp-wiz-launch-summary').innerHTML =
         '<div class="amp-wiz-main">' +
           '<div class="amp-wiz-field"><div class="lbl">Campaign Name</div><div class="val">' + escHtml(name) + '</div></div>' +
-          '<div class="amp-wiz-field"><div class="lbl">Platform</div><div class="val">' + escHtml(platform) + '</div></div>' +
+          '<div class="amp-wiz-field"><div class="lbl">Platform</div><div class="val" style="display:flex;align-items:center;gap:5px">' + platformIcon(platform) + platformLabel(platform) + '</div></div>' +
           '<div class="amp-wiz-field"><div class="lbl">Objective</div><div class="val">' + escHtml(objective) + '</div></div>' +
           '<div class="amp-wiz-field"><div class="lbl">Daily Budget</div><div class="val">' + yen(budget || 0) + '</div></div>' +
           '<div class="amp-wiz-field"><div class="lbl">Duration</div><div class="val">' + escHtml(duration) + ' days</div></div>' +
