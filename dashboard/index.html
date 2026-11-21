@@ -556,6 +556,41 @@
         </div>
       </div>
 
+      <!-- Security (2FA) -->
+      <div class="scard">
+        <div class="scard-head">
+          <span class="scard-ic c-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke-linecap="round"/></svg></span>
+          <h4>Security</h4>
+        </div>
+        <div class="srow" id="mfaStatusRow">
+          <div>
+            <div class="srow-label">Two-factor authentication</div>
+            <div class="srow-desc" id="mfaStatusDesc">Checking status…</div>
+          </div>
+          <button class="dbtn" id="mfaActionBtn" style="background:var(--signal);color:#0A0E15;border-color:var(--signal)" onclick="mfaActionClick()" disabled>…</button>
+        </div>
+
+        <!-- enrollment flow — hidden until "Enable 2FA" is clicked -->
+        <div id="mfaEnrollBox" style="display:none;margin-top:18px;padding-top:18px;border-top:1px solid var(--line)">
+          <p class="dsubtle" style="margin:0 0 12px;font-size:12.5px">
+            Add this key to an authenticator app (Google Authenticator, Authy, 1Password), then enter the 6-digit code it shows to confirm.
+          </p>
+          <div style="background:var(--ink-3);border:1px solid var(--line-2);border-radius:10px;padding:14px 16px;margin-bottom:14px">
+            <div class="srow-desc" style="margin-bottom:6px">Manual entry key</div>
+            <div id="mfaSecretDisplay" style="font-family:var(--mono);font-size:15px;letter-spacing:.08em;color:var(--signal);word-break:break-all">—</div>
+          </div>
+          <div class="field" style="max-width:220px">
+            <label for="mfaConfirmCode">6-digit code</label>
+            <input id="mfaConfirmCode" type="text" inputmode="numeric" placeholder="123456" maxlength="6" autocomplete="one-time-code">
+          </div>
+          <div style="display:flex;gap:10px;margin-top:4px">
+            <button class="dbtn" style="background:var(--signal);color:#0A0E15;border-color:var(--signal)" onclick="mfaConfirmEnroll()">Verify &amp; enable</button>
+            <button class="dbtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" onclick="mfaCancelEnroll()">Cancel</button>
+          </div>
+          <p class="stest-msg" id="mfaEnrollMsg"></p>
+        </div>
+      </div>
+
       <!-- Support -->
       <div class="scard">
         <div class="scard-head">
@@ -1388,6 +1423,7 @@
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/onboarding.js"></script>
 <script src="../js/tour.js"></script>
+<script src="../js/mfa.js"></script>
 <script>
   /* dashboard page auth: apply user from token + wire logout */
   (function(){
@@ -1504,6 +1540,10 @@
     if(emailEl&&nameEl) emailEl.textContent=nameEl.textContent||'—';
     var avatarEl=document.getElementById('settingsAvatar');
     if(avatarEl&&nameEl&&nameEl.textContent) avatarEl.textContent=nameEl.textContent.charAt(0).toUpperCase();
+    /* 2FA status — re-checked every time Settings opens, same reasoning as
+       loadTeamMembers() below: a change made in another tab/session (or
+       right after enrolling) should show up without a full page reload */
+    mfaRefreshStatus();
     /* org name — re-applied here too in case Settings opens before
        loadForecast()'s own fetch has resolved (applyOrgName no-ops
        harmlessly against whatever window.DATA currently is) */
@@ -1511,6 +1551,87 @@
     /* team members + roles — own fetch, re-run every time Settings opens
        so a role change in another tab/session shows up on next visit */
     if (typeof window.loadTeamMembers === 'function') window.loadTeamMembers();
+  }
+
+  /* ── Two-factor authentication (TOTP via Cognito) ── */
+  var _mfaEnabled = false;
+
+  function mfaRefreshStatus(){
+    var token = localStorage.getItem('apra_access');
+    var btn = document.getElementById('mfaActionBtn');
+    var desc = document.getElementById('mfaStatusDesc');
+    if (!token || typeof APRA_MFA === 'undefined') return;
+    APRA_MFA.getMfaStatus(token).then(function(status){
+      _mfaEnabled = status.enabled;
+      btn.disabled = false;
+      if (_mfaEnabled) {
+        desc.textContent = 'Enabled — an authenticator app code is required at sign-in.';
+        btn.textContent = 'Disable 2FA';
+        btn.style.background = 'var(--ink-3)'; btn.style.color = 'var(--text)'; btn.style.borderColor = 'var(--line-2)';
+      } else {
+        desc.textContent = 'Not enabled — add an authenticator app for an extra layer of login security.';
+        btn.textContent = 'Enable 2FA';
+        btn.style.background = 'var(--signal)'; btn.style.color = '#0A0E15'; btn.style.borderColor = 'var(--signal)';
+      }
+    }).catch(function(){
+      desc.textContent = 'Could not load 2FA status right now.';
+      btn.disabled = false; btn.textContent = 'Retry';
+      btn.style.background = 'var(--ink-3)'; btn.style.color = 'var(--text)'; btn.style.borderColor = 'var(--line-2)';
+    });
+  }
+
+  function mfaActionClick(){
+    if (_mfaEnabled) mfaDisable(); else mfaStartEnroll();
+  }
+
+  function mfaStartEnroll(){
+    var token = localStorage.getItem('apra_access');
+    var msg = document.getElementById('mfaEnrollMsg');
+    msg.className = 'stest-msg'; msg.textContent = '';
+    APRA_MFA.associateSoftwareToken(token).then(function(secret){
+      // grouped in 4s purely for readability when typed by hand — Cognito
+      // ignores whitespace in the stored secret either way
+      var grouped = secret.replace(/(.{4})/g, '$1 ').trim();
+      document.getElementById('mfaSecretDisplay').textContent = grouped;
+      document.getElementById('mfaEnrollBox').style.display = '';
+      document.getElementById('mfaConfirmCode').value = '';
+      setTimeout(function(){ var f=document.getElementById('mfaConfirmCode'); if(f) f.focus(); }, 60);
+    }).catch(function(err){
+      msg.className = 'stest-msg err'; msg.textContent = APRA_MFA.friendlyError(err.message);
+    });
+  }
+
+  function mfaConfirmEnroll(){
+    var token = localStorage.getItem('apra_access');
+    var code = (document.getElementById('mfaConfirmCode').value || '').trim();
+    var msg = document.getElementById('mfaEnrollMsg');
+    if (!code) { msg.className = 'stest-msg err'; msg.textContent = 'Enter the 6-digit code from your authenticator app.'; return; }
+    msg.className = 'stest-msg'; msg.textContent = 'Verifying…';
+    APRA_MFA.verifySoftwareToken(token, code).then(function(){
+      return APRA_MFA.setMfaPreference(token, true);
+    }).then(function(){
+      document.getElementById('mfaEnrollBox').style.display = 'none';
+      mfaRefreshStatus();
+      msg.className = 'stest-msg ok'; msg.textContent = '2FA enabled.';
+    }).catch(function(err){
+      msg.className = 'stest-msg err'; msg.textContent = APRA_MFA.friendlyError(err.message);
+    });
+  }
+
+  function mfaCancelEnroll(){
+    document.getElementById('mfaEnrollBox').style.display = 'none';
+    document.getElementById('mfaEnrollMsg').textContent = '';
+  }
+
+  function mfaDisable(){
+    if (!confirm('Turn off two-factor authentication? Signing in will only require your password after this.')) return;
+    var token = localStorage.getItem('apra_access');
+    var desc = document.getElementById('mfaStatusDesc');
+    APRA_MFA.setMfaPreference(token, false).then(function(){
+      mfaRefreshStatus();
+    }).catch(function(err){
+      desc.textContent = APRA_MFA.friendlyError(err.message);
+    });
   }
 
   function setTheme(t){

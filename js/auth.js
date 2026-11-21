@@ -138,11 +138,23 @@ var APRA_AUTH = (function () {
 })();
 
 /* ── Sign-in ── */
+var _mfaSession = '';
+var _mfaEmail   = '';
+
 function openLogin() {
   var m = document.getElementById('loginModal');
   if (m) m.classList.add('open');
   var err = document.getElementById('auth-error');
   if (err) err.textContent = '';
+  var mfaErr = document.getElementById('login-mfa-error');
+  if (mfaErr) mfaErr.textContent = '';
+  // reset to the password step every time the modal opens, in case it was
+  // left on the 2FA step from a previous attempt (e.g. closed mid-challenge
+  // and reopened to try a different account)
+  var step1   = document.getElementById('login-step1');
+  var mfaStep = document.getElementById('login-mfa-step');
+  if (step1)   step1.style.display   = '';
+  if (mfaStep) mfaStep.style.display = 'none';
   setTimeout(function () { var f = document.getElementById('uid'); if (f) f.focus(); }, 60);
 }
 
@@ -174,6 +186,15 @@ function doLogin(e) {
       btn.disabled = false; btn.textContent = 'Sign in →';
       return;
     }
+    if (data.ChallengeName === 'SOFTWARE_TOKEN_MFA') {
+      _mfaSession = data.Session;
+      _mfaEmail   = email;
+      document.getElementById('login-step1').style.display   = 'none';
+      document.getElementById('login-mfa-step').style.display = '';
+      btn.disabled = false; btn.textContent = 'Sign in →';
+      setTimeout(function () { var f = document.getElementById('login-mfa-code'); if (f) f.focus(); }, 60);
+      return;
+    }
     APRA_AUTH.setSession(data.AuthenticationResult);
     // Drives the silent-refresh-on-return-visit check in auth.js's own
     // restore-session-on-load logic — unchecked means a return visit after
@@ -184,6 +205,29 @@ function doLogin(e) {
   }).catch(function (err) {
     if (errEl) errEl.textContent = APRA_AUTH.friendlyError(err.message);
     btn.disabled = false; btn.textContent = 'Sign in →';
+  });
+}
+
+function doLoginMfa(e) {
+  e.preventDefault();
+  var code     = (document.getElementById('login-mfa-code').value || '').trim();
+  var remember =  document.getElementById('rememberMe');
+  var errEl    =  document.getElementById('login-mfa-error');
+  var btn      =  e.target.querySelector('button[type=submit]');
+
+  if (!code) { errEl.textContent = 'Please enter the 6-digit code.'; return; }
+
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  errEl.textContent = '';
+
+  APRA_MFA.respondToMfaChallenge(_mfaEmail, _mfaSession, code).then(function (data) {
+    APRA_AUTH.setSession(data.AuthenticationResult);
+    if (remember && remember.checked) localStorage.setItem('apra_remember', '1');
+    else localStorage.removeItem('apra_remember');
+    APRA_AUTH.enterDashboard(_mfaEmail);
+  }).catch(function (err) {
+    errEl.textContent = APRA_MFA.friendlyError(err.message);
+    btn.disabled = false; btn.textContent = 'Verify & sign in →';
   });
 }
 
