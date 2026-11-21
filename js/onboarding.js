@@ -16,7 +16,7 @@
   var histKey = null;
   var TOTAL_STEPS = 7;
   var step = 1;
-  var holidayCountryLoaded = null; // which country's defaults are currently loaded into holidayState
+  var holidayCountryLoaded = null; // signature ("country|sorted,detected,states") of the defaults currently loaded into holidayState — see loadDefaultHolidays()
   var weatherLoaded = false; // whether the Weather step's data has already been resolved once
 
   // Latest warnings from each upload's own validation pass (see "Soft,
@@ -704,6 +704,118 @@
       { month: 11, day: 23, name: 'Labor Thanksgiving Day' },
     ],
   };
+  // State-level holidays for India, keyed by the same full state name shown
+  // in PIN_PREFIX_TO_STATE_IN below (picked over a state-code abbreviation
+  // since there's no existing state-code convention anywhere else in the
+  // codebase to match, and the full name doubles as the "(State)" suffix
+  // shown on each holiday tag — see loadDefaultHolidays()).
+  //
+  // Same bar as HOLIDAY_RULES above: only state holidays with a fixed (or
+  // effectively fixed) Gregorian date are listed — state-formation-day
+  // anniversaries (gazetted against the Gregorian calendar directly), plus
+  // the handful of solar-calendar new year festivals that, like Baisakhi,
+  // track the sun's entry into Mesha and so fall on April 13 or 14 (never
+  // drifting further) rather than a true lunar date.
+  //
+  // Deliberately excluded, despite being well-known state holidays, because
+  // their date actually shifts year to year on a lunar or lunisolar
+  // calendar: Gudi Padwa and Ugadi (Maharashtra/Karnataka/Telangana/AP),
+  // Onam (Malayalam calendar, Kerala), Bihu (Assamese calendar), Durga
+  // Puja/Vijaya Dashami (West Bengal), and Pongal (commonly cited as Jan
+  // 14/15, but several states' official calendars move it further some
+  // years) — left for the user to confirm and add manually, same as
+  // Diwali/Holi/Eid in the national list above.
+  var HOLIDAY_RULES_STATE_IN = {
+    'Maharashtra': [
+      { month: 5, day: 1, name: 'Maharashtra Day' },
+    ],
+    'Tamil Nadu': [
+      { month: 4, day: 14, name: 'Tamil New Year (Puthandu)' },
+    ],
+    'Karnataka': [
+      { month: 11, day: 1, name: 'Karnataka Rajyotsava' },
+    ],
+    'Gujarat': [
+      { month: 5, day: 1, name: 'Gujarat Day' },
+    ],
+    'West Bengal': [
+      { month: 4, day: 14, name: 'Bengali New Year (Pohela Boishakh)' },
+    ],
+    'Punjab': [
+      { month: 4, day: 13, name: 'Baisakhi' },
+    ],
+    'Kerala': [
+      // Onam excluded (Malayalam-calendar lunar date, shifts every year) —
+      // no other state holiday here clears the fixed-date bar.
+    ],
+    'Telangana': [
+      { month: 6, day: 2, name: 'Telangana Formation Day' },
+    ],
+    'Delhi': [
+      // No state-specific holiday here clears the fixed-date bar — Delhi
+      // observes the IN national calendar as-is.
+    ],
+  };
+
+  // India Post's postal circles assign the first 1-2 digits of a 6-digit PIN
+  // to a state/UT — a long-stable public mapping (unchanged in decades), so
+  // it's safe to hardcode rather than look up. Longer (2-digit) prefixes are
+  // checked before shorter (1-digit) ones in pinToStatesIN() below, since a
+  // state's range is sometimes a narrow slice of a wider single-digit zone
+  // (e.g. Goa's 403 sits inside Maharashtra's broader 40-44 zone).
+  //
+  // Only the states covered by HOLIDAY_RULES_STATE_IN are listed — no point
+  // mapping PIN prefixes for a state we have no holiday data for yet.
+  var PIN_PREFIX_TO_STATE_IN = {
+    '11': 'Delhi',
+    '14': 'Punjab', '15': 'Punjab', '16': 'Punjab',
+    '36': 'Gujarat', '37': 'Gujarat', '38': 'Gujarat', '39': 'Gujarat',
+    '40': 'Maharashtra', '41': 'Maharashtra', '42': 'Maharashtra', '43': 'Maharashtra', '44': 'Maharashtra',
+    '50': 'Telangana',
+    '56': 'Karnataka', '57': 'Karnataka', '58': 'Karnataka', '59': 'Karnataka',
+    '60': 'Tamil Nadu', '61': 'Tamil Nadu', '62': 'Tamil Nadu', '63': 'Tamil Nadu', '64': 'Tamil Nadu',
+    '67': 'Kerala', '68': 'Kerala', '69': 'Kerala',
+    '70': 'West Bengal', '71': 'West Bengal', '72': 'West Bengal', '73': 'West Bengal', '74': 'West Bengal',
+  };
+
+  // 3-digit carve-outs for union-territory enclaves that sit *inside* one of
+  // the state ranges above — without this, e.g. every Chandigarh (UT) pincode
+  // would be silently misattributed to Punjab. None of these UTs are in
+  // HOLIDAY_RULES_STATE_IN, so excluding them is strictly safer than guessing
+  // which state's holidays (if any) should apply to them. Lakshadweep is
+  // handled separately below (a 682551-682559 sub-range, not the whole 682
+  // prefix) since 682xxx is mostly genuine Kerala (Kochi/Ernakulam) addresses
+  // — excluding all of 682 would wrongly drop real Kerala pincodes too.
+  var PIN_PREFIX_EXCLUDE_IN = {
+    '403': true, // Goa, inside Maharashtra's 40-44
+    '160': true, // Chandigarh (UT), inside Punjab's 16
+    '362': true, // Diu (Daman & Diu UT), inside Gujarat's 36
+    '396': true, // Daman & Dadra and Nagar Haveli (UT), inside Gujarat's 39
+    '605': true, '607': true, '609': true, // Puducherry (UT) enclaves, inside Tamil Nadu's 60
+    '673': true, // Mahe, a Puducherry (UT) enclave, inside Kerala's 67
+    '737': true, // Sikkim, inside West Bengal's 73
+    '744': true, // Andaman & Nicobar Islands (UT), inside West Bengal's 74
+  };
+
+  // Resolves a list of raw pincode strings (as collected from the
+  // serviceable-area upload — see channelDistributorRows) to the distinct
+  // Indian states they fall in, for merging state-level holidays into the
+  // defaults. Multi-region businesses naturally resolve to multiple states;
+  // dedupe is the caller's job via the returned array's uniqueness here.
+  function pinToStatesIN(pincodes) {
+    var states = {};
+    (pincodes || []).forEach(function (code) {
+      code = (code || '').trim();
+      if (!/^\d{6}$/.test(code)) return;
+      if (PIN_PREFIX_EXCLUDE_IN[code.slice(0, 3)]) return;
+      var num = parseInt(code, 10);
+      if (num >= 682551 && num <= 682559) return; // Lakshadweep (UT) — see comment above
+      var state = PIN_PREFIX_TO_STATE_IN[code.slice(0, 2)];
+      if (state) states[state] = true;
+    });
+    return Object.keys(states);
+  }
+
   var HOLIDAY_WINDOW_DAYS = 365; // show defaults over the coming year, matching the forecast horizon
 
   function nthWeekdayOfMonth(year, month, weekday, n) {
@@ -713,11 +825,10 @@
     return d;
   }
 
-  // Resolves a country's holiday rules into concrete dates falling within
-  // the next HOLIDAY_WINDOW_DAYS days (rules can span two calendar years).
-  function resolveHolidays(country) {
-    var rules = HOLIDAY_RULES[country];
-    if (!rules) return [];
+  // Shared by resolveHolidays/resolveStateHolidays below — turns a flat
+  // rules array into concrete dates falling within the next
+  // HOLIDAY_WINDOW_DAYS days (rules can span two calendar years).
+  function resolveRules(rules) {
     var today = new Date(); today.setHours(0, 0, 0, 0);
     var horizon = new Date(today.getTime() + HOLIDAY_WINDOW_DAYS * 86400000);
     var out = [];
@@ -727,6 +838,34 @@
           ? new Date(year, rule.month - 1, rule.day)
           : nthWeekdayOfMonth(year, rule.month, rule.weekday, rule.n);
         if (d >= today && d <= horizon) out.push({ date: d, name: rule.name });
+      });
+    });
+    return out.sort(function (a, b) { return a.date - b.date; });
+  }
+
+  // Resolves a country's national holiday rules into concrete dates.
+  function resolveHolidays(country) {
+    var rules = HOLIDAY_RULES[country];
+    if (!rules) return [];
+    return resolveRules(rules);
+  }
+
+  // Resolves state-level holidays for every Indian state detected from the
+  // serviceable-area pincode upload (see pinToStatesIN), merging and
+  // deduping across states for multi-region businesses. Each holiday name
+  // gets a "(State)" suffix so it reads differently from the national list
+  // and the user can tell at a glance which state pulled it in — useful if
+  // pincode inference catches a state that doesn't actually apply to them,
+  // since they can then just remove that one tag instead of guessing why
+  // it's there. Only ever called for IN; other countries have no state data.
+  function resolveStateHolidays(pincodes) {
+    var states = pinToStatesIN(pincodes);
+    var out = [];
+    states.forEach(function (state) {
+      var rules = HOLIDAY_RULES_STATE_IN[state];
+      if (!rules || !rules.length) return;
+      resolveRules(rules).forEach(function (h) {
+        out.push({ date: h.date, name: h.name + ' (' + state + ')' });
       });
     });
     return out.sort(function (a, b) { return a.date - b.date; });
@@ -778,17 +917,32 @@
   // Loads default holidays for the currently selected country, replacing
   // any previously-loaded defaults but keeping manual additions/overrides —
   // re-run whenever the Holidays step comes into view, so switching the
-  // country on step 1 and coming back updates the list.
+  // country on step 1 and coming back updates the list. For India, also
+  // merges in state-level holidays inferred from the serviceable-area
+  // pincode upload (step 2) — holidayCountryLoaded is compared against a
+  // signature that includes the detected state list (not just the country
+  // code) so that uploading pincodes *after* already viewing this step
+  // (user went 1 -> 5 -> back to 2 -> forward to 5 again) still picks up
+  // the newly available state holidays instead of being skipped as
+  // "already loaded". If no pincode data is available yet, pinToStatesIN
+  // simply returns [] and this falls back to national-only, same as before.
   function loadDefaultHolidays() {
     var country = currentCountry();
-    if (country === holidayCountryLoaded) return;
+    var states = country === 'IN' ? pinToStatesIN(channelDistributorRows.map(function (r) { return r.pincode; })) : [];
+    var signature = country + '|' + states.slice().sort().join(',');
+    if (signature === holidayCountryLoaded) return;
     Object.keys(holidayState).forEach(function (key) {
       if (holidayState[key].auto) delete holidayState[key];
     });
     resolveHolidays(country).forEach(function (h) {
       holidayState[holidayKey(h.date, h.name)] = { date: h.date, name: h.name, auto: true };
     });
-    holidayCountryLoaded = country;
+    if (country === 'IN') {
+      resolveStateHolidays(channelDistributorRows.map(function (r) { return r.pincode; })).forEach(function (h) {
+        holidayState[holidayKey(h.date, h.name)] = { date: h.date, name: h.name, auto: true };
+      });
+    }
+    holidayCountryLoaded = signature;
     renderHolidayList();
   }
 

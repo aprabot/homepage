@@ -90,6 +90,49 @@
   .kb-chat-form input{flex:1;background:var(--ink);border:1px solid var(--line-2);border-radius:9px;padding:10px 14px;
     color:var(--text);font-family:inherit;font-size:14px;outline:none}
   .kb-chat-form input:focus{border-color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
+
+  /* Overview redesign — header/controls card, KPI strip, scenario matrix,
+     opportunity cards. Ported from redesign-mockup/dashboard/index.html;
+     dropdown/date-range/opportunity-card styles for controls with no real
+     data behind them were intentionally dropped (see ovEmpty below). */
+  .ov-header-card{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:22px 24px;margin-bottom:16px}
+  .ov-header-top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+  .ov-header-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+
+  .ov-kpi-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:16px}
+  @media(max-width:780px){.ov-kpi-strip{grid-template-columns:1fr 1fr}}
+  .ov-kpi-chip{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 15px;
+    display:flex;align-items:center;justify-content:space-between;gap:10px;transition:border-color .18s}
+  .ov-kpi-chip:hover{border-color:var(--line-2)}
+  .ov-kpi-chip>span:first-child{font-size:12px;color:var(--muted);white-space:nowrap}
+  .ov-kpi-chip b{font-family:var(--display);font-weight:600;font-size:15px}
+  .ov-kpi-chip b.ov-dim{color:var(--muted-2);font-weight:500}
+
+  .ov-matrix-toolbar{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:16px 20px;border-bottom:1px solid var(--line)}
+  .ov-matrix-table th{text-align:right}
+  .ov-matrix-table td{text-align:right}
+  .ov-matrix-table th:first-child,.ov-matrix-table td:first-child{text-align:left}
+  .ov-plan-col{background:var(--signal-soft)!important;color:var(--text)!important;font-weight:600}
+  .ov-plan-dot{display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--signal);margin-right:6px}
+  .ov-group-header{background:var(--ink-3);cursor:pointer;user-select:none}
+  .ov-group-header:hover{background:var(--ink-2)}
+  .ov-group-header td{padding:9px 20px!important;font-family:var(--mono);font-size:10.5px;letter-spacing:.1em;
+    text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line)}
+  .ov-group-header .ov-group-sub{text-transform:none;letter-spacing:0;color:var(--muted-2);font-size:10.5px;margin-left:8px}
+  .ov-group-header .ov-chevron{transition:transform .2s;float:right}
+  .ov-group-header.collapsed .ov-chevron{transform:rotate(-90deg)}
+  .ov-group-row.ov-row-hidden{display:none}
+
+  .ov-opp-head{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;
+    padding-bottom:16px;margin-bottom:18px;border-bottom:1px solid var(--line)}
+  .ov-opp-count{display:inline-flex;align-items:center;justify-content:center;min-width:22px;height:22px;
+    padding:0 7px;border-radius:100px;background:var(--ink-3);border:1px solid var(--line-2);
+    font-family:var(--mono);font-size:11px;color:var(--text)}
+  .ov-opp-empty{text-align:center;padding:34px 20px;border:1px dashed var(--line-2);border-radius:12px;color:var(--muted)}
+  .ov-opp-empty svg{margin-bottom:10px;opacity:.45}
+  .ov-opp-empty p{margin:0;font-size:13px}
+  .ov-opp-empty p.sub{margin-top:6px;font-size:12px;color:var(--muted-2)}
 </style>
 </head>
 <body>
@@ -112,6 +155,7 @@
       <li title="Inventory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Inventory</span></li>
       <li title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.3-2.5h-4l-.3 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5c.1-.3.1-.6.1-1Z" stroke-linejoin="round"/></svg><span class="lbl">Settings</span></li>
       <li title="Knowledge Base"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7h7M9 11h5" stroke-linecap="round"/></svg><span class="lbl">Knowledge Base</span></li>
+      <li title="Support"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a8 8 0 0 1 16 0" stroke-linecap="round"/><rect x="2" y="12" width="5" height="7" rx="2"/><rect x="17" y="12" width="5" height="7" rx="2"/><path d="M20 19a4 4 0 0 1-4 4h-2" stroke-linecap="round"/></svg><span class="lbl">Support</span></li>
     </ul>
     <div class="signout" onclick="logout()" title="Sign out">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="18" height="18"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9" stroke-linecap="round" stroke-linejoin="round"/></svg>
@@ -164,29 +208,36 @@
     </div>
 
     <div class="dbody">
-      <h1 class="dgreet">Welcome back, <span class="hl" id="greetName">there</span>.</h1>
-      <p class="dsubtle">Shipped-units forecast accuracy — <b>2025 weekly backtest</b>, trained on 2023–2024, plus a 52-week forward forecast.</p>
-
-      <div class="kpis">
-        <div class="kpi">
-          <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".5" fill="currentColor"/></svg></div>
-          <div class="t">Overall WAPE</div><div class="v" id="kpiWape"><span class="skel"></span></div><div class="d up">volume-weighted error · lower is better</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div class="t">SKUs forecasted</div><div class="v" id="kpiSkus"><span class="skel"></span></div><div class="d up">across the full catalog</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
-          <div class="t">Units forecasted</div><div class="v" id="kpiUnits"><span class="skel"></span></div><div class="d up">total shipped (52 wks)</div>
-        </div>
-        <div class="kpi">
-          <div class="kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4" stroke-linecap="round"/></svg></div>
-          <div class="t">Backtest horizon</div><div class="v">52<span style="font-size:1rem;color:var(--muted)"> wks</span></div><div class="d up">1-week-ahead, out-of-sample</div>
+      <div class="ov-header-card">
+        <div class="ov-header-top">
+          <div>
+            <h1 class="dgreet" style="margin-bottom:0">Welcome back, <span class="hl" id="greetName">there</span>.</h1>
+            <p class="dsubtle" style="margin-top:8px;margin-bottom:0">Shipped-units forecast accuracy — <b>2025 weekly backtest</b>, trained on 2023–2024, plus a 52-week forward forecast.</p>
+          </div>
+          <div class="ov-header-controls">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--muted)"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4" stroke-linecap="round"/></svg>
+            <span class="dsubtle" style="margin:0;font-size:.78rem">Time Horizon</span>
+            <div class="theme-pill" id="ovHorizonSeg">
+              <button data-w="12" onclick="ovPickHorizon(this)">12W</button>
+              <button data-w="26" onclick="ovPickHorizon(this)">26W</button>
+              <button class="active" data-w="52" onclick="ovPickHorizon(this)">52W</button>
+            </div>
+          </div>
         </div>
       </div>
 
-      <div class="dgrid" style="margin-top:22px">
+      <div class="ov-kpi-strip">
+        <div class="ov-kpi-chip"><span>Units forecasted</span><b id="ovKpiUnits">—</b></div>
+        <div class="ov-kpi-chip"><span>SKUs forecasted</span><b id="ovKpiSkus">—</b></div>
+        <div class="ov-kpi-chip"><span>WAPE (<span id="ovKpiWapeLabel">52W</span>)</span><b id="ovKpiWape">—</b></div>
+        <div class="ov-kpi-chip"><span>Backtest horizon</span><b id="ovKpiBacktest">—</b></div>
+        <div class="ov-kpi-chip"><span>Revenue</span><b class="ov-dim">—</b></div>
+        <div class="ov-kpi-chip"><span>Avg Discount/Unit</span><b class="ov-dim">—</b></div>
+        <div class="ov-kpi-chip"><span>Marketing Spend</span><b class="ov-dim">—</b></div>
+        <div class="ov-kpi-chip"><span>Units Sold</span><b class="ov-dim">—</b></div>
+      </div>
+
+      <div class="dgrid">
         <div class="dcard clickable" id="ovTrendCard" title="Open Forecasts">
           <div class="ch"><h4>Forecast trend — all SKUs</h4><span class="dsubtle" style="margin:0;font-size:.8rem">recent actuals + forward outlook · open Forecasts →</span></div>
           <div class="dchart" style="height:190px">
@@ -209,6 +260,74 @@
             <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
             <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
           </ul>
+        </div>
+      </div>
+
+      <div class="dcard" style="padding:0;overflow:hidden;margin-top:18px">
+        <div class="ov-matrix-toolbar">
+          <div>
+            <h4 style="display:inline-block;margin:0">Plan &amp; Scenario Comparison Matrix</h4>
+            <span class="dsubtle" style="margin:0 0 0 8px;font-size:.78rem;display:inline">Variances benchmarked vs. Committed plan</span>
+          </div>
+          <button type="button" class="dbtn" id="ovToggleAllGroupsBtn" onclick="ovToggleAllGroups()" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);font-size:11px;padding:6px 11px">Collapse all groups</button>
+        </div>
+        <div class="table-wrap">
+          <table class="dtable ov-matrix-table" id="ovMatrixTable">
+            <thead>
+              <tr>
+                <th>Metric</th>
+                <th>Last year</th>
+                <th class="ov-plan-col"><span class="ov-plan-dot"></span>Committed plan</th>
+                <th>Scenario 1</th>
+                <th>Scenario 2</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr class="ov-group-header" data-group="coverage" onclick="ovToggleGroup('coverage', this)"><td colspan="5">Coverage<svg class="ov-chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr>
+              <tr class="ov-group-row" data-group-item="coverage"><td># SKUs</td><td>—</td><td class="ov-plan-col" id="ovMxSkus">—</td><td>—</td><td>—</td></tr>
+              <tr class="ov-group-row" data-group-item="coverage"><td># Zip codes</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
+              <tr class="ov-group-row" data-group-item="coverage"><td>Sales quantity (forecast)</td><td>—</td><td class="ov-plan-col" id="ovMxSalesQty">—</td><td>—</td><td>—</td></tr>
+
+              <tr class="ov-group-header" data-group="accuracy" onclick="ovToggleGroup('accuracy', this)"><td colspan="5">Accuracy (WAPE)<span class="ov-group-sub">Lower is better</span><svg class="ov-chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr>
+              <tr class="ov-group-row" data-group-item="accuracy"><td>12 weeks</td><td>—</td><td class="ov-plan-col" id="ovMxWape12">—</td><td>—</td><td>—</td></tr>
+              <tr class="ov-group-row" data-group-item="accuracy"><td>24 weeks</td><td>—</td><td class="ov-plan-col" id="ovMxWape24">—</td><td>—</td><td>—</td></tr>
+              <tr class="ov-group-row" data-group-item="accuracy"><td>Full year</td><td>—</td><td class="ov-plan-col" id="ovMxWape52">—</td><td>—</td><td>—</td></tr>
+
+              <tr class="ov-group-header" data-group="money" onclick="ovToggleGroup('money', this)"><td colspan="5">Money<svg class="ov-chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr>
+              <tr class="ov-group-row" data-group-item="money"><td>Revenue predicted (after discount)</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
+              <tr class="ov-group-row" data-group-item="money"><td>Marketing spend committed</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
+
+              <tr class="ov-group-header" data-group="growth-rev" onclick="ovToggleGroup('growth-rev', this)"><td colspan="5">Growth: Revenue<svg class="ov-chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr>
+              <tr class="ov-group-row" data-group-item="growth-rev"><td>YoY growth predicted</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
+              <tr class="ov-group-row" data-group-item="growth-rev"><td>Channel A/B CAGR</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
+              <tr class="ov-group-row" data-group-item="growth-rev"><td># Zip codes above overall growth</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
+              <tr class="ov-group-row" data-group-item="growth-rev"><td># Zip codes below overall growth</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
+
+              <tr class="ov-group-header" data-group="growth-units" onclick="ovToggleGroup('growth-units', this)"><td colspan="5">Growth: Units<svg class="ov-chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr>
+              <tr class="ov-group-row" data-group-item="growth-units"><td>YoY growth predicted</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
+              <tr class="ov-group-row" data-group-item="growth-units"><td>Channel A/B CAGR</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
+              <tr class="ov-group-row" data-group-item="growth-units"><td># Zip codes above overall growth</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
+              <tr class="ov-group-row" data-group-item="growth-units"><td># Zip codes below overall growth</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="dcard" style="margin-top:18px">
+        <div class="ov-opp-head">
+          <div style="display:flex;align-items:center;gap:10px">
+            <h4 style="margin:0">Opportunities</h4>
+            <span class="ov-opp-count">0</span>
+          </div>
+          <div class="dsubtle" style="margin:0;font-size:.78rem;display:flex;align-items:center;gap:7px">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--signal)" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            Checked after every forecast run, commit and withdrawal
+          </div>
+        </div>
+        <div class="ov-opp-empty">
+          <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <p>No opportunity signals yet</p>
+          <p class="sub">Opportunity detection (inventory alerts, demand signals, promo/media alignment) isn't wired up yet — this section will populate automatically once that logic exists.</p>
         </div>
       </div>
     </div>
@@ -822,6 +941,52 @@
       </div>
     </div>
 
+    <!-- Support panel -->
+    <div class="dbody" id="supportPanel" style="display:none">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
+        <div>
+          <h1 class="dgreet">Support</h1>
+          <p class="dsubtle" id="supportSubtitle" style="margin-bottom:0">Common questions, and a ticket thread with APRABot support for anything else — visible to your whole organization.</p>
+        </div>
+        <button class="dbtn" onclick="openNewTicketModal()">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="15" height="15"><path d="M12 5v14M5 12h14" stroke-linecap="round"/></svg>
+          New ticket
+        </button>
+      </div>
+
+      <div class="dcard" style="margin-top:24px">
+        <div class="ch"><h4>Common questions</h4></div>
+        <select id="supportFaqSelect" style="width:100%;padding:10px 12px;border-radius:9px;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:var(--body);font-size:14px">
+          <option value="">Choose a topic…</option>
+        </select>
+        <div id="supportFaqAnswer" class="dsubtle" style="display:none;margin-top:14px;padding:14px;background:var(--panel);border-radius:9px;border:1px solid var(--line)"></div>
+        <p class="dsubtle" style="margin:14px 0 0;font-size:12.5px">Didn't find your answer? <a href="#" onclick="event.preventDefault();openNewTicketModal()" style="color:var(--mint)">Create a ticket</a> below.</p>
+      </div>
+
+      <div class="dcard" style="margin-top:20px">
+        <div class="ch" style="flex-wrap:wrap;gap:12px">
+          <h4>Tickets</h4>
+          <div class="seg" id="supportStatusSeg">
+            <button type="button" class="on" data-status="all">All</button>
+            <button type="button" data-status="open">Open</button>
+            <button type="button" data-status="closed">Closed</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table class="dtable">
+            <thead><tr>
+              <th>Subject</th><th id="supportOrgHead" style="display:none">Org</th>
+              <th>Category</th><th>Status</th><th>Messages</th><th>Updated</th>
+            </tr></thead>
+            <tbody id="supportTicketsBody">
+              <tr class="skel-row"><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p class="dsubtle" id="supportEmpty" style="margin:32px 0 12px;text-align:center;display:none">No tickets yet.</p>
+      </div>
+    </div>
+
     <!-- Getting Started / onboarding panel -->
     <div class="dbody" id="onboardingPanel" style="display:none">
       <h1 class="dgreet">Getting started with APRABot</h1>
@@ -1214,6 +1379,46 @@
     </div>
   </div>
 
+  <!-- New support ticket modal -->
+  <div class="modal" id="newTicketModal" onclick="if(event.target===this)closeNewTicketModal()">
+    <div class="login-card" style="max-width:480px;text-align:left">
+      <button class="x" onclick="closeNewTicketModal()" aria-label="Close">×</button>
+      <h3>New support ticket</h3>
+      <p class="sub">Visible to everyone in your organization, and to APRABot support.</p>
+      <form onsubmit="submitNewTicket(event)">
+        <div class="field">
+          <label for="nt-category">Category</label>
+          <select id="nt-category" style="width:100%;padding:10px 12px;border-radius:9px;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:var(--body);font-size:14px">
+            <option value="accuracy">Forecast accuracy</option>
+            <option value="approvals-roles">Approvals &amp; roles</option>
+            <option value="data-integration">Data &amp; integration</option>
+            <option value="billing">Billing</option>
+            <option value="bug">Something's broken</option>
+            <option value="other" selected>Other</option>
+          </select>
+        </div>
+        <div class="field">
+          <label for="nt-subject">Subject</label>
+          <input id="nt-subject" type="text" placeholder="A short summary" maxlength="140">
+        </div>
+        <div class="field">
+          <label for="nt-message">Message</label>
+          <textarea id="nt-message" rows="5" placeholder="What's going on?" style="width:100%;padding:10px 12px;border-radius:9px;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:var(--body);font-size:14px;resize:vertical"></textarea>
+        </div>
+        <p id="nt-error" class="auth-error"></p>
+        <button type="submit" class="btn btn-pri" style="width:100%;justify-content:center;margin-top:10px">Create ticket →</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Ticket detail modal -->
+  <div class="modal" id="ticketDetailModal" onclick="if(event.target===this)closeTicketDetail()">
+    <div class="login-card sd-modal">
+      <div id="ticketDetailHead" class="sd-head"></div>
+      <div id="ticketDetailBody" class="sd-scroll"></div>
+    </div>
+  </div>
+
   <!-- Compare scenarios modal -->
   <div class="modal" id="compareModal" onclick="if(event.target===this)closeCompareModal()">
     <div class="login-card" id="compareCard" style="max-width:720px;text-align:left;max-height:86vh;overflow-y:auto">
@@ -1420,6 +1625,7 @@
 <script src="../js/insights.js"></script>
 <script src="../js/inventory.js"></script>
 <script src="../js/knowledge.js"></script>
+<script src="../js/support.js"></script>
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/onboarding.js"></script>
@@ -1466,6 +1672,7 @@
       'Inventory':       document.getElementById('inventoryPanel'),
       'Settings':        document.getElementById('settingsPanel'),
       'Knowledge Base':  document.getElementById('knowledgePanel'),
+      'Support':         document.getElementById('supportPanel'),
       'Getting Started': document.getElementById('onboardingPanel')
     };
     var report = document.querySelector('.dtop .report-menu');
@@ -1486,12 +1693,13 @@
           if(panels[k]) panels[k].style.display = (k === name) ? '' : 'none';
         });
 
-        report.style.display = (isSettings || name === 'Getting Started' || name === 'Knowledge Base') ? 'none' : '';
+        report.style.display = (isSettings || name === 'Getting Started' || name === 'Knowledge Base' || name === 'Support') ? 'none' : '';
 
         if(isSettings) syncSettingsPanel();
         if(name === 'AI Insights' && window.loadInsights) window.loadInsights();
         if(name === 'Inventory' && window.loadInventory) window.loadInventory();
         if(name === 'Knowledge Base' && window.loadKnowledgeTab) window.loadKnowledgeTab();
+        if(name === 'Support' && window.loadSupportTab) window.loadSupportTab();
       });
     });
 

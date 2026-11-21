@@ -382,6 +382,207 @@ def list_approvals(org):
     return _resp(200, {'approvals': entries})
 
 
+# ---- support tickets -----------------------------------------------------
+# orgs/{org}/support/index.json: {"tickets": [{id, subject, category,
+# status, created_by, created_at, updated_at, message_count}, ...]} — a
+# lightweight summary list per org, same shape/purpose as scenarios/
+# index.json. The full thread for one ticket lives in its own object,
+# orgs/{org}/support/{ticket_id}.json, so replying never has to rewrite
+# every other ticket's messages.
+#
+# Staff (anyone in aprabot-internal, reusing the same org-resolution this
+# whole file already does — there's no separate "support agent" role to
+# manage) can see and reply to EVERY org's tickets, not just their own;
+# a regular org member only ever sees their own org's. Tickets are
+# otherwise genuinely org-level as asked: any member of an org can see
+# and reply to a ticket a teammate opened, not just its original author.
+_TICKET_CATEGORIES = {
+    'accuracy', 'approvals-roles', 'data-integration', 'billing', 'bug', 'other',
+}
+
+
+def _is_staff(email):
+    return _org_id(email) == 'aprabot-internal'
+
+
+def _support_index_key(org):
+    return f'orgs/{org}/support/index.json'
+
+
+def _ticket_key(org, ticket_id):
+    return f'orgs/{org}/support/{ticket_id}.json'
+
+
+def _all_org_ids():
+    """Every org that has ever written anything under orgs/ — staff-only,
+    to build the cross-org ticket view. S3 has no "list distinct
+    prefixes" primitive; Delimiter='/' on the orgs/ prefix is the
+    standard way to get just the next path segment (each org's own
+    folder) without listing every object underneath it."""
+    orgs = []
+    kwargs = {'Bucket': BUCKET, 'Prefix': 'orgs/', 'Delimiter': '/'}
+    while True:
+        page = s3.list_objects_v2(**kwargs)
+        for p in page.get('CommonPrefixes', []):
+            orgs.append(p['Prefix'][len('orgs/'):].rstrip('/'))
+        if not page.get('IsTruncated'):
+            break
+        kwargs['ContinuationToken'] = page['NextContinuationToken']
+    return orgs
+
+
+def list_tickets(org, caller_email):
+    if _is_staff(caller_email):
+        # Cross-org — every org's own index, each entry tagged with which
+        # org it belongs to (the per-org index itself doesn't need that
+        # field, only this aggregated staff view does).
+        out = []
+        for o in _all_org_ids():
+            idx = _read_json(_support_index_key(o), default={'tickets': []})
+            for t in idx['tickets']:
+                out.append({**t, 'org': o})
+        out.sort(key=lambda t: t.get('updated_at', ''), reverse=True)
+        return _resp(200, {'tickets': out, 'is_staff': True})
+
+    idx = _read_json(_support_index_key(org), default={'tickets': []})
+    tickets = sorted(idx['tickets'], key=lambda t: t.get('updated_at', ''), reverse=True)
+    return _resp(200, {'tickets': tickets, 'is_staff': False})
+
+
+def create_ticket(org, caller_email, event):
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except json.JSONDecodeError:
+        return _resp(400, {'error': 'invalid JSON body'})
+
+    subject = (body.get('subject') or '').strip()[:140]
+    category = (body.get('category') or 'other').strip().lower()
+    message = (body.get('message') or '').strip()[:4000]
+    if not subject or not message:
+        return _resp(400, {'error': 'subject and message are required'})
+    if category not in _TICKET_CATEGORIES:
+        category = 'other'
+
+    ticket_id = f"tkt-{int(time.time())}-{uuid.uuid4().hex[:6]}"
+    now = _now()
+    ticket = {
+        'id': ticket_id, 'org': org, 'subject': subject, 'category': category, 'status': 'open',
+        'created_by': caller_email, 'created_at': now, 'updated_at': now,
+        'messages': [{'from': caller_email, 'is_staff': False, 'body': message, 'created_at': now}],
+    }
+    _write_json(_ticket_key(org, ticket_id), ticket)
+
+    idx = _read_json(_support_index_key(org), default={'tickets': []})
+    idx['tickets'].append({
+        'id': ticket_id, 'subject': subject, 'category': category, 'status': 'open',
+        'created_by': caller_email, 'created_at': now, 'updated_at': now, 'message_count': 1,
+    })
+    _write_json(_support_index_key(org), idx)
+
+    return _resp(202, {'ticket_id': ticket_id})
+
+
+def get_ticket(org, caller_email, ticket_id):
+    # A customer only ever gets here with their own org (org is resolved
+    # from their own email, same as every other route in this file); staff
+    # can look up ANY org's ticket, so they need to find which org it
+    # actually belongs to first rather than assuming their own.
+    if _is_staff(caller_email):
+        target_org = _find_ticket_org(ticket_id)
+        if target_org is None:
+            return _resp(404, {'error': 'ticket not found'})
+    else:
+        target_org = org
+
+    ticket = _read_json(_ticket_key(target_org, ticket_id))
+    if ticket is None:
+        return _resp(404, {'error': 'ticket not found'})
+    return _resp(200, ticket)
+
+
+def _find_ticket_org(ticket_id):
+    """Staff-only lookup — a ticket id alone doesn't say which org's S3
+    prefix it lives under, so check each org's index. Fine at this
+    scale (same reasoning as _org_member_emails' own full-scan)."""
+    for o in _all_org_ids():
+        idx = _read_json(_support_index_key(o), default={'tickets': []})
+        if any(t['id'] == ticket_id for t in idx['tickets']):
+            return o
+    return None
+
+
+def reply_ticket(org, caller_email, ticket_id, event):
+    is_staff = _is_staff(caller_email)
+    target_org = _find_ticket_org(ticket_id) if is_staff else org
+    if target_org is None:
+        return _resp(404, {'error': 'ticket not found'})
+
+    ticket = _read_json(_ticket_key(target_org, ticket_id))
+    if ticket is None:
+        return _resp(404, {'error': 'ticket not found'})
+
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except json.JSONDecodeError:
+        return _resp(400, {'error': 'invalid JSON body'})
+    message = (body.get('message') or '').strip()[:4000]
+    if not message:
+        return _resp(400, {'error': 'message is required'})
+
+    now = _now()
+    ticket['messages'].append({'from': caller_email, 'is_staff': is_staff, 'body': message, 'created_at': now})
+    # A customer replying reopens a ticket staff had marked resolved; staff
+    # replying doesn't change status on its own — they close it explicitly.
+    if not is_staff and ticket.get('status') == 'closed':
+        ticket['status'] = 'open'
+    ticket['updated_at'] = now
+    _write_json(_ticket_key(target_org, ticket_id), ticket)
+
+    idx = _read_json(_support_index_key(target_org), default={'tickets': []})
+    for t in idx['tickets']:
+        if t['id'] == ticket_id:
+            t['updated_at'] = now
+            t['status'] = ticket['status']
+            t['message_count'] = len(ticket['messages'])
+            break
+    _write_json(_support_index_key(target_org), idx)
+
+    return _resp(200, {'ok': True})
+
+
+def set_ticket_status(org, caller_email, ticket_id, event):
+    if not _is_staff(caller_email):
+        return _resp(403, {'error': 'only APRABot support can close or reopen a ticket'})
+    target_org = _find_ticket_org(ticket_id)
+    if target_org is None:
+        return _resp(404, {'error': 'ticket not found'})
+
+    try:
+        body = json.loads(event.get('body') or '{}')
+    except json.JSONDecodeError:
+        return _resp(400, {'error': 'invalid JSON body'})
+    status = (body.get('status') or '').strip().lower()
+    if status not in ('open', 'closed'):
+        return _resp(400, {'error': 'status must be "open" or "closed"'})
+
+    ticket = _read_json(_ticket_key(target_org, ticket_id))
+    if ticket is None:
+        return _resp(404, {'error': 'ticket not found'})
+    ticket['status'] = status
+    ticket['updated_at'] = _now()
+    _write_json(_ticket_key(target_org, ticket_id), ticket)
+
+    idx = _read_json(_support_index_key(target_org), default={'tickets': []})
+    for t in idx['tickets']:
+        if t['id'] == ticket_id:
+            t['status'] = status
+            t['updated_at'] = ticket['updated_at']
+            break
+    _write_json(_support_index_key(target_org), idx)
+
+    return _resp(200, {'ok': True})
+
+
 def handler(event, context):
     method = event.get('requestContext', {}).get('http', {}).get('method', 'GET')
     path   = event.get('requestContext', {}).get('http', {}).get('path', '')
@@ -417,6 +618,24 @@ def handler(event, context):
 
         if method == 'POST' and path == '/scenarios/upload-url':
             return create_upload_url(org, event)
+
+        if method == 'GET' and path == '/tickets':
+            return list_tickets(org, caller_email)
+
+        if method == 'POST' and path == '/tickets':
+            return create_ticket(org, caller_email, event)
+
+        m = re.match(r'^/tickets/([^/]+)/reply$', path)
+        if method == 'POST' and m:
+            return reply_ticket(org, caller_email, m.group(1), event)
+
+        m = re.match(r'^/tickets/([^/]+)/status$', path)
+        if method == 'POST' and m:
+            return set_ticket_status(org, caller_email, m.group(1), event)
+
+        m = re.match(r'^/tickets/([^/]+)$', path)
+        if method == 'GET' and m:
+            return get_ticket(org, caller_email, m.group(1))
 
         return _resp(404, {'error': f'no route for {method} {path}'})
 

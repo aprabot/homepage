@@ -94,7 +94,7 @@
   // segmented control toggle (period selector handled in initDashboard)
 
   /* ===== REAL BACKTEST DASHBOARD (data from DATA in data.js) ===== */
-  let dashReady=false, curSel='ALL', curWeeks=52, fcGeom=null, hideBacktest=true;
+  let dashReady=false, curSel='ALL', curWeeks=52, fcGeom=null, hideBacktest=true, ovHorizon=52;
   const fcVisible={a:true,f:true,w:true};
   document.querySelectorAll('#fcLegend .lgd-item').forEach(el=>{
     el.addEventListener('click',()=>{
@@ -125,11 +125,35 @@
     const r=seriesWape(o.a,o.f); return {a:o.a,f:o.f,w:r.w,name:sel,overall:r.overall};
   }
 
+  // Real trailing-window WAPE over the backtest's actual weeks, via the
+  // existing seriesWape(a,f). "Trailing N weeks" means the N weeks ending
+  // at the backtest/forecast boundary (DATA.backtestWeeks) — the only
+  // weeks with real actuals — not an arbitrary slice of the 104-week
+  // array (most of which is forecast-only with a:null).
+  function trailingWape(n){
+    const bt=DATA.backtestWeeks||DATA.weeks.length;
+    const st=Math.max(0,bt-n);
+    const a=DATA.all.a.slice(st,bt), f=DATA.all.f.slice(st,bt);
+    return seriesWape(a,f).overall;
+  }
+
   function renderDashboardData(){
-    // KPIs
-    document.getElementById('kpiWape').textContent=DATA.overallWape.toFixed(2)+'%';
-    document.getElementById('kpiSkus').textContent=Object.keys(DATA.skus).length.toLocaleString();
-    document.getElementById('kpiUnits').textContent=nf(DATA.all.a.reduce((s,x)=>s+(x||0),0));
+    // Overview KPI strip + Plan & Scenario Matrix (real values only — see
+    // ovPickHorizon for the Time-Horizon-driven WAPE chip/chart redraw)
+    const totalUnits=DATA.all.a.reduce((s,x)=>s+(x||0),0);
+    const totalForecastUnits=DATA.all.f.reduce((s,x)=>s+(x||0),0);
+    const skuCount=Object.keys(DATA.skus).length;
+    const setTxt=(id,v)=>{const el=document.getElementById(id); if(el)el.textContent=v;};
+    setTxt('ovKpiUnits',nf(totalUnits));
+    setTxt('ovKpiSkus',skuCount.toLocaleString());
+    setTxt('ovKpiBacktest',(DATA.backtestWeeks||DATA.weeks.length)+' wks');
+    setTxt('ovMxSkus',skuCount.toLocaleString());
+    setTxt('ovMxSalesQty',nf(totalForecastUnits));
+    const w12=trailingWape(12), w24=trailingWape(24), w52=trailingWape(52);
+    setTxt('ovMxWape12',w12==null?'—':w12.toFixed(0)+'%');
+    setTxt('ovMxWape24',w24==null?'—':w24.toFixed(0)+'%');
+    setTxt('ovMxWape52',w52==null?'—':w52.toFixed(0)+'%');
+    ovPickHorizon(document.querySelector('#ovHorizonSeg button[data-w="'+ovHorizon+'"]')||document.querySelector('#ovHorizonSeg button.active'));
 
     // top SKUs by volume (for movers + table)
     const rows=Object.keys(DATA.skus).map(a=>{
@@ -170,19 +194,24 @@
   // Overview page — same visual language as the real Forecasts chart
   // (mint actual, dashed signal-green forecast) but no axis-2/WAPE line,
   // hover, or legend toggle, since it's a glance-and-click-through widget.
+  // Window width follows the Time Horizon toggle (ovHorizon: 12/26/52) so
+  // picking a horizon visibly changes how much trailing-actual + forward
+  // data is plotted, not just the WAPE number next to it.
   function drawOverviewTrend(){
     const cv=document.getElementById('ovTrendCanvas');
     if(!cv||!window.DATA)return;
     const ovSkel=document.getElementById('ovTrendSkel');
     if(ovSkel)ovSkel.style.display='none';
     // Center the window on the backtest/forecast boundary (trailing actuals
-    // + near-term forward outlook) rather than just "the last 26 calendar
+    // + near-term forward outlook) rather than just "the last N calendar
     // weeks" — with a long forward horizon, the most recent weeks are
     // forecast-only with no actuals yet, which would make the actual line
     // vanish entirely from a naive trailing window.
+    const winW=Math.min(DATA.weeks.length,Math.max(26,ovHorizon));
     const backtestTotal0=DATA.backtestWeeks||DATA.weeks.length;
-    const st=Math.max(0,Math.min(backtestTotal0-13,DATA.weeks.length-26));
-    const N=Math.min(26,DATA.weeks.length-st);
+    const halfTrail=Math.min(backtestTotal0,Math.round(winW/2));
+    const st=Math.max(0,Math.min(backtestTotal0-halfTrail,DATA.weeks.length-winW));
+    const N=Math.min(winW,DATA.weeks.length-st);
     const weeks=DATA.weeks.slice(st), a=DATA.all.a.slice(st), f=DATA.all.f.slice(st);
     const box=cv.parentElement;
     const cw=box.clientWidth||600, ch=box.clientHeight||190, dpr=window.devicePixelRatio||1;
@@ -215,6 +244,49 @@
       ctx.beginPath();ctx.moveTo(bx,padT);ctx.lineTo(bx,ch-padB);ctx.stroke();ctx.setLineDash([]);
     }
   }
+
+  // Overview Time Horizon toggle (12W/26W/52W) — genuinely recomputes the
+  // WAPE KPI chip via trailingWape()/seriesWape() on the real trailing-N-
+  // week actual/forecast slice, and redraws the trend chart's window to
+  // match. Not just a CSS/active-state toggle. Exposed on window since
+  // it's invoked from an inline onclick= in dashboard/index.html.
+  window.ovPickHorizon=function(btn){
+    if(!btn||!window.DATA)return;
+    const n=+btn.dataset.w;
+    ovHorizon=n;
+    document.querySelectorAll('#ovHorizonSeg button').forEach(b=>b.classList.remove('active'));
+    btn.classList.add('active');
+    const w=trailingWape(n);
+    const wapeEl=document.getElementById('ovKpiWape');
+    if(wapeEl)wapeEl.textContent=w==null?'—':w.toFixed(2)+'%';
+    const lblEl=document.getElementById('ovKpiWapeLabel');
+    if(lblEl)lblEl.textContent=n+'W';
+    const btEl=document.getElementById('ovKpiBacktest');
+    if(btEl)btEl.textContent=Math.min(n,DATA.backtestWeeks||DATA.weeks.length)+' wks';
+    drawOverviewTrend();
+  };
+
+  // Plan & Scenario Comparison Matrix — collapsible group headers. Pure UI
+  // affordance ported from the redesign mockup as-is; no data dependency.
+  window.ovToggleGroup=function(groupName, headerEl){
+    const rows=document.querySelectorAll('[data-group-item="'+groupName+'"]');
+    if(!rows.length)return;
+    const nowHidden=!rows[0].classList.contains('ov-row-hidden');
+    rows.forEach(r=>r.classList.toggle('ov-row-hidden',nowHidden));
+    headerEl.classList.toggle('collapsed',nowHidden);
+  };
+
+  window.ovToggleAllGroups=function(){
+    const btn=document.getElementById('ovToggleAllGroupsBtn');
+    if(!btn)return;
+    const collapsing=btn.textContent.indexOf('Collapse')===0;
+    document.querySelectorAll('.ov-group-header').forEach(header=>{
+      const groupName=header.dataset.group;
+      document.querySelectorAll('[data-group-item="'+groupName+'"]').forEach(r=>r.classList.toggle('ov-row-hidden',collapsing));
+      header.classList.toggle('collapsed',collapsing);
+    });
+    btn.textContent=collapsing?'Expand all groups':'Collapse all groups';
+  };
 
   // Switches the sidebar to the given panel by reusing its real click
   // handler (js inline in dashboard/index.html), so active state, the
