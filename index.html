@@ -411,6 +411,25 @@
         <button type="submit" class="btn btn-pri">Verify &amp; sign in →</button>
       </form>
     </div>
+
+    <!-- Step 3: mandatory first-time 2FA enrollment — shown instead of
+         login-mfa-step when this account has never set up 2FA before -->
+    <div id="login-mfa-setup-step" style="display:none">
+      <h3>Set up two-factor authentication</h3>
+      <p class="sub">2FA is required for all APRABot accounts. Add this key to an authenticator app (Google Authenticator, Authy, 1Password), then enter the code it shows.</p>
+      <div style="background:var(--ink);border:1px solid var(--line-2);border-radius:10px;padding:13px 14px;margin-bottom:16px">
+        <div style="font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Manual entry key</div>
+        <div id="login-mfa-setup-secret" style="font-family:var(--mono);font-size:15px;letter-spacing:.08em;color:var(--signal);word-break:break-all">—</div>
+      </div>
+      <form onsubmit="doLoginMfaSetup(event)">
+        <div class="field">
+          <label for="login-mfa-setup-code">Authenticator code</label>
+          <input id="login-mfa-setup-code" type="text" inputmode="numeric" placeholder="123456" maxlength="6" autocomplete="one-time-code">
+        </div>
+        <p id="login-mfa-setup-error" class="auth-error"></p>
+        <button type="submit" class="btn btn-pri">Verify &amp; sign in →</button>
+      </form>
+    </div>
   </div>
 </div>
 

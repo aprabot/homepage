@@ -85,7 +85,8 @@ var APRA_MFA = (function () {
   }
 
   // Login-time challenge response — used when InitiateAuth comes back with
-  // ChallengeName === 'SOFTWARE_TOKEN_MFA' instead of tokens.
+  // ChallengeName === 'SOFTWARE_TOKEN_MFA' instead of tokens (the account
+  // already has 2FA enrolled, this is just the per-login code check).
   function respondToMfaChallenge(email, session, code) {
     return cognitoPost('RespondToAuthChallenge', {
       ClientId: CLIENT_ID,
@@ -95,12 +96,50 @@ var APRA_MFA = (function () {
     });
   }
 
+  /* ── Mandatory first-time enrollment (ChallengeName === 'MFA_SETUP') ──
+     Used when the pool enforces MFA and this account hasn't enrolled yet.
+     InitiateAuth returns this challenge instead of SOFTWARE_TOKEN_MFA in
+     that case. Unlike the already-enrolled path above, there's no access
+     token yet — every call threads a Session through instead, and each
+     response hands back the *next* Session to use, right up to the final
+     RespondToAuthChallenge that both finishes enrollment and completes login. */
+
+  // Step 1 — ask for a secret using the challenge's Session (not an access
+  // token, since the user isn't fully authenticated yet).
+  function associateSoftwareTokenAtSetup(session) {
+    return cognitoPost('AssociateSoftwareToken', { Session: session })
+      .then(function (data) { return { secretCode: data.SecretCode, session: data.Session }; });
+  }
+
+  // Step 2 — confirm the code from the authenticator app, still via Session.
+  function verifySoftwareTokenAtSetup(session, code) {
+    return cognitoPost('VerifySoftwareToken', { Session: session, UserCode: code })
+      .then(function (data) {
+        if (data.Status !== 'SUCCESS') throw new Error('CodeMismatchException');
+        return data.Session;
+      });
+  }
+
+  // Step 3 — complete the MFA_SETUP challenge. On success this both
+  // finalizes the enrollment and returns real sign-in tokens in one call.
+  function completeMfaSetup(email, session) {
+    return cognitoPost('RespondToAuthChallenge', {
+      ClientId: CLIENT_ID,
+      ChallengeName: 'MFA_SETUP',
+      Session: session,
+      ChallengeResponses: { USERNAME: email }
+    });
+  }
+
   return {
     friendlyError: friendlyError,
     associateSoftwareToken: associateSoftwareToken,
     verifySoftwareToken: verifySoftwareToken,
     setMfaPreference: setMfaPreference,
     getMfaStatus: getMfaStatus,
-    respondToMfaChallenge: respondToMfaChallenge
+    respondToMfaChallenge: respondToMfaChallenge,
+    associateSoftwareTokenAtSetup: associateSoftwareTokenAtSetup,
+    verifySoftwareTokenAtSetup: verifySoftwareTokenAtSetup,
+    completeMfaSetup: completeMfaSetup
   };
 })();

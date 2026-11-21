@@ -151,10 +151,12 @@ function openLogin() {
   // reset to the password step every time the modal opens, in case it was
   // left on the 2FA step from a previous attempt (e.g. closed mid-challenge
   // and reopened to try a different account)
-  var step1   = document.getElementById('login-step1');
-  var mfaStep = document.getElementById('login-mfa-step');
-  if (step1)   step1.style.display   = '';
-  if (mfaStep) mfaStep.style.display = 'none';
+  var step1      = document.getElementById('login-step1');
+  var mfaStep    = document.getElementById('login-mfa-step');
+  var mfaSetup   = document.getElementById('login-mfa-setup-step');
+  if (step1)    step1.style.display    = '';
+  if (mfaStep)  mfaStep.style.display  = 'none';
+  if (mfaSetup) mfaSetup.style.display = 'none';
   setTimeout(function () { var f = document.getElementById('uid'); if (f) f.focus(); }, 60);
 }
 
@@ -195,6 +197,23 @@ function doLogin(e) {
       setTimeout(function () { var f = document.getElementById('login-mfa-code'); if (f) f.focus(); }, 60);
       return;
     }
+    if (data.ChallengeName === 'MFA_SETUP') {
+      // this account has never enrolled in 2FA — the pool requires it, so
+      // walk them through enrollment right here instead of just failing
+      _mfaEmail = email;
+      btn.disabled = false; btn.textContent = 'Sign in →';
+      document.getElementById('login-step1').style.display = 'none';
+      APRA_MFA.associateSoftwareTokenAtSetup(data.Session).then(function (result) {
+        _mfaSession = result.session;
+        document.getElementById('login-mfa-setup-secret').textContent = result.secretCode.replace(/(.{4})/g, '$1 ').trim();
+        document.getElementById('login-mfa-setup-step').style.display = '';
+        setTimeout(function () { var f = document.getElementById('login-mfa-setup-code'); if (f) f.focus(); }, 60);
+      }).catch(function (err) {
+        document.getElementById('login-step1').style.display = '';
+        if (errEl) errEl.textContent = APRA_MFA.friendlyError(err.message);
+      });
+      return;
+    }
     APRA_AUTH.setSession(data.AuthenticationResult);
     // Drives the silent-refresh-on-return-visit check in auth.js's own
     // restore-session-on-load logic — unchecked means a return visit after
@@ -221,6 +240,31 @@ function doLoginMfa(e) {
   errEl.textContent = '';
 
   APRA_MFA.respondToMfaChallenge(_mfaEmail, _mfaSession, code).then(function (data) {
+    APRA_AUTH.setSession(data.AuthenticationResult);
+    if (remember && remember.checked) localStorage.setItem('apra_remember', '1');
+    else localStorage.removeItem('apra_remember');
+    APRA_AUTH.enterDashboard(_mfaEmail);
+  }).catch(function (err) {
+    errEl.textContent = APRA_MFA.friendlyError(err.message);
+    btn.disabled = false; btn.textContent = 'Verify & sign in →';
+  });
+}
+
+function doLoginMfaSetup(e) {
+  e.preventDefault();
+  var code     = (document.getElementById('login-mfa-setup-code').value || '').trim();
+  var remember =  document.getElementById('rememberMe');
+  var errEl    =  document.getElementById('login-mfa-setup-error');
+  var btn      =  e.target.querySelector('button[type=submit]');
+
+  if (!code) { errEl.textContent = 'Please enter the 6-digit code.'; return; }
+
+  btn.disabled = true; btn.textContent = 'Verifying…';
+  errEl.textContent = '';
+
+  APRA_MFA.verifySoftwareTokenAtSetup(_mfaSession, code).then(function (session) {
+    return APRA_MFA.completeMfaSetup(_mfaEmail, session);
+  }).then(function (data) {
     APRA_AUTH.setSession(data.AuthenticationResult);
     if (remember && remember.checked) localStorage.setItem('apra_remember', '1');
     else localStorage.removeItem('apra_remember');
