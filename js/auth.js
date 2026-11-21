@@ -206,6 +206,7 @@ function doLogin(e) {
       APRA_MFA.associateSoftwareTokenAtSetup(data.Session).then(function (result) {
         _mfaSession = result.session;
         document.getElementById('login-mfa-setup-secret').textContent = result.secretCode.replace(/(.{4})/g, '$1 ').trim();
+        APRA_MFA.renderEnrollQr(document.getElementById('login-mfa-setup-qr'), email, result.secretCode);
         document.getElementById('login-mfa-setup-step').style.display = '';
         setTimeout(function () { var f = document.getElementById('login-mfa-setup-code'); if (f) f.focus(); }, 60);
       }).catch(function (err) {

@@ -131,6 +131,43 @@ var APRA_MFA = (function () {
     });
   }
 
+  /* ── QR code rendering for enrollment ──
+     Cognito's software-token MFA is a standard SHA1/6-digit/30s TOTP, so
+     the otpauth:// Key URI Format (the de-facto standard understood by
+     Google Authenticator, Authy, 1Password, etc.) is built the same way
+     for any TOTP provider. Only the secret + account label actually come
+     from Cognito; the rest is just that fixed URI shape. */
+
+  // label must be "Issuer:account" with each *segment* percent-encoded
+  // individually — encoding the ":" itself would break the format.
+  function buildOtpauthUri(email, secret) {
+    var issuer = 'APRABot';
+    var label  = encodeURIComponent(issuer) + ':' + encodeURIComponent(email || '');
+    return 'otpauth://totp/' + label +
+      '?secret=' + encodeURIComponent(secret) +
+      '&issuer=' + encodeURIComponent(issuer) +
+      '&algorithm=SHA1&digits=6&period=30';
+  }
+
+  // Renders the QR code for a given otpauth:// URI into `el` (a DOM node,
+  // not a selector). Clears any previous render first — the vendored
+  // davidshimjs/qrcodejs `new QRCode(el, ...)` appends a fresh canvas into
+  // `el` every time it's called rather than replacing prior output, so
+  // calling this twice on the same element without clearing would stack
+  // duplicate QR codes if a user re-opens/retries enrollment.
+  function renderEnrollQr(el, email, secret) {
+    if (!el || typeof QRCode === 'undefined') return;
+    el.innerHTML = '';
+    new QRCode(el, {
+      text: buildOtpauthUri(email, secret),
+      width: 160,
+      height: 160,
+      colorDark: '#000000',
+      colorLight: '#ffffff',
+      correctLevel: QRCode.CorrectLevel.M
+    });
+  }
+
   return {
     friendlyError: friendlyError,
     associateSoftwareToken: associateSoftwareToken,
@@ -140,6 +177,8 @@ var APRA_MFA = (function () {
     respondToMfaChallenge: respondToMfaChallenge,
     associateSoftwareTokenAtSetup: associateSoftwareTokenAtSetup,
     verifySoftwareTokenAtSetup: verifySoftwareTokenAtSetup,
-    completeMfaSetup: completeMfaSetup
+    completeMfaSetup: completeMfaSetup,
+    buildOtpauthUri: buildOtpauthUri,
+    renderEnrollQr: renderEnrollQr
   };
 })();

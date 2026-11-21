@@ -576,7 +576,8 @@
             Add this key to an authenticator app (Google Authenticator, Authy, 1Password), then enter the 6-digit code it shows to confirm.
           </p>
           <div style="background:var(--ink-3);border:1px solid var(--line-2);border-radius:10px;padding:14px 16px;margin-bottom:14px">
-            <div class="srow-desc" style="margin-bottom:6px">Manual entry key</div>
+            <div id="mfaQrDisplay" style="display:flex;justify-content:center;margin-bottom:12px"></div>
+            <div class="srow-desc" style="margin-bottom:6px">Can't scan? Enter this key manually</div>
             <div id="mfaSecretDisplay" style="font-family:var(--mono);font-size:15px;letter-spacing:.08em;color:var(--signal);word-break:break-all">—</div>
           </div>
           <div class="field" style="max-width:220px">
@@ -1423,6 +1424,7 @@
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/onboarding.js"></script>
 <script src="../js/tour.js"></script>
+<script src="../js/qrcode-lib.js"></script>
 <script src="../js/mfa.js"></script>
 <script>
   /* dashboard page auth: apply user from token + wire logout */
@@ -1584,6 +1586,15 @@
     if (_mfaEnabled) mfaDisable(); else mfaStartEnroll();
   }
 
+  function mfaCurrentEmail(){
+    var t = localStorage.getItem('apra_id');
+    if (!t) return '';
+    try {
+      var p = JSON.parse(decodeURIComponent(atob(t.split('.')[1].replace(/-/g,'+').replace(/_/g,'/')).split('').map(function(c){return'%'+('00'+c.charCodeAt(0).toString(16)).slice(-2);}).join('')));
+      return p.email || '';
+    } catch (e) { return ''; }
+  }
+
   function mfaStartEnroll(){
     var token = localStorage.getItem('apra_access');
     var msg = document.getElementById('mfaEnrollMsg');
@@ -1593,6 +1604,7 @@
       // ignores whitespace in the stored secret either way
       var grouped = secret.replace(/(.{4})/g, '$1 ').trim();
       document.getElementById('mfaSecretDisplay').textContent = grouped;
+      APRA_MFA.renderEnrollQr(document.getElementById('mfaQrDisplay'), mfaCurrentEmail(), secret);
       document.getElementById('mfaEnrollBox').style.display = '';
       document.getElementById('mfaConfirmCode').value = '';
       setTimeout(function(){ var f=document.getElementById('mfaConfirmCode'); if(f) f.focus(); }, 60);
