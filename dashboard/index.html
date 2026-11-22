@@ -488,6 +488,8 @@
   #scenarioRunForm summary{cursor:pointer;color:var(--text)}
   #scenarioRunForm details label{margin-top:8px}
   #scenarioRunForm .scenario-check{display:flex;gap:7px;align-items:center}
+  #scenarioHolidayOptions{max-height:220px;overflow:auto;padding:0 4px}
+  .scenario-holiday-actions{display:flex;gap:8px;margin-top:8px}
   #scenarioRunForm #rf-upload-row{margin-top:10px;font-size:12px}
   #scenarioRunForm #rf-upload-row a{color:var(--signal)}
   .scenario-levers-title{margin:14px 0 0;font-size:13px}
@@ -910,36 +912,47 @@
             </div>
             <h3 class="scenario-levers-title">Levers</h3>
             <p class="dsubtle" id="scenarioLeverAvailability" role="status"></p>
-            <fieldset id="scenarioAdvancedLevers" disabled>
+            <fieldset id="scenarioAdvancedLevers">
               <details>
                 <summary>Discount schemes</summary>
                 <label>Exclude schemes<input id="rf-exclude" placeholder="Comma-separated scheme IDs"></label>
               </details>
-              <details>
+              <details id="scenarioMarketingSpend">
                 <summary>Marketing spend</summary>
                 <label>Spend change (%)<input id="rf-spend" type="number" min="-100" max="1000"></label>
-                <label>Campaign code<input id="rf-campaign" maxlength="80" placeholder="All campaigns"></label>
+                <label for="rf-campaign">Campaign</label><select id="rf-campaign"><option value="">All campaigns</option></select>
+                <p id="scenarioCampaignStatus" class="dsubtle" role="status"></p>
+                <label>Postal code (spend and cap)<input id="rf-postal" maxlength="12" placeholder="All postal codes"></label>
               </details>
               <details>
                 <summary>Holiday impact</summary>
-                <label class="scenario-check"><input type="checkbox" id="rf-holiday-off"> Disable forward holiday effects</label>
-                <label>Holiday postal code<input id="rf-holiday-postal" maxlength="12" placeholder="All postal codes"></label>
+                <details id="scenarioHolidayPicker">
+                  <summary id="scenarioHolidaySummary">Select holidays</summary>
+                  <div class="scenario-holiday-actions">
+                    <button type="button" class="dbtn" id="scenarioHolidaysAll">Select all</button>
+                    <button type="button" class="dbtn" id="scenarioHolidaysNone">Deselect all</button>
+                  </div>
+                  <div id="scenarioHolidayOptions"></div>
+                </details>
               </details>
               <details>
                 <summary>Hard cap</summary>
                 <label>Weekly unit cap<input id="rf-cap" type="number" min="0" max="100000000"></label>
               </details>
               <details>
-                <summary>Price and scope</summary>
-                <label>Price change (%)<input id="rf-price" type="number" min="-99" max="1000"></label>
-                <label>Postal code for spend, price and cap<input id="rf-postal" maxlength="12" placeholder="All postal codes"></label>
+                <summary>Price</summary>
+                <label for="rf-price-postal">PIN code</label>
+                <select id="rf-price-postal"><option value="">All PIN codes</option></select>
+                <label for="rf-price-sku">SKU</label>
+                <select id="rf-price-sku"><option value="">All SKUs</option></select>
+                <label for="rf-price">Price change (%)</label>
+                <input id="rf-price" type="number" min="-99" max="1000" placeholder="e.g. 10 or -10">
+                <p class="dsubtle">Enter a positive percentage to increase the price or a negative percentage to decrease it.</p>
               </details>
             </fieldset>
             <details>
               <summary>Weather and model settings</summary>
-              <label class="scenario-check"><input id="rf-known-prices" type="checkbox" checked> Use known prices</label>
               <label class="scenario-check"><input id="rf-weather" type="checkbox" checked> Use weather signal</label>
-              <label class="scenario-check"><input id="rf-calibrate" type="checkbox" checked> Use rolling calibration</label>
               <label for="rf-refresh">Refresh cadence</label>
               <select id="rf-refresh"><option value="7">7 days</option><option value="14">14 days</option><option value="28" selected>28 days</option></select>
             </details>
@@ -2644,6 +2657,7 @@
           window.DATA = cached.data;
           applyOrgName(cached.data);
           if (typeof initDashboard === 'function') initDashboard();
+          document.dispatchEvent(new Event('apra:forecast-loaded'));
           return;
         }
       }
@@ -2666,6 +2680,7 @@
       .catch(function(){ /* DATA already set by data.js — use it as fallback */ })
       .then(function(){
         if (typeof initDashboard === 'function') initDashboard();
+        document.dispatchEvent(new Event('apra:forecast-loaded'));
       });
   }
 

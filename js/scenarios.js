@@ -62,9 +62,13 @@
     if (s.custom_input) parts.push('custom input file');
     var levers = s.levers || {};
     if (Number.isFinite(levers.spend_pct)) parts.push('spend ' + levers.spend_pct + '%');
-    if (Number.isFinite(levers.price_pct)) parts.push('price ' + levers.price_pct + '%');
+    if (Number.isFinite(levers.price_pct)) {
+      var targets = [levers.price_sku, levers.price_postal_code, levers.price_target].filter(Boolean);
+      parts.push('price ' + levers.price_pct + '%' + (targets.length ? ' (' + targets.join(', ') + ')' : ''));
+    }
     if (Number.isFinite(levers.unit_cap)) parts.push('weekly cap ' + levers.unit_cap.toLocaleString());
     if (levers.holiday_off) parts.push('forward holiday effects off');
+    if (levers.excluded_holiday_dates?.length) parts.push(levers.excluded_holiday_dates.length + ' holidays excluded');
     if (levers.excluded_schemes && levers.excluded_schemes.length) parts.push(levers.excluded_schemes.length + ' schemes excluded');
     return parts.join(', ');
   }
@@ -198,13 +202,19 @@
 
   function loadScenarios() {
     return APRA_SESSION.fetch(SCENARIOS_API)
-      .then(function (r) { return r.json(); })
+      .then(function (r) {
+        if (!r.ok) throw new Error('Could not load scenario settings.');
+        return r.json();
+      })
       .then(function (d) {
         syncScenarioCapabilities(d.scenario_levers === true);
         isAdmin = d.you_are_admin !== false; // absent (old cache/error shape) -> stay permissive
         render(d.scenarios || []);
       })
-      .catch(function () { /* leave table as-is on transient error */ });
+      .catch(function () {
+        var status = scenarioElement('scenarioLeverAvailability');
+        if (status && !scenarioLeverSupport) status.textContent = 'Could not verify scenario settings. Refresh the dashboard before running with levers.';
+      });
   }
 
   /* ── Approval audit trail (who approved which scenario, when, and what
@@ -423,6 +433,8 @@
   };
 
   var scenarioLeverSupport = false;
+  var pendingScenarioChoices = {};
+  var excludedHolidayDates = new Set();
   var workspaceRunId = '';
   var workspaceComparisonKey = '';
 
@@ -436,15 +448,13 @@
     source.options[0].disabled = !supported;
     if (supported && !wasSupported && source.value === 'default' && !source.dataset.edited) source.value = 'approved';
     if (!supported && source.value === 'approved') source.value = 'default';
-    scenarioElement('scenarioAdvancedLevers').disabled = !supported;
     scenarioElement('scenarioLeverAvailability').textContent = supported
       ? '' : 'Advanced levers require the updated Forecast backend.';
   }
 
   var scenarioDraftFields = [
     'rf-label', 'rf-source', 'rf-exclude', 'rf-spend', 'rf-campaign',
-    'rf-holiday-off', 'rf-holiday-postal', 'rf-cap', 'rf-price', 'rf-postal',
-    'rf-known-prices', 'rf-weather', 'rf-calibrate', 'rf-refresh',
+    'rf-cap', 'rf-price', 'rf-price-postal', 'rf-price-sku', 'rf-postal', 'rf-weather', 'rf-refresh',
   ];
 
   function draftKey() {
@@ -458,6 +468,97 @@
     upload.hidden = source.value !== 'custom';
   }
 
+  // National holiday dates used by the bundled forecast model (2021–2027).
+  var modelHolidays = [
+    ["2021-01-01", "元日"], ["2021-01-11", "成人の日"], ["2021-02-11", "建国記念の日"], ["2021-02-23", "天皇誕生日"], ["2021-03-20", "春分の日"], ["2021-04-29", "昭和の日"], ["2021-05-03", "憲法記念日"], ["2021-05-04", "みどりの日"], ["2021-05-05", "こどもの日"], ["2021-07-22", "海の日"], ["2021-07-23", "スポーツの日"], ["2021-08-08", "山の日"], ["2021-08-09", "山の日 振替休日"], ["2021-09-20", "敬老の日"], ["2021-09-23", "秋分の日"], ["2021-11-03", "文化の日"], ["2021-11-23", "勤労感謝の日"],
+    ["2022-01-01", "元日"], ["2022-01-10", "成人の日"], ["2022-02-11", "建国記念の日"], ["2022-02-23", "天皇誕生日"], ["2022-03-21", "春分の日"], ["2022-04-29", "昭和の日"], ["2022-05-03", "憲法記念日"], ["2022-05-04", "みどりの日"], ["2022-05-05", "こどもの日"], ["2022-07-18", "海の日"], ["2022-08-11", "山の日"], ["2022-09-19", "敬老の日"], ["2022-09-23", "秋分の日"], ["2022-10-10", "スポーツの日"], ["2022-11-03", "文化の日"], ["2022-11-23", "勤労感謝の日"],
+    ["2023-01-01", "元日"], ["2023-01-02", "元日 振替休日"], ["2023-01-09", "成人の日"], ["2023-02-11", "建国記念の日"], ["2023-02-23", "天皇誕生日"], ["2023-03-21", "春分の日"], ["2023-04-29", "昭和の日"], ["2023-05-03", "憲法記念日"], ["2023-05-04", "みどりの日"], ["2023-05-05", "こどもの日"], ["2023-07-17", "海の日"], ["2023-08-11", "山の日"], ["2023-09-18", "敬老の日"], ["2023-09-23", "秋分の日"], ["2023-10-09", "スポーツの日"], ["2023-11-03", "文化の日"], ["2023-11-23", "勤労感謝の日"],
+    ["2024-01-01", "元日"], ["2024-01-08", "成人の日"], ["2024-02-11", "建国記念の日"], ["2024-02-12", "建国記念の日 振替休日"], ["2024-02-23", "天皇誕生日"], ["2024-03-20", "春分の日"], ["2024-04-29", "昭和の日"], ["2024-05-03", "憲法記念日"], ["2024-05-04", "みどりの日"], ["2024-05-05", "こどもの日"], ["2024-05-06", "こどもの日 振替休日"], ["2024-07-15", "海の日"], ["2024-08-11", "山の日"], ["2024-08-12", "山の日 振替休日"], ["2024-09-16", "敬老の日"], ["2024-09-22", "秋分の日"], ["2024-09-23", "秋分の日 振替休日"], ["2024-10-14", "スポーツの日"], ["2024-11-03", "文化の日"], ["2024-11-04", "文化の日 振替休日"], ["2024-11-23", "勤労感謝の日"],
+    ["2025-01-01", "元日"], ["2025-01-13", "成人の日"], ["2025-02-11", "建国記念の日"], ["2025-02-23", "天皇誕生日"], ["2025-02-24", "天皇誕生日 振替休日"], ["2025-03-20", "春分の日"], ["2025-04-29", "昭和の日"], ["2025-05-03", "憲法記念日"], ["2025-05-04", "みどりの日"], ["2025-05-05", "こどもの日"], ["2025-05-06", "みどりの日 振替休日"], ["2025-07-21", "海の日"], ["2025-08-11", "山の日"], ["2025-09-15", "敬老の日"], ["2025-09-23", "秋分の日"], ["2025-10-13", "スポーツの日"], ["2025-11-03", "文化の日"], ["2025-11-23", "勤労感謝の日"], ["2025-11-24", "勤労感謝の日 振替休日"],
+    ["2026-01-01", "元日"], ["2026-01-12", "成人の日"], ["2026-02-11", "建国記念の日"], ["2026-02-23", "天皇誕生日"], ["2026-03-20", "春分の日"], ["2026-04-29", "昭和の日"], ["2026-05-03", "憲法記念日"], ["2026-05-04", "みどりの日"], ["2026-05-05", "こどもの日"], ["2026-05-06", "憲法記念日 振替休日"], ["2026-07-20", "海の日"], ["2026-08-11", "山の日"], ["2026-09-21", "敬老の日"], ["2026-09-22", "国民の休日"], ["2026-09-23", "秋分の日"], ["2026-10-12", "スポーツの日"], ["2026-11-03", "文化の日"], ["2026-11-23", "勤労感謝の日"],
+    ["2027-01-01", "元日"], ["2027-01-11", "成人の日"], ["2027-02-11", "建国記念の日"], ["2027-02-23", "天皇誕生日"], ["2027-03-21", "春分の日"], ["2027-03-22", "春分の日 振替休日"], ["2027-04-29", "昭和の日"], ["2027-05-03", "憲法記念日"], ["2027-05-04", "みどりの日"], ["2027-05-05", "こどもの日"], ["2027-07-19", "海の日"], ["2027-08-11", "山の日"], ["2027-09-20", "敬老の日"], ["2027-09-23", "秋分の日"], ["2027-10-11", "スポーツの日"], ["2027-11-03", "文化の日"], ["2027-11-23", "勤労感謝の日"]
+  ];
+
+  function fillScenarioSelect(id, label, options) {
+    var field = scenarioElement(id);
+    var value = pendingScenarioChoices[id] || field.value;
+    if (options.length) delete pendingScenarioChoices[id];
+    field.replaceChildren(new Option(label, ''), ...options.map(function (entry) {
+      return new Option(entry[1], entry[0]);
+    }));
+    field.value = options.some(function (entry) { return entry[0] === value; }) ? value : '';
+  }
+
+  function syncScenarioPriceOptions() {
+    var skus = window.DATA?.id ? window.DATA.skus || {} : {};
+    var sku = scenarioElement('rf-price-sku');
+    var postal = scenarioElement('rf-price-postal');
+    var ids = Object.keys(skus).sort();
+    fillScenarioSelect(sku.id, 'All SKUs', ids.map(function (id) { return [id, id]; }));
+    var scope = sku.value ? [skus[sku.value]] : Object.values(skus);
+    var codes = Array.from(new Set(scope.flatMap(function (item) {
+      return Object.keys(item?.byZip || {});
+    }))).sort();
+    fillScenarioSelect(postal.id, 'All PIN codes', codes.map(function (code) { return [code, code]; }));
+  }
+
+  async function loadScenarioCampaigns() {
+    var status = scenarioElement('scenarioCampaignStatus');
+    status.textContent = 'Loading campaigns…';
+    try {
+      var response = await APRA_SESSION.fetch(SCENARIOS_API.replace(/scenarios$/, 'amplify-campaigns') + '?view=plans');
+      if (!response.ok) throw new Error();
+      var data = await response.json();
+      var campaigns = data.plans.filter(function (plan) { return plan.status === 'committed'; });
+      fillScenarioSelect('rf-campaign', 'All campaigns', campaigns.map(function (plan) {
+        return [plan.code, plan.name + ' · ' + plan.code];
+      }));
+      status.textContent = campaigns.length ? '' : 'No committed campaigns.';
+    } catch (error) {
+      status.textContent = 'Could not load campaigns. Reopen this section to retry.';
+    }
+  }
+
+  function renderScenarioHolidays() {
+    var data = window.DATA;
+    var lastActual = data?.id && data.weeks?.[(data.backtestWeeks || 0) - 1];
+    var first = lastActual || new Date().toISOString().slice(0, 10);
+    var last = data?.id && data.weeks?.at(-1);
+    // The weekly forecast labels use the start of the week.
+    var end = last && last > first ? new Date(Date.parse(last) + 6 * 86400000).toISOString().slice(0, 10) : '';
+    var list = scenarioElement('scenarioHolidayOptions');
+    list.replaceChildren(...modelHolidays.filter(function (entry) {
+      return (entry[0] >= first && (!end || entry[0] <= end)) || excludedHolidayDates.has(entry[0]);
+    }).map(function (entry) {
+      var label = document.createElement('label');
+      label.className = 'scenario-check';
+      var input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = entry[0];
+      input.checked = !excludedHolidayDates.has(entry[0]);
+      label.append(input, entry[0] + ' · ' + entry[1]);
+      return label;
+    }));
+    if (!list.childElementCount) list.textContent = 'No holidays in the forecast period.';
+    updateScenarioHolidaySummary();
+  }
+
+  function updateScenarioHolidaySummary() {
+    var inputs = scenarioElement('scenarioHolidayOptions').querySelectorAll('input');
+    var selected = Array.from(inputs).filter(function (input) { return input.checked; }).length;
+    scenarioElement('scenarioHolidaySummary').textContent = inputs.length
+      ? 'Select holidays · ' + selected + ' of ' + inputs.length + ' included' : 'Select holidays';
+  }
+
+  function changeScenarioHolidays(checked) {
+    scenarioElement('scenarioHolidayOptions').querySelectorAll('input').forEach(function (input) {
+      input.checked = checked;
+      if (checked) excludedHolidayDates.delete(input.value);
+      else excludedHolidayDates.add(input.value);
+    });
+    updateScenarioHolidaySummary();
+  }
+
   function restoreScenarioDraft() {
     try {
       var saved = JSON.parse(localStorage.getItem(draftKey()) || '{}');
@@ -465,8 +566,13 @@
         var field = scenarioElement(id);
         if (saved[id] == null) return;
         if (field.type === 'checkbox') field.checked = saved[id] === true;
+        else if (['rf-price-postal', 'rf-price-sku', 'rf-campaign'].includes(id)) pendingScenarioChoices[id] = saved[id];
         else field.value = saved[id];
       });
+      if (saved['rf-price-target'] && !saved['rf-price-postal'] && !saved['rf-price-sku']) {
+        pendingScenarioChoices[saved['rf-price-scope'] === 'sku' ? 'rf-price-sku' : 'rf-price-postal'] = saved['rf-price-target'];
+      }
+      excludedHolidayDates = new Set(saved.excludedHolidayDates || []);
       if (saved['rf-source']) scenarioElement('rf-source').dataset.edited = 'true';
       syncScenarioInput();
     } catch (error) { /* Nothing to restore. */ }
@@ -480,6 +586,7 @@
       var field = scenarioElement(id);
       return [id, field.type === 'checkbox' ? field.checked : field.value];
     }));
+    draft.excludedHolidayDates = Array.from(excludedHolidayDates);
     try {
       localStorage.setItem(key, JSON.stringify(draft));
       message.textContent = 'Draft saved in this browser.' +
@@ -768,11 +875,15 @@
       var value = document.getElementById(entry[0]).value;
       if (value !== '') levers[entry[1]] = Number(value);
     });
-    [['rf-campaign', 'campaign_code'], ['rf-postal', 'postal_code'], ['rf-holiday-postal', 'holiday_postal_code']].forEach(function (entry) {
+    [['rf-campaign', 'campaign_code'], ['rf-postal', 'postal_code']].forEach(function (entry) {
       var value = document.getElementById(entry[0]).value.trim();
       if (value) levers[entry[1]] = value;
     });
-    if (document.getElementById('rf-holiday-off').checked) levers.holiday_off = true;
+    if ('price_pct' in levers) {
+      levers.price_sku = scenarioElement('rf-price-sku').value;
+      levers.price_postal_code = scenarioElement('rf-price-postal').value;
+    }
+    if (excludedHolidayDates.size) levers.excluded_holiday_dates = Array.from(excludedHolidayDates);
     var exclude = document.getElementById('rf-exclude').value.split(',').map(function (value) { return value.trim(); }).filter(Boolean);
     if (exclude.length) levers.excluded_schemes = exclude;
 
@@ -784,9 +895,7 @@
       label: label,
       source: source,
       levers: levers,
-      known_prices: scenarioElement('rf-known-prices').checked,
       weather: scenarioElement('rf-weather').checked,
-      calibrate: scenarioElement('rf-calibrate').checked,
       refresh_days: Number(scenarioElement('rf-refresh').value),
     };
 
@@ -1877,6 +1986,22 @@
       var source = scenarioElement('rf-source');
       new ResizeObserver(drawWorkspaceChart).observe(scenarioElement('scenarioForecastGraph'));
       source.addEventListener('change', function () { source.dataset.edited='true'; syncScenarioInput(); });
+      scenarioElement('rf-price-sku').addEventListener('change', syncScenarioPriceOptions);
+      scenarioElement('scenarioMarketingSpend').addEventListener('toggle', function (event) {
+        if (event.currentTarget.open) loadScenarioCampaigns();
+      });
+      scenarioElement('scenarioHolidayOptions').addEventListener('change', function (event) {
+        var input = event.target;
+        if (input.checked) excludedHolidayDates.delete(input.value);
+        else excludedHolidayDates.add(input.value);
+        updateScenarioHolidaySummary();
+      });
+      scenarioElement('scenarioHolidaysAll').addEventListener('click', function () { changeScenarioHolidays(true); });
+      scenarioElement('scenarioHolidaysNone').addEventListener('click', function () { changeScenarioHolidays(false); });
+      document.addEventListener('apra:forecast-loaded', function () {
+        syncScenarioPriceOptions();
+        renderScenarioHolidays();
+      });
       scenarioElement('scenarioSaveDraft').addEventListener('click', saveScenarioDraft);
       scenarioElement('scenarioRunSelection').addEventListener('change', function (event) {
         workspaceRunId = event.target.value;
@@ -1893,7 +2018,12 @@
           scenarioElement('scenarioComparisonStatus').textContent = error.message || 'Could not apply this scenario.';
         });
       });
-      Promise.resolve(window.dashboardSessionReady).then(restoreScenarioDraft).then(loadScenarios).then(loadApprovals);
+      Promise.resolve(window.dashboardSessionReady).then(function () {
+        restoreScenarioDraft();
+        if (pendingScenarioChoices['rf-campaign']) loadScenarioCampaigns();
+        syncScenarioPriceOptions();
+        renderScenarioHolidays();
+      }).then(loadScenarios).then(loadApprovals);
     } else {
       loadScenarios().then(loadApprovals);
     }

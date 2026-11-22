@@ -242,6 +242,38 @@ def _scenario_levers(body):
             if not re.fullmatch(r'[A-Za-z0-9 -]{2,12}', value):
                 raise ValueError('Enter a valid postal code.')
             result[name] = value
+    # Price lever scope: one zip or one SKU (blank target = all of them).
+    # Separate from postal_code, which only scopes spend and the unit cap.
+    if 'price_scope' in levers:
+        scope = levers['price_scope']
+        if scope not in ('zip', 'sku') or 'price_pct' not in result:
+            raise ValueError('Choose Zip or SKU for a price change.')
+        result['price_scope'] = scope
+        target = str(levers.get('price_target') or '').strip().upper()
+        if target:
+            pattern = r'[A-Z0-9 -]{2,12}' if scope == 'zip' else r'SKU-\d{3,}'
+            if not re.fullmatch(pattern, target):
+                raise ValueError('Enter a valid zip code.' if scope == 'zip' else 'Enter a forecast SKU such as SKU-003.')
+            result['price_target'] = target
+    for name, pattern in (('price_sku', r'SKU-\d{3,}'),
+                          ('price_postal_code', r'[A-Z0-9 -]{2,12}')):
+        if name in levers:
+            value = str(levers[name]).strip().upper()
+            if 'price_pct' not in result or (value and not re.fullmatch(pattern, value)):
+                raise ValueError('Choose a valid SKU or PIN code for the price change.')
+            result[name] = value
+    holiday_dates = levers.get('excluded_holiday_dates', [])
+    if not isinstance(holiday_dates, list) or len(holiday_dates) > 150:
+        raise ValueError('Select up to 150 holidays to exclude.')
+    for date in holiday_dates:
+        if not isinstance(date, str) or not re.fullmatch(r'20\d{2}-\d{2}-\d{2}', date):
+            raise ValueError('Enter a valid holiday date.')
+        try:
+            datetime.strptime(date, '%Y-%m-%d')
+        except ValueError:
+            raise ValueError('Enter a valid holiday date.') from None
+    if holiday_dates:
+        result['excluded_holiday_dates'] = sorted(set(holiday_dates))
     if levers.get('campaign_code'):
         result['campaign_code'] = _scheme_id(levers['campaign_code'])
     if levers.get('holiday_off') is True:

@@ -890,6 +890,17 @@ def _record_detected_schemes(org, raw_path):
                 raise
 
 
+def _approved_sku_product(org, sku):
+    """Resolve a SKU-### from the approved forecast (what the planner sees)
+    back to its product id via that forecast's own anon.json."""
+    latest = _read_json(f'orgs/{org}/forecast/latest.json') or {}
+    anon = _read_json(f'orgs/{org}/scenarios/{latest.get("id")}/anon.json') if latest.get('id') else None
+    product = next((str(p) for p, s in (anon or {}).items() if s == sku), None)
+    if not product:
+        raise ValueError(f'{sku} is not in the approved forecast.')
+    return product
+
+
 def _build_scenario_prices(org, config, raw_path, output, workbook_prices=None):
     import pandas as pd
 
@@ -948,8 +959,19 @@ def _build_scenario_prices(org, config, raw_path, output, workbook_prices=None):
         workbook['ship_day'] = pd.to_datetime(workbook['ship_day'], errors='coerce')
         update = pd.concat([workbook, update], ignore_index=True).drop_duplicates(cols[:3], keep='last')
     if price_pct is not None:
-        postal = levers.get('postal_code')
-        relevant = [key for key in price.index if not postal or key[1].upper() == postal.upper()]
+        sku = levers.get('price_sku')
+        postal = levers.get('price_postal_code')
+        if 'price_sku' not in levers and 'price_postal_code' not in levers:
+            # Older runs stored one target or used the shared postal code.
+            scope, target = levers.get('price_scope'), levers.get('price_target')
+            if scope == 'sku':
+                sku = target
+            else:
+                postal = target if scope == 'zip' else levers.get('postal_code')
+        product = _approved_sku_product(org, sku) if sku else None
+        relevant = [key for key in price.index
+                    if (not product or key[0] == product)
+                    and (not postal or (isinstance(key[1], str) and key[1].upper() == postal.upper()))]
         if not relevant:
             raise ValueError('No matching selling price was found for the scenario scope.')
         keys = pd.DataFrame(relevant, columns=cols[:2])
@@ -1029,7 +1051,8 @@ def handler(event, context):
         # further down.
         inline_explain = _count_series(RAW_INPUT) <= INLINE_EXPLAIN_MAX_SERIES
 
-        forecast_entry = os.path.join(os.path.dirname(FORECAST_PY), 'forecast_entry.py') if levers.get('holiday_off') else FORECAST_PY
+        adjust_holidays = levers.get('holiday_off') or levers.get('excluded_holiday_dates')
+        forecast_entry = os.path.join(os.path.dirname(FORECAST_PY), 'forecast_entry.py') if adjust_holidays else FORECAST_PY
         args = [sys.executable, '-u', forecast_entry,
                 '--input', RAW_INPUT,
                 '--outdir', OUTDIR,
@@ -1066,11 +1089,13 @@ def handler(event, context):
         # startup or nearly done). Inheriting stdout/stderr streams forecast.py's
         # own prints straight into this Lambda's live log output instead.
         env = os.environ.copy()
-        if levers.get('holiday_off'):
+        if adjust_holidays:
             import pandas as pd
             dates = pd.read_csv(RAW_INPUT, sep='\t', usecols=lambda c: c.strip().lower() == 'ship_day')
             env['APRA_HOLIDAY_LAST_ACTUAL'] = str(pd.to_datetime(dates.iloc[:, 0], errors='coerce').max().date())
             env['APRA_HOLIDAY_POSTAL'] = levers.get('holiday_postal_code', '')
+            env['APRA_HOLIDAY_ALL_OFF'] = '1' if levers.get('holiday_off') else '0'
+            env['APRA_HOLIDAY_EXCLUDED_DATES'] = ','.join(levers.get('excluded_holiday_dates', []))
         proc = subprocess.run(args, timeout=860, env=env)
         if proc.returncode != 0:
             raise RuntimeError(f"forecast.py exited {proc.returncode} — see the "
