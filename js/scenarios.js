@@ -495,30 +495,123 @@
     return (change > 0 ? '+' : '') + change.toFixed(1) + '%';
   }
 
-  function alignedScenarioUnits(base, variant) {
-    if (!base || !variant) return null;
-    var baseStart = base.backtestWeeks ?? base.weeks.length;
-    var candidateStart = variant.backtestWeeks ?? variant.weeks.length;
-    var baseWeeks = new Map(base.weeks.slice(baseStart).map(function (week, index) {
-      return [week, base.all.f[baseStart + index]];
-    }));
-    var result = {base: 0, scenario: 0, weeks: 0};
-    for (var i=candidateStart; i<variant.weeks.length; i++) {
-      var a = baseWeeks.get(variant.weeks[i]);
-      var b = variant.all.f[i];
-      if (Number.isFinite(a) && Number.isFinite(b)) {
-        result.base += a;
-        result.scenario += b;
+  var workspaceForecastWeeks = [];
+
+  function workspaceWeeklyForecast(base, variant) {
+    function forwardSeries(result) {
+      if (!result || !Array.isArray(result.weeks) || !Array.isArray(result.all?.f)) return new Map();
+      var start = result.backtestWeeks ?? result.weeks.length;
+      return new Map(result.weeks.slice(start).map(function (week, index) {
+        return [week, result.all.f[start + index]];
+      }).filter(function (entry) { return Number.isFinite(entry[1]); }));
+    }
+    var baseWeeks = forwardSeries(base);
+    var scenarioWeeks = forwardSeries(variant);
+    var weeks = Array.from(new Set([...baseWeeks.keys(), ...scenarioWeeks.keys()])).sort();
+    return weeks.map(function (week) {
+      return {week:week, base:baseWeeks.get(week), scenario:scenarioWeeks.get(week)};
+    });
+  }
+
+  function alignedScenarioUnits(weeks) {
+    var result = {base:0, scenario:0, weeks:0};
+    weeks.forEach(function (row) {
+      if (Number.isFinite(row.base) && Number.isFinite(row.scenario)) {
+        result.base += row.base;
+        result.scenario += row.scenario;
         result.weeks++;
       }
-    }
+    });
     return result.weeks ? result : null;
+  }
+
+  function setWorkspaceChart(weeks, message) {
+    workspaceForecastWeeks = weeks;
+    var graph = scenarioElement('scenarioForecastGraph');
+    var status = scenarioElement('scenarioGraphStatus');
+    graph.hidden = !weeks.length;
+    scenarioElement('scenarioBaseLegend').hidden = !weeks.some(function (row) { return Number.isFinite(row.base); });
+    scenarioElement('scenarioVariantLegend').hidden = !weeks.some(function (row) { return Number.isFinite(row.scenario); });
+    status.textContent = weeks.length ? '' : message;
+    status.hidden = !!weeks.length;
+    drawWorkspaceChart();
+  }
+
+  function drawWorkspaceChart() {
+    var chart = scenarioElement('scenarioForecastGraph');
+    var weeks = workspaceForecastWeeks;
+    if (!weeks.length || !chart.clientWidth) return;
+    var canvas = scenarioElement('scenarioForecastCanvas');
+    var width = chart.clientWidth, height = chart.clientHeight;
+    var scale = window.devicePixelRatio || 1;
+    canvas.width = Math.round(width * scale);
+    canvas.height = Math.round(height * scale);
+    var ctx = canvas.getContext('2d');
+    ctx.setTransform(scale,0,0,scale,0,0);
+
+    var theme = getComputedStyle(chart);
+    var border = theme.getPropertyValue('--line-2').trim();
+    var muted = theme.getPropertyValue('--muted').trim();
+    var baseColor = theme.getPropertyValue('--scenario-base').trim();
+    var variantColor = theme.getPropertyValue('--scenario-variant').trim();
+    var plot = {left:48, right:width-19, top:12, bottom:height-27};
+    var peak = Math.max(1,...weeks.flatMap(function (row) { return [row.base, row.scenario].filter(Number.isFinite); }));
+    var magnitude = 10 ** Math.floor(Math.log10(peak / 4));
+    var step = Math.ceil(peak / 4 / magnitude) * magnitude;
+    var x = function (i) {
+      return weeks.length === 1 ? (plot.left+plot.right)/2 : plot.left+i*(plot.right-plot.left)/(weeks.length-1);
+    };
+    var y = function (value) { return plot.bottom-(plot.bottom-plot.top)*value/(step*4); };
+    var numeric = new Intl.NumberFormat(undefined,{notation:'compact',maximumFractionDigits:1});
+    var calendar = new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',timeZone:'UTC'});
+
+    ctx.font = '11px system-ui';
+    ctx.fillStyle = muted;
+    ctx.strokeStyle = border;
+    ctx.textAlign = 'right';
+    for (var i=0;i<=4;i++) {
+      var py = y(i*step);
+      ctx.beginPath(); ctx.moveTo(plot.left,py); ctx.lineTo(plot.right,py); ctx.stroke();
+      ctx.fillText(numeric.format(i*step),plot.left-8,py+4);
+    }
+    var labels = Math.max(2,Math.floor(width/85));
+    var stride = Math.max(1,Math.ceil((weeks.length-1)/(labels-1)));
+    ctx.textAlign = 'center';
+    weeks.forEach(function (row,index) {
+      var last = weeks.length-1;
+      if (index !== last && (index % stride || (index && last-index < stride/2))) return;
+      var date = new Date(row.week+'T00:00:00Z');
+      if (!isNaN(date.getTime())) ctx.fillText(calendar.format(date),x(index),height-7);
+    });
+
+    function line(key,color,dashed) {
+      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2.5;
+      ctx.setLineDash(dashed?[5,4]:[]);
+      ctx.beginPath();
+      var connected = false;
+      weeks.forEach(function (row,i) {
+        if (!Number.isFinite(row[key])) { connected=false; return; }
+        if (connected) ctx.lineTo(x(i),y(row[key]));
+        else ctx.moveTo(x(i),y(row[key]));
+        connected=true;
+      });
+      ctx.stroke();
+      ctx.setLineDash([]);
+      weeks.forEach(function (row,i) {
+        if (!Number.isFinite(row[key])) return;
+        if (weeks.length > 12 && Number.isFinite(weeks[i-1]?.[key]) && Number.isFinite(weeks[i+1]?.[key])) return;
+        ctx.beginPath(); ctx.arc(x(i),y(row[key]),3,0,2*Math.PI); ctx.fill();
+      });
+    }
+    line('base',baseColor,true);
+    line('scenario',variantColor,false);
   }
 
   async function renderWorkspaceComparison(id, key) {
     var status = scenarioElement('scenarioComparisonStatus');
     var rows = scenarioElement('scenarioWorkspaceRows');
     status.textContent = 'Loading comparison…';
+    setWorkspaceChart([], 'Loading weekly forecast…');
 
     async function request(url) {
       var response = await APRA_SESSION.fetch(url);
@@ -537,7 +630,9 @@
       var result = results[1].value;
       var approved = lastScenarios.find(function (item) { return item.approved; });
       var base = comparison.base || (approved && window.DATA && window.DATA.id === approved.id ? window.DATA : null);
-      var totals = alignedScenarioUnits(base, result);
+      var weeks = workspaceWeeklyForecast(base, result);
+      var totals = alignedScenarioUnits(weeks);
+      setWorkspaceChart(weeks, 'No weekly forecast is available.');
       scenarioElement('scenarioCappedUnits').textContent = result.cappedUnits == null ? '—' : result.cappedUnits.toLocaleString();
       scenarioElement('scenarioUnitsChange').textContent = totals ? formatScenarioChange(totals.base, totals.scenario) : '—';
       scenarioElement('scenarioUnitsTotals').textContent = totals
@@ -551,7 +646,10 @@
         ? 'SKU and postal-code detail is unavailable for these revisions.'
         : 'No overlapping forward weeks are available for this comparison.';
     } catch (error) {
-      if (workspaceComparisonKey === key) status.textContent = error.message || 'Could not load the comparison.';
+      if (workspaceComparisonKey === key) {
+        status.textContent = error.message || 'Could not load the comparison.';
+        setWorkspaceChart([], 'Could not load the weekly forecast.');
+      }
     }
   }
 
@@ -579,10 +677,15 @@
     scenarioElement('scenarioCappedUnits').textContent = '—';
     scenarioElement('scenarioUnitsTotals').textContent = '';
     scenarioElement('scenarioWorkspaceRows').replaceChildren();
+    setWorkspaceChart([], workspaceRunId ? 'The weekly forecast will appear after the run completes.'
+      : 'Select a completed scenario to see its forecast.');
     var status = scenarioElement('scenarioComparisonStatus');
     if (!workspaceRunId) status.textContent = 'Select a completed scenario to compare forecast results.';
     else if (item?.status === 'completed') renderWorkspaceComparison(item.id, key);
-    else if (item?.status === 'failed') status.textContent = item.error || 'The scenario run failed.';
+    else if (item?.status === 'failed') {
+      status.textContent = item.error || 'The scenario run failed.';
+      setWorkspaceChart([], 'No weekly forecast was produced.');
+    }
     else status.textContent = 'Forecast running. Results will appear when it finishes.';
   }
 
@@ -1772,6 +1875,7 @@
     // instead of a label the first time.
     if (scenarioElement('scenarioWorkspace')) {
       var source = scenarioElement('rf-source');
+      new ResizeObserver(drawWorkspaceChart).observe(scenarioElement('scenarioForecastGraph'));
       source.addEventListener('change', function () { source.dataset.edited='true'; syncScenarioInput(); });
       scenarioElement('scenarioSaveDraft').addEventListener('click', saveScenarioDraft);
       scenarioElement('scenarioRunSelection').addEventListener('change', function (event) {
