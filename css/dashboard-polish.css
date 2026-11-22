@@ -279,3 +279,11 @@
 [data-theme="light"] #dashboard #supportEmpty,
 [data-theme="light"] #dashboard .ob-review-tile{background:rgba(17,19,24,.02)}
 [data-theme="light"] #dashboard .ob-callout{background:rgba(90,146,0,.06);border-color:rgba(90,146,0,.25)}
+
+/* ---------- Light mode: Forecasts ---------- */
+[data-theme="light"] #dashboard .fcly-delta[data-direction="up"]{background:rgba(14,147,132,.1);color:#0B7A6D}
+[data-theme="light"] #dashboard .fcly-delta[data-direction="down"]{background:rgba(200,60,60,.08);color:#B3261E}
+[data-theme="light"] #dashboard #fclyResultsTable .fc-up{color:#0B7A6D}
+[data-theme="light"] #dashboard #fclyResultsTable .fc-down{color:#B3261E}
+[data-theme="light"] #dashboard #fcLegend .lgd-item[data-k="a"] i{background:#0E9384!important}
+[data-theme="light"] #dashboard #fcLegend .lgd-item[data-k="w"] i{background:#3D6FE0!important}

@@ -96,6 +96,17 @@
   /* ===== REAL BACKTEST DASHBOARD (data from DATA in data.js) ===== */
   let dashReady=false, curSel='ALL', fcGeom=null, hideBacktest=true, ovHorizon=52;
   const fcVisible={a:true,f:true,w:true};
+  // Chart colours per theme: the dark-theme lime / light-teal / white grid
+  // are too faint on the light theme's white cards.
+  function fcPalette(){
+    const light=document.documentElement.dataset.theme==='light';
+    return light
+      ?{grid:'rgba(17,19,24,.08)',axis:'#52606E',actual:'#0E9384',actualFill:'14,147,132',forecast:'#6E9400',wape:'#3D6FE0',divider:'rgba(17,19,24,.22)'}
+      :{grid:'rgba(255,255,255,.06)',axis:'#8694A6',actual:'#54E6C4',actualFill:'84,230,196',forecast:'#C8F24E',wape:'#7AA2FF',divider:'rgba(255,255,255,.18)'};
+  }
+  // Redraw on theme switch so the chart never keeps the other theme's colours.
+  new MutationObserver(()=>{ if(dashReady&&window.DATA)drawChart(); })
+    .observe(document.documentElement,{attributes:true,attributeFilter:['data-theme']});
   document.querySelectorAll('#fcLegend .lgd-item').forEach(el=>{
     el.addEventListener('click',()=>{
       const k=el.dataset.k;
@@ -587,6 +598,7 @@
     cv.width=cw*dpr; cv.height=ch*dpr; const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.clearRect(0,0,cw,ch);
     const padL=52,padR=showW?46:18,padT=16,padB=26;
+    const P=fcPalette();
     const uMax=Math.max(1,...a.filter(Number.isFinite),...f.filter(Number.isFinite))*1.12;
     const wVals=w.filter(x=>x!=null); const wMax=(wVals.length?Math.max(1,...wVals):100)*1.15;
     const X=i=>padL+i*(cw-padL-padR)/(N-1||1);
@@ -595,11 +607,11 @@
     // grid + left axis (units) + right axis (wape)
     ctx.font='10px JetBrains Mono';
     for(let g=0;g<=4;g++){const y=padT+(ch-padT-padB)*g/4;
-      ctx.strokeStyle='rgba(255,255,255,.06)';ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(cw-padR,y);ctx.stroke();
-      ctx.fillStyle='#8694A6';ctx.textAlign='right';ctx.fillText(nf(uMax*(1-g/4)),padL-8,y+3);
-      if(showW){ctx.textAlign='left';ctx.fillStyle='#7AA2FF';ctx.fillText(Math.round(wMax*(1-g/4))+'%',cw-padR+8,y+3);}}
+      ctx.strokeStyle=P.grid;ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(cw-padR,y);ctx.stroke();
+      ctx.fillStyle=P.axis;ctx.textAlign='right';ctx.fillText(nf(uMax*(1-g/4)),padL-8,y+3);
+      if(showW){ctx.textAlign='left';ctx.fillStyle=P.wape;ctx.fillText(Math.round(wMax*(1-g/4))+'%',cw-padR+8,y+3);}}
     // x labels (~7)
-    ctx.fillStyle='#8694A6';ctx.textAlign='center';
+    ctx.fillStyle=P.axis;ctx.textAlign='center';
     const step=Math.max(1,Math.round(N/7));
     for(let i=0;i<N;i+=step){const d=weeks[i].slice(5);ctx.fillText(d,X(i),ch-8);}
     const line=(arr,Y,color,dash)=>{ctx.strokeStyle=color;ctx.lineWidth=2.2;ctx.setLineDash(dash||[]);
@@ -609,21 +621,19 @@
     // area under actual
     if(fcVisible.a){
       const grad=ctx.createLinearGradient(0,padT,0,ch-padB);
-      grad.addColorStop(0,'rgba(84,230,196,.22)');grad.addColorStop(1,'rgba(84,230,196,0)');
+      grad.addColorStop(0,'rgba('+P.actualFill+',.22)');grad.addColorStop(1,'rgba('+P.actualFill+',0)');
       ctx.beginPath();let sx=null;a.forEach((v,i)=>{if(v==null)return;const x=X(i),y=Yu(v);if(sx===null){ctx.moveTo(x,y);sx=x;}else ctx.lineTo(x,y);});
       let lastA=-1; a.forEach((v,i)=>{if(v!=null)lastA=i;});
       if(sx!==null){ctx.lineTo(X(lastA),Yu(0));ctx.lineTo(sx,Yu(0));ctx.closePath();ctx.fillStyle=grad;ctx.fill();}
     }
-    if(showW) line(w,Yw,'#7AA2FF');                       // wape (right axis)
-    if(fcVisible.a) line(a,Yu,'#54E6C4');                 // actual
-    // Lime is too faint on the light theme's cream background — same darker
-    // olive the light theme already uses for lime text.
-    const fcLime=document.documentElement.dataset.theme==='light'?'#6E9400':'#C8F24E';
+    if(showW) line(w,Yw,P.wape);                          // wape (right axis)
+    if(fcVisible.a) line(a,Yu,P.actual);                  // actual
+    const fcLime=P.forecast;
     if(fcVisible.f) line(f,Yu,fcLime,[7,5]);              // forecast (dashed)
     // Short ranges get point markers so individual weeks are readable.
     if(N<=16){
       const dots=(arr,color)=>{ctx.fillStyle=color;arr.forEach((v,i)=>{if(v==null)return;ctx.beginPath();ctx.arc(X(i),Yu(v),2.6,0,7);ctx.fill();});};
-      if(fcVisible.a)dots(a,'#54E6C4');
+      if(fcVisible.a)dots(a,P.actual);
       if(fcVisible.f)dots(f,fcLime);
     }
     // "today" divider — backtest ends, forward-only forecast begins (skip if data has no forward portion, e.g. older cached format)
@@ -631,9 +641,9 @@
     const boundary=backtestTotal-st;
     if(boundary>0&&boundary<N){
       const bx=X(boundary-0.5);
-      ctx.strokeStyle='rgba(255,255,255,.18)';ctx.setLineDash([3,3]);
+      ctx.strokeStyle=P.divider;ctx.setLineDash([3,3]);
       ctx.beginPath();ctx.moveTo(bx,padT);ctx.lineTo(bx,ch-padB);ctx.stroke();ctx.setLineDash([]);
-      ctx.fillStyle='#8694A6';ctx.font='9px JetBrains Mono';ctx.textAlign='left';
+      ctx.fillStyle=P.axis;ctx.font='9px JetBrains Mono';ctx.textAlign='left';
       ctx.fillText('FORECAST →',bx+4,padT+10);
     }
     fcGeom={weeks,a,f,w,X,Yu,Yw,N,padL,padR,cw,ch,padT,padB,showW};
@@ -650,13 +660,14 @@
     ctx.strokeStyle='rgba(200,242,78,.35)';ctx.setLineDash([3,4]);ctx.beginPath();
     ctx.moveTo(g.X(i),g.padT);ctx.lineTo(g.X(i),g.ch-g.padB);ctx.stroke();ctx.setLineDash([]);
     const dot=(v,Y,c)=>{if(v==null)return;ctx.fillStyle=c;ctx.beginPath();ctx.arc(g.X(i),Y(v),3.5,0,7);ctx.fill();};
-    dot(g.a[i],g.Yu,'#54E6C4');dot(g.f[i],g.Yu,'#C8F24E');if(g.showW)dot(g.w[i],g.Yw,'#7AA2FF');
+    const P=fcPalette();
+    dot(g.a[i],g.Yu,P.actual);dot(g.f[i],g.Yu,P.forecast);if(g.showW)dot(g.w[i],g.Yw,P.wape);
     const tip=document.getElementById('fcTip');
     const row=(c,l,val)=>`<div class="rw"><i style="background:${c}"></i>${l}<b>${val}</b></div>`;
     tip.innerHTML=`<div class="wk">${g.weeks[i]}</div>`+
-      row('#54E6C4','Actual',g.a[i]==null?'—':nfFull(g.a[i]))+
-      row('#C8F24E','Forecast',g.f[i]==null?'—':nfFull(g.f[i]))+
-      row('#7AA2FF','WAPE',g.w[i]==null?'—':g.w[i].toFixed(1)+'%');
+      row(P.actual,'Actual',g.a[i]==null?'—':nfFull(g.a[i]))+
+      row(P.forecast,'Forecast',g.f[i]==null?'—':nfFull(g.f[i]))+
+      row(P.wape,'WAPE',g.w[i]==null?'—':g.w[i].toFixed(1)+'%');
     tip.style.opacity=1;
     let tx=g.X(i); const half=tip.offsetWidth/2;
     tx=Math.max(half+4,Math.min(g.cw-half-4,tx));
