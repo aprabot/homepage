@@ -55,23 +55,6 @@
   var holidayState = {};
   var holidayImportVersion = 0;
 
-  function authHeaders() {
-    var t = localStorage.getItem('apra_id');
-    return t ? { 'Authorization': 'Bearer ' + t } : {};
-  }
-
-  // A 401 here means the stored token expired mid-session (the page-load
-  // guard only checks once, on load) — clear it and send the user back to
-  // sign in again, rather than leaving a cryptic failed-request error.
-  function signOutExpired() {
-    try {
-      localStorage.removeItem('apra_access');
-      localStorage.removeItem('apra_id');
-      localStorage.removeItem('apra_refresh');
-    } catch (e) {}
-    window.location.replace('/');
-  }
-
   function currentCountry() {
     var sel = document.getElementById('obCountry');
     return sel ? sel.value : 'IN';
@@ -173,14 +156,13 @@
 
   function uploadFile(file, statusEl) {
     setStatus(statusEl, 'Requesting upload URL…');
-    return fetch(SCENARIOS_API + '/upload-url', {
+    return APRA_SESSION.fetch(SCENARIOS_API + '/upload-url', {
       method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filename: file.name }),
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
       .then(function (res) {
-        if (res.status === 401) { signOutExpired(); throw new Error('Session expired.'); }
         if (!res.ok) throw new Error(res.d.error || 'Could not get an upload URL.');
         setStatus(statusEl, 'Uploading ' + file.name + '…');
         return fetch(res.d.upload_url, {
@@ -1371,9 +1353,8 @@
           'Still working — this is taking longer than usual. Check the Scenarios tab shortly.';
         return;
       }
-      fetch(SCENARIOS_API, { headers: authHeaders() })
+      APRA_SESSION.fetch(SCENARIOS_API)
         .then(function (r) {
-          if (r.status === 401) { signOutExpired(); throw new Error('Session expired.'); }
           return r.json();
         })
         .then(function (d) {
@@ -1387,9 +1368,9 @@
   }
 
   function createOnboardingScenario() {
-    fetch(SCENARIOS_API, {
+    APRA_SESSION.fetch(SCENARIOS_API, {
       method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         label: 'Onboarding — ' + countryName(currentCountry()) + ' setup',
         known_prices: true, calibrate: true, weather: true, refresh_days: 28,
@@ -1398,7 +1379,6 @@
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
       .then(function (res) {
-        if (res.status === 401) { signOutExpired(); return; }
         if (!res.ok) throw new Error(res.d.error || 'Could not start model preparation.');
         try { localStorage.setItem(ONBOARDING_SCENARIO_KEY, res.d.scenario_id); } catch (e) {}
         pollOnboardingScenario(res.d.scenario_id);
@@ -1421,9 +1401,8 @@
     document.getElementById('obPreparingMsg').textContent = 'Checking on your model…';
     document.getElementById('obPreparing').style.display = '';
 
-    fetch(SCENARIOS_API, { headers: authHeaders() })
+    APRA_SESSION.fetch(SCENARIOS_API)
       .then(function (r) {
-        if (r.status === 401) { signOutExpired(); throw new Error('Session expired.'); }
         return r.json();
       })
       .then(function (d) {
@@ -1565,9 +1544,9 @@
       var statusEl = document.getElementById('obHistStatus');
       uploadFile(file, statusEl).then(function (key) {
         histKey = key;
-        fetch(SCENARIOS_API + '?view=schemes', {
+        APRA_SESSION.fetch(SCENARIOS_API + '?view=schemes', {
           method: 'POST',
-          headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action: 'scan', custom_input_key: key }),
         }).catch(function () {});
         lockCountry();

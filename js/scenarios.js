@@ -26,23 +26,6 @@
   var cmpMaximized = false;
   var cmpRedraw = null;     // current redrawCmp closure, so toggling maximize can redraw the chart at its new size
 
-  function authHeaders() {
-    var t = localStorage.getItem('apra_id');
-    return t ? { 'Authorization': 'Bearer ' + t } : {};
-  }
-
-  // A 401 here means the stored token expired mid-session (the page-load
-  // guard only checks once, on load) — clear it and send the user back to
-  // sign in again, rather than leaving a cryptic failed-request error.
-  function signOutExpired() {
-    try {
-      localStorage.removeItem('apra_access');
-      localStorage.removeItem('apra_id');
-      localStorage.removeItem('apra_refresh');
-    } catch (e) {}
-    window.location.replace('/');
-  }
-
   // Wires click-to-toggle behavior onto a chart's legend items, reflecting
   // (and mutating) the given visibility state object, then re-drawing.
   function wireLegend(container, state, redraw) {
@@ -214,7 +197,7 @@
   }
 
   function loadScenarios() {
-    return fetch(SCENARIOS_API, { headers: authHeaders() })
+    return APRA_SESSION.fetch(SCENARIOS_API)
       .then(function (r) { return r.json(); })
       .then(function (d) {
         isAdmin = d.you_are_admin !== false; // absent (old cache/error shape) -> stay permissive
@@ -253,7 +236,7 @@
   }
 
   function loadApprovals() {
-    return fetch(SCENARIOS_API + '/approvals', { headers: authHeaders() })
+    return APRA_SESSION.fetch(SCENARIOS_API + '/approvals')
       .then(function (r) { return r.json(); })
       .then(function (d) {
         lastApprovals = d.approvals || [];
@@ -508,14 +491,13 @@
   function uploadCustomInput(file) {
     var statusEl = document.getElementById('rf-upload-status');
     statusEl.textContent = 'Requesting upload URL…';
-    return fetch(SCENARIOS_API + '/upload-url', {
+    return APRA_SESSION.fetch(SCENARIOS_API + '/upload-url', {
       method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ filename: file.name }),
     })
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, status: r.status, d: d }; }); })
       .then(function (res) {
-        if (res.status === 401) { signOutExpired(); throw new Error('Session expired.'); }
         if (!res.ok) throw new Error(res.d.error || 'Could not get an upload URL.');
         statusEl.textContent = 'Uploading ' + file.name + '…';
         return fetch(res.d.upload_url, {
@@ -575,9 +557,9 @@
       .then(function (customInputKey) {
         if (customInputKey) payload.custom_input_key = customInputKey;
         btn.textContent = 'Starting…';
-        return fetch(SCENARIOS_API, {
+        return APRA_SESSION.fetch(SCENARIOS_API, {
           method: 'POST',
-          headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+          headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(payload),
         });
       })
@@ -614,9 +596,8 @@
     var origHtml = btn ? btn.innerHTML : null;
     if (btn) { btn.disabled = true; btn.innerHTML = SPINNER_SVG; }
 
-    return fetch(SCENARIOS_API + '/' + id + '/approve', {
+    return APRA_SESSION.fetch(SCENARIOS_API + '/' + id + '/approve', {
       method: 'POST',
-      headers: authHeaders(),
     })
       .then(function (r) {
         if (r.status === 403) {
@@ -671,7 +652,7 @@
     var actionHead = document.getElementById('teamActionHead');
     if (!card || !body) return;
 
-    fetch(SCENARIOS_API + '/members', { headers: authHeaders() })
+    APRA_SESSION.fetch(SCENARIOS_API + '/members')
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (d) {
         card.style.display = '';
@@ -712,9 +693,9 @@
     if (btn) btn.disabled = true;
     if (msg) { msg.textContent = ''; msg.className = 'stest-msg'; }
 
-    fetch(SCENARIOS_API + '/members/role', {
+    APRA_SESSION.fetch(SCENARIOS_API + '/members/role', {
       method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ email: email, role: role }),
     })
       .then(function (r) {
@@ -742,7 +723,7 @@
 
     var ids = selectedForCompare.slice();
     Promise.all(ids.map(function (id) {
-      return fetch(SCENARIOS_API + '/' + id + '/result', { headers: authHeaders() }).then(function (r) { return r.json(); });
+      return APRA_SESSION.fetch(SCENARIOS_API + '/' + id + '/result').then(function (r) { return r.json(); });
     })).then(function (results) {
       var metas = ids.map(function (id) {
         return lastScenarios.find(function (s) { return s.id === id; });
@@ -760,7 +741,7 @@
     try {
       var query = new URLSearchParams({ view: 'baseline', scenario: id });
       if (baseId) query.set('base', baseId);
-      var response = await fetch(SCENARIOS_API + '?' + query, { headers: authHeaders() });
+      var response = await APRA_SESSION.fetch(SCENARIOS_API + '?' + query);
       var data = await response.json();
       if (!response.ok || !data.detail_available || !data.rows.length) throw new Error();
       panel.innerHTML = '<div class="table-wrap"><table class="dtable"><thead><tr><th>Base SKU</th><th>Postal code</th><th>Base units</th><th>Scenario units</th><th>Change</th></tr></thead><tbody></tbody></table></div>';
@@ -783,8 +764,8 @@
     try {
       var query = new URLSearchParams({ view: 'baseline', scenario: id });
       var responses = await Promise.all([
-        fetch(SCENARIOS_API + '?' + query, { headers: authHeaders() }),
-        fetch(SCENARIOS_API + '/' + encodeURIComponent(id) + '/result', { headers: authHeaders() }),
+        APRA_SESSION.fetch(SCENARIOS_API + '?' + query),
+        APRA_SESSION.fetch(SCENARIOS_API + '/' + encodeURIComponent(id) + '/result'),
       ]);
       if (!responses.every(function (response) { return response.ok; })) throw new Error();
       var results = await Promise.all(responses.map(function (response) { return response.json(); }));
@@ -1150,7 +1131,7 @@
       renderScenarioDetail(meta, null);
       return;
     }
-    fetch(SCENARIOS_API + '/' + id + '/result', { headers: authHeaders() })
+    APRA_SESSION.fetch(SCENARIOS_API + '/' + id + '/result')
       .then(function (r) { return r.json(); })
       .then(function (result) { renderScenarioDetail(meta, result); })
       .catch(function () {

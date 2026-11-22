@@ -390,7 +390,8 @@
   }
 
   // Period-over-period compares the forward window with weekday-aligned historical shipments.
-  let fclyHorizon=4, fclySkuFilter='ALL';
+  let fclyHorizon=4, fclySkuFilter='ALL', fclyPage=1;
+  const fclyPageSize=25;
   const fclySort={key:'units',dir:'desc'};
 
   // fcPickTab is exposed on window since it's invoked from an inline
@@ -413,6 +414,7 @@
   window.fclyPickHorizon=function(btn){
     if(!btn||!window.DATA)return;
     fclyHorizon=+btn.dataset.h;
+    fclyPage=1;
     document.querySelectorAll('#fclyHorizonSeg button').forEach(b=>{
       b.classList.toggle('active',b===btn);
       b.setAttribute('aria-pressed',String(b===btn));
@@ -479,9 +481,19 @@
       return (av-bv)*dir;
     });
 
-    rows=rows.slice(0,25);
-    setTxt('fclyResultsCount',rows.length===25?'Showing top 25 results':
-      'Showing '+rows.length+' '+(rows.length===1?'result':'results'));
+    const total=rows.length, pageCount=Math.max(1,Math.ceil(total/fclyPageSize));
+    fclyPage=Math.min(fclyPage,pageCount);
+    const start=(fclyPage-1)*fclyPageSize;
+    rows=rows.slice(start,start+fclyPageSize);
+    setTxt('fclyResultsCount',total
+      ? 'Showing '+(start+1).toLocaleString()+'–'+(start+rows.length).toLocaleString()+' of '+total.toLocaleString()+' SKUs'
+      : 'No SKUs');
+    const previous=document.getElementById('fclyPrevPage');
+    const next=document.getElementById('fclyNextPage');
+    previous.hidden=next.hidden=pageCount===1;
+    previous.disabled=fclyPage===1;
+    next.disabled=fclyPage===pageCount;
+    document.getElementById('fclyTableScroll').scrollTop=0;
 
     document.querySelectorAll('#fclyResultsTable .amp-sortable').forEach(th=>{
       const icon=th.querySelector('.ov-sort-ic'); if(!icon)return;
@@ -498,15 +510,19 @@
     const body=document.getElementById('fclyResultsBody');
     if(!body)return;
     if(!rows.length){
-      body.innerHTML='<tr><td colspan="11" style="text-align:center;padding:40px 20px;color:var(--muted)">No SKUs match your current filter.</td></tr>';
+      const columns=document.getElementById('fclyResultsTable').classList.contains('fcly-data-only')?5:11;
+      body.innerHTML='<tr><td colspan="'+columns+'" style="text-align:center;padding:24px;color:var(--muted)">No SKUs match your current filter.</td></tr>';
       return;
     }
+    const unavailable='<td class="ov-dim fcly-unavailable-column">—</td>';
+    const unavailableNumber='<td class="ov-dim fcly-unavailable-column fcly-number">—</td>';
     body.innerHTML=rows.map(r=>
-      `<tr data-sku="${r.sku}"><td class="skucell">${r.sku}</td>`+
-      `<td class="ov-dim">—</td><td class="ov-dim">—</td><td class="ov-dim">—</td><td class="ov-dim">—</td><td class="ov-dim">—</td>`+
-      `<td title="Last year: ${r.prior==null?'—':nfFull(r.prior)} · Change: ${fclyChange(r.change)}">${r.units==null?'—':nfFull(r.units)}</td>`+
-      `<td class="ov-dim">—</td><td class="ov-dim">—</td><td class="ov-dim">—</td>`+
-      `<td>${r.wape==null?'—':r.wape.toFixed(1)+'%'}</td></tr>`
+      `<tr><th scope="row" class="skucell">${escHtml(r.sku)}</th>`+unavailable.repeat(5)+
+      `<td class="fcly-number" title="Last year: ${r.prior==null?'—':nfFull(r.prior)} · Change: ${fclyChange(r.change)}">${r.units==null?'—':nfFull(r.units)}</td>`+
+      `<td class="fcly-number fcly-comparison-column">${r.prior==null?'—':nfFull(r.prior)}</td>`+
+      `<td class="fcly-number fcly-comparison-column">${fclyChange(r.change)}</td>`+
+      unavailableNumber.repeat(3)+
+      `<td class="fcly-number">${r.wape==null?'—':r.wape.toFixed(1)+'%'}</td></tr>`
     ).join('');
   }
 
@@ -601,12 +617,31 @@
     if(!skuSel)return; // this tab's markup isn't on the current page
     skuSel.innerHTML='<option value="ALL">All SKUs</option>'+
       Object.keys(DATA.skus).sort().map(id=>`<option value="${id}">${id}</option>`).join('');
-    skuSel.addEventListener('change',e=>{fclySkuFilter=e.target.value;fclyRender();drawFclyTrend();});
+    skuSel.addEventListener('change',e=>{
+      fclySkuFilter=e.target.value;
+      fclyPage=1;
+      fclyRender();
+      drawFclyTrend();
+    });
+    document.getElementById('fclyPrevPage').addEventListener('click',()=>{fclyPage=Math.max(1,fclyPage-1);fclyRender();});
+    document.getElementById('fclyNextPage').addEventListener('click',()=>{fclyPage++;fclyRender();});
+    const table=document.getElementById('fclyResultsTable');
+    document.getElementById('fclyDataOnly').addEventListener('click',event=>{
+      const compact=table.classList.toggle('fcly-data-only');
+      event.currentTarget.setAttribute('aria-pressed',String(compact));
+      if(!compact&&(fclySort.key==='prior'||fclySort.key==='change')){
+        fclySort.key='units';
+        fclySort.dir='desc';
+      }
+      fclyPage=1;
+      fclyRender();
+    });
     document.querySelectorAll('#fclyResultsTable .amp-sortable').forEach(th=>{
       th.addEventListener('click',()=>{
         const key=th.dataset.sortKey;
         if(fclySort.key===key)fclySort.dir=fclySort.dir==='asc'?'desc':'asc';
-        else{fclySort.key=key;fclySort.dir=key==='sku'?'asc':'desc';}
+        else{fclySort.key=key;fclySort.dir=(key==='sku'||key==='wape')?'asc':'desc';}
+        fclyPage=1;
         fclyRender();
       });
     });
@@ -1359,10 +1394,10 @@
     var tp=toneMap[tone]  ||toneMap.conversational;
     var extraHint=([focusHint[focus],langHint[lang]].filter(Boolean).join(' ')).trim();
 
-    var cbToken=localStorage.getItem('apra_id');
-    fetch(CHAT_API,{
+    var chatFetch=location.pathname.startsWith('/dashboard') ? APRA_SESSION.fetch : fetch;
+    chatFetch(CHAT_API,{
       method:'POST',
-      headers:Object.assign({'Content-Type':'application/json'}, cbToken?{'Authorization':'Bearer '+cbToken}:{}),
+      headers:{'Content-Type':'application/json'},
       body:JSON.stringify({
         message: q,
         history: askedTab.history.slice(0,-1).slice(-8),

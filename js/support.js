@@ -16,11 +16,6 @@
 
   var TICKETS_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/tickets';
 
-  function authHeaders() {
-    var t = localStorage.getItem('apra_id');
-    return t ? { 'Authorization': 'Bearer ' + t } : {};
-  }
-
   function escapeHtml(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
       return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
@@ -162,7 +157,7 @@
   window.loadSupportTab = function () {
     populateFaqSelect();
     var sub = document.getElementById('supportSubtitle');
-    fetch(TICKETS_API, { headers: authHeaders() })
+    APRA_SESSION.fetch(TICKETS_API)
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(function (d) {
         lastTickets = d.tickets || [];
@@ -211,9 +206,9 @@
     btn.disabled = true; btn.textContent = 'Creating…';
     errEl.textContent = '';
 
-    fetch(TICKETS_API, {
+    APRA_SESSION.fetch(TICKETS_API, {
       method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ subject: subject, message: message, category: category }),
     })
       .then(function (r) { if (!r.ok) throw new Error('could not create the ticket'); return r.json(); })
@@ -237,7 +232,7 @@
     body.innerHTML = '<p class="dsubtle">Loading…</p>';
     document.getElementById('ticketDetailModal').classList.add('open');
 
-    fetch(TICKETS_API + '/' + id, { headers: authHeaders() })
+    APRA_SESSION.fetch(TICKETS_API + '/' + id)
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       .then(renderTicketDetail)
       .catch(function () {
@@ -303,9 +298,9 @@
     errEl.textContent = '';
     box.disabled = true;
 
-    fetch(TICKETS_API + '/' + currentTicketId + '/reply', {
+    APRA_SESSION.fetch(TICKETS_API + '/' + currentTicketId + '/reply', {
       method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: message }),
     })
       .then(function (r) { if (!r.ok) throw new Error('could not send the reply'); return r.json(); })
@@ -317,9 +312,9 @@
   };
 
   window.setTicketStatus = function (id, status) {
-    fetch(TICKETS_API + '/' + id + '/status', {
+    APRA_SESSION.fetch(TICKETS_API + '/' + id + '/status', {
       method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ status: status }),
     })
       .then(function (r) { if (!r.ok) throw new Error('could not update status'); })

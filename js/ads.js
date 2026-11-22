@@ -6,27 +6,8 @@
   var OAUTH_API      = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/amplify-oauth';
 
 
-  function authHeaders() {
-    var t = localStorage.getItem('apra_id');
-    return t ? { 'Authorization': 'Bearer ' + t } : {};
-  }
-
-  // Same expired-session handling as scenarios.js — a 401 here means the
-  // stored token expired mid-session (the page-load guard only checks once).
-  function signOutExpired() {
-    try {
-      localStorage.removeItem('apra_access');
-      localStorage.removeItem('apra_id');
-      localStorage.removeItem('apra_refresh');
-    } catch (e) {}
-    window.location.replace('/');
-  }
-
   function apiFetch(url, opts) {
-    opts = opts || {};
-    opts.headers = Object.assign({}, opts.headers, authHeaders());
-    return fetch(url, opts).then(function (r) {
-      if (r.status === 401) { signOutExpired(); throw new Error('session expired'); }
+    return APRA_SESSION.fetch(url, opts).then(function (r) {
       return r.json().then(function (body) { return { ok: r.ok, status: r.status, body: body }; });
     });
   }

@@ -12,11 +12,6 @@
     'What causes error to compound in a recursive forecast?',
   ];
 
-  function authHeaders() {
-    var t = localStorage.getItem('apra_id');
-    return t ? { 'Authorization': 'Bearer ' + t } : {};
-  }
-
   function fmtDate(iso) {
     if (!iso) return 'not saved yet — showing the built-in default';
     var d = new Date(iso);
@@ -38,7 +33,7 @@
 
     var editor = document.getElementById('kbEditor');
     var updated = document.getElementById('kbUpdated');
-    fetch(KNOWLEDGE_API, { headers: authHeaders() })
+    APRA_SESSION.fetch(KNOWLEDGE_API)
       .then(function (r) { return r.json(); })
       .then(function (d) {
         editor.value = d.content || '';
@@ -60,9 +55,9 @@
       saveBtn.disabled = true;
       saveMsg.textContent = 'Saving…';
       saveMsg.className = 'stest-msg';
-      fetch(KNOWLEDGE_API, {
+      APRA_SESSION.fetch(KNOWLEDGE_API, {
         method: 'PUT',
-        headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ content: content }),
       })
         .then(function (r) { return r.json(); })
@@ -124,9 +119,9 @@
     body.appendChild(typ);
     body.scrollTop = body.scrollHeight;
 
-    fetch(CHAT_API, {
+    APRA_SESSION.fetch(CHAT_API, {
       method: 'POST',
-      headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
         message: q,
         history: kbHistory.slice(0, -1).slice(-8),

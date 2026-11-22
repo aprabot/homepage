@@ -6,18 +6,12 @@
 
   // GET /insights now requires the signed-in user's Cognito ID token — the
   // API resolves it to an organization and serves only that org's data.
-  // Same header pattern as js/scenarios.js's authHeaders().
-  function authHeaders() {
-    var t = localStorage.getItem('apra_id');
-    return t ? { 'Authorization': 'Bearer ' + t } : {};
-  }
-
   // Reusable by other features (e.g. the PDF report) that want the same
   // insights payload without duplicating the fetch/cache logic.
   window.fetchInsights = function () {
     if (lastData) return Promise.resolve(lastData);
     if (fetchPromise) return fetchPromise;
-    fetchPromise = fetch(INSIGHTS_API, { headers: authHeaders() })
+    fetchPromise = APRA_SESSION.fetch(INSIGHTS_API)
       .then(function (r) {
         if (!r.ok) throw new Error('HTTP ' + r.status);
         return r.json();

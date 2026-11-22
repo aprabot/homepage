@@ -8,9 +8,9 @@
   let schemes = [], canEdit = false, editing = null;
 
   async function request(payload) {
-    const response = await fetch(api, {
+    const response = await APRA_SESSION.fetch(api, {
       method: payload ? 'POST' : 'GET',
-      headers: { Authorization: 'Bearer ' + localStorage.getItem('apra_id'), 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json' },
       body: payload ? JSON.stringify(payload) : undefined,
     });
     const data = await response.json();
