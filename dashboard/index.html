@@ -23,7 +23,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin="">
 <link rel="stylesheet" href="../css/styles.css">
 <style>
   html,body{height:100%;overflow:hidden}
@@ -99,6 +98,46 @@
      swaps shape when the selection changes. Purely decorative/additive —
      doesn't replace or gate anything the real country select already does. */
   .ob-country-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:stretch}
+  /* Onboarding steps — layout pieces from the redesign mockup's step
+     templates. Every number shown in them is computed from the user's own
+     uploads in js/onboarding.js; "—" means there's no data for it. */
+  .ob-defaults{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin-top:14px}
+  .ob-defaults-lbl{font-size:11px;font-weight:600;color:var(--muted);margin-bottom:8px}
+  .ob-defaults-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12.5px;color:var(--muted)}
+  .ob-defaults-grid b{color:var(--text);font-weight:600}
+  .ob-stat-grid{display:grid;gap:10px;margin-top:16px}
+  .ob-stat-grid.ob-stat-3{grid-template-columns:repeat(3,1fr)}
+  .ob-stat-grid.ob-stat-4{grid-template-columns:repeat(4,1fr)}
+  @media(max-width:640px){.ob-stat-grid.ob-stat-3,.ob-stat-grid.ob-stat-4{grid-template-columns:1fr 1fr}}
+  .ob-stat-lbl{font-size:11px;color:var(--muted);margin-bottom:3px}
+  .ob-stat b{font-family:var(--display);font-size:17px;font-weight:600;color:var(--text)}
+  .ob-stat b.ob-dim{color:var(--muted-2)}
+  .ob-panel{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px}
+  .ob-callout{background:var(--signal-soft);border:1px solid rgba(200,242,78,.3);border-radius:10px;padding:12px 14px;
+    margin-top:14px;font-size:13px;color:var(--signal)}
+  .ob-sku-table{font-size:12.5px}
+  .ob-sku-table td{color:var(--text);padding:10px 12px}
+  .ob-sku-table tbody tr{cursor:default}
+  .ob-callout .dtable thead th{background:transparent}
+  .ob-sku-table input[type="date"]{background:var(--ink);border:1px solid var(--line-2);border-radius:6px;padding:4px 8px;
+    font-size:12px;color:var(--text);font-family:inherit}
+  .ob-two-col{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+  @media(max-width:780px){.ob-two-col{grid-template-columns:1fr}}
+  .ob-override{font-size:.8rem;text-decoration:none}
+  .ob-review-grid{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-bottom:16px}
+  @media(max-width:980px){.ob-review-grid{grid-template-columns:repeat(3,1fr)}}
+  .ob-review-tile{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center}
+  .ob-review-tile div{font-size:12px;margin-bottom:6px}
+  .ob-nav-row .btn:disabled{opacity:.4}
+  .doc-note{border-left:3px solid var(--mint);background:rgba(84,230,196,.06);border-radius:0 10px 10px 0;
+    padding:10px 14px;font-size:12.5px;color:var(--text);margin:14px 0}
+  .doc-note b{color:var(--mint)}
+  .flowd{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;margin:18px 0}
+  .flowd-box{background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:14px 16px;
+    font-size:12.5px;min-width:110px;max-width:220px}
+  .flowd-box.signal{border-color:rgba(200,242,78,.4);background:var(--signal-soft)}
+  .flowd-box.mint{border-color:rgba(84,230,196,.35);background:rgba(84,230,196,.08)}
+  .flowd-arrow{display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:18px;padding:0 10px;flex:none}
   .ob-map-card{display:flex;flex-direction:column;align-items:center;justify-content:center;padding:18px}
   .ob-map-svg{width:100%;max-width:220px;height:auto;aspect-ratio:1/1}
   .ob-map-shape path{fill:var(--signal);opacity:.9}
@@ -1250,8 +1289,6 @@
       </div>
 
       <div class="dcard" style="margin-top:20px">
-        <div class="ch"><h4>Set up your forecast</h4></div>
-        <p class="dsubtle" style="margin-bottom:16px">Answer a few quick questions and we'll prepare a model tailored to your business.</p>
 
         <div id="obSetupForm">
           <div class="ob-stepper" id="obStepper">
@@ -1272,194 +1309,23 @@
           <div class="ob-progress" id="obProgress" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Question 1 of 7</div>
 
           <div class="ob-step" id="obStep1">
+          <p class="dsubtle" style="margin-bottom:16px">Country sets the defaults for every later step — postal-code pattern, festival calendar, currency and date format. Pick it once; it locks after your first file upload.</p>
           <div class="ob-country-grid">
-          <div class="field">
-            <label for="obCountry">Which country do you operate in?</label>
-            <select id="obCountry" style="width:100%;padding:10px 12px;border-radius:9px;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:var(--body);font-size:14px">
-              <option value="AF">Afghanistan</option>
-              <option value="AL">Albania</option>
-              <option value="DZ">Algeria</option>
-              <option value="AD">Andorra</option>
-              <option value="AO">Angola</option>
-              <option value="AR">Argentina</option>
-              <option value="AM">Armenia</option>
-              <option value="AU">Australia</option>
-              <option value="AT">Austria</option>
-              <option value="AZ">Azerbaijan</option>
-              <option value="BS">Bahamas</option>
-              <option value="BH">Bahrain</option>
-              <option value="BD">Bangladesh</option>
-              <option value="BY">Belarus</option>
-              <option value="BE">Belgium</option>
-              <option value="BZ">Belize</option>
-              <option value="BJ">Benin</option>
-              <option value="BT">Bhutan</option>
-              <option value="BO">Bolivia</option>
-              <option value="BA">Bosnia and Herzegovina</option>
-              <option value="BW">Botswana</option>
-              <option value="BR">Brazil</option>
-              <option value="BN">Brunei</option>
-              <option value="BG">Bulgaria</option>
-              <option value="BF">Burkina Faso</option>
-              <option value="BI">Burundi</option>
-              <option value="KH">Cambodia</option>
-              <option value="CM">Cameroon</option>
-              <option value="CA">Canada</option>
-              <option value="CV">Cape Verde</option>
-              <option value="CF">Central African Republic</option>
-              <option value="TD">Chad</option>
-              <option value="CL">Chile</option>
-              <option value="CN">China</option>
-              <option value="CO">Colombia</option>
-              <option value="KM">Comoros</option>
-              <option value="CR">Costa Rica</option>
-              <option value="HR">Croatia</option>
-              <option value="CU">Cuba</option>
-              <option value="CY">Cyprus</option>
-              <option value="CZ">Czech Republic</option>
-              <option value="CD">Democratic Republic of the Congo</option>
-              <option value="DK">Denmark</option>
-              <option value="DJ">Djibouti</option>
-              <option value="DM">Dominica</option>
-              <option value="DO">Dominican Republic</option>
-              <option value="EC">Ecuador</option>
-              <option value="EG">Egypt</option>
-              <option value="SV">El Salvador</option>
-              <option value="GQ">Equatorial Guinea</option>
-              <option value="ER">Eritrea</option>
-              <option value="EE">Estonia</option>
-              <option value="SZ">Eswatini</option>
-              <option value="ET">Ethiopia</option>
-              <option value="FJ">Fiji</option>
-              <option value="FI">Finland</option>
-              <option value="FR">France</option>
-              <option value="GA">Gabon</option>
-              <option value="GM">Gambia</option>
-              <option value="GE">Georgia</option>
-              <option value="DE">Germany</option>
-              <option value="GH">Ghana</option>
-              <option value="GR">Greece</option>
-              <option value="GD">Grenada</option>
-              <option value="GT">Guatemala</option>
-              <option value="GN">Guinea</option>
-              <option value="GW">Guinea-Bissau</option>
-              <option value="GY">Guyana</option>
-              <option value="HT">Haiti</option>
-              <option value="HN">Honduras</option>
-              <option value="HU">Hungary</option>
-              <option value="IS">Iceland</option>
-              <option value="IN" selected>India</option>
-              <option value="ID">Indonesia</option>
-              <option value="IR">Iran</option>
-              <option value="IQ">Iraq</option>
-              <option value="IE">Ireland</option>
-              <option value="IL">Israel</option>
-              <option value="IT">Italy</option>
-              <option value="CI">Ivory Coast</option>
-              <option value="JM">Jamaica</option>
-              <option value="JP">Japan</option>
-              <option value="JO">Jordan</option>
-              <option value="KZ">Kazakhstan</option>
-              <option value="KE">Kenya</option>
-              <option value="KI">Kiribati</option>
-              <option value="KW">Kuwait</option>
-              <option value="KG">Kyrgyzstan</option>
-              <option value="LA">Laos</option>
-              <option value="LV">Latvia</option>
-              <option value="LB">Lebanon</option>
-              <option value="LS">Lesotho</option>
-              <option value="LR">Liberia</option>
-              <option value="LY">Libya</option>
-              <option value="LI">Liechtenstein</option>
-              <option value="LT">Lithuania</option>
-              <option value="LU">Luxembourg</option>
-              <option value="MG">Madagascar</option>
-              <option value="MW">Malawi</option>
-              <option value="MY">Malaysia</option>
-              <option value="MV">Maldives</option>
-              <option value="ML">Mali</option>
-              <option value="MT">Malta</option>
-              <option value="MR">Mauritania</option>
-              <option value="MU">Mauritius</option>
-              <option value="MX">Mexico</option>
-              <option value="MD">Moldova</option>
-              <option value="MC">Monaco</option>
-              <option value="MN">Mongolia</option>
-              <option value="ME">Montenegro</option>
-              <option value="MA">Morocco</option>
-              <option value="MZ">Mozambique</option>
-              <option value="MM">Myanmar</option>
-              <option value="NA">Namibia</option>
-              <option value="NP">Nepal</option>
-              <option value="NL">Netherlands</option>
-              <option value="NZ">New Zealand</option>
-              <option value="NI">Nicaragua</option>
-              <option value="NE">Niger</option>
-              <option value="NG">Nigeria</option>
-              <option value="KP">North Korea</option>
-              <option value="MK">North Macedonia</option>
-              <option value="NO">Norway</option>
-              <option value="OM">Oman</option>
-              <option value="PK">Pakistan</option>
-              <option value="PA">Panama</option>
-              <option value="PG">Papua New Guinea</option>
-              <option value="PY">Paraguay</option>
-              <option value="PE">Peru</option>
-              <option value="PH">Philippines</option>
-              <option value="PL">Poland</option>
-              <option value="PT">Portugal</option>
-              <option value="QA">Qatar</option>
-              <option value="CG">Republic of the Congo</option>
-              <option value="RO">Romania</option>
-              <option value="RU">Russia</option>
-              <option value="RW">Rwanda</option>
-              <option value="WS">Samoa</option>
-              <option value="SM">San Marino</option>
-              <option value="SA">Saudi Arabia</option>
-              <option value="SN">Senegal</option>
-              <option value="RS">Serbia</option>
-              <option value="SC">Seychelles</option>
-              <option value="SL">Sierra Leone</option>
-              <option value="SG">Singapore</option>
-              <option value="SK">Slovakia</option>
-              <option value="SI">Slovenia</option>
-              <option value="SB">Solomon Islands</option>
-              <option value="SO">Somalia</option>
-              <option value="ZA">South Africa</option>
-              <option value="KR">South Korea</option>
-              <option value="SS">South Sudan</option>
-              <option value="ES">Spain</option>
-              <option value="LK">Sri Lanka</option>
-              <option value="SD">Sudan</option>
-              <option value="SR">Suriname</option>
-              <option value="SE">Sweden</option>
-              <option value="CH">Switzerland</option>
-              <option value="SY">Syria</option>
-              <option value="TW">Taiwan</option>
-              <option value="TJ">Tajikistan</option>
-              <option value="TZ">Tanzania</option>
-              <option value="TH">Thailand</option>
-              <option value="TG">Togo</option>
-              <option value="TO">Tonga</option>
-              <option value="TT">Trinidad and Tobago</option>
-              <option value="TN">Tunisia</option>
-              <option value="TR">Turkey</option>
-              <option value="TM">Turkmenistan</option>
-              <option value="UG">Uganda</option>
-              <option value="UA">Ukraine</option>
-              <option value="AE">United Arab Emirates</option>
-              <option value="GB">United Kingdom</option>
-              <option value="US">United States</option>
-              <option value="UY">Uruguay</option>
-              <option value="UZ">Uzbekistan</option>
-              <option value="VU">Vanuatu</option>
-              <option value="VA">Vatican City</option>
-              <option value="VE">Venezuela</option>
-              <option value="VN">Vietnam</option>
-              <option value="YE">Yemen</option>
-              <option value="ZM">Zambia</option>
-              <option value="ZW">Zimbabwe</option>
-            </select>
+          <div class="dcard" style="margin:0">
+            <div class="field">
+              <label for="obCountry">Country</label>
+              <select id="obCountry" style="width:100%;padding:10px 12px;border-radius:9px;background:var(--panel);border:1px solid var(--line);color:var(--text);font-family:var(--body);font-size:14px">
+                <option value="IN" selected>India</option>
+                <option value="US">United States</option>
+                <option value="JP">Japan</option>
+                <option value="GB">United Kingdom</option>
+              </select>
+              <p class="stest-msg" id="obCountryLockNote" style="margin-top:6px;color:var(--muted);display:none">Locked after your first upload — reload the page to start over with a different country.</p>
+            </div>
+            <div class="ob-defaults">
+              <div class="ob-defaults-lbl">Defaults this sets</div>
+              <div class="ob-defaults-grid" id="obCountryDefaults"></div>
+            </div>
           </div>
 
           <div class="dcard ob-map-card" style="margin:0">
@@ -1545,120 +1411,143 @@
           </div>
 
           <div class="ob-step" id="obStep2" style="display:none">
-          <div class="field">
-            <label for="obHistFile">Do you have historical shipment data to share?</label>
-            <input type="file" id="obHistFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
-            <p class="stest-msg" style="margin-top:6px;color:var(--muted)">
-              .xlsx with a Shipments sheet (required), plus Price, Future Price, and Weather
-              sheets (all optional) — Future Price lets you specify planned discounts for dates
-              beyond your last Shipments date, so the forward forecast can respond to them.
-              <a href="apra_forecast_input_template.xlsx" download style="color:var(--signal)">Download template →</a>
-            </p>
-            <p class="stest-msg" id="obHistStatus" style="margin-top:6px"></p>
-            <ul id="obHistWarnings" class="ob-warn-list" style="display:none"></ul>
+          <p class="dsubtle" style="margin-bottom:16px">Upload your sales history — the one file every forecast depends on. If you track discount schemes, add a <span class="mono">scheme_id</span> column and we'll pick up every scheme ID automatically.</p>
+          <div class="dcard" style="margin:0">
+            <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+              <button type="button" class="dbtn" id="obSalesTplCsv">Download template (CSV)</button>
+              <a class="dbtn" href="apra_forecast_input_template.xlsx" download style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);text-decoration:none">Download template (XLSX)</a>
+            </div>
+            <div class="field" style="margin-bottom:0">
+              <label for="obHistFile">Upload sales file</label>
+              <input type="file" id="obHistFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
+              <p class="stest-msg" style="margin-top:6px;color:var(--muted)">Needs <span class="mono">ship_day</span>, <span class="mono">asin</span>, <span class="mono">postal_code</span> and <span class="mono">shipped_units</span> columns. The .xlsx template can also carry Price, Future Price (planned discounts) and Weather sheets.</p>
+              <p class="stest-msg" id="obHistStatus" style="margin-top:6px"></p>
+              <ul id="obHistWarnings" class="ob-warn-list" style="display:none"></ul>
+            </div>
+            <div class="ob-callout" id="obSchemeCallout" style="display:none"></div>
+            <div class="ob-stat-grid ob-stat-4">
+              <div class="ob-stat"><div class="ob-stat-lbl">Rows</div><b id="obSalesRows">—</b></div>
+              <div class="ob-stat"><div class="ob-stat-lbl">Pincodes</div><b id="obSalesPins">—</b></div>
+              <div class="ob-stat"><div class="ob-stat-lbl">SKUs</div><b id="obSalesSkus">—</b></div>
+              <div class="ob-stat"><div class="ob-stat-lbl">Date range</div><b id="obSalesRange">—</b></div>
+            </div>
           </div>
-
-          <div id="obHistChartWrap" style="display:none;margin-top:14px">
-            <div class="ch" style="margin-bottom:8px"><h4 style="font-size:13.5px">Aggregated shipment volume over time</h4></div>
-            <canvas id="obHistChart" style="width:100%;height:200px;display:block;border-radius:12px;border:1px solid var(--line)"></canvas>
-          </div>
-
-          <hr style="border:none;border-top:1px solid var(--line);margin:22px 0">
-
-          <div class="field">
-            <label for="obAreaFile">What's your serviceable area? Upload your channel &amp; distributor to pincode mapping (CSV or TXT)</label>
-            <p class="stest-msg" style="margin-top:6px;color:var(--muted)">
-              Needs a header row with <b>channel</b>, <b>distributor</b>, and <b>pincode</b> columns, e.g.:<br>
-              <span class="mono" style="font-size:12px">channel,distributor,pincode<br>Retail,ABC Distributors,110001</span>
-            </p>
-            <input type="file" id="obAreaFile" class="file-input" accept=".csv,.txt">
-            <p class="stest-msg" id="obAreaStatus" style="margin-top:6px"></p>
-            <ul id="obAreaWarnings" class="ob-warn-list" style="display:none"></ul>
-          </div>
-
-          <div id="obMap" style="height:320px;border-radius:12px;overflow:hidden;margin-top:14px;border:1px solid var(--line)"></div>
-          <p class="dsubtle" style="margin-top:8px;margin-bottom:0;font-size:12.5px">A large list can take a few minutes to fully plot (yellow border = still working) — no need to wait here, go ahead and answer the next question.</p>
           </div>
 
           <div class="ob-step" id="obStep3" style="display:none">
-          <div class="field">
-            <label for="obSpendFile">Do you have marketing spend or campaign data?</label>
-            <p class="dsubtle" style="margin-bottom:12px">Optional. We don't factor marketing spend into the forecast yet, but we'll keep whatever you upload on file for when that lands — nothing here blocks training.</p>
-            <input type="file" id="obSpendFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
-            <p class="stest-msg" id="obSpendStatus" style="margin-top:6px"></p>
-            <div style="margin-top:12px">
-              <button type="button" class="dbtn" id="obSpendSkipBtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">I have no marketing spend data</button>
+          <p class="dsubtle" style="margin-bottom:16px">Optional, but it will sharpen how your ad spend connects to demand. No campaign data? Just say so below and move on — nothing here blocks you. Spend isn't used in the forecast yet; anything you upload is kept on file for when it is.</p>
+          <div class="dcard" style="margin:0">
+            <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+              <label class="btn btn-pri" for="obSpendFile" style="cursor:pointer">Upload spend file</label>
+              <input type="file" id="obSpendFile" accept=".xlsx,.csv,.tsv,.txt" style="display:none">
+              <button type="button" class="btn btn-ghost" id="obSpendSkipBtn">I have no marketing spend</button>
+            </div>
+            <p class="stest-msg" id="obSpendStatus" style="margin:0 0 12px"></p>
+            <div class="ob-panel">
+              <div class="ob-stat-grid ob-stat-3" style="margin-top:0">
+                <div class="ob-stat"><div class="ob-stat-lbl">Campaigns</div><b id="obSpendCampaigns">—</b></div>
+                <div class="ob-stat"><div class="ob-stat-lbl">Past / planned</div><b id="obSpendPastPlanned">—</b></div>
+                <div class="ob-stat"><div class="ob-stat-lbl">Detail level</div><b id="obSpendDetail">—</b></div>
+              </div>
+              <span class="pill ok" id="obSpendChannels" style="display:none;margin-top:12px"></span>
+              <p class="stest-msg" style="margin:12px 0 0;color:var(--muted)">Expected columns: <span class="mono">date</span>, <span class="mono">campaign</span>, <span class="mono">channel</span>, <span class="mono">spend</span> — plus <span class="mono">postal_code</span> and <span class="mono">asin</span> if you have that detail.</p>
             </div>
           </div>
           </div>
 
           <div class="ob-step" id="obStep4" style="display:none">
-          <div class="field">
-            <label>SKU master — newly launched SKUs</label>
-            <p class="dsubtle" style="margin-bottom:12px">We scan your historical data for SKUs that only started shipping recently — these need special handling since they don't have much sales history yet. Confirm the ones we found, or add any we missed.</p>
-            <div id="obNewSkuList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-            <p class="stest-msg" id="obNewSkuEmpty" style="margin-top:8px;color:var(--muted)">No newly launched SKUs detected yet — upload historical data on the Sales data step, or add one manually below.</p>
-            <div style="display:flex;gap:8px;margin-top:14px">
-              <input id="obNewSkuInput" type="text" placeholder="e.g. SKU-014" style="flex:1">
-              <button type="button" class="dbtn" id="obNewSkuAdd">Add</button>
+          <p class="dsubtle" style="margin-bottom:16px">Your product list, pre-filled from the SKUs in your sales file. Confirm anything newly launched, and fix its launch date if the first sale isn't the real launch.</p>
+          <div class="dcard" style="margin:0">
+            <div class="ob-stat-grid ob-stat-4" style="margin-top:0">
+              <div class="ob-stat"><div class="ob-stat-lbl">SKUs in sales</div><b id="obSkuInSales">—</b></div>
+              <div class="ob-stat" title="There's no separate SKU master upload yet, so there's nothing to compare against"><div class="ob-stat-lbl">SKUs in master</div><b class="ob-dim">—</b></div>
+              <div class="ob-stat" title="There's no separate SKU master upload yet, so there's nothing to compare against"><div class="ob-stat-lbl">Matched</div><b class="ob-dim">—</b></div>
+              <div class="ob-stat" title="There's no separate SKU master upload yet, so there's nothing to compare against"><div class="ob-stat-lbl">Missing either side</div><b class="ob-dim">—</b></div>
+            </div>
+            <div class="ob-callout">
+              <b>Newly launched SKUs</b>
+              <div class="table-wrap" style="margin-top:8px"><table class="dtable ob-sku-table">
+                <thead><tr><th>SKU</th><th>First sale</th><th>Launch date</th><th></th></tr></thead>
+                <tbody id="obNewSkuBody"></tbody>
+              </table></div>
             </div>
           </div>
           </div>
 
           <div class="ob-step" id="obStep5" style="display:none">
-          <div class="field">
-            <label for="obInboundFile">Do you have inbound receipts — stock arriving at each site?</label>
-            <p class="dsubtle" style="margin-bottom:12px">Optional. This isn't used in forecasting yet, but it's what will let Inventory eventually project stock and flag reorders — we'll keep whatever you upload on file for that.</p>
-            <input type="file" id="obInboundFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
-            <p class="stest-msg" id="obInboundStatus" style="margin-top:6px"></p>
-            <div style="margin-top:12px">
-              <button type="button" class="dbtn" id="obInboundSkipBtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">I have no inbound receipts data</button>
+          <p class="dsubtle" style="margin-bottom:16px">Receipts record stock arriving at each warehouse or site. Together with your sales data, this is what will let Inventory project stock and flag what to reorder. It isn't used yet — anything you upload is kept on file for when it is.</p>
+          <div class="dcard" style="margin:0">
+            <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+              <button type="button" class="dbtn" id="obInboundTpl" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Download template</button>
+              <label class="btn btn-pri" for="obInboundFile" style="cursor:pointer">Upload receipts</label>
+              <input type="file" id="obInboundFile" accept=".xlsx,.csv,.tsv,.txt" style="display:none">
+              <button type="button" class="btn btn-ghost" id="obInboundSkipBtn">I have no inbound data</button>
             </div>
+            <p class="stest-msg" id="obInboundStatus" style="margin:0 0 12px"></p>
+            <div class="table-wrap" id="obInboundSitesWrap" style="display:none"><table class="dtable ob-sku-table">
+              <thead><tr><th>Site Code</th><th>Site Name</th><th title="Your sales file has no site column, so there's nothing to match against yet">In sales file?</th></tr></thead>
+              <tbody id="obInboundSites"></tbody>
+            </table></div>
           </div>
           </div>
 
           <div class="ob-step" id="obStep6" style="display:none">
-          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
-            <div class="field">
-              <label for="obWeatherFile">Weather</label>
-              <p class="dsubtle" style="margin-bottom:12px" id="obWeatherIntro">Temperature for your area — from your Weather sheet if you included one, or upload a separate weather file below.</p>
-              <input type="file" id="obWeatherFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
-              <p class="stest-msg" style="margin-top:6px;color:var(--muted)">.xlsx with a Weather sheet, or .csv/.tsv/.txt with date and temperature columns.</p>
-              <p class="stest-msg" id="obWeatherFileStatus" style="margin-top:6px"></p>
-              <ul id="obWeatherWarnings" class="ob-warn-list" style="display:none"></ul>
+          <p class="dsubtle" style="margin-bottom:16px">Weather comes from the Weather sheet in your sales file; festivals from the built-in calendar for your country, plus state holidays for the pincodes you sell to. Review both, and override anything you need to.</p>
+          <div class="ob-two-col">
+            <div class="dcard" style="margin:0">
+              <div class="ch"><h4>Weather</h4><button type="button" class="link-btn ob-override" id="obWeatherOverrideBtn">Override →</button></div>
+              <span class="pill" id="obWeatherPill"></span>
+              <p class="dsubtle" id="obWeatherIntro" style="margin:12px 0 0;font-size:12px"></p>
               <div id="obWeatherChartWrap" style="display:none;margin-top:14px">
-                <div class="ch" style="margin-bottom:8px"><h4 style="font-size:13.5px">Temperature over time (from your Weather sheet)</h4></div>
-                <canvas id="obWeatherChart" style="width:100%;height:200px;display:block;border-radius:12px;border:1px solid var(--line)"></canvas>
+                <canvas id="obWeatherChart" style="width:100%;height:160px;display:block;border-radius:12px;border:1px solid var(--line)"></canvas>
               </div>
-              <p class="stest-msg" id="obWeatherEmpty" style="margin-top:14px;color:var(--muted)"></p>
+              <div id="obWeatherOverride" style="display:none;margin-top:14px">
+                <input type="file" id="obWeatherFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
+                <p class="stest-msg" style="margin-top:6px;color:var(--muted)">.xlsx with a Weather sheet, or .csv/.tsv/.txt with date and temperature columns.</p>
+                <p class="stest-msg" id="obWeatherFileStatus" style="margin-top:6px"></p>
+                <ul id="obWeatherWarnings" class="ob-warn-list" style="display:none"></ul>
+              </div>
             </div>
 
-            <div class="field">
-              <label>Festivals &amp; holidays</label>
-              <p class="dsubtle" style="margin-bottom:12px" id="obHolidayIntro">Default holidays for the selected country, shown below — remove any that don't apply, or add ones we missed (festival dates like Diwali, Holi, or Eid shift every year, so add those yourself).</p>
-              <div id="obHolidayList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-              <p class="stest-msg" id="obHolidayEmpty" style="margin-top:8px;color:var(--muted)"></p>
-              <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-                <input id="obHolidayDate" type="date" style="flex:0 0 170px">
-                <input id="obHolidayName" type="text" placeholder="Holiday name" style="flex:1">
-                <button type="button" class="dbtn" id="obHolidayAdd">Add</button>
+            <div class="dcard" style="margin:0">
+              <div class="ch"><h4>Festivals</h4><button type="button" class="link-btn ob-override" id="obHolidayOverrideBtn">Override →</button></div>
+              <span class="pill" id="obHolidayPill"></span>
+              <p class="dsubtle" id="obHolidayIntro" style="margin:12px 0 0;font-size:12px"></p>
+              <div id="obHolidayOverride" style="display:none;margin-top:14px">
+                <div id="obHolidayList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+                <p class="stest-msg" id="obHolidayEmpty" style="margin-top:8px;color:var(--muted)"></p>
+                <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+                  <input id="obHolidayDate" type="date" style="flex:0 0 150px">
+                  <input id="obHolidayName" type="text" placeholder="Festival or holiday name" style="flex:1;min-width:120px">
+                  <button type="button" class="dbtn" id="obHolidayAdd">Add</button>
+                </div>
               </div>
             </div>
           </div>
           </div>
 
           <div class="ob-step" id="obStep7" style="display:none">
-          <div class="field">
-            <label>Review your data <span class="pill" id="obValidationPill" style="margin-left:6px"></span></label>
-            <p class="dsubtle" style="margin-bottom:12px">A recap of the checks we ran on what you uploaded — these are
-              heads-up warnings only, same as the ones shown inline earlier; nothing here blocks training.</p>
-            <div id="obValidationSummary"></div>
+          <p class="dsubtle" style="margin-bottom:16px">Here's everything you've set up. Fix anything that needs attention, then start training — it runs in the background, so feel free to close this.</p>
+          <div class="dcard" style="margin:0">
+            <div class="ob-review-grid" id="obReviewTiles"></div>
+            <div class="doc-note" id="obWillUse" style="margin-bottom:0"></div>
+          </div>
+          <div class="dcard" style="margin-top:16px">
+            <div class="ch" style="margin-bottom:12px"><h4>What happens after you click Train</h4></div>
+            <div class="flowd">
+              <div class="flowd-box">Queued</div><div class="flowd-arrow">→</div>
+              <div class="flowd-box">Preparing data</div><div class="flowd-arrow">→</div>
+              <div class="flowd-box signal">Training</div><div class="flowd-arrow">→</div>
+              <div class="flowd-box">Validating</div><div class="flowd-arrow">→</div>
+              <div class="flowd-box mint">Done</div>
+            </div>
+            <p class="dsubtle" style="margin:14px 0 0">Runs in the background — close this and come back anytime. When it's done you'll get a link to review it in Scenarios before it goes live.</p>
           </div>
           </div>
 
           <div class="ob-nav-row">
-            <button type="button" class="dbtn" id="obBack" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">← Back</button>
-            <button type="button" class="btn btn-pri" id="obNext">Next →</button>
+            <button type="button" class="btn btn-ghost" id="obBack">← Back</button>
+            <button type="button" class="btn btn-pri" id="obNext">Continue →</button>
           </div>
         </div>
 
@@ -1996,7 +1885,6 @@
 <script src="../js/inventory.js"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/onboarding.js"></script>
 <script src="../js/tour.js"></script>

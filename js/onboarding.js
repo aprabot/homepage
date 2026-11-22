@@ -1,50 +1,57 @@
 /* ============================================================
-   APRABot dashboard — onboarding "Set up your forecast" flow.
+   APRABot dashboard — onboarding flow (7 steps, matching the redesign
+   mockup): Country, Sales data, Marketing spend, SKU master, Inbound
+   receipts, Weather & festivals, Review & train.
    Uploads reuse the existing /scenarios/upload-url presigned S3
-   endpoint (no new backend). Map plots serviceable-area postal codes
-   via Leaflet + OpenStreetMap tiles, geocoded through Nominatim.
-   Model selection is a UI-only placeholder for now — no real
-   analysis is run yet.
+   endpoint (no new backend). Every count shown in a step is computed
+   client-side from the user's own file; "—" means there's no data.
+   Only the sales file (custom_input_key) feeds training today — spend,
+   inbound receipts, a separate weather file, festivals, scheme IDs and
+   launch dates are saved in the onboarding profile for later use.
 ============================================================ */
 (function () {
   'use strict';
 
   var SCENARIOS_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/scenarios';
-  var NOMINATIM = 'https://nominatim.openstreetmap.org/search';
 
-  var map = null, markersLayer = null, areaLayer = null;
   var histKey = null;
   var spendKey = null, spendSkipped = false;
   var inboundKey = null, inboundSkipped = false;
-  var TOTAL_STEPS = 7;
+  var STEP_NAMES = ['country', 'sales', 'spend', 'sku', 'inbound', 'weather', 'review'];
+  var TOTAL_STEPS = STEP_NAMES.length;
   var step = 1;
   var holidayCountryLoaded = null; // signature ("country|sorted,detected,states") of the defaults currently loaded into holidayState — see loadDefaultHolidays()
-  var weatherLoaded = false; // whether the Weather step's data has already been resolved once
 
   // Latest warnings from each upload's own validation pass (see "Soft,
-  // non-blocking upload validation" below) — stashed here so the final
-  // "Review your data" step (7) can show one consolidated recap without
-  // re-parsing any file. [] means "checked, nothing to flag", not
-  // "not uploaded" — see renderValidationSummary()'s own uploaded check.
-  var lastAreaWarnings = [];
+  // non-blocking upload validation" below) — stashed so the Review step
+  // can reflect them without re-parsing any file. [] means "checked,
+  // nothing to flag", not "not uploaded".
   var lastHistWarnings = [];
   var lastWeatherWarnings = [];
 
-  // Parsed rows from the serviceable-area upload — {channel, distributor,
-  // pincode} per row. Not consumable by forecast.py yet (same status as
-  // newSkuState/holidayState below), so just saved into the onboarding
-  // profile JSON for future use rather than dropped.
-  var channelDistributorRows = [];
+  // From the sales file: distinct postal codes (drive India state holidays
+  // and the "Pincodes" count), scheme IDs (if a scheme_id column exists),
+  // and the summary shown on the Sales data / Review steps.
+  var salesPins = [];
+  var schemeIds = [];
+  var salesSummary = null; // {rows, pins, skus, rangeText} once a sales file has been read
 
-  // id -> {firstDate: Date|null, totalUnits: number|null, auto: bool} — auto
-  // entries come from scanning the uploaded data, manual ones from the text
-  // field on the "Newly launched SKUs" step. firstDate/totalUnits are null
-  // for manual entries since we have no data to back them.
+  // Weather, tracked by source because only one of them reaches training:
+  // sheetWeather comes from the sales file's Weather sheet (sent with the
+  // sales file as custom_input_key — without it the runner falls back to
+  // the platform's default raw/weather.tsv); fileWeather comes from a
+  // separate upload on the Weather & festivals step, which is only saved
+  // (weatherFileKey). Each is {points, range} or null.
+  var sheetWeather = null, fileWeather = null, weatherFileKey = null;
+
+  // id -> {firstDate: Date, totalUnits: number, auto: true, launchDate:
+  // 'YYYY-MM-DD', confirmed: bool} — every entry comes from scanning the
+  // sales file; launchDate starts as the first sale and the user can edit it.
   var newSkuState = {};
 
   // key -> {date: Date, name: String, auto: bool} — auto entries come from
-  // HOLIDAY_RULES for the selected country, manual ones from the "Holidays"
-  // step's add row. Keyed by "YYYY-MM-DD|name" so duplicates can't stack.
+  // HOLIDAY_RULES for the selected country, manual ones from the Festivals
+  // card's Override row. Keyed by "YYYY-MM-DD|name" so duplicates can't stack.
   var holidayState = {};
 
   function authHeaders() {
@@ -76,62 +83,57 @@
     return opt ? opt.textContent : sel.options[sel.selectedIndex].textContent;
   }
 
+  function stepIs(n, name) { return STEP_NAMES[n - 1] === name; }
+
   function validPostal(code, country) {
     code = (code || '').trim();
     if (country === 'IN') return /^\d{6}$/.test(code);
-    if (country === 'JP') return /^\d{3}-?\d{4}$/.test(code); // Japan: 123-4567 or 1234567
-    return /^[A-Za-z0-9\- ]{3,10}$/.test(code); // generic fallback for other countries
+    if (country === 'JP') return /^\d{3}-?\d{4}$/.test(code); // 123-4567 or 1234567
+    if (country === 'US') return /^\d{5}(-\d{4})?$/.test(code); // 12345 or 12345-6789
+    if (country === 'GB') return /^[A-Za-z]{1,2}\d[A-Za-z\d]? ?\d[A-Za-z]{2}$/.test(code); // e.g. SW1A 1AA
+    return /^[A-Za-z0-9\- ]{3,10}$/.test(code);
   }
 
-  // High-level country views so the map opens already framed on the right
-  // country instead of a generic default — falls back to a world view for
-  // countries we don't have a tuned center/zoom for.
-  var COUNTRY_VIEWS = {
-    IN: [[22.0, 79.0], 4.2],
-    JP: [[36.5, 138.0], 4.8],
+  // Reference facts per country for the Country step's "Defaults this
+  // sets" panel. Postal pattern and festival calendar are what the rest of
+  // the flow actually uses; the others are the country's standard
+  // conventions, shown for reference.
+  var COUNTRY_DEFAULTS = {
+    IN: { currency: 'INR', weekStart: 'Monday', tz: 'Asia/Kolkata', postal: '6 digits', dateFmt: 'day-first', weather: 'India', festivals: 'India national + state', lang: 'English' },
+    US: { currency: 'USD', weekStart: 'Sunday', tz: 'America/New_York', postal: '5-digit ZIP', dateFmt: 'month-first', weather: 'United States', festivals: 'None built in yet', lang: 'English' },
+    JP: { currency: 'JPY', weekStart: 'Sunday', tz: 'Asia/Tokyo', postal: '7 digits (123-4567)', dateFmt: 'year-first', weather: 'Japan', festivals: 'Japan national', lang: 'English' },
+    GB: { currency: 'GBP', weekStart: 'Monday', tz: 'Europe/London', postal: 'UK postcode', dateFmt: 'day-first', weather: 'United Kingdom', festivals: 'None built in yet', lang: 'English' },
   };
 
-  function ensureMap() {
-    if (map) return map;
-    var view = COUNTRY_VIEWS[currentCountry()] || [[20.0, 10.0], 1.8];
-    map = L.map('obMap', { scrollWheelZoom: false }).setView(view[0], view[1]);
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; OpenStreetMap contributors',
-      maxZoom: 18,
-    }).addTo(map);
-    markersLayer = L.layerGroup().addTo(map);
-    setTimeout(function () { map.invalidateSize(); }, 0); // guards against sizing to a 0-height container on first paint
-    return map;
+  function renderCountryDefaults() {
+    var el = document.getElementById('obCountryDefaults');
+    var d = COUNTRY_DEFAULTS[currentCountry()];
+    if (!el || !d) return;
+    var cells = [
+      ['Currency', d.currency], ['Week start', d.weekStart],
+      ['Time zone', d.tz], ['Postal pattern', d.postal],
+      ['Date format', d.dateFmt], ['Weather region', d.weather],
+      ['Festival calendar', d.festivals], ['Language', d.lang],
+    ];
+    el.innerHTML = cells.map(function (c) { return '<div>' + c[0] + ': <b>' + c[1] + '</b></div>'; }).join('');
   }
 
-  function plotPoint(lat, lon, label) {
-    ensureMap();
-    L.marker([lat, lon]).addTo(markersLayer).bindPopup(label || '');
+  // "Pick it once; it locks after your first file upload" — every later
+  // step (postal validation, festival calendar) depends on the country, so
+  // it can't silently change under files that were already checked against it.
+  function lockCountry() {
+    var sel = document.getElementById('obCountry');
+    if (!sel || sel.disabled) return;
+    sel.disabled = true;
+    var note = document.getElementById('obCountryLockNote');
+    if (note) note.style.display = '';
   }
 
-  // Draws a highlighted rectangle over the bounding area of all plotted
-  // points, so the serviceable area reads as a region rather than a scatter
-  // of pins. Deliberately does not pan/zoom the map — keeps the country-level
-  // view steady instead of jumping around as each new point lands.
-  function highlightArea(points) {
-    if (!points.length) return;
-    ensureMap();
-    if (areaLayer) { map.removeLayer(areaLayer); areaLayer = null; }
-    var bounds = L.latLngBounds(points);
-    areaLayer = L.rectangle(bounds.pad(0.08), {
-      color: '#C8F24E', weight: 2, fillColor: '#C8F24E', fillOpacity: 0.12,
-    }).addTo(map);
-  }
-
-  function geocode(code, country) {
-    var params = new URLSearchParams({
-      postalcode: code,
-      country: countryName(country),
-      format: 'json',
-      limit: '1',
-    });
-    return fetch(NOMINATIM + '?' + params.toString(), { headers: { 'Accept-Language': 'en' } })
-      .then(function (r) { return r.json(); });
+  function unlockCountry() {
+    var sel = document.getElementById('obCountry');
+    if (sel) sel.disabled = false;
+    var note = document.getElementById('obCountryLockNote');
+    if (note) note.style.display = 'none';
   }
 
   function setStatus(el, text, cls) {
@@ -140,56 +142,32 @@
     el.className = 'stest-msg' + (cls ? ' ' + cls : '');
   }
 
-  // Onboarding panel has to still be the visible section for plotting to keep
-  // going — lets a big list keep geocoding in the background while the user
-  // stays on this page, but stops as soon as they navigate elsewhere so we're
-  // not burning requests against Nominatim's public instance for no one.
-  function onboardingVisible() {
-    var panel = document.getElementById('onboardingPanel');
-    return !!panel && panel.style.display !== 'none';
+  function escapeHtml(s) {
+    return String(s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   }
 
-  // Throttled, sequential geocode for a bulk-uploaded list. Nominatim's public
-  // instance asks for a max of ~1 request/sec and no concurrent requests — going
-  // faster risks it blocking the whole feature, so instead we plot everything
-  // at that safe pace, redrawing the highlighted area after every point (so
-  // the shape reads as "done" well before the full list finishes), and stop
-  // outright if the user leaves this page. Progress is shown as a blinking
-  // yellow border on the map itself rather than a running text counter.
-  function plotBulk(codes, country) {
-    var statusEl = document.getElementById('obAreaStatus');
-    var mapEl = document.getElementById('obMap');
-    var toPlot = codes.filter(function (c, idx) { return codes.indexOf(c) === idx; });
-    var plotted = 0, i = 0;
-    var points = [];
+  var MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-    function next() {
-      if (!onboardingVisible()) { mapEl.classList.remove('ob-plotting'); return; } // navigated away — stop quietly
+  // "18 Oct 2026" from a Date, read in UTC so a date-only value parsed as
+  // UTC midnight doesn't slip a day in timezones west of Greenwich.
+  function fmtDay(d) {
+    var iso = d.toISOString().slice(0, 10);
+    return parseInt(iso.slice(8, 10), 10) + ' ' + MONTHS[parseInt(iso.slice(5, 7), 10) - 1] + ' ' + iso.slice(0, 4);
+  }
 
-      if (i >= toPlot.length) {
-        mapEl.classList.remove('ob-plotting');
-        setStatus(statusEl, 'Plotted ' + plotted + ' of ' + toPlot.length + ' postal code(s).', 'ok');
-        return;
-      }
-      var code = toPlot[i]; i++;
-      if (!validPostal(code, country)) { next(); return; }
-      geocode(code, country).then(function (results) {
-        if (results && results.length) {
-          var r = results[0];
-          var lat = parseFloat(r.lat), lon = parseFloat(r.lon);
-          plotPoint(lat, lon, code);
-          points.push([lat, lon]);
-          plotted++;
-          highlightArea(points); // redraw immediately so the area fills in as pins land
-        }
-      }).catch(function () {}).then(function () {
-        setTimeout(next, 1000);
-      });
-    }
+  function rangeText(minD, maxD) {
+    var days = Math.round((maxD - minD) / 86400000) + 1;
+    if (days < 60) return days + ' day' + (days === 1 ? '' : 's');
+    return Math.round(days / 30.44) + ' months';
+  }
 
-    setStatus(statusEl, '');
-    mapEl.classList.add('ob-plotting');
-    next();
+  function downloadText(filename, text) {
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([text], { type: 'text/csv' }));
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
   }
 
   function uploadFile(file, statusEl) {
@@ -365,102 +343,8 @@
     return warnings;
   }
 
-  // Serviceable-area file is a channel/distributor/pincode mapping, not a
-  // bare pincode list — header row required (channel, distributor, pincode;
-  // "postal_code"/"postal code" also accepted for the last one, matching
-  // the terminology used everywhere else in the product). No quoted-field
-  // handling — same simplicity level the old plain-pincode parsing already
-  // had for this upload; the richer per-cell parsing lives in the .xlsx
-  // Shipments/Price/Weather path via SheetJS, not here.
-  var AREA_CHANNEL_COLS     = ['channel'];
-  var AREA_DISTRIBUTOR_COLS = ['distributor'];
-  var AREA_PINCODE_COLS     = ['pincode', 'postal_code', 'postal code'];
-
-  function parseChannelDistributorFile(text) {
-    var lines = String(text).split(/\r\n|\r|\n/).map(function (l) { return l.trim(); }).filter(Boolean);
-    if (!lines.length) return { rows: [], headerFound: false };
-
-    var header = lines[0].split(',').map(function (h) { return h.trim().toLowerCase(); });
-    var channelIdx     = header.findIndex(function (h) { return AREA_CHANNEL_COLS.indexOf(h) > -1; });
-    var distributorIdx = header.findIndex(function (h) { return AREA_DISTRIBUTOR_COLS.indexOf(h) > -1; });
-    var pincodeIdx      = header.findIndex(function (h) { return AREA_PINCODE_COLS.indexOf(h) > -1; });
-    if (pincodeIdx === -1) return { rows: [], headerFound: false }; // no recognizable header at all
-
-    var rows = lines.slice(1).map(function (line) {
-      var cells = line.split(',').map(function (c) { return c.trim(); });
-      return {
-        channel:     channelIdx > -1 ? (cells[channelIdx] || '') : '',
-        distributor: distributorIdx > -1 ? (cells[distributorIdx] || '') : '',
-        pincode:     cells[pincodeIdx] || '',
-      };
-    }).filter(function (r) { return r.pincode; });
-
-    return { rows: rows, headerFound: true, hasChannelCol: channelIdx > -1, hasDistributorCol: distributorIdx > -1 };
-  }
-
-  function validateChannelDistributorRows(parsed, country) {
-    var warnings = [];
-    if (!parsed.headerFound) {
-      warnings.push('No recognizable header row found (expected columns: channel, distributor, pincode) — ' +
-        'the file will be treated as having no serviceable-area data.');
-      return warnings;
-    }
-    if (!parsed.hasChannelCol) warnings.push('No "channel" column found — channel will be blank for every row.');
-    if (!parsed.hasDistributorCol) warnings.push('No "distributor" column found — distributor will be blank for every row.');
-    if (!parsed.rows.length) { warnings.push('No pincode rows were found in the file.'); return warnings; }
-
-    var seen = {}, dupes = 0, invalid = 0, missingChannel = 0, missingDistributor = 0;
-    parsed.rows.forEach(function (r) {
-      var key = r.channel + '|' + r.distributor + '|' + r.pincode;
-      if (seen[key]) dupes++; else seen[key] = true;
-      if (!validPostal(r.pincode, country)) invalid++;
-      if (parsed.hasChannelCol && !r.channel) missingChannel++;
-      if (parsed.hasDistributorCol && !r.distributor) missingDistributor++;
-    });
-    if (invalid) warnings.push(invalid + ' of ' + parsed.rows.length + ' pincode(s) don’t look valid for the selected country and will be skipped.');
-    if (dupes) warnings.push(dupes + ' duplicate channel/distributor/pincode row(s) found.');
-    if (missingChannel) warnings.push(missingChannel + ' row(s) have a pincode but no channel value.');
-    if (missingDistributor) warnings.push(missingDistributor + ' row(s) have a pincode but no distributor value.');
-    return warnings;
-  }
-
-  // Sums shipped units per calendar day across every SKU/postal code, then
-  // buckets into weeks if there are too many distinct days to read as a chart.
-  function aggregateByDate(rows) {
-    if (!rows.length) return [];
-    var dateCol = findCol(rows[0], DATE_COLS);
-    var unitsCol = findCol(rows[0], UNITS_COLS);
-    if (!dateCol || !unitsCol) return [];
-
-    var byDate = {};
-    rows.forEach(function (row) {
-      var d = new Date(row[dateCol]);
-      var u = parseFloat(row[unitsCol]);
-      if (isNaN(d.getTime()) || isNaN(u)) return;
-      var key = d.toISOString().slice(0, 10);
-      byDate[key] = (byDate[key] || 0) + u;
-    });
-
-    var days = Object.keys(byDate).sort().map(function (key) {
-      return { date: new Date(key), units: byDate[key] };
-    });
-    if (days.length <= 60) return days;
-
-    // Too many points to read as a daily line — bucket into weeks instead.
-    var byWeek = {};
-    days.forEach(function (d) {
-      var weekStart = new Date(d.date);
-      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
-      var key = weekStart.toISOString().slice(0, 10);
-      byWeek[key] = (byWeek[key] || 0) + d.units;
-    });
-    return Object.keys(byWeek).sort().map(function (key) {
-      return { date: new Date(key), units: byWeek[key] };
-    });
-  }
-
-  // Same day/week bucketing as aggregateByDate, but averages instead of
-  // sums — temperature isn't additive across postal codes/rows like units are.
+  // Day/week-bucketed average per date — temperature isn't additive
+  // across postal codes/rows the way units are.
   function aggregateAvgByDate(rows) {
     if (!rows.length) return [];
     var dateCol = findCol(rows[0], DATE_COLS);
@@ -586,93 +470,313 @@
     return flagged;
   }
 
-  function renderNewSkuList() {
-    var listEl = document.getElementById('obNewSkuList');
-    var emptyEl = document.getElementById('obNewSkuEmpty');
-    if (!listEl) return; // step not present on this page
-    var ids = Object.keys(newSkuState).sort();
-    listEl.innerHTML = '';
-    emptyEl.style.display = ids.length ? 'none' : '';
+  var PIN_COLS = ['postal_code', 'pincode', 'zip', 'zip_code', 'postal code'];
+  var SCHEME_COLS = ['scheme_id', 'scheme'];
 
+  function setText(id, v) {
+    var el = document.getElementById(id);
+    if (el) el.textContent = v;
+  }
+
+  // SKU master step's "Newly launched SKUs" table — one row per SKU the
+  // sales file flags as recent (see detectNewSkus), with an editable launch
+  // date (defaults to the first sale) and a Confirm toggle.
+  function renderNewSkuList() {
+    var body = document.getElementById('obNewSkuBody');
+    if (!body) return; // step not present on this page
+    var ids = Object.keys(newSkuState).sort();
+    body.innerHTML = '';
+    if (!ids.length) {
+      var msg = !salesSummary
+        ? 'Upload your sales file on the Sales data step to find newly launched SKUs.'
+        : salesSummary.skus == null
+          ? 'Your sales file has no SKU column, so launches can’t be detected.'
+          : 'None found — every SKU in your sales file has more than ' + NEW_SKU_WINDOW_DAYS + ' days of history.';
+      body.innerHTML = '<tr><td colspan="4" style="color:var(--muted)">' + escapeHtml(msg) + '</td></tr>';
+      return;
+    }
     ids.forEach(function (id) {
       var info = newSkuState[id];
-      var tag = document.createElement('span');
-      tag.className = 'sku-tag';
+      var tr = document.createElement('tr');
 
-      var label = document.createElement('span');
-      label.textContent = id;
-      tag.appendChild(label);
+      var tdId = document.createElement('td');
+      tdId.textContent = id;
+      tdId.style.fontFamily = 'var(--mono)';
 
-      var meta = document.createElement('span');
-      meta.className = 'tag-meta';
-      meta.textContent = info.firstDate
-        ? 'first shipped ' + info.firstDate.toISOString().slice(0, 10)
-        : 'added manually';
-      tag.appendChild(meta);
+      var tdFirst = document.createElement('td');
+      tdFirst.textContent = fmtDay(info.firstDate);
 
-      var rm = document.createElement('button');
-      rm.type = 'button';
-      rm.setAttribute('aria-label', 'Remove ' + id);
-      rm.textContent = '×';
-      rm.addEventListener('click', function () {
-        delete newSkuState[id];
-        renderNewSkuList();
-      });
-      tag.appendChild(rm);
+      var tdLaunch = document.createElement('td');
+      var input = document.createElement('input');
+      input.type = 'date';
+      input.value = info.launchDate;
+      input.setAttribute('aria-label', 'Launch date for ' + id);
+      input.addEventListener('change', function () { if (input.value) info.launchDate = input.value; });
+      tdLaunch.appendChild(input);
 
-      listEl.appendChild(tag);
+      var tdBtn = document.createElement('td');
+      var btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'dbtn';
+      btn.style.padding = '4px 10px';
+      btn.style.fontSize = '11.5px';
+      var paint = function () {
+        btn.textContent = info.confirmed ? 'Confirmed ✓' : 'Confirm';
+        btn.style.background = info.confirmed ? 'var(--ink-3)' : '';
+        btn.style.color = info.confirmed ? 'var(--text)' : '';
+        btn.style.border = info.confirmed ? '1px solid var(--line-2)' : '';
+      };
+      paint();
+      btn.addEventListener('click', function () { info.confirmed = !info.confirmed; paint(); });
+      tdBtn.appendChild(btn);
+
+      tr.appendChild(tdId); tr.appendChild(tdFirst); tr.appendChild(tdLaunch); tr.appendChild(tdBtn);
+      body.appendChild(tr);
     });
   }
 
-  function addManualNewSku() {
-    var input = document.getElementById('obNewSkuInput');
-    var id = input.value.trim();
-    if (!id) return;
-    if (!newSkuState[id]) newSkuState[id] = { firstDate: null, totalUnits: null, auto: false };
-    input.value = '';
-    renderNewSkuList();
+  // Sales data step's summary (Rows / Pincodes / SKUs / Date range) and the
+  // scheme-ID callout, straight from the uploaded rows. A count whose column
+  // doesn't exist in the file stays "—" rather than showing 0.
+  function renderSalesSummary(rows) {
+    var first = rows[0] || {};
+    var dateCol = findCol(first, DATE_COLS);
+    var asinCol = findCol(first, ASIN_COLS);
+    var pinCol = findCol(first, PIN_COLS);
+    var schemeCol = findCol(first, SCHEME_COLS);
+    var country = currentCountry();
+    var pins = {}, skus = {}, schemes = {}, minD = null, maxD = null, badPins = 0;
+
+    rows.forEach(function (row) {
+      if (asinCol && row[asinCol]) skus[row[asinCol]] = true;
+      if (pinCol && row[pinCol]) {
+        var pc = String(row[pinCol]).trim();
+        if (pc && !pins[pc]) {
+          pins[pc] = true;
+          if (!validPostal(pc, country)) badPins++;
+        }
+      }
+      if (schemeCol && row[schemeCol]) {
+        var sid = String(row[schemeCol]).trim();
+        if (sid) schemes[sid] = true;
+      }
+      if (dateCol) {
+        var d = new Date(row[dateCol]);
+        if (!isNaN(d.getTime())) {
+          if (!minD || d < minD) minD = d;
+          if (!maxD || d > maxD) maxD = d;
+        }
+      }
+    });
+
+    salesPins = pinCol ? Object.keys(pins) : [];
+    schemeIds = schemeCol ? Object.keys(schemes) : [];
+    salesSummary = {
+      rows: rows.length,
+      pins: pinCol ? salesPins.length : null,
+      skus: asinCol ? Object.keys(skus).length : null,
+      rangeText: minD ? rangeText(minD, maxD) : null,
+      hasPinCol: !!pinCol,
+      badPins: badPins,
+    };
+
+    setText('obSalesRows', rows.length.toLocaleString());
+    setText('obSalesPins', salesSummary.pins == null ? '—' : salesSummary.pins.toLocaleString());
+    setText('obSalesSkus', salesSummary.skus == null ? '—' : salesSummary.skus.toLocaleString());
+    setText('obSalesRange', salesSummary.rangeText || '—');
+    setText('obSkuInSales', salesSummary.skus == null ? '—' : salesSummary.skus.toLocaleString());
+
+    var callout = document.getElementById('obSchemeCallout');
+    if (callout) {
+      callout.style.display = schemeCol ? '' : 'none';
+      callout.textContent = !schemeCol ? ''
+        : schemeIds.length
+          ? schemeIds.length.toLocaleString() + ' scheme ID' + (schemeIds.length === 1 ? '' : 's') + ' found in your sales file — saved with your setup.'
+          : 'A scheme_id column was found, but every value in it is empty.';
+    }
   }
 
-  var weatherChartPoints = []; // temperature points parsed from the uploaded file's Weather sheet, if any
-
-  function previewHistChart(file) {
-    if (typeof XLSX === 'undefined') return; // library failed to load — skip the preview, upload still proceeds
+  // Reads the sales file locally (nothing sent anywhere — the upload itself
+  // is separate) to fill the Sales data summary, the SKU master table, the
+  // inline warnings, and the Weather card if the file carries a Weather sheet.
+  function analyzeSalesFile(file) {
+    var ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext === 'xlsx' && typeof XLSX === 'undefined') return; // library failed to load — skip the read, upload still proceeds
     readShipmentRows(file).then(function (rows) {
-      drawLineChart('obHistChart', 'obHistChartWrap', aggregateByDate(rows));
+      renderSalesSummary(rows);
 
-      var flagged = detectNewSkus(rows);
-      Object.keys(newSkuState).forEach(function (id) {
-        if (newSkuState[id].auto) delete newSkuState[id]; // replace prior auto-detections, keep manual ones
+      var flagged = detectNewSkus(rows), prev = newSkuState;
+      newSkuState = {};
+      Object.keys(flagged).forEach(function (id) {
+        var p = prev[id], f = flagged[id];
+        newSkuState[id] = {
+          firstDate: f.firstDate, totalUnits: f.totalUnits, auto: true,
+          launchDate: p ? p.launchDate : f.firstDate.toISOString().slice(0, 10),
+          confirmed: p ? p.confirmed : false,
+        };
       });
-      Object.assign(newSkuState, flagged);
       renderNewSkuList();
 
       lastHistWarnings = validateShipmentRows(rows);
+      if (rows.length && !salesSummary.hasPinCol) {
+        lastHistWarnings.push('No postal_code column found — the pincode count and state holidays need it.');
+      }
+      if (salesSummary.badPins) {
+        lastHistWarnings.push(salesSummary.badPins + ' of ' + salesSummary.pins + ' postal code(s) don’t match the ' +
+          countryName(currentCountry()) + ' pattern (' + COUNTRY_DEFAULTS[currentCountry()].postal + ').');
+      }
       renderWarnings('obHistWarnings', lastHistWarnings);
-    }).catch(function () {
-      document.getElementById('obHistChartWrap').style.display = 'none';
-    });
+    }).catch(function () {});
 
     readWeatherRows(file).then(function (rows) {
-      weatherChartPoints = aggregateAvgByDate(rows);
-      weatherLoaded = false; // let the Weather step re-render with this file's data next time it's shown
-      if (step === 6) loadWeatherPreview();
-    }).catch(function () { weatherChartPoints = []; });
+      sheetWeather = weatherFromRows(rows);
+      if (stepIs(step, 'weather')) renderWeatherCard();
+    }).catch(function () { sheetWeather = null; });
   }
 
-  // Standalone weather file uploaded directly on the Weather step — takes
-  // priority over whatever came from the historical-data upload's Weather
-  // sheet, since it's a more deliberate, dedicated action.
+  // Range comes from the raw rows, not the chart points — those can be
+  // week-bucketed, which would shift the first date back to a week start.
+  function weatherFromRows(rows) {
+    var pts = aggregateAvgByDate(rows);
+    if (!pts.length) return null;
+    var dateCol = findCol(rows[0], DATE_COLS), tempCol = findCol(rows[0], TEMP_COLS);
+    var minD = null, maxD = null;
+    rows.forEach(function (row) {
+      var d = new Date(row[dateCol]);
+      if (isNaN(d.getTime()) || isNaN(parseFloat(row[tempCol]))) return;
+      if (!minD || d < minD) minD = d;
+      if (!maxD || d > maxD) maxD = d;
+    });
+    return { points: pts, range: fmtDay(minD) + ' – ' + fmtDay(maxD) };
+  }
+
+  // Separate weather file uploaded on the Weather & festivals step.
   function previewWeatherFile(file) {
     var ext = (file.name.split('.').pop() || '').toLowerCase();
     if (ext === 'xlsx' && typeof XLSX === 'undefined') return; // library failed to load — skip the preview
     readWeatherFile(file).then(function (rows) {
-      weatherChartPoints = aggregateAvgByDate(rows);
-      weatherLoaded = false;
-      loadWeatherPreview();
+      fileWeather = weatherFromRows(rows);
       lastWeatherWarnings = validateWeatherRows(rows);
       renderWarnings('obWeatherWarnings', lastWeatherWarnings);
+      renderWeatherCard();
     }).catch(function () {});
+  }
+
+  // Marketing spend summary — Campaigns, Past / planned (by each campaign's
+  // latest date vs today), Detail level (which breakdown columns exist), and
+  // spend share by channel. Any figure whose column is missing stays "—".
+  var SPEND_CAMPAIGN_COLS = ['campaign', 'campaign_id', 'campaign_name'];
+  var SPEND_CHANNEL_COLS = ['channel', 'platform', 'source', 'media'];
+  var SPEND_AMOUNT_COLS = ['spend', 'amount', 'cost', 'spend_amount', 'budget'];
+  var SPEND_DATE_COLS = DATE_COLS.concat(['start_date', 'end_date', 'week', 'month']);
+
+  function resetSpendSummary() {
+    ['obSpendCampaigns', 'obSpendPastPlanned', 'obSpendDetail'].forEach(function (id) { setText(id, '—'); });
+    var pill = document.getElementById('obSpendChannels');
+    if (pill) pill.style.display = 'none';
+  }
+
+  function analyzeSpendFile(file) {
+    var ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext === 'xlsx' && typeof XLSX === 'undefined') return;
+    readTabularRows(file, 'spend').then(function (rows) {
+      resetSpendSummary();
+      if (!rows.length) return;
+      var first = rows[0];
+      var cCol = findCol(first, SPEND_CAMPAIGN_COLS), chCol = findCol(first, SPEND_CHANNEL_COLS);
+      var aCol = findCol(first, SPEND_AMOUNT_COLS), dCol = findCol(first, SPEND_DATE_COLS);
+      var pCol = findCol(first, PIN_COLS), sCol = findCol(first, ASIN_COLS);
+      var lastDate = {}, byChannel = {}, total = 0;
+
+      rows.forEach(function (r) {
+        var c = cCol ? r[cCol] : null;
+        if (c) {
+          if (!(c in lastDate)) lastDate[c] = null;
+          if (dCol) {
+            var d = new Date(r[dCol]);
+            if (!isNaN(d.getTime()) && (!lastDate[c] || d > lastDate[c])) lastDate[c] = d;
+          }
+        }
+        if (chCol && aCol) {
+          var amt = parseFloat(String(r[aCol] == null ? '' : r[aCol]).replace(/,/g, ''));
+          if (!isNaN(amt) && amt > 0) {
+            var ch = r[chCol] || 'Unlabelled';
+            byChannel[ch] = (byChannel[ch] || 0) + amt;
+            total += amt;
+          }
+        }
+      });
+
+      var campaigns = Object.keys(lastDate);
+      if (cCol) setText('obSpendCampaigns', campaigns.length.toLocaleString());
+      if (cCol && dCol) {
+        var now = new Date(), past = 0, planned = 0;
+        campaigns.forEach(function (c) {
+          if (!lastDate[c]) return;
+          if (lastDate[c] <= now) past++; else planned++;
+        });
+        setText('obSpendPastPlanned', past + ' / ' + planned);
+      }
+      setText('obSpendDetail', pCol && sCol ? 'Pincode + SKU' : pCol ? 'Pincode' : sCol ? 'SKU' : 'Overall');
+
+      if (total > 0) {
+        var chans = Object.keys(byChannel).sort(function (a, b) { return byChannel[b] - byChannel[a]; });
+        var parts = chans.slice(0, 3).map(function (ch) { return ch + ' ' + Math.round(byChannel[ch] / total * 100) + '%'; });
+        if (chans.length > 3) {
+          var rest = chans.slice(3).reduce(function (s, ch) { return s + byChannel[ch]; }, 0);
+          parts.push('Other ' + Math.round(rest / total * 100) + '%');
+        }
+        var pill = document.getElementById('obSpendChannels');
+        pill.textContent = 'Spend by channel: ' + parts.join(' · ');
+        pill.style.display = 'inline-block';
+      }
+    }).catch(function () {});
+  }
+
+  // Inbound receipts site list — distinct site codes (and names, if there's
+  // a name column) from the uploaded file. "In sales file?" stays "—": the
+  // sales file has no site column to match against.
+  var SITE_CODE_COLS = ['site_code', 'site', 'warehouse_code', 'warehouse', 'location_code', 'location', 'dc'];
+  var SITE_NAME_COLS = ['site_name', 'warehouse_name', 'location_name', 'name'];
+
+  function analyzeInboundFile(file) {
+    var ext = (file.name.split('.').pop() || '').toLowerCase();
+    if (ext === 'xlsx' && typeof XLSX === 'undefined') return;
+    readTabularRows(file, 'receipts').then(function (rows) {
+      var wrap = document.getElementById('obInboundSitesWrap');
+      var body = document.getElementById('obInboundSites');
+      var first = rows[0] || {};
+      var codeCol = findCol(first, SITE_CODE_COLS), nameCol = findCol(first, SITE_NAME_COLS);
+      if (!codeCol) { wrap.style.display = 'none'; body.innerHTML = ''; return; }
+      var sites = {};
+      rows.forEach(function (r) {
+        var code = r[codeCol];
+        if (code && !(code in sites)) sites[code] = nameCol ? (r[nameCol] || '') : '';
+        else if (code && !sites[code] && nameCol && r[nameCol]) sites[code] = r[nameCol];
+      });
+      body.innerHTML = Object.keys(sites).sort().map(function (code) {
+        return '<tr><td style="font-family:var(--mono)">' + escapeHtml(code) + '</td>' +
+          '<td>' + (sites[code] ? escapeHtml(sites[code]) : '<span style="color:var(--muted-2)">—</span>') + '</td>' +
+          '<td><span style="color:var(--muted-2)">—</span></td></tr>';
+      }).join('');
+      wrap.style.display = '';
+    }).catch(function () {});
+  }
+
+  var SALES_TEMPLATE_PIN = { IN: '110001', US: '10001', JP: '135-0061', GB: 'SW1A 1AA' };
+
+  function downloadSalesTemplate() {
+    var pin = SALES_TEMPLATE_PIN[currentCountry()] || '110001';
+    downloadText('apra_sales_template.csv',
+      'ship_day,asin,postal_code,shipped_units\n' +
+      '2025-01-06,SKU-EXAMPLE-001,' + pin + ',42\n' +
+      '2025-01-06,SKU-EXAMPLE-002,' + pin + ',17\n');
+  }
+
+  function downloadInboundTemplate() {
+    downloadText('apra_inbound_receipts_template.csv',
+      'receipt_date,site_code,site_name,asin,units_received\n' +
+      '2025-01-06,DC-01,Main DC,SKU-EXAMPLE-001,500\n');
   }
 
   // Only fixed-date and "nth weekday of month" holidays are listed here —
@@ -800,7 +904,7 @@
   };
 
   // Resolves a list of raw pincode strings (as collected from the
-  // serviceable-area upload — see channelDistributorRows) to the distinct
+  // sales file's postal_code column — see salesPins) to the distinct
   // Indian states they fall in, for merging state-level holidays into the
   // defaults. Multi-region businesses naturally resolve to multiple states;
   // dedupe is the caller's job via the returned array's uniqueness here.
@@ -853,7 +957,7 @@
   }
 
   // Resolves state-level holidays for every Indian state detected from the
-  // serviceable-area pincode upload (see pinToStatesIN), merging and
+  // sales file's postal codes (see pinToStatesIN), merging and
   // deduping across states for multi-region businesses. Each holiday name
   // gets a "(State)" suffix so it reads differently from the national list
   // and the user can tell at a glance which state pulled it in — useful if
@@ -914,23 +1018,51 @@
 
       listEl.appendChild(tag);
     });
+    renderFestivalCard();
+  }
+
+  // Festivals card on the Weather & festivals step: a count pill plus a
+  // plain line saying where the list came from. The editable list itself
+  // sits behind Override.
+  function renderFestivalCard() {
+    var pill = document.getElementById('obHolidayPill');
+    var intro = document.getElementById('obHolidayIntro');
+    if (!pill || !intro) return;
+    var country = currentCountry();
+    var n = Object.keys(holidayState).length;
+    // Only name states that actually contributed holidays — a detected
+    // state with no built-in state rules adds nothing.
+    var states = (country === 'IN' ? pinToStatesIN(salesPins) : []).filter(function (s) {
+      return HOLIDAY_RULES_STATE_IN[s] && HOLIDAY_RULES_STATE_IN[s].length;
+    });
+    var text;
+    if (HOLIDAY_RULES[country]) {
+      pill.className = 'pill ok';
+      pill.textContent = n + ' festivals & holidays in the next 12 months';
+      text = countryName(country) + ' national calendar' +
+        (states.length
+          ? ', plus state holidays for ' + states.join(', ') + ' (from your sales file’s pincodes)'
+          : country === 'IN' ? '. Upload a sales file with postal codes to add state holidays' : '') +
+        '. Festivals whose dates move every year (Diwali, Holi, Eid) aren’t built in — add them with Override.';
+    } else {
+      pill.className = n ? 'pill ok' : 'pill warn';
+      pill.textContent = n
+        ? n + ' festival' + (n === 1 ? '' : 's') + ' & holidays added'
+        : 'No built-in calendar for ' + countryName(country) + ' yet';
+      text = 'Use Override to add the festivals and holidays that apply to you.';
+    }
+    intro.textContent = text + ' Saved with your setup — training doesn’t use festivals yet.';
   }
 
   // Loads default holidays for the currently selected country, replacing
-  // any previously-loaded defaults but keeping manual additions/overrides —
-  // re-run whenever the Holidays step comes into view, so switching the
-  // country on step 1 and coming back updates the list. For India, also
-  // merges in state-level holidays inferred from the serviceable-area
-  // pincode upload (step 2) — holidayCountryLoaded is compared against a
-  // signature that includes the detected state list (not just the country
-  // code) so that uploading pincodes *after* already viewing this step
-  // (user went 1 -> 5 -> back to 2 -> forward to 5 again) still picks up
-  // the newly available state holidays instead of being skipped as
-  // "already loaded". If no pincode data is available yet, pinToStatesIN
-  // simply returns [] and this falls back to national-only, same as before.
+  // any previously-loaded defaults but keeping manual additions — re-run
+  // whenever the Weather & festivals step comes into view. For India, also
+  // merges in state-level holidays inferred from the sales file's postal
+  // codes; the signature includes the detected states so uploading a sales
+  // file after already viewing this step still picks them up.
   function loadDefaultHolidays() {
     var country = currentCountry();
-    var states = country === 'IN' ? pinToStatesIN(channelDistributorRows.map(function (r) { return r.pincode; })) : [];
+    var states = country === 'IN' ? pinToStatesIN(salesPins) : [];
     var signature = country + '|' + states.slice().sort().join(',');
     if (signature === holidayCountryLoaded) return;
     Object.keys(holidayState).forEach(function (key) {
@@ -940,7 +1072,7 @@
       holidayState[holidayKey(h.date, h.name)] = { date: h.date, name: h.name, auto: true };
     });
     if (country === 'IN') {
-      resolveStateHolidays(channelDistributorRows.map(function (r) { return r.pincode; })).forEach(function (h) {
+      resolveStateHolidays(salesPins).forEach(function (h) {
         holidayState[holidayKey(h.date, h.name)] = { date: h.date, name: h.name, auto: true };
       });
     }
@@ -961,28 +1093,49 @@
     renderHolidayList();
   }
 
-  // Fetches today's current temperature (no key needed, CORS-friendly) for a
-  // handful of the plotted serviceable-area points, as a fallback when the
-  // uploaded file didn't include a Weather sheet.
-  // Weather sheet data (from either the historical-data upload or a
-  // standalone weather file) drives the chart; otherwise a plain message
-  // explaining there's nothing to show yet.
-  function loadWeatherPreview() {
-    if (weatherLoaded) return;
-    weatherLoaded = true;
+  // Override links on the Weather & festivals cards just reveal the
+  // editable part underneath.
+  function setOverrideOpen(panelId, btnId, open) {
+    var panel = document.getElementById(panelId);
+    var btn = document.getElementById(btnId);
+    if (!panel || !btn) return;
+    panel.style.display = open ? '' : 'none';
+    btn.textContent = open ? 'Hide' : btn.getAttribute('data-label');
+  }
 
-    var chartWrap = document.getElementById('obWeatherChartWrap');
-    var emptyEl = document.getElementById('obWeatherEmpty');
-    chartWrap.style.display = 'none';
-    emptyEl.style.display = 'none';
+  function toggleOverride(panelId, btnId) {
+    var panel = document.getElementById(panelId);
+    if (panel) setOverrideOpen(panelId, btnId, panel.style.display === 'none');
+  }
 
-    if (weatherChartPoints.length) {
-      drawLineChart('obWeatherChart', 'obWeatherChartWrap', weatherChartPoints,
-        function (v) { return v.toFixed(1) + '°C'; });
-      return;
+  // Weather card: says plainly which weather training will use. The sales
+  // file's Weather sheet goes to training with it; without one, the runner
+  // uses the platform's default weather. A separate file is only saved.
+  function renderWeatherCard() {
+    var pill = document.getElementById('obWeatherPill');
+    var intro = document.getElementById('obWeatherIntro');
+    if (!pill || !intro) return;
+    var lines = [];
+    if (sheetWeather) {
+      pill.className = 'pill ok';
+      pill.textContent = 'From your sales file’s Weather sheet';
+      lines.push(sheetWeather.range + '. This is the weather training uses.');
+    } else {
+      pill.className = 'pill warn';
+      pill.textContent = 'No Weather sheet in your sales file';
+      lines.push('Training will fall back to the platform’s default weather data, which may not cover your pincodes. Add a Weather sheet to your sales file to use your own.');
     }
-    emptyEl.style.display = '';
-    emptyEl.textContent = 'No weather data yet — upload a weather file above, or include a Weather sheet with your historical data.';
+    if (fileWeather) {
+      lines.push('Your separate weather file (' + fileWeather.range + ') is saved with your setup, but training doesn’t use it yet.');
+    }
+    intro.textContent = lines.join(' ');
+
+    var shown = sheetWeather || fileWeather;
+    if (shown) {
+      drawLineChart('obWeatherChart', 'obWeatherChartWrap', shown.points, function (v) { return v.toFixed(1) + '°C'; });
+    } else {
+      document.getElementById('obWeatherChartWrap').style.display = 'none';
+    }
   }
 
   function updateSubmitState() {
@@ -1025,69 +1178,76 @@
     var back = document.getElementById('obBack');
     var next = document.getElementById('obNext');
     back.disabled = (n === 1);
-    next.textContent = (n === TOTAL_STEPS) ? 'Prepare my model →' : 'Next →';
+    next.textContent = (n === TOTAL_STEPS) ? 'Train →' : 'Continue →';
     next.disabled = (n === TOTAL_STEPS) ? !histKey : false;
 
-    // Render the base map as soon as this step comes into view, rather than
-    // waiting for an upload to succeed — otherwise the box just looks blank.
-    if (n === 2) {
-      ensureMap();
-      setTimeout(function () { map.invalidateSize(); }, 0);
+    if (stepIs(n, 'sku')) renderNewSkuList();
+    if (stepIs(n, 'weather')) {
+      loadDefaultHolidays();
+      renderFestivalCard();
+      renderWeatherCard();
+      // Nothing to review without a built-in calendar — open the editor straight away.
+      if (!HOLIDAY_RULES[currentCountry()]) setOverrideOpen('obHolidayOverride', 'obHolidayOverrideBtn', true);
     }
-
-    if (n === 5) loadDefaultHolidays();
-    if (n === 6) loadWeatherPreview();
-    if (n === 7) renderValidationSummary();
+    if (stepIs(n, 'review')) renderReviewSummary();
   }
 
-  // Final-step recap of the same soft validation warnings shown inline on
-  // steps 2/3/6 as each file was uploaded — one consolidated look before
-  // "Prepare my model", rather than only ever seeing each file's own
-  // checks in isolation. Still purely informational: every check here is
-  // a warning, never a block (see the section comment above these
-  // functions), so this never disables the button below it.
-  function renderValidationSummary() {
-    var pill = document.getElementById('obValidationPill');
-    var body = document.getElementById('obValidationSummary');
-    if (!pill || !body) return;
+  function joinList(a) {
+    return a.length < 2 ? a.join('') : a.slice(0, -1).join(', ') + ' and ' + a[a.length - 1];
+  }
 
-    var areaFile = document.getElementById('obAreaFile');
-    var sections = [
-      { label: 'Serviceable area (channel/distributor/pincode)', warnings: lastAreaWarnings, uploaded: !!(areaFile && areaFile.files.length), required: false },
-      { label: 'Historical shipment data', warnings: lastHistWarnings, uploaded: !!histKey, required: true },
-      { label: 'Marketing spend', warnings: [], uploaded: !!spendKey, required: false },
-      { label: 'Inbound receipts', warnings: [], uploaded: !!inboundKey, required: false },
-      { label: 'Weather', warnings: lastWeatherWarnings, uploaded: weatherChartPoints.length > 0, required: false },
+  // Review & train: one tile per step with its real state, then a plain
+  // "Will use / Saved for later" line so it's clear what training actually
+  // consumes (only the sales file today).
+  function renderReviewSummary() {
+    var tilesEl = document.getElementById('obReviewTiles');
+    var note = document.getElementById('obWillUse');
+    if (!tilesEl || !note) return;
+
+    var unconfirmed = Object.keys(newSkuState).filter(function (id) { return !newSkuState[id].confirmed; }).length;
+    var tile = function (label, cls, text) { return { label: label, cls: cls, text: text }; };
+    var tiles = [
+      tile('Country', 'ok', 'Ready'),
+      !histKey ? tile('Sales data', 'risk', 'Required')
+        : lastHistWarnings.length ? tile('Sales data', 'warn', 'Usable w/ warnings')
+        : tile('Sales data', 'ok', 'Ready'),
+      spendKey ? tile('Marketing spend', 'ok', 'Received')
+        : spendSkipped ? tile('Marketing spend', 'warn', 'Skipped')
+        : tile('Marketing spend', '', 'Not provided'),
+      !histKey ? tile('SKU master', '', 'Needs sales data')
+        : unconfirmed ? tile('SKU master', 'warn', unconfirmed + ' to confirm')
+        : tile('SKU master', 'ok', 'Ready'),
+      inboundKey ? tile('Inbound receipts', 'ok', 'Received')
+        : inboundSkipped ? tile('Inbound receipts', 'warn', 'Skipped')
+        : tile('Inbound receipts', '', 'Not provided'),
+      sheetWeather ? tile('Weather & festivals', 'ok', 'Ready')
+        : tile('Weather & festivals', 'warn', 'Default weather'),
     ];
-
-    var totalWarnings = sections.reduce(function (n, s) { return n + (s.uploaded ? s.warnings.length : 0); }, 0);
-    var missingRequired = sections.some(function (s) { return s.required && !s.uploaded; });
-    pill.className = 'pill ' + (missingRequired ? 'risk' : totalWarnings ? 'warn' : 'ok');
-    pill.textContent = missingRequired
-      ? 'Missing required data'
-      : totalWarnings
-        ? totalWarnings + ' warning' + (totalWarnings > 1 ? 's' : '')
-        : 'All checks passed';
-
-    body.innerHTML = sections.map(function (s) {
-      // Unlike the "not provided (optional)" cases, a missing REQUIRED
-      // upload is the actual reason "Prepare my model" below is disabled —
-      // called out with a risk pill instead of blending in as just another
-      // optional skip, so it isn't a mystery why the button won't click.
-      var statusPill = !s.uploaded
-        ? (s.required
-          ? '<span class="pill risk" style="margin-left:6px">not uploaded — required</span>'
-          : '<span class="dsubtle" style="margin:0 0 0 6px">not provided (optional)</span>')
-        : (s.warnings.length
-          ? '<span class="pill warn" style="margin-left:6px">' + s.warnings.length + ' warning' + (s.warnings.length > 1 ? 's' : '') + '</span>'
-          : '<span class="pill ok" style="margin-left:6px">looks good</span>');
-      var list = (s.uploaded && s.warnings.length)
-        ? '<ul class="ob-warn-list" style="display:block;margin-top:6px">' +
-          s.warnings.map(function (w) { return '<li>' + w.replace(/&/g, '&amp;').replace(/</g, '&lt;') + '</li>'; }).join('') +
-          '</ul>'
-        : '';
-      return '<div style="margin-bottom:16px"><b>' + s.label + '</b>' + statusPill + list + '</div>';
+    tilesEl.innerHTML = tiles.map(function (x) {
+      return '<div class="ob-review-tile"><div>' + escapeHtml(x.label) + '</div>' +
+        '<span class="pill' + (x.cls ? ' ' + x.cls : '') + '">' + escapeHtml(x.text) + '</span></div>';
     }).join('');
+
+    if (!histKey) {
+      note.innerHTML = '<b>Not ready:</b> upload your sales file on the Sales data step — it’s the one file training needs.';
+      return;
+    }
+    var used = 'your sales file';
+    if (salesSummary) {
+      var bits = [];
+      if (salesSummary.rangeText) bits.push(salesSummary.rangeText);
+      if (salesSummary.pins != null) bits.push('across ' + salesSummary.pins.toLocaleString() + ' pincode' + (salesSummary.pins === 1 ? '' : 's'));
+      if (bits.length) used += ' (' + bits.join(' ') + ')';
+    }
+    used += sheetWeather ? ', including its Weather sheet' : ', with the platform’s default weather';
+    var kept = ['festivals & holidays'];
+    if (Object.keys(newSkuState).length) kept.push('launch dates');
+    if (schemeIds.length) kept.push('scheme IDs');
+    if (spendKey) kept.push('marketing spend');
+    if (inboundKey) kept.push('inbound receipts');
+    if (fileWeather) kept.push('your separate weather file');
+    note.innerHTML = '<b>Will use:</b> ' + escapeHtml(used) + '. ' +
+      '<b>Saved for later, not used in training yet:</b> ' + escapeHtml(joinList(kept)) + '.';
   }
 
   var POLL_MS = 8000;
@@ -1096,8 +1256,8 @@
   var pollCount = 0;
   var ONBOARDING_SCENARIO_KEY = 'apra_onboarding_scenario_id';
 
-  // Holidays, newly-launched SKUs, and the channel/distributor/pincode
-  // mapping aren't consumable by forecast.py yet (no CLI support for any of
+  // Festivals, launch dates, scheme IDs and the keys of the optional
+  // uploads aren't consumable by forecast.py yet (no CLI support for any of
   // them) — saved as a JSON profile for future use rather than silently
   // dropped. Filed as .txt since that's already an allowed upload
   // extension; only the S3 content-type metadata is cosmetically off.
@@ -1107,15 +1267,16 @@
       submitted_at: new Date().toISOString(),
       new_skus: Object.keys(newSkuState).map(function (id) {
         var s = newSkuState[id];
-        return { id: id, auto: s.auto, first_shipped: s.firstDate ? s.firstDate.toISOString().slice(0, 10) : null };
+        return { id: id, first_shipped: s.firstDate.toISOString().slice(0, 10), launch_date: s.launchDate, confirmed: s.confirmed };
       }),
       holidays: Object.keys(holidayState).map(function (key) {
         var h = holidayState[key];
         return { date: h.date.toISOString().slice(0, 10), name: h.name, auto: h.auto };
       }),
-      channel_distributor_mapping: channelDistributorRows,
+      scheme_ids: schemeIds,
       marketing_spend_key: spendKey, marketing_spend_skipped: spendSkipped,
       inbound_receipts_key: inboundKey, inbound_receipts_skipped: inboundSkipped,
+      weather_file_key: weatherFileKey,
     };
     return new File([JSON.stringify(profile, null, 2)], 'onboarding-profile.txt', { type: 'application/json' });
   }
@@ -1230,32 +1391,33 @@
     histKey = null;
     spendKey = null; spendSkipped = false;
     inboundKey = null; inboundSkipped = false;
+    weatherFileKey = null;
+    sheetWeather = null; fileWeather = null;
+    salesPins = []; schemeIds = []; salesSummary = null;
     newSkuState = {};
     holidayState = {};
     holidayCountryLoaded = null;
-    weatherLoaded = false;
-    weatherChartPoints = [];
-    lastAreaWarnings = [];
     lastHistWarnings = [];
     lastWeatherWarnings = [];
-    channelDistributorRows = [];
+    unlockCountry();
 
     document.getElementById('obReady').style.display = 'none';
     document.getElementById('obFailed').style.display = 'none';
     document.getElementById('obPreparing').style.display = 'none';
     document.getElementById('obSetupForm').style.display = '';
 
-    ['obAreaFile', 'obHistFile', 'obSpendFile', 'obInboundFile', 'obWeatherFile'].forEach(function (id) {
+    ['obHistFile', 'obSpendFile', 'obInboundFile', 'obWeatherFile'].forEach(function (id) {
       var el = document.getElementById(id); if (el) el.value = '';
     });
-    document.getElementById('obAreaStatus').textContent = '';
-    document.getElementById('obHistStatus').textContent = '';
-    document.getElementById('obHistChartWrap').style.display = 'none';
-    document.getElementById('obSpendStatus').textContent = '';
-    document.getElementById('obInboundStatus').textContent = '';
-    document.getElementById('obWeatherFileStatus').textContent = '';
+    ['obHistStatus', 'obSpendStatus', 'obInboundStatus', 'obWeatherFileStatus'].forEach(function (id) { setText(id, ''); });
+    ['obSalesRows', 'obSalesPins', 'obSalesSkus', 'obSalesRange', 'obSkuInSales'].forEach(function (id) { setText(id, '—'); });
+    resetSpendSummary();
+    document.getElementById('obSchemeCallout').style.display = 'none';
+    document.getElementById('obInboundSitesWrap').style.display = 'none';
     document.getElementById('obWeatherChartWrap').style.display = 'none';
-    ['obAreaWarnings', 'obHistWarnings', 'obWeatherWarnings'].forEach(function (id) { renderWarnings(id, []); });
+    ['obHistWarnings', 'obWeatherWarnings'].forEach(function (id) { renderWarnings(id, []); });
+    setOverrideOpen('obWeatherOverride', 'obWeatherOverrideBtn', false);
+    setOverrideOpen('obHolidayOverride', 'obHolidayOverrideBtn', false);
     renderNewSkuList();
     renderHolidayList();
     showStep(1);
@@ -1286,8 +1448,16 @@
     var countrySelect = document.getElementById('obCountry');
     if (!countrySelect) return; // onboarding panel not present on this page
 
-    countrySelect.addEventListener('change', updateCountryMap);
+    countrySelect.addEventListener('change', function () { updateCountryMap(); renderCountryDefaults(); });
     updateCountryMap();
+    renderCountryDefaults();
+
+    ['obWeatherOverrideBtn', 'obHolidayOverrideBtn'].forEach(function (id) {
+      var btn = document.getElementById(id);
+      btn.setAttribute('data-label', btn.textContent);
+    });
+    document.getElementById('obWeatherOverrideBtn').addEventListener('click', function () { toggleOverride('obWeatherOverride', 'obWeatherOverrideBtn'); });
+    document.getElementById('obHolidayOverrideBtn').addEventListener('click', function () { toggleOverride('obHolidayOverride', 'obHolidayOverrideBtn'); });
 
     document.getElementById('obBack').addEventListener('click', function () {
       if (step > 1) showStep(step - 1);
@@ -1299,8 +1469,8 @@
         return;
       }
       // Final step — kick off real model preparation: a live scenario run
-      // against the uploaded historical data, polled the same way the
-      // Scenarios tab polls its own runs.
+      // against the uploaded sales file, polled the same way the Scenarios
+      // tab polls its own runs.
       document.getElementById('obSetupForm').style.display = 'none';
       document.getElementById('obFailed').style.display = 'none';
       document.getElementById('obPreparingMsg').textContent =
@@ -1321,24 +1491,8 @@
 
     showStep(1);
 
-    document.getElementById('obAreaFile').addEventListener('change', function () {
-      var file = this.files[0];
-      if (!file) return;
-      var statusEl = document.getElementById('obAreaStatus');
-      uploadFile(file, statusEl).then(function () {
-        var reader = new FileReader();
-        reader.onload = function () {
-          var parsed = parseChannelDistributorFile(String(reader.result));
-          channelDistributorRows = parsed.rows;
-          lastAreaWarnings = validateChannelDistributorRows(parsed, currentCountry());
-          renderWarnings('obAreaWarnings', lastAreaWarnings);
-          // The map only cares about the pincode itself, not which channel/
-          // distributor serves it.
-          plotBulk(parsed.rows.map(function (r) { return r.pincode; }), currentCountry());
-        };
-        reader.readAsText(file);
-      }).catch(function () {});
-    });
+    document.getElementById('obSalesTplCsv').addEventListener('click', downloadSalesTemplate);
+    document.getElementById('obInboundTpl').addEventListener('click', downloadInboundTemplate);
 
     document.getElementById('obHistFile').addEventListener('change', function () {
       var file = this.files[0];
@@ -1346,17 +1500,16 @@
       var statusEl = document.getElementById('obHistStatus');
       uploadFile(file, statusEl).then(function (key) {
         histKey = key;
+        lockCountry();
         updateSubmitState();
       }).catch(function () {});
-      previewHistChart(file); // runs independently of the upload — just reads the local file
+      analyzeSalesFile(file); // runs independently of the upload — just reads the local file
     });
 
     // Marketing spend / inbound receipts: real uploads via the same
     // presigned-S3 endpoint as every other file here, but not consumable by
-    // forecast.py yet — same status as channelDistributorRows/newSkuState/
-    // holidayState above, just a file instead of parsed rows. Never gates
-    // Next (both are optional, same treatment as the serviceable-area/
-    // weather uploads).
+    // forecast.py yet — their keys go into the onboarding profile. Both are
+    // optional and never gate Continue.
     document.getElementById('obSpendFile').addEventListener('change', function () {
       var file = this.files[0];
       if (!file) return;
@@ -1364,13 +1517,16 @@
       var statusEl = document.getElementById('obSpendStatus');
       uploadFile(file, statusEl).then(function (key) {
         spendKey = key;
-        setStatus(statusEl, 'Received — not used in forecasting yet, kept on file.', 'ok');
+        lockCountry();
+        setStatus(statusEl, file.name + ' received — saved with your setup; spend isn’t used in forecasting yet.', 'ok');
       }).catch(function () {});
+      analyzeSpendFile(file);
     });
     document.getElementById('obSpendSkipBtn').addEventListener('click', function () {
       spendSkipped = true; spendKey = null;
       document.getElementById('obSpendFile').value = '';
-      setStatus(document.getElementById('obSpendStatus'), 'No marketing spend data — noted.', 'ok');
+      resetSpendSummary();
+      setStatus(document.getElementById('obSpendStatus'), 'No marketing spend — noted.', 'ok');
     });
 
     document.getElementById('obInboundFile').addEventListener('change', function () {
@@ -1380,19 +1536,18 @@
       var statusEl = document.getElementById('obInboundStatus');
       uploadFile(file, statusEl).then(function (key) {
         inboundKey = key;
-        setStatus(statusEl, 'Received — not used in forecasting yet, kept on file.', 'ok');
+        lockCountry();
+        setStatus(statusEl, file.name + ' received — saved with your setup; receipts aren’t used yet.', 'ok');
       }).catch(function () {});
+      analyzeInboundFile(file);
     });
     document.getElementById('obInboundSkipBtn').addEventListener('click', function () {
       inboundSkipped = true; inboundKey = null;
       document.getElementById('obInboundFile').value = '';
-      setStatus(document.getElementById('obInboundStatus'), 'No inbound receipts data — noted.', 'ok');
+      document.getElementById('obInboundSitesWrap').style.display = 'none';
+      setStatus(document.getElementById('obInboundStatus'), 'No inbound data — noted.', 'ok');
     });
 
-    document.getElementById('obNewSkuAdd').addEventListener('click', addManualNewSku);
-    document.getElementById('obNewSkuInput').addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); addManualNewSku(); }
-    });
     renderNewSkuList();
 
     document.getElementById('obHolidayAdd').addEventListener('click', addManualHoliday);
@@ -1404,7 +1559,10 @@
       var file = this.files[0];
       if (!file) return;
       var statusEl = document.getElementById('obWeatherFileStatus');
-      uploadFile(file, statusEl).catch(function () {}); // fire-and-forget — doesn't gate anything downstream
+      uploadFile(file, statusEl).then(function (key) {
+        weatherFileKey = key;
+        lockCountry();
+      }).catch(function () {});
       previewWeatherFile(file);
     });
 
