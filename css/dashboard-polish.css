@@ -304,3 +304,9 @@
 [data-theme="light"] #dashboard #inventoryReqTable tbody tr:nth-child(even){background:rgba(17,19,24,.018)}
 [data-theme="light"] #dashboard #inventoryReqTable tbody tr:hover td{background:rgba(17,19,24,.03)}
 [data-theme="light"] #dashboard #inventoryReqTfoot tr{background:rgba(17,19,24,.035)}
+
+/* ---------- Light mode: AI Insights ----------
+   Amber and light-teal bullets are faint on white; deeper variants. */
+[data-theme="light"] #dashboard #insightsWatch li::before{background:#C98A00}
+[data-theme="light"] #dashboard #insightsOpportunities li::before{background:#0E9384}
+[data-theme="light"] #dashboard #insightsFindings li .sku{opacity:.78}
