@@ -53,6 +53,7 @@
   // HOLIDAY_RULES for the selected country, manual ones from the Festivals
   // card's Override row. Keyed by "YYYY-MM-DD|name" so duplicates can't stack.
   var holidayState = {};
+  var holidayImportVersion = 0;
 
   function authHeaders() {
     var t = localStorage.getItem('apra_id');
@@ -1038,7 +1039,7 @@
     var text;
     if (HOLIDAY_RULES[country]) {
       pill.className = 'pill ok';
-      pill.textContent = n + ' festivals & holidays in the next 12 months';
+      pill.textContent = n + ' festivals & holidays listed';
       text = countryName(country) + ' national calendar' +
         (states.length
           ? ', plus state holidays for ' + states.join(', ') + ' (from your sales file’s pincodes)'
@@ -1086,11 +1087,73 @@
     var dateStr = dateInput.value;
     var name = nameInput.value.trim();
     if (!dateStr || !name) return;
-    var date = new Date(dateStr + 'T00:00:00');
+    var date = new Date(dateStr + 'T00:00:00Z');
     if (isNaN(date.getTime())) return;
     holidayState[holidayKey(date, name)] = { date: date, name: name, auto: false };
     dateInput.value = ''; nameInput.value = '';
     renderHolidayList();
+  }
+
+  async function importHolidayFile(input) {
+    var file = input.files[0];
+    if (!file) return;
+    var status = document.getElementById('obHolidayFileStatus');
+    var version = ++holidayImportVersion;
+    input.value = '';
+    setStatus(status, 'Reading ' + file.name + '…');
+
+    try {
+      var extension = file.name.split('.').pop().toLowerCase();
+      if (!['csv', 'tsv', 'xlsx'].includes(extension)) {
+        throw new Error('Choose a CSV, TSV, or XLSX file.');
+      }
+      if (typeof XLSX === 'undefined') {
+        throw new Error('The file reader could not load. Refresh and try again.');
+      }
+
+      var workbook = extension === 'xlsx'
+        ? XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
+        : XLSX.read(await file.text(), { type: 'string', raw: true, FS: extension === 'tsv' ? '\t' : ',' });
+      if (version !== holidayImportVersion) return;
+      var sheet = workbook.SheetNames.find(function (name) {
+        return /^(festivals|holidays)$/i.test(name.trim());
+      }) || workbook.SheetNames[0];
+      var rows = sheet ? XLSX.utils.sheet_to_json(workbook.Sheets[sheet], { header: 1, defval: '', blankrows: false }) : [];
+      var headers = (rows.shift() || []).map(function (value) { return String(value).trim().toLowerCase(); });
+      var dateIndex = headers.indexOf('date');
+      var nameIndex = headers.indexOf('name');
+      if (dateIndex === -1 || nameIndex === -1 || !rows.length) {
+        throw new Error('Include date and name columns and at least one festival.');
+      }
+
+      var holidays = rows.map(function (row, index) {
+        var value = row[dateIndex];
+        var day = value instanceof Date && !isNaN(value.getTime())
+          ? [String(value.getFullYear()).padStart(4, '0'), String(value.getMonth() + 1).padStart(2, '0'),
+            String(value.getDate()).padStart(2, '0')].join('-')
+          : String(value ?? '').trim();
+        var date = new Date(day + 'T00:00:00Z');
+        var name = String(row[nameIndex] ?? '').trim();
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || isNaN(date.getTime()) ||
+            date.toISOString().slice(0, 10) !== day || !name) {
+          throw new Error('Check festival entry ' + (index + 1) + '. Use a valid YYYY-MM-DD date and a name.');
+        }
+        return { date: date, name: name, auto: false };
+      });
+
+      var added = 0;
+      holidays.forEach(function (holiday) {
+        var key = holidayKey(holiday.date, holiday.name);
+        if (!holidayState[key]) {
+          holidayState[key] = holiday;
+          added++;
+        }
+      });
+      renderHolidayList();
+      setStatus(status, added + ' added, ' + (holidays.length - added) + ' duplicates skipped.', 'ok');
+    } catch (error) {
+      if (version === holidayImportVersion) setStatus(status, error.message || 'Could not read the festivals file.', 'err');
+    }
   }
 
   // Override links on the Weather & festivals cards just reveal the
@@ -1396,6 +1459,8 @@
     salesPins = []; schemeIds = []; salesSummary = null;
     newSkuState = {};
     holidayState = {};
+    holidayImportVersion++;
+    setStatus(document.getElementById('obHolidayFileStatus'), '');
     holidayCountryLoaded = null;
     lastHistWarnings = [];
     lastWeatherWarnings = [];
@@ -1550,6 +1615,7 @@
 
     renderNewSkuList();
 
+    document.getElementById('obHolidayFile').addEventListener('change', function () { importHolidayFile(this); });
     document.getElementById('obHolidayAdd').addEventListener('click', addManualHoliday);
     document.getElementById('obHolidayName').addEventListener('keydown', function (e) {
       if (e.key === 'Enter') { e.preventDefault(); addManualHoliday(); }
