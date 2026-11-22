@@ -80,3 +80,29 @@
 /* Template downloads are secondary to the upload itself. */
 #dashboard #obSalesTplCsv,#dashboard #obSkuMasterTpl{background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);box-shadow:none}
 #dashboard #obSalesTplCsv:hover,#dashboard #obSkuMasterTpl:hover{border-color:var(--muted-2)}
+
+/* ============================================================
+   Discount Schemes
+============================================================ */
+/* Filters: consistent control height and surface. */
+#dashboard .ads-fields input,#dashboard .ads-fields select{height:38px;box-sizing:border-box;padding:0 12px;
+  background:var(--ink);border:1px solid var(--line-2);border-radius:9px;color:var(--text);font:500 13px var(--body)}
+#dashboard .ads-fields input:focus,#dashboard .ads-fields select:focus{outline:none;border-color:var(--signal)}
+#dashboard .ads-fields label{font-weight:600}
+
+/* Registry table: code in mono, quieter meta columns, numbers right-aligned,
+   and row actions as secondary buttons rather than full lime ones. */
+#discountSchemesPanel .amp-table td{padding:12px 10px}
+#discountSchemesPanel .amp-table td:nth-child(1){font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--text)}
+#discountSchemesPanel .amp-table td:nth-child(4),
+#discountSchemesPanel .amp-table td:nth-child(5),
+#discountSchemesPanel .amp-table td:nth-child(6){color:var(--muted);font-size:12.5px}
+#discountSchemesPanel .amp-table td:nth-child(4){font-variant-numeric:tabular-nums;white-space:nowrap}
+#discountSchemesPanel .amp-table th:nth-child(7),#discountSchemesPanel .amp-table td:nth-child(7),
+#discountSchemesPanel .amp-table th:nth-child(8),#discountSchemesPanel .amp-table td:nth-child(8){text-align:right}
+#discountSchemesPanel .amp-table td:nth-child(7){font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+#discountSchemesPanel .amp-table th:last-child,#discountSchemesPanel .amp-table td:last-child{text-align:right;white-space:nowrap}
+#scheme-list .dbtn{display:inline-flex;height:30px;padding:0 12px;font-size:12px;background:var(--ink-3);
+  color:var(--text);border:1px solid var(--line-2);box-shadow:none}
+#scheme-list .dbtn+.dbtn{margin-left:6px}
+#scheme-list .dbtn:hover{border-color:var(--signal);color:var(--signal);transform:none}
