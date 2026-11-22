@@ -1,4 +1,6 @@
 User-agent: *
 Allow: /
+Disallow: /redesign-mockup/
+Disallow: /onboarding-redesign-mockup.html
 
 Sitemap: https://aprabot.com/sitemap.xml

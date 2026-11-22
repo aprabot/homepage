@@ -1,0 +1,1483 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script>document.documentElement.dataset.theme=localStorage.getItem('apraTheme')||'dark'</script>
+<!--
+  STATIC REVIEW MOCKUP — not wired to any backend, not linked from any live
+  navigation. Built from the product team's "Getting started redesign"
+  spec (16 tabs) for internal review before deciding what to build for real.
+  Every button here is inert or toggles a purely visual state; nothing here
+  calls an API or persists anything.
+-->
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Getting Started Redesign — Review Mockup — APRABot</title>
+<link rel="icon" type="image/svg+xml" href="favicon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,300..800&family=Hanken+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/styles.css">
+<style>
+  html,body{height:100%;overflow:hidden}
+  #dashboard{position:static!important;z-index:auto!important}
+
+  /* ---- Mockup-only banner ---- */
+  .mock-banner{background:var(--signal-soft);border:1px solid rgba(200,242,78,.3);color:var(--signal);
+    border-radius:10px;padding:10px 14px;font-size:12.5px;margin-bottom:22px;display:flex;align-items:center;gap:8px}
+
+  /* ---- Onboarding sub-step chip nav ---- */
+  .ob-chips{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}
+  .ob-chip{display:flex;align-items:center;gap:7px;padding:8px 13px;border-radius:100px;border:1px solid var(--line-2);
+    background:var(--panel);color:var(--muted);font-size:12.5px;cursor:pointer;transition:all .15s}
+  .ob-chip:hover{border-color:var(--signal);color:var(--text)}
+  .ob-chip.active{background:var(--signal-soft);border-color:rgba(200,242,78,.4);color:var(--signal)}
+  .ob-chip .dot{width:7px;height:7px;border-radius:50%;flex:none}
+  .dot-done{background:var(--signal)}
+  .dot-amber{background:#ffcf5c}
+  .dot-empty{border:1.5px solid var(--muted-2);background:transparent}
+  .dot-skipped{border:1.5px dashed var(--muted-2);background:transparent}
+
+  /* ---- Flow diagrams: boxes connected by simple arrows ---- */
+  .flowd{display:flex;flex-wrap:wrap;align-items:stretch;gap:0;margin:18px 0}
+  .flowd.vertical{flex-direction:column;align-items:flex-start}
+  .flowd-box{background:var(--panel);border:1px solid var(--line-2);border-radius:12px;padding:14px 16px;
+    font-size:12.5px;min-width:150px;max-width:220px}
+  .flowd-box b{display:block;font-family:var(--display);font-size:13.5px;margin-bottom:4px;color:var(--text)}
+  .flowd-box.signal{border-color:rgba(200,242,78,.4);background:var(--signal-soft)}
+  .flowd-box.mint{border-color:rgba(84,230,196,.35);background:rgba(84,230,196,.08)}
+  .flowd-arrow{display:flex;align-items:center;justify-content:center;color:var(--muted-2);font-size:18px;padding:0 10px;flex:none}
+  .flowd-arrow.down{transform:rotate(90deg)}
+  .flowd-label{font-family:var(--mono);font-size:10.5px;color:var(--muted);text-align:center;padding:2px 8px;white-space:nowrap}
+  .flowd-col{display:flex;flex-direction:column;align-items:center;gap:4px}
+  .flowd-row{display:flex;align-items:center;flex-wrap:wrap;gap:0;margin:6px 0}
+
+  /* ---- Done-when checklist ---- */
+  .donewhen{list-style:none;margin:14px 0 0;padding:16px 18px;background:var(--panel);
+    border:1px solid var(--line);border-radius:12px}
+  .donewhen .dw-title{font-family:var(--mono);font-size:11px;text-transform:uppercase;letter-spacing:.08em;
+    color:var(--muted);margin-bottom:10px}
+  .donewhen li{display:flex;gap:9px;align-items:flex-start;font-size:13px;padding:5px 0;color:var(--text)}
+  .donewhen li::before{content:'✓';flex:none;color:var(--signal);font-weight:700;
+    width:16px;height:16px;border-radius:5px;border:1px solid rgba(200,242,78,.35);
+    background:var(--signal-soft);display:flex;align-items:center;justify-content:center;font-size:10px;margin-top:1px}
+
+  /* ---- Documentation helpers ---- */
+  .doc-note{border-left:3px solid var(--mint);background:rgba(84,230,196,.06);border-radius:0 10px 10px 0;
+    padding:10px 14px;font-size:12.5px;color:var(--text);margin:14px 0}
+  .doc-note b{color:var(--mint)}
+  h2.sec{font-family:var(--display);font-weight:600;font-size:1.25rem;margin:30px 0 10px;letter-spacing:-.01em}
+  h2.sec:first-child{margin-top:0}
+  .scope-line-row{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;padding:10px;border:1px solid var(--line);
+    border-radius:10px;margin-bottom:8px;font-size:12.5px}
+  .scope-line-row .lbl{font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--muted);margin-bottom:3px}
+  .status-dot-legend{display:flex;gap:18px;flex-wrap:wrap;font-size:12px;color:var(--muted);margin-bottom:14px}
+  .status-dot-legend span{display:flex;align-items:center;gap:6px}
+
+  /* ---- Page-local component CSS not present in the shared stylesheet ----
+     .theme-pill lives inline in dashboard/index.html's own <style>, not in
+     css/styles.css — confirmed by grepping the shared file, which had zero
+     matches, after this mockup's theme-pill toggles rendered as unstyled
+     browser-default buttons. Copied verbatim from dashboard/index.html so
+     the look matches exactly rather than approximating it. */
+  .theme-pill{display:flex;background:var(--ink);border:1px solid var(--line-2);border-radius:100px;padding:3px;gap:3px}
+  .theme-pill button{border:none;background:none;color:var(--muted);font-size:.8rem;font-family:inherit;padding:5px 14px;border-radius:100px;cursor:pointer;transition:all .15s;display:flex;align-items:center;gap:5px}
+  .theme-pill button.active{background:var(--ink-3);color:var(--text);box-shadow:0 1px 4px rgba(0,0,0,.25)}
+
+  /* The shared .table-wrap caps height at 60vh with a scrollbar, sized for
+     genuinely long dashboard tables. Every table on this page is a short
+     reference table (3-6 rows) — capping them clips rows out of view inside
+     an inner scroll region a static screenshot/review can't show. Override
+     for this page only. */
+  .table-wrap{max-height:none;overflow:visible}
+</style>
+</head>
+<body>
+
+<div class="dbody" style="max-width:960px;margin:0 auto">
+  <div class="mock-banner" style="max-width:none">This is background context for whoever builds or reviews this spec — not pages the live product would have. The actual product mockup (what a user would click through) starts below.</div>
+  <details style="margin-bottom:16px;border:1px solid var(--line);border-radius:12px;padding:4px 18px" open>
+    <summary style="cursor:pointer;padding:12px 0;font-family:var(--display);font-weight:600;font-size:1.15rem">Context: Product map</summary>
+      <div>
+      <p class="dsubtle">The product has five pages and one chatbot. One rule ties them together: committing a scheme or campaign changes the plan that every later forecast uses, while a scenario only tries changes on a copy. Lyra can create or explain on any page. Optimization comes after this foundation.</p>
+
+      <h2 class="sec">1. The product at a glance</h2>
+      <div class="dcard">
+        <div class="flowd">
+          <div class="flowd-col">
+            <div class="flowd-box"><b>Onboarding</b>Sales, spend, SKUs, weather and festivals</div>
+            <div class="flowd-box"><b>Discount Schemes</b>Create, code and commit by pincode, date and SKU</div>
+            <div class="flowd-box"><b>Marketing Campaigns</b>Amplify: create, commit and launch on Meta, Google</div>
+          </div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box signal"><b>Committed inputs</b>Locked once committed; every forecast run uses them</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box"><b>Forecast engine</b>LightGBM: baseline + committed schemes + committed campaigns</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box"><b>Output</b>Review SKU x pincode by period, forecast vs last year, all metrics</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box mint"><b>Scenarios</b>A copy of the plan: change schemes, campaigns, holidays, caps (compares against Output)</div>
+        </div>
+        <div class="flowd" style="margin-top:4px">
+          <div class="flowd-box" style="border-style:dashed"><b>Optimization (next phase)</b>Recommends schemes and spend; the user still commits</div>
+          <div class="flowd-box mint"><b>Lyra</b>Side panel, spans all pages — create a scheme, create a campaign, create a scenario, explain why a forecast is high or low</div>
+        </div>
+      </div>
+
+      <h2 class="sec">2. Pages and what each one owns</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Page</th><th>Job</th><th>Creates</th><th>Status</th></tr></thead>
+        <tbody>
+          <tr><td>Onboarding</td><td>Load data once and train the first forecast</td><td>Datasets, the pincode master</td><td><span class="pill warn">Redesign</span></td></tr>
+          <tr><td>Discount Schemes</td><td>Create schemes by pincode, date and SKU, give each a code, and commit it</td><td>Schemes</td><td><span class="pill ok">New</span></td></tr>
+          <tr><td>Marketing Campaigns</td><td>Create, commit and launch campaigns on Meta and Google</td><td>Campaigns</td><td><span class="pill ok">Exists in Amplify; extended</span></td></tr>
+          <tr><td>Scenarios</td><td>Try changes on a copy of the plan and compare</td><td>Scenarios</td><td><span class="pill ok">Exists; extended</span></td></tr>
+          <tr><td>Output</td><td>Review SKU and pincode forecasts by period, with last year beside them</td><td>Nothing</td><td><span class="pill ok">Exists; adds last-year comparison</span></td></tr>
+          <tr><td>Inventory View</td><td>Required inventory at SKU x pincode/node/cluster level to meet the forecast</td><td>Nothing</td><td><span class="pill warn">Exists; add time period/trend + export</span></td></tr>
+          <tr><td>AI Insights</td><td>—</td><td>—</td><td><span class="pill risk">Phase 2</span></td></tr>
+          <tr><td>Settings</td><td>—</td><td>—</td><td><span class="pill risk">Phase 2</span></td></tr>
+          <tr><td>Knowledge base</td><td>—</td><td>—</td><td><span class="pill risk">Phase 2</span></td></tr>
+          <tr><td>Lyra</td><td>Create drafts and scenarios by chat, and explain forecasts</td><td>Drafts and scenarios</td><td><span class="pill ok">Exists; extended</span></td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">3. Commit and scenario: the rule</h2>
+      <div class="dcard">
+        <div class="flowd">
+          <div class="flowd-box"><b>Draft</b>Editable, ignored by forecasts</div>
+          <div class="flowd-col"><div class="flowd-label">Commit</div><div class="flowd-arrow">→</div></div>
+          <div class="flowd-box signal"><b>Committed</b>Locked, in every forecast run</div>
+          <div class="flowd-col"><div class="flowd-label">Go live</div><div class="flowd-arrow">→</div></div>
+          <div class="flowd-box"><b>Live</b>Scheme active, or campaign launched</div>
+          <div class="flowd-col"><div class="flowd-label">End</div><div class="flowd-arrow">→</div></div>
+          <div class="flowd-box mint"><b>Completed</b>Actuals recorded, history kept</div>
+        </div>
+        <div class="flowd" style="margin-top:4px">
+          <div class="flowd-box"><b>Committed</b> → <span style="color:var(--muted)">planned inputs</span></div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box signal"><b>Forecast engine</b>Committed items are known inputs; drafts are ignored</div>
+        </div>
+        <div class="flowd" style="margin-top:4px">
+          <div class="flowd-box"><b>Live</b> → <span style="color:var(--muted)">Withdraw</span></div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box"><b>Withdrawn</b>Not in new runs, history kept</div>
+        </div>
+        <div class="flowd" style="margin-top:4px">
+          <div class="flowd-box"><b>Completed</b> → <span style="color:var(--muted)">actuals flow back</span> (sales with scheme_id, spend from Performance)</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box signal"><b>Forecast engine</b>Next run learns from them</div>
+        </div>
+        <ul style="margin-top:14px;padding-left:18px;font-size:13px;color:var(--text);line-height:1.9">
+          <li><b>Draft:</b> editable, and ignored by every forecast run.</li>
+          <li><b>Committed:</b> locked. Every later forecast run treats it as a known input — a scheme as a known price and discount, a campaign as planned spend. Committing starts a background re-run.</li>
+          <li><b>Withdraw:</b> a committed item stops counting in new runs and its history is kept. To change a committed item, withdraw it and create a new version.</li>
+          <li><b>Scenario:</b> a copy of the plan. Nothing done in a scenario edits a committed item. Apply to plan turns the scenario changes into drafts for the user to review and commit.</li>
+        </ul>
+      </div>
+
+      <h2 class="sec">4. One user journey, end to end</h2>
+      <div class="dcard">
+        <ol style="padding-left:18px;font-size:13.5px;line-height:2;color:var(--text)">
+          <li>Onboard: upload or connect sales, marketing spend, SKU master; weather and festivals are generated. Train the first forecast.</li>
+          <li>Create schemes in Discount Schemes for the pincodes, dates and SKUs wanted, give each a code, and commit them.</li>
+          <li>Create campaigns in Marketing Campaigns, commit them, and launch them on Meta or Google.</li>
+          <li>Each commit triggers a forecast re-run that includes the committed items.</li>
+          <li>Review SKU and pincode forecasts in Output, with last year beside every metric.</li>
+          <li>Open Scenarios to try changes: spend up 5%, a holiday off in a pincode, a cap on a pincode. Compare with the plan.</li>
+          <li>For the final scenario — run the inventory requirement.</li>
+          <li>If a scenario is liked, Apply to plan creates drafts. The user commits them, and the loop repeats.</li>
+          <li>At any step, ask Lyra to create a draft, run a scenario, or explain why a forecast is high or low.</li>
+        </ol>
+      </div>
+
+      <h2 class="sec">5. Where Optimization plugs in</h2>
+      <p style="font-size:13.5px;color:var(--text);margin-bottom:10px">Optimization starts after this foundation and only adds recommendations; it never commits on its own.</p>
+      <div class="dcard">
+        <ul style="padding-left:18px;font-size:13px;color:var(--text);line-height:1.9">
+          <li>Scheme ranking appears on the Discount Schemes create page, ranking the schemes the user drafted for a pincode and SKU.</li>
+          <li>Marketing allocation appears in Amplify under AI Opportunities, as recommended spend by pincode, SKU, platform and campaign type.</li>
+          <li>Timing recommendations appear as a calendar of best start weeks.</li>
+          <li>Every recommendation creates a draft. The user can test it in Scenarios and then commit it.</li>
+        </ul>
+        <div class="doc-note">This foundation provides what optimization needs: a scheme registry, campaigns with a scope, committed inputs, scenarios to test recommendations, and Output with last year beside the forecast.</div>
+      </div>
+    </div>
+  </details>
+  <details style="margin-bottom:28px;border:1px solid var(--line);border-radius:12px;padding:4px 18px">
+    <summary style="cursor:pointer;padding:12px 0;font-family:var(--display);font-weight:600;font-size:1.15rem">Context: Reference (template mapping, validation rules, data model, open questions)</summary>
+      <div>
+      <p class="dsubtle">Maps the current input template to the new steps, lists the corrections the template needs, and holds the validation rules, the data model and the open questions. Thresholds are proposals to confirm with the data science team.</p>
+
+      <h2 class="sec">1. Template mapping</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Template sheet</th><th>Template says</th><th>New home</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td>Shipments</td><td>Required</td><td>2. Sales data</td><td>Add scheme_id; describe avg_our_price and avg_discount_amt</td></tr>
+          <tr><td>Marketing Spend Past &amp; Future</td><td>Required</td><td>3. Marketing spend</td><td>Required, with "I have no marketing spend"; date values not formulas; currency from the country</td></tr>
+          <tr><td>SKU_Master</td><td>Required</td><td>4. SKU master</td><td>Pre-filled with SKUs from sales; add unit cost, list price, launch date, status</td></tr>
+          <tr><td>Future Price</td><td>Optional, default: same</td><td>Discount Schemes</td><td>Kept for existing users with an optional scheme_id; new planned discounts created in the tab</td></tr>
+          <tr><td>Weather</td><td>Optional, use API</td><td>5. Weather and festivals</td><td>Generated by default; the same columns are accepted as an override</td></tr>
+          <tr><td>Festivals</td><td>Optional, use API</td><td>5. Weather and festivals</td><td>Generated from a festival calendar; the same columns accepted as an override</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">2. Corrections to the template</h2>
+      <div class="dcard">
+        <ul style="padding-left:18px;font-size:13px;color:var(--text);line-height:1.9">
+          <li>The Instructions sheet heads two sections "Shipments sheet (required)" — the second describes the SKU master.</li>
+          <li>The marketing spend section sits under the heading "Price sheet (required)".</li>
+          <li>The Future Price instructions name a column "asin" and columns avg_our_price/avg_discount_amt; the sheet has SKU, avg_our_price_f and avg_discount_amt_f.</li>
+          <li>The Shipments instructions omit avg_our_price and avg_discount_amt, which the sheet has, and call a column Site_Code where the sheet says "Site Code".</li>
+          <li>The Data load options are numbered 1, 2, 2; the last should be 3.</li>
+          <li>The example rows mix hyphenated postal codes with INR spend, Mumbai and Maharashtra.</li>
+          <li>The marketing sheet end dates are formulas (=B2+30), so a pasted or exported file may carry formulas instead of dates.</li>
+          <li>The postal_code cells on the Weather and Festivals sheets hold a dynamic-array UNIQUE formula over Shipments rows 2 to 18 — needs a recent Excel version, stops at row 18, leaves a stray 0.</li>
+          <li>The spend column is headed "INR spend", so it cannot serve other countries.</li>
+        </ul>
+      </div>
+
+      <h2 class="sec">3. Validation rules</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Check</th><th>Applies to</th><th>Level</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Required columns present</td><td>All files</td><td><span class="pill risk">Blocking</span></td><td>The message names the missing column</td></tr>
+          <tr><td>Unreadable dates</td><td>Sales, spend</td><td><span class="pill risk">Blocking above 2%</span></td><td>Below that, drop the rows and warn</td></tr>
+          <tr><td>Pincode wrong for the country</td><td>Sales, spend</td><td><span class="pill risk">Blocking above 5%</span></td><td>Below that, drop and list the rows</td></tr>
+          <tr><td>Negative or non-numeric units</td><td>Sales</td><td><span class="pill risk">Blocking above 2%</span></td><td>Below that, drop and warn</td></tr>
+          <tr><td>Less than 12 months of distinct dates</td><td>Sales</td><td><span class="pill risk">Blocking</span></td><td>The template's own rule</td></tr>
+          <tr><td>12 to 24 months of dates</td><td>Sales</td><td><span class="pill warn">Warning</span></td><td>24 months is ideal</td></tr>
+          <tr><td>Gaps longer than 14 days</td><td>Sales</td><td><span class="pill warn">Warning</span></td><td>Show the gap dates</td></tr>
+          <tr><td>Duplicate rows (same day, SKU, pincode, channel, site)</td><td>Sales</td><td><span class="pill warn">Warning</span></td><td>Aggregate them</td></tr>
+          <tr><td>Outliers</td><td>Sales</td><td><span class="pill warn">Warning</span></td><td>Flag, do not remove</td></tr>
+          <tr><td>Discount without scheme_id</td><td>Sales</td><td><span class="pill warn">Warning</span></td><td>Assign in Discount Schemes</td></tr>
+          <tr><td>Sales SKUs missing from the SKU master</td><td>Sales, SKU master</td><td><span class="pill risk">Blocking above 5% of units</span></td><td>Below that, warn and list them</td></tr>
+          <tr><td>Campaign end before start</td><td>Spend</td><td><span class="pill risk">Blocking above 2%</span></td><td>Below that, drop and warn</td></tr>
+          <tr><td>Unmatched pincodes</td><td>Pincode master</td><td><span class="pill risk">Blocking above 10% of units</span></td><td>Below that, warn and list them</td></tr>
+          <tr><td>Weather for less than 95% of days</td><td>Weather</td><td><span class="pill warn">Warning</span></td><td>Fill from the nearest cell and mark as filled</td></tr>
+          <tr><td>Festival with no date in the horizon</td><td>Festivals</td><td><span class="pill warn">Warning</span></td><td>Ask the user to add the date</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">4. Data model and backend guidance</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Entity</th><th>Key</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>country_config</td><td>organisation</td><td>Country, currency, time zone, pincode pattern, default calendars</td></tr>
+          <tr><td>pincode_master</td><td>organisation, pincode</td><td>Latitude, longitude, state, district, region, weather cell id</td></tr>
+          <tr><td>sales_daily</td><td>day, SKU, pincode, channel, site</td><td>Units, price, discount amount, scheme_id</td></tr>
+          <tr><td>scheme_registry</td><td>scheme_id</td><td>Definition fields, source, status; observed fields computed from sales_daily</td></tr>
+          <tr><td>scheme_scope_line</td><td>scheme_id, line</td><td>Pincodes, SKUs, start, end and discount of one scope line</td></tr>
+          <tr><td>marketing_spend</td><td>campaign_id, SKU, pincode</td><td>Dates, spend, optional platform, campaign type and results; level recorded</td></tr>
+          <tr><td>campaign</td><td>campaign_id</td><td>Code, name, platform, objective, daily budget, platform campaign id, status</td></tr>
+          <tr><td>campaign_scope_line</td><td>campaign_id, line</td><td>SKUs, pincodes, start, end, spend share</td></tr>
+          <tr><td>sku_master</td><td>SKU</td><td>Attributes, launch date, status</td></tr>
+          <tr><td>sku_attribute</td><td>SKU, attribute</td><td>Name, value, type (text, number, yes/no); dimensions in centimetres</td></tr>
+          <tr><td>weather_daily</td><td>cell id, day</td><td>Temperature, rainfall, source</td></tr>
+          <tr><td>festival_calendar</td><td>festival, year, scope</td><td>Dates, type, lead and lag days</td></tr>
+          <tr><td>festival_pincode_day</td><td>pincode, day</td><td>Expansion of the calendar and of any override</td></tr>
+          <tr><td>upload_job</td><td>job id</td><td>File, version, mapping used, status, row counts</td></tr>
+          <tr><td>validation_issue</td><td>job id, row</td><td>Check, level, message; exportable as a file</td></tr>
+          <tr><td>onboarding_state</td><td>organisation</td><td>Status per sidebar step, so users can resume</td></tr>
+          <tr><td>forecast_run</td><td>run_id</td><td>Type (base, plan, scenario), snapshot of committed items/versions used, status</td></tr>
+          <tr><td>scenario</td><td>scenario_id</td><td>Name, base run, creator (user or Lyra), status, result run</td></tr>
+          <tr><td>scenario_override</td><td>scenario_id, line</td><td>Lever, scope and value, e.g. spend x 1.05 or festival off for a pincode</td></tr>
+          <tr><td>standing_cap</td><td>cap_id</td><td>Pincode, optional SKU, ceiling in units or revenue, period, active flag, created_by</td></tr>
+          <tr><td>lyra_action</td><td>action id</td><td>User, message, tool called, item created</td></tr>
+        </tbody>
+      </table></div>
+      <div class="doc-note">Store uploads in object storage; parse asynchronously in chunks with progress. Keep the raw file and the mapped version — a re-upload creates a new version, never overwrites silently. After every sales parse, run scheme detection: upsert on scheme_id, create Detected rows for new IDs, refresh observed fields, never overwrite a user-entered field. Isolate data by organisation; keep sales at pincode level with no customer identifiers.</div>
+
+      <h2 class="sec">5. Open questions</h2>
+      <div class="dcard">
+        <ul style="padding-left:18px;font-size:13px;color:var(--text);line-height:1.9">
+          <li>Is avg_discount_amt an amount per unit or a total for the row?</li>
+          <li>Does a missing sales row mean zero sales, or missing data?</li>
+          <li>Can one sales row carry two stacked schemes, or only one scheme_id?</li>
+          <li>Is spend per row the total for that SKU and pincode, or the campaign total across all its rows?</li>
+          <li>Which postal-code dataset and weather provider per country, and which official festival calendar, starting with which countries?</li>
+          <li>Do existing users keep the Price, Future Price and Weather sheets, and how are they migrated?</li>
+          <li>Are the thresholds in section 3 right for the data science team?</li>
+          <li>Should the country remain changeable after upload?</li>
+          <li>Should a hard cap reduce SKUs in proportion to their forecast (the default here) or by priority, such as margin?</li>
+          <li>How should the interface show a budget change on a live campaign?</li>
+          <li>Which platforms and countries allow targeting by pincode?</li>
+          <li>Which last-year match is the Output default: 364 days back, the same dates, or festival-aligned?</li>
+          <li>How many scenarios can a user save, and how long are scenario runs kept?</li>
+          <li>Should the Amplify Getting started page be renamed Connections?</li>
+        </ul>
+      </div>
+    </div>
+  </details>
+</div>
+
+<div id="dashboard" class="open">
+  <aside class="dside">
+    <div class="logo">
+      <span class="wordmark">APRA<b>Bot</b></span>
+    </div>
+    <ul class="dnav">
+      <li class="active" title="Onboarding"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3v18" stroke-linecap="round"/><path d="M5 4h11l-2 4 2 4H5" stroke-linejoin="round"/></svg><span class="lbl">Onboarding</span></li>
+      <li title="Discount Schemes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/><path d="M19 5 5 19" stroke-linecap="round"/></svg><span class="lbl">Discount Schemes</span></li>
+      <li title="Marketing Campaigns"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1 1" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1-1" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Marketing Campaigns</span></li>
+      <li title="Scenarios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Scenarios</span></li>
+      <li title="Output"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Output</span></li>
+      <li title="Inventory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Inventory</span></li>
+      <li title="Lyra"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" stroke-linejoin="round"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" stroke-linejoin="round"/></svg><span class="lbl">Lyra</span></li>
+    </ul>
+  </aside>
+
+  <div id="mockupPanels">
+    <!-- 1. Onboarding -->
+    <div class="dbody" id="panel-onboarding">
+      <h1 class="dgreet">Onboarding <span class="hl">redesign</span></h1>
+      <div class="mock-banner">Static review mockup — transcribed from the product team's spec. Nothing on this page is wired to real data.</div>
+      <p class="dsubtle">Getting Started becomes Onboarding. It opens into six sub-parts that the user can select directly from the left sidebar, and a new Discount Schemes tab sits beside it.</p>
+
+      <h2 class="sec">1. Sidebar</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Mockup — "Sidebar after the change: Onboarding with six sub-parts, and the pages beside it"</p>
+      <div class="dcard" style="max-width:360px">
+        <div class="status-dot-legend">
+          <span><span class="dot dot-done"></span>Done</span>
+          <span><span class="dot dot-amber"></span>Needs attention</span>
+          <span><span class="dot dot-empty"></span>Not started</span>
+          <span><span class="dot dot-skipped"></span>Skipped by choice</span>
+        </div>
+        <ul style="list-style:none;font-size:13px">
+          <li style="padding:9px 0;border-bottom:1px solid var(--line);color:var(--signal);font-weight:600">Onboarding <span style="float:right;color:var(--muted);font-weight:400;font-family:var(--mono);font-size:11px">3 of 6</span></li>
+          <li style="padding:7px 0 7px 16px;display:flex;align-items:center;gap:8px"><span class="dot dot-done"></span>1. Country</li>
+          <li style="padding:7px 0 7px 16px;display:flex;align-items:center;gap:8px"><span class="dot dot-done"></span>2. Sales data <span style="color:var(--muted);font-size:11px;margin-left:auto">12 scheme IDs</span></li>
+          <li style="padding:7px 0 7px 16px;display:flex;align-items:center;gap:8px"><span class="dot dot-skipped"></span>3. Marketing spend <span style="color:var(--muted);font-size:11px;margin-left:auto">none</span></li>
+          <li style="padding:7px 0 7px 16px;display:flex;align-items:center;gap:8px;background:var(--signal-soft);border-radius:7px"><span class="dot dot-amber"></span>4. SKU master</li>
+          <li style="padding:7px 0 7px 16px;display:flex;align-items:center;gap:8px"><span class="dot dot-empty"></span>5. Weather and festivals</li>
+          <li style="padding:7px 0 7px 16px;display:flex;align-items:center;gap:8px"><span class="dot dot-empty"></span>6. Inbound data</li>
+          <li style="padding:9px 0;border-top:1px solid var(--line);margin-top:4px">Discount Schemes <span class="pill ok" style="margin-left:8px">New</span></li>
+          <li style="padding:9px 0;color:var(--muted)">Marketing Campaigns</li>
+          <li style="padding:9px 0;color:var(--muted)">Scenarios</li>
+          <li style="padding:9px 0;color:var(--muted)">Output</li>
+        </ul>
+      </div>
+
+      <div class="table-wrap" style="margin-top:18px"><table class="dtable">
+        <thead><tr><th>Sub-part</th><th>Opens</th><th>Required</th><th>Status shown</th></tr></thead>
+        <tbody>
+          <tr><td>1. Country</td><td>Country list and the defaults it sets</td><td>Yes</td><td>Done when a country is chosen</td></tr>
+          <tr><td>2. Sales data</td><td>Template, upload, mapping, summary</td><td>Yes</td><td>Done when the file passes the blocking checks; shows the scheme IDs found</td></tr>
+          <tr><td>3. Marketing spend</td><td>Template and upload, or the no-spend choice</td><td>Yes, or confirm none</td><td>Done, or Skipped by choice</td></tr>
+          <tr><td>4. SKU master</td><td>Pre-filled template, table, new SKUs</td><td>Yes</td><td>Done when SKUs match the sales file</td></tr>
+          <tr><td>5. Inbound data</td><td>Pre-filled template</td><td>Yes</td><td>Done when SKUs match the sales file</td></tr>
+          <tr><td>6. Weather and festivals</td><td>Two review panels with coverage</td><td>Automatic</td><td>Done when generated; Needs attention when a warning exists</td></tr>
+          <tr><td>7. Review and train</td><td>Readiness cards and Train</td><td>Yes</td><td>Ready, Training, Failed or Done</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="doc-note"><b>Note:</b> the doc is inconsistent on numbering — the table above lists 5 = Inbound data, 6 = Weather and festivals, 7 = Review and train; the sidebar mockup shows 5 = Weather and festivals, 6 = Inbound data. The sub-step chips below use the tab list's own ordering: 1 Country, 2 Sales data, 3 Marketing spend, 4 SKU master, 5 Inbound receipts, 6 Weather and festivals, 7 Review and train.</div>
+
+      <ul style="margin-top:14px;padding-left:18px;font-size:13px;color:var(--text);line-height:1.9">
+        <li>The sidebar item is renamed from Getting Started to Onboarding and expands to the seven sub-parts. Each opens its page directly, and each has its own address, so Lyra or an email can link straight to a step.</li>
+        <li>The user can open any sub-part at any time. A step that waits for another shows what it needs, for example <i>Needs sales data first</i>, instead of an empty page.</li>
+        <li>Progress is saved per sub-part, and the sidebar shows each status when the user returns.</li>
+        <li>While onboarding is incomplete the Onboarding item shows its progress, such as 3 of 6; when training finishes it collapses to one item.</li>
+        <li>The sidebar order is Onboarding, Discount Schemes, Marketing Campaigns (Amplify), Scenarios and Output, with Lyra as a chat panel on every page.</li>
+      </ul>
+
+      <h2 class="sec">2. What changes from today</h2>
+      <p style="font-size:12.5px;color:var(--muted);margin-bottom:10px">This comparison uses the text of the APRABot dashboard as read on 15 Nov 2026, and the uploaded input template. (Visual layout not reviewed.)</p>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Today</th><th>Problem</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td>One Getting Started item and one long form labelled Question 1 of 3</td><td>The user cannot jump to a part, and the label understates the work</td><td>Onboarding with six selectable sub-parts and a status for each</td></tr>
+          <tr><td>Country and the serviceable-area upload share question 1; large lists take minutes to plot</td><td>The upload slows a one-click choice</td><td>Country alone; the pincode mapping becomes optional in Sales data</td></tr>
+          <tr><td>One workbook: Shipments, Marketing Spend, SKU_Master, Future Price, Weather, Festivals</td><td>One bad sheet blocks the rest, and everything must be ready first</td><td>One file per topic, keeping the template columns</td></tr>
+          <tr><td>The page asks for a shipments file, price and weather; the template also requires marketing spend and SKU master</td><td>Two required inputs are not collected in the page</td><td>Steps 3 and 4</td></tr>
+          <tr><td>The sales file has a discount amount but no scheme ID; planned prices sit in a separate Future Price sheet</td><td>Discounts cannot be tied to schemes</td><td>A scheme_id column and a Discount Schemes tab; planned schemes replace Future Price</td></tr>
+          <tr><td>Weather and festivals come from a sheet or from platform defaults</td><td>Not controlled at pincode level</td><td>Generated per pincode and day, with an override upload</td></tr>
+          <tr><td>Newly launched SKUs are confirmed in the history step</td><td>They belong with SKU data</td><td>Moved to 4. SKU master</td></tr>
+          <tr><td>Every check is a warning; nothing blocks training</td><td>A model can train on broken data</td><td>Blocking errors are separated from warnings</td></tr>
+        </tbody>
+      </table></div>
+      <div class="doc-note">Keep these existing features: the template download, the volume-over-time chart after upload, default holidays by country, the Lyra walkthrough, background training with a ready state and a retry state, and the admin and viewer roles for approval.</div>
+
+      <h2 class="sec">3. Target flow</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Diagram — "Six steps lead to training, and blocking errors send users back to fix them"</p>
+      <div class="dcard">
+        <div class="flowd">
+          <div class="flowd-box signal"><b>1. Country</b>Sets currency, calendars and the pincode format — Required</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box signal"><b>2. Sales data</b>Date, pincode, SKU, units, discount, scheme ID — Required</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box"><b>3. Marketing spend</b>Benchmarks used without it — Upload or confirm none</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box signal"><b>4. SKU master</b>Category, cost, launch dates — Required</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box mint"><b>5. Weather and festivals</b>Generated per pincode and day — Automatic</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box"><b>6. Review: blocking errors?</b>Yes → fix the step (loops back) · No → Train</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box signal"><b>Train</b>Ready → Scenarios · Failed → cause shown, retry</div>
+        </div>
+      </div>
+      <div class="doc-note">Marketing spend is completed either by uploading a file or by confirming that none exists. The other steps either need a file or run automatically, and the review gate blocks training until the required data passes.</div>
+
+      <h2 class="sec">4. Principles</h2>
+      <div class="dcard">
+        <ul style="padding-left:18px;font-size:13px;color:var(--text);line-height:1.9">
+          <li>One topic per step, one file per topic, one template per file, each with an example row in the right country format.</li>
+          <li>The top of each step says whether it is required, optional or automatic, and what the forecast loses when data is missing.</li>
+          <li>Validate on upload and show row-level errors with a downloadable file of the problem rows; never a bare failure.</li>
+          <li>Separate blocking errors (cannot train) from warnings (can train, lower quality).</li>
+          <li>Save progress automatically, so the user can leave and resume at any sub-part.</li>
+          <li>Long work runs in the background with a progress bar, and the user can continue to the next step.</li>
+          <li>Everything is keyed at pincode level: the pincode master is the spine of the data model.</li>
+        </ul>
+      </div>
+
+      <h2 class="sec">5. Data load options</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Option</th><th>Use</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>Upload in the preset format</td><td>One-time runs and testing</td><td>This is the Onboarding page</td></tr>
+          <tr><td>FTP</td><td>Pilot</td><td>One folder per dataset; each drop is validated like an upload and shows in the sidebar status</td></tr>
+          <tr><td>API integration</td><td>Production</td><td>The recommended route for weather and festivals; sales rows carry scheme_id and discount amount</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">6. Onboarding sub-steps</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:14px">Click a step below — each opens its own page directly, matching the redesign.</p>
+      <div class="ob-chips" id="obChips"></div>
+      <div id="obContent"></div>
+    </div>
+
+    <!-- Onboarding sub-step templates (rendered into #obContent by JS) -->
+    <template id="ob-tpl-country">
+      <p class="dsubtle">Country is a one-click question that sets the defaults for every later step. The user picks it once, and it locks after the first file is uploaded.</p>
+      <h2 class="sec">What the user sees</h2>
+      <div class="dcard" style="max-width:480px">
+        <div class="field">
+          <label>Country</label>
+          <select style="width:100%;padding:11px 13px;border-radius:9px;background:var(--ink);border:1px solid var(--line-2);color:var(--text);font-family:var(--body);font-size:14px">
+            <option>India</option><option>United States</option><option>Japan</option><option>United Kingdom</option>
+          </select>
+        </div>
+        <div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px;margin:14px 0">
+          <div class="lbl" style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Defaults this sets (editable)</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12.5px">
+            <div>Currency: <b>INR</b></div><div>Week start: <b>Monday</b></div>
+            <div>Time zone: <b>Asia/Kolkata</b></div><div>Postal pattern: <b>6 digits</b></div>
+            <div>Date format: <b>day-first</b></div><div>Weather region: <b>India</b></div>
+            <div>Festival calendar: <b>India national + state</b></div><div>Language: <b>English</b></div>
+          </div>
+        </div>
+        <button class="btn btn-pri" style="width:100%;justify-content:center">Continue →</button>
+      </div>
+
+      <h2 class="sec">What the country sets</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Setting</th><th>Used for</th><th>Example (India)</th></tr></thead>
+        <tbody>
+          <tr><td>Currency</td><td>Price, discount and spend columns; the template header "INR spend" becomes "Spend", with the currency taken from here</td><td>INR</td></tr>
+          <tr><td>Time zone, date format, week start</td><td>Reading ship_day and campaign dates</td><td>Asia/Kolkata, day-first dates accepted</td></tr>
+          <tr><td>Postal-code pattern</td><td>Validating and cleaning pincodes</td><td>6 digits</td></tr>
+          <tr><td>Festival and holiday calendar</td><td>Prefill in Weather and festivals</td><td>India national and state calendars</td></tr>
+          <tr><td>Weather region</td><td>Weather fetch in Weather and festivals</td><td>India</td></tr>
+          <tr><td>Language</td><td>Interface and Lyra</td><td>English</td></tr>
+        </tbody>
+      </table></div>
+      <div class="doc-note">Other patterns the system must hold: United States 5 digits (optionally +4), Japan 7 digits written as three digits + hyphen + four digits, United Kingdom alphanumeric.</div>
+
+      <h2 class="sec">Rules</h2>
+      <ul style="padding-left:18px;font-size:13px;color:var(--text);line-height:1.9">
+        <li>The pincode pattern comes from the country, not from the file.</li>
+        <li>Store pincodes as text, so leading zeros survive.</li>
+        <li>For a country without postal codes, ask for the finest region the business uses (city or district) and treat it as the pincode everywhere.</li>
+        <li>After the first upload the country is locked. Changing it needs a reset, with a warning, and re-runs every check on the uploaded files.</li>
+        <li>One country per onboarding project for now.</li>
+      </ul>
+
+      <ul class="donewhen"><div class="dw-title">Done when</div>
+        <li>The user can choose a country and see the defaults it sets.</li>
+        <li>The pincode pattern is applied to every later upload without the user entering it.</li>
+        <li>The country locks after the first upload, and a reset explains what will be re-checked.</li>
+        <li>The sidebar shows Country as done.</li>
+      </ul>
+    </template>
+
+    <template id="ob-tpl-sales">
+      <p class="dsubtle">Sales data is the required core file. This version adds a scheme_id column, so every discount is tied to a scheme and the scheme IDs fill the Discount Schemes tab automatically.</p>
+      <h2 class="sec">What the user sees</h2>
+      <div class="dcard">
+        <div style="display:flex;gap:10px;margin-bottom:14px">
+          <button class="dbtn">Download template (CSV)</button>
+          <button class="dbtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Download template (XLSX)</button>
+        </div>
+        <div class="field">
+          <label>Upload sales file</label>
+          <input type="file" class="file-input" accept=".csv,.xlsx">
+        </div>
+        <div style="background:var(--signal-soft);border:1px solid rgba(200,242,78,.3);border-radius:10px;padding:12px 14px;margin:14px 0;font-size:13px;color:var(--signal)">
+          12 scheme IDs found, 4 new — <a href="#" style="color:var(--signal);text-decoration:underline" onclick="return false">view in Discount Schemes</a>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-size:12.5px">
+          <div><div style="color:var(--muted);font-size:10.5px;text-transform:uppercase">Rows</div><b>842,110</b></div>
+          <div><div style="color:var(--muted);font-size:10.5px;text-transform:uppercase">Pincodes</div><b>4,210</b></div>
+          <div><div style="color:var(--muted);font-size:10.5px;text-transform:uppercase">SKUs</div><b>186</b></div>
+          <div><div style="color:var(--muted);font-size:10.5px;text-transform:uppercase">Date range</div><b>36 months</b></div>
+        </div>
+      </div>
+
+      <h2 class="sec">File columns</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Column</th><th>Required</th><th>Meaning</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>ship_day</td><td>Yes</td><td>Date of the shipment</td><td>Any standard date format; stored as ISO</td></tr>
+          <tr><td>SKU</td><td>Yes</td><td>Product identifier</td><td>Text; must exist in the SKU master</td></tr>
+          <tr><td>postal_code</td><td>Yes</td><td>Destination pincode</td><td>Text; matches the country pattern</td></tr>
+          <tr><td>shipped_units</td><td>Yes</td><td>Units shipped that day for that SKU and pincode</td><td>Positive number</td></tr>
+          <tr><td>Site Code</td><td>No</td><td>Site the units shipped from</td><td>Text; used for the inventory view by site</td></tr>
+          <tr><td>Channel</td><td>No</td><td>Retail, e-commerce, wholesale</td><td>Text; a forecast dimension when present</td></tr>
+          <tr><td>avg_our_price</td><td>No</td><td>Average selling price per unit</td><td>Number in the country currency</td></tr>
+          <tr><td>avg_discount_amt</td><td>No</td><td>Average discount per unit, as an amount</td><td>Zero or more; 0 when no discount</td></tr>
+          <tr><td>scheme_id</td><td>No (new)</td><td>The scheme that gave the discount</td><td>Text, one ID per row; links to Discount Schemes</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">Discount amount and scheme ID</h2>
+      <ul style="padding-left:18px;font-size:13px;color:var(--text);line-height:1.9">
+        <li>A row with a discount and a scheme_id is the normal case.</li>
+        <li>A row with a discount and no scheme_id counts as <i>discount without scheme</i>. The Review step warns, and the Discount Schemes tab offers a bulk assign.</li>
+        <li>A row with a scheme_id and no discount is a warning, because some schemes, such as free units, may not show as an amount.</li>
+        <li>On upload the system lists the distinct scheme IDs and adds every ID not yet known to the Discount Schemes tab as <i>Detected from sales</i>, with status <i>Needs details</i>.</li>
+        <li>One scheme_id per row. If two schemes apply to one row, the user records the main one or defines a combined scheme ID (open question — see Reference).</li>
+      </ul>
+
+      <h2 class="sec">Optional uploads (under Advanced)</h2>
+      <ul style="padding-left:18px;font-size:13px;color:var(--text);line-height:1.9">
+        <li><b>Serviceable-area mapping</b> (channel, distributor, pincode): now optional and processed in the background so it never blocks the next step.</li>
+        <li><b>Future Price</b> (planned price and discount per SKU x pincode x date): kept for existing users, with an optional scheme_id column. New planned discounts are created in the Discount Schemes tab, which replaces this file.</li>
+      </ul>
+
+      <ul class="donewhen"><div class="dw-title">Done when</div>
+        <li>A file with the template columns uploads, maps and passes the checks without the user editing names.</li>
+        <li>Every distinct scheme_id appears in the Discount Schemes tab after upload.</li>
+        <li>Rows with a discount but no scheme_id are counted and visible.</li>
+        <li>A file with fewer than 12 months of dates is blocked with a plain message.</li>
+      </ul>
+    </template>
+
+    <template id="ob-tpl-spend">
+      <p class="dsubtle">The current template marks marketing spend as required. The step stays required, but a user with no campaign data can confirm that and continue, so nobody is blocked.</p>
+      <h2 class="sec">What the user sees</h2>
+      <div class="dcard">
+        <div style="display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap">
+          <button class="btn btn-pri">Upload spend file</button>
+          <button class="btn btn-ghost">I have no marketing spend</button>
+        </div>
+        <div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:14px">
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px;font-size:12.5px;margin-bottom:10px">
+            <div><div style="color:var(--muted);font-size:10.5px;text-transform:uppercase">Campaigns</div><b>38</b></div>
+            <div><div style="color:var(--muted);font-size:10.5px;text-transform:uppercase">Past / planned</div><b>31 / 7</b></div>
+            <div><div style="color:var(--muted);font-size:10.5px;text-transform:uppercase">Detail level</div><b>Pincode + SKU</b></div>
+          </div>
+          <span class="pill ok">Spend by channel: Meta 62% · Google 31% · Other 7%</span>
+        </div>
+      </div>
+
+      <h2 class="sec">File columns</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Column</th><th>Required</th><th>Meaning</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Campaign_id</td><td>Yes</td><td>Unique ID of a campaign</td><td>Text</td></tr>
+          <tr><td>Campaign start date</td><td>Yes</td><td>When the campaign ran or will run</td><td>Date; a future date means planned</td></tr>
+          <tr><td>Campaign end date</td><td>Yes</td><td>When it ended or will end</td><td>Date on or after the start; a value, not a formula (the template example uses =B2+30)</td></tr>
+          <tr><td>SKU</td><td>Yes</td><td>The SKU the spend belongs to</td><td>Must exist in the SKU master</td></tr>
+          <tr><td>Spend</td><td>Yes</td><td>Total money spent on the campaign for that row</td><td>Zero or more; currency from the country</td></tr>
+          <tr><td>postal_code</td><td>Recommended</td><td>Pincode of the spend</td><td>Matches the country pattern</td></tr>
+          <tr><td>City, State</td><td>Optional</td><td>Used when the pincode is blank</td><td>Text</td></tr>
+          <tr><td>Channel</td><td>Recommended</td><td>Online, retail and so on</td><td>Text</td></tr>
+          <tr><td>platform, campaign_type</td><td>Optional (new)</td><td>The ad platform and the type of campaign</td><td>Text; needed later for response modelling</td></tr>
+          <tr><td>impressions, clicks, orders</td><td>Optional (new)</td><td>Campaign results</td><td>Numbers</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">Level of detail</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Finest level found</th><th>What the model can use</th></tr></thead>
+        <tbody>
+          <tr><td>Pincode and SKU</td><td>Spend response by pincode and SKU</td></tr>
+          <tr><td>City or state</td><td>Spend allocated down to pincodes by their sales share</td></tr>
+          <tr><td>No geography</td><td>One national response per SKU</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="doc-note">When there's no spend data: the forecast trains without spend features, and ad response later starts from category benchmarks with an exploration budget. The Review step states this in one line. Uploading spend later takes effect on the next training run.</div>
+
+      <ul class="donewhen"><div class="dw-title">Done when</div>
+        <li>A user can upload the template file, or confirm no spend, and continue either way.</li>
+        <li>Past and planned rows are told apart by the last sales date.</li>
+        <li>The detected level of detail is shown in plain words.</li>
+        <li>Formulas in date cells are rejected with a message asking for values.</li>
+      </ul>
+    </template>
+
+    <template id="ob-tpl-sku">
+      <p class="dsubtle">The SKU master is required. The system pre-fills the SKU list from the sales file, so the user only completes the attributes, and the step also confirms newly launched SKUs.</p>
+      <h2 class="sec">What the user sees</h2>
+      <div class="dcard">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:10px;font-size:12.5px;margin-bottom:16px">
+          <div><div style="color:var(--muted);font-size:10.5px;text-transform:uppercase">SKUs in sales</div><b>186</b></div>
+          <div><div style="color:var(--muted);font-size:10.5px;text-transform:uppercase">SKUs in master</div><b>181</b></div>
+          <div><div style="color:var(--muted);font-size:10.5px;text-transform:uppercase">Matched</div><b>178</b></div>
+          <div><div style="color:var(--muted);font-size:10.5px;text-transform:uppercase">Missing either side</div><b style="color:#ffcf5c">8</b></div>
+        </div>
+        <div style="background:var(--signal-soft);border:1px solid rgba(200,242,78,.3);border-radius:10px;padding:12px 14px;margin-bottom:14px">
+          <b style="color:var(--signal);font-size:13px">Newly launched SKUs</b>
+          <div class="table-wrap" style="margin-top:8px"><table class="dtable" style="font-size:12.5px">
+            <thead><tr><th>SKU</th><th>First sale</th><th>Launch date</th><th></th></tr></thead>
+            <tbody>
+              <tr><td>A-312</td><td>18 Oct 2026</td><td><input type="text" value="18 Oct 2026" style="background:var(--ink);border:1px solid var(--line-2);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--text);width:120px"></td><td><button class="dbtn" style="padding:4px 10px;font-size:11.5px">Confirm</button></td></tr>
+              <tr><td>B-407</td><td>02 Nov 2026</td><td><input type="text" value="02 Nov 2026" style="background:var(--ink);border:1px solid var(--line-2);border-radius:6px;padding:4px 8px;font-size:12px;color:var(--text);width:120px"></td><td><button class="dbtn" style="padding:4px 10px;font-size:11.5px">Confirm</button></td></tr>
+            </tbody>
+          </table></div>
+        </div>
+      </div>
+
+      <h2 class="sec">File columns</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Column</th><th>Required</th><th>Meaning</th><th>Use</th></tr></thead>
+        <tbody>
+          <tr><td>SKU</td><td>Yes</td><td>Product identifier</td><td>Join key; identical to the sales file</td></tr>
+          <tr><td>Category</td><td>Yes</td><td>Internal product group</td><td>Pools SKUs with little history</td></tr>
+          <tr><td>Sub category</td><td>Recommended</td><td>Finer product group</td><td>Pooling and substitution</td></tr>
+          <tr><td>unit_cost</td><td>Recommended (new)</td><td>Cost per unit</td><td>Contribution margin for scheme and ad ranking</td></tr>
+          <tr><td>list_price</td><td>Recommended (new)</td><td>List price per unit</td><td>Discount depth</td></tr>
+          <tr><td>launch_date, status</td><td>Recommended (new)</td><td>Launch date; active or discontinued</td><td>New and discontinued SKUs</td></tr>
+          <tr><td>length, breadth, height, dimension_unit</td><td>Recommended (new)</td><td>Pack dimensions as sold</td><td>Storage/shipping volume; space in the inventory view</td></tr>
+          <tr><td>barcode</td><td>Optional (new)</td><td>Standard product code</td><td>Matching to the Shopify catalog and retailer catalogs</td></tr>
+          <tr><td>Any other column</td><td>Optional (new)</td><td>Kept as a custom attribute (text, number or yes/no)</td><td>Similarity between SKUs; used only when it helps</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">Checks</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Check</th><th>Level</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Sales SKUs missing from the master</td><td><span class="pill risk">Blocking above 5% of units</span></td><td>Below that, warn and list them</td></tr>
+          <tr><td>Master SKUs with no sales</td><td><span class="pill warn">Warning</span></td><td>List them</td></tr>
+          <tr><td>Duplicate SKU rows</td><td><span class="pill warn">Warning</span></td><td>Keep the last row and say so</td></tr>
+          <tr><td>Case or spacing differences</td><td><span class="pill ok">Handled</span></td><td>Trim and match without case</td></tr>
+        </tbody>
+      </table></div>
+
+      <ul class="donewhen"><div class="dw-title">Done when</div>
+        <li>The pre-filled template opens with every SKU from the sales file.</li>
+        <li>Missing SKUs are listed in both directions.</li>
+        <li>Flagged new SKUs can be confirmed or corrected in the page.</li>
+        <li>A missing unit_cost does not block; the Review step says that ranking will use revenue instead of profit.</li>
+      </ul>
+    </template>
+
+    <template id="ob-tpl-inbound">
+      <p class="dsubtle">Inbound receipts record the stock that arrives at each node (warehouse, dark store or distribution site). Together with sales, they let the Inventory tab project stock and work out how much is needed to meet the forecast. Rows in the past are receipts; rows in the future are expected receipts from open orders.</p>
+      <h2 class="sec">What the user sees</h2>
+      <div class="dcard">
+        <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <button class="dbtn">Download template</button>
+          <input type="file" class="file-input" accept=".csv,.xlsx">
+        </div>
+        <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
+          <button class="btn btn-pri">Upload receipts</button>
+          <button class="btn btn-ghost">I have no inbound data</button>
+        </div>
+        <div class="table-wrap"><table class="dtable" style="font-size:12.5px">
+          <thead><tr><th>Site Code</th><th>Site Name</th><th>In sales file?</th></tr></thead>
+          <tbody>
+            <tr><td>MUM-01</td><td>Mumbai DC</td><td><span class="pill ok">Matched</span></td></tr>
+            <tr><td>BLR-02</td><td>Bangalore Hub</td><td><span class="pill ok">Matched</span></td></tr>
+            <tr><td>DEL-03</td><td>Delhi NCR</td><td><span class="pill warn">Not in sales file</span></td></tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <h2 class="sec">File columns</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Column</th><th>Required</th><th>Meaning</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>receipt_day</td><td>Yes</td><td>Date the stock was received at the site</td><td>Any standard date format; stored as ISO</td></tr>
+          <tr><td>Site Name</td><td>Yes</td><td>Name of the node</td><td>Text; one name for each Site Code</td></tr>
+          <tr><td>Site Code</td><td>Yes</td><td>Code of the node</td><td>Text; the same codes as Site Code in the sales file</td></tr>
+          <tr><td>inbound_qty</td><td>Yes</td><td>Units received</td><td>Positive number; zero rows are ignored</td></tr>
+          <tr><td>SKU</td><td>Yes</td><td>SKU code</td><td>Must exist in the SKU master</td></tr>
+          <tr><td>order_day</td><td>Optional (new)</td><td>Date the order was placed</td><td>Lets the system measure lead time as receipt_day minus order_day</td></tr>
+          <tr><td>reference</td><td>Optional (new)</td><td>Order or shipment reference</td><td>Text; used to avoid counting the same receipt twice</td></tr>
+        </tbody>
+      </table></div>
+
+      <div class="doc-note">Opening stock (optional): snapshot_day, Site Code, SKU, on_hand_qty — needed for projected stock and shortfall. Without it the Inventory tab shows required stock by date only.</div>
+
+      <h2 class="sec">Checks</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Check</th><th>Level</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td>Unreadable dates</td><td><span class="pill risk">Blocking above 2%</span></td><td>Below that, drop the rows and warn</td></tr>
+          <tr><td>Negative or non-numeric quantity</td><td><span class="pill risk">Blocking above 2%</span></td><td>Below that, drop and warn</td></tr>
+          <tr><td>SKU missing from the SKU master</td><td><span class="pill risk">Blocking above 5% of units</span></td><td>Below that, warn and list them</td></tr>
+          <tr><td>Site Code not in the sales file, or the reverse</td><td><span class="pill warn">Warning</span></td><td>List the codes</td></tr>
+          <tr><td>Receipts much smaller than shipments at a site</td><td><span class="pill warn">Warning</span></td><td>Stock may come from another source</td></tr>
+        </tbody>
+      </table></div>
+
+      <ul class="donewhen"><div class="dw-title">Done when</div>
+        <li>A file with the five template columns uploads, maps and passes the checks.</li>
+        <li>Site Code values match the sales file, and any difference is listed.</li>
+        <li>Rows dated after the last sales date are treated as expected receipts.</li>
+        <li>The user can choose "I have no inbound data" and continue.</li>
+        <li>Opening stock can be uploaded or sent through the API.</li>
+      </ul>
+    </template>
+
+    <template id="ob-tpl-weather">
+      <p class="dsubtle">Weather and festivals are generated by the system at pincode level, one row per pincode per day. The user reviews them and uploads a file only to override.</p>
+      <h2 class="sec">What the user sees</h2>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+        <div class="dcard">
+          <div class="ch"><h4>Weather</h4><a href="#" style="font-size:.8rem;color:var(--signal)" onclick="return false">Override →</a></div>
+          <span class="pill ok">Generated for 4,210 pincodes, 99% of days covered</span>
+          <p class="dsubtle" style="margin:12px 0 0;font-size:12px">Coverage by state, and a chart of temperature and rainfall for a picked pincode. Source: NOAA grid cell, cached per cell.</p>
+        </div>
+        <div class="dcard">
+          <div class="ch"><h4>Festivals</h4><a href="#" style="font-size:.8rem;color:var(--signal)" onclick="return false">Override →</a></div>
+          <span class="pill warn">1 festival has no date in the forecast horizon</span>
+          <p class="dsubtle" style="margin:12px 0 0;font-size:12px">Festival list grouped by state with pincode counts. Remove, edit, add or bulk-upload.</p>
+        </div>
+      </div>
+
+      <h2 class="sec">Weather at pincode x day</h2>
+      <p style="font-size:13px;color:var(--text)">Columns: postal_code, ship_day, temp_mean, temp_max, temp_min, precip_mm. Map each pincode to a weather grid cell or nearest station, fetch once per cell, and share the result across all pincodes in that cell — cost and time scale with the number of cells, not pincodes. An override file's rows win over generated rows. Warn when a pincode has weather for less than 95% of days.</p>
+
+      <h2 class="sec">Festivals at pincode x day</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Calendar field</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>name</td><td>Festival or event</td></tr>
+          <tr><td>type</td><td>National holiday, regional festival, retail or platform sale event</td></tr>
+          <tr><td>start_date, end_date</td><td>One row per year, because lunar-calendar dates move every year</td></tr>
+          <tr><td>scope</td><td>Country, state, district or a pincode list</td></tr>
+          <tr><td>lead_days, lag_days</td><td>Window before and after; defaults set by type</td></tr>
+        </tbody>
+      </table></div>
+
+      <ul class="donewhen"><div class="dw-title">Done when</div>
+        <li>Every valid pincode has weather and festival rows without the user uploading anything.</li>
+        <li>Each panel shows its coverage, its source and a sample the user can inspect.</li>
+        <li>A festival with no date in the horizon raises a warning with the festival named.</li>
+        <li>An override upload replaces the generated rows for the pincodes and days it covers.</li>
+        <li>Weather costs scale with the number of grid cells, not pincodes.</li>
+      </ul>
+    </template>
+
+    <template id="ob-tpl-review">
+      <p class="dsubtle">Review shows the readiness of every dataset and blocks training only for errors that would give a wrong model. Training then runs in the background.</p>
+      <h2 class="sec">What the user sees</h2>
+      <div class="dcard">
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin-bottom:16px">
+          <div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:12px;margin-bottom:6px">Country</div><span class="pill ok">Ready</span>
+          </div>
+          <div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:12px;margin-bottom:6px">Sales data</div><span class="pill ok">Ready</span>
+          </div>
+          <div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:12px;margin-bottom:6px">Marketing spend</div><span class="pill warn">Skipped</span>
+          </div>
+          <div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:12px;margin-bottom:6px">SKU master</div><span class="pill warn">Usable w/ warnings</span>
+          </div>
+          <div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px;text-align:center">
+            <div style="font-size:12px;margin-bottom:6px">Weather & festivals</div><span class="pill ok">Ready</span>
+          </div>
+        </div>
+        <div class="doc-note">Will use: sales for 36 months across 4,210 pincodes, SKU master, pincode weather and festivals; no marketing spend, so benchmarks will be used.</div>
+        <button class="btn btn-pri" style="margin-top:14px">Train</button>
+      </div>
+
+      <h2 class="sec">Inputs and granularity used by training</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Dataset</th><th>Grain used</th><th>Joined on</th><th>Used by</th></tr></thead>
+        <tbody>
+          <tr><td>Sales</td><td>SKU x pincode x day</td><td>Base table</td><td>Forecast</td></tr>
+          <tr><td>Schemes</td><td>scheme_id, with scope lines</td><td>Sales rows; SKU, pincode, date</td><td>Forecast</td></tr>
+          <tr><td>Marketing spend</td><td>Campaign x SKU x pincode, spread over days</td><td>SKU, pincode, day</td><td>Forecast</td></tr>
+          <tr><td>SKU master</td><td>SKU</td><td>SKU</td><td>Forecast, Inventory</td></tr>
+          <tr><td>Weather</td><td>Pincode x day</td><td>Pincode, day</td><td>Forecast</td></tr>
+          <tr><td>Festivals</td><td>Pincode x day</td><td>Pincode, day</td><td>Forecast</td></tr>
+          <tr><td>Inbound receipts</td><td>Site x SKU x day</td><td>Site Code, SKU</td><td>Inventory, not the forecast</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">Blocking errors and warnings</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Blocking</th><th>Warning</th></tr></thead>
+        <tbody>
+          <tr><td>A required column is missing</td><td>Gaps longer than 14 days in the series</td></tr>
+          <tr><td>Less than 12 months of dates in the sales file</td><td>Outliers (flagged, not removed)</td></tr>
+          <tr><td>Too many unreadable dates, wrong pincodes or invalid units</td><td>Missing unit_cost in the SKU master</td></tr>
+          <tr><td>Too many sales SKUs missing from the SKU master</td><td>No marketing spend</td></tr>
+          <tr><td>Too many unmatched pincodes</td><td>Discount without a scheme ID</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">Training</h2>
+      <div class="flowd">
+        <div class="flowd-box">Queued</div><div class="flowd-arrow">→</div>
+        <div class="flowd-box">Preparing data</div><div class="flowd-arrow">→</div>
+        <div class="flowd-box signal">Training</div><div class="flowd-arrow">→</div>
+        <div class="flowd-box">Validating</div><div class="flowd-arrow">→</div>
+        <div class="flowd-box mint">Done</div>
+      </div>
+      <ul style="padding-left:18px;font-size:13px;color:var(--text);line-height:1.9">
+        <li><b>Done:</b> show the headline backtest accuracy and a button to Scenarios, where an admin approves the forecast.</li>
+        <li><b>Failed:</b> show the cause in plain words, the step to fix, and a Retry button. Keep all uploaded data.</li>
+      </ul>
+
+      <ul class="donewhen"><div class="dw-title">Done when</div>
+        <li>Training cannot start while a blocking error exists, and the button says why.</li>
+        <li>Every card links to the step that needs fixing.</li>
+        <li>Skipping marketing spend shows as a choice, not as an error.</li>
+        <li>The user can close the page during training and is notified when it ends.</li>
+        <li>A failed run names the cause and keeps the uploaded data.</li>
+      </ul>
+    </template>
+
+    <!-- 2. Discount Schemes -->
+    <div class="dbody" id="panel-schemes" style="display:none">
+      <h1 class="dgreet">Discount <span class="hl">Schemes</span></h1>
+      <div class="mock-banner">Static review mockup — transcribed from the product team's spec. Nothing on this page is wired to real data.</div>
+      <p class="dsubtle">A new sidebar tab. Users create schemes here, and any scheme ID found in an uploaded sales file appears here automatically. Both routes feed one registry — a scheme starts as a draft and becomes part of every later forecast run only when the user commits it.</p>
+
+      <h2 class="sec">Scheme registry</h2>
+      <div class="dcard">
+        <div class="ch">
+          <div style="display:flex;gap:8px;flex-wrap:wrap">
+            <button class="btn btn-pri">+ Create scheme</button>
+            <div class="theme-pill"><button class="active">All status</button><button>Draft</button><button>Committed</button></div>
+            <div class="theme-pill"><button class="active">All sources</button><button>Created</button><button>Detected</button></div>
+          </div>
+          <input type="text" placeholder="Search ID or name…" style="background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:7px 12px;font-size:12.5px;color:var(--text)">
+        </div>
+        <div style="background:rgba(255,207,92,.1);border:1px solid rgba(255,207,92,.3);border-radius:10px;padding:10px 14px;margin-bottom:14px;font-size:13px;color:#ffcf5c">⚠ 4 schemes need details</div>
+        <div class="table-wrap"><table class="dtable">
+          <thead><tr><th>Scheme ID</th><th>Name</th><th>Mechanic</th><th>Dates</th><th>Source</th><th>Status</th><th>Effectiveness</th></tr></thead>
+          <tbody>
+            <tr><td class="mono">DEC10</td><td>December discount</td><td>Percent off</td><td>01–15 Dec</td><td>Created here</td><td><span class="pill ok">Committed · Planned</span></td><td>—</td></tr>
+            <tr><td class="mono">DIWALI24</td><td>Diwali bundle</td><td>Buy 2 get 1</td><td>28 Oct–03 Nov</td><td>Created here</td><td><span class="pill ok">Committed · Past</span></td><td>+12% lift</td></tr>
+            <tr><td class="mono">SCH-7731</td><td>—</td><td>—</td><td>14–22 Sep (seen in sales)</td><td>Detected from sales</td><td><span class="pill warn">Draft · Needs details</span></td><td>—</td></tr>
+            <tr><td class="mono">SCH-7742</td><td>—</td><td>—</td><td>01–10 Oct (seen in sales)</td><td>Detected from sales</td><td><span class="pill warn">Draft · Needs details</span></td><td>—</td></tr>
+          </tbody>
+        </table></div>
+      </div>
+
+      <h2 class="sec">Scheme registry columns</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Column</th><th>Filled by</th><th>Notes</th></tr></thead>
+        <tbody>
+          <tr><td>scheme_id</td><td>User, or the sales upload</td><td>Unique key</td></tr>
+          <tr><td>Mechanic</td><td>User</td><td>Buy x get y free, percent off, flat amount off, bundle, free gift, cashback, tiered</td></tr>
+          <tr><td>Start date, end date</td><td>User</td><td>For a detected scheme, the first and last sale date seen are offered as suggestions</td></tr>
+          <tr><td>Scope</td><td>User</td><td>SKUs, pincodes or states, channels; for a detected scheme, those seen in sales</td></tr>
+          <tr><td>Source</td><td>System</td><td>Created here, or Detected from sales</td></tr>
+          <tr><td>Observed units, average discount, pincodes, SKUs</td><td>System</td><td>Computed from the sales file; read-only</td></tr>
+          <tr><td>Effectiveness</td><td>System</td><td>Blank until a model is trained; later filled by the scheme ranking</td></tr>
+        </tbody>
+      </table></div>
+      <div class="doc-note">The observed effective discount is avg_discount_amt divided by avg_our_price from the sales file. For buy-and-get schemes the defined effective discount is free quantity divided by buy plus free quantity.</div>
+
+      <h2 class="sec">Create page and commit</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Mockup — "Scheme create page: one code, several scope lines, then commit"</p>
+      <div class="dcard">
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+          <div class="field" style="margin-bottom:0"><label>Scheme code</label><input type="text" value="DEC10" style="width:100%;background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:9px;color:var(--text)"></div>
+          <div class="field" style="margin-bottom:0"><label>Name</label><input type="text" value="December discount" style="width:100%;background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:9px;color:var(--text)"></div>
+          <div class="field" style="margin-bottom:0"><label>Mechanic</label><input type="text" value="Percent off" style="width:100%;background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:9px;color:var(--text)"></div>
+          <div class="field" style="margin-bottom:0"><label>Funded by / Stackable</label><input type="text" value="Brand / No" style="width:100%;background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:9px;color:var(--text)"></div>
+        </div>
+
+        <div class="lbl" style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Scope lines</div>
+        <div class="scope-line-row">
+          <div><div class="lbl">Pincodes</div>400001 to 400010</div>
+          <div><div class="lbl">SKUs</div>A-101, A-102</div>
+          <div><div class="lbl">Dates</div>01 to 15 Dec</div>
+          <div><div class="lbl">Discount</div>10% off</div>
+        </div>
+        <div class="scope-line-row">
+          <div><div class="lbl">Pincodes</div>560001 to 560020</div>
+          <div><div class="lbl">SKUs</div>Category: Snacks</div>
+          <div><div class="lbl">Dates</div>05 to 20 Dec</div>
+          <div><div class="lbl">Discount</div>15% off</div>
+        </div>
+        <button class="btn btn-ghost" style="margin-bottom:16px">+ Add scope line</button>
+
+        <div style="background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 14px;margin-bottom:16px;font-size:13px">
+          <b style="display:block;margin-bottom:6px">Preview before saving</b>
+          30 pincodes, 5 SKUs. Overlap with other schemes: <span class="pill ok">none</span>. Stock check: <span class="pill warn">amber for A-102 in 560001</span>.
+        </div>
+
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-ghost">Save draft</button>
+          <button class="btn btn-pri">Commit</button>
+        </div>
+      </div>
+      <div class="doc-note"><b>Draft:</b> editable, and ignored by forecasts. <b>Commit:</b> locked, and used by every later forecast run. To change a committed scheme, withdraw it and create a new version.</div>
+
+      <h2 class="sec">How the two routes meet</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Diagram — "Created and detected schemes land in one registry"</p>
+      <div class="dcard">
+        <div class="flowd">
+          <div class="flowd-box"><b>User creates a scheme</b>Any time, before or after a sales upload</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box signal"><b>Registry row: Created here</b>Planned or Draft, by its dates</div>
+        </div>
+        <div class="flowd" style="margin-top:4px">
+          <div class="flowd-box"><b>Sales file uploaded</b>scheme_id and discount amount per row</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box"><b>Match each ID to the registry</b>Ignoring case and spaces</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box mint"><b>Known ID</b>Link, refresh numbers — or <b>New ID</b>: Detected row, Draft</div>
+        </div>
+        <div class="flowd" style="margin-top:4px">
+          <div class="flowd-box signal"><b>Scheme registry</b>One row per scheme_id, status Draft/Planned/Active/Past/Archived</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box"><b>Feeds the system</b>Forecast features, planned future prices, later the scheme ranking</div>
+        </div>
+      </div>
+
+      <h2 class="sec">Status</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Status</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill warn">Draft</span></td><td>Created or detected, not committed, or required fields are missing. Editable, and ignored by forecasts</td></tr>
+          <tr><td><span class="pill ok">Committed</span></td><td>Locked and used by every later forecast run. Shown as Planned, Active or Past</td></tr>
+          <tr><td><span class="pill risk">Withdrawn</span></td><td>Was committed, and no longer counts in new runs. History is kept</td></tr>
+          <tr><td>Historical</td><td>Detected from sales and its details completed. Used for training, not for planning</td></tr>
+          <tr><td>Archived</td><td>Hidden by the user; kept for history</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">Commit actions</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Action</th><th>Effect</th></tr></thead>
+        <tbody>
+          <tr><td>Save draft</td><td>The scheme stays editable. Every forecast run ignores it</td></tr>
+          <tr><td>Commit</td><td>The scheme is locked. Every later forecast run treats it as a known price and discount for its scope and dates, and a background re-run starts</td></tr>
+          <tr><td>Withdraw</td><td>A committed scheme stops counting in new runs. Its history is kept, and a copy can become a new version</td></tr>
+        </tbody>
+      </table></div>
+
+      <ul class="donewhen"><div class="dw-title">Done when</div>
+        <li>A user can create a scheme before or after uploading sales data.</li>
+        <li>A scheme can have several scope lines, each with its own pincodes, SKUs, dates and discount.</li>
+        <li>A draft never changes a forecast; committing a scheme starts a re-run that includes it.</li>
+        <li>A committed scheme cannot be edited; withdrawing it keeps its history and allows a new version.</li>
+        <li>Every distinct scheme_id in a sales upload appears in the tab without any manual step.</li>
+        <li>A created scheme and a detected scheme with the same ID become one row.</li>
+        <li>The user can see which sales rows have a discount but no scheme, and assign them in bulk.</li>
+        <li>A re-upload never erases what the user entered.</li>
+      </ul>
+    </div>
+
+    <!-- 3. Marketing Campaigns -->
+    <div class="dbody" id="panel-campaigns" style="display:none">
+      <h1 class="dgreet">Marketing <span class="hl">Campaigns</span></h1>
+      <div class="mock-banner">Static review mockup — transcribed from the product team's spec. Nothing on this page is wired to real data.</div>
+      <p class="dsubtle">Amplify already creates campaigns on Meta and Google. This tab keeps what exists and adds what the forecast needs: a SKU and pincode scope, a commit step, and spend that flows back into the data.</p>
+
+      <h2 class="sec">Gaps and changes</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Today</th><th>Gap</th><th>Change</th></tr></thead>
+        <tbody>
+          <tr><td>Daily budget is entered in dollars</td><td>Wrong for other countries</td><td>Currency comes from the country chosen in Onboarding</td></tr>
+          <tr><td>Fields are name, platform, objective, budget and duration</td><td>No SKU, pincode or start date, so the forecast cannot use the campaign</td><td>Add a campaign code, scope lines and start and end dates</td></tr>
+          <tr><td>One flow creates and launches</td><td>No way to plan spend before launching, or keep a draft out of the forecast</td><td>Separate Draft, Commit and Launch</td></tr>
+          <tr><td>Performance stays inside Amplify</td><td>Spend and results never reach the forecast data</td><td>Daily spend and results flow into the marketing spend dataset</td></tr>
+          <tr><td>Amplify has its own Getting started, which connects Shopify</td><td>A second getting-started page next to Onboarding is confusing</td><td>Rename it Connections; forecast setup stays in Onboarding</td></tr>
+          <tr><td>Products come from Shopify or a manual list</td><td>Not tied to the SKU master</td><td>Map each product to a SKU master row</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">Create page</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Mockup — "Campaign create form: what Amplify has, and what is added"</p>
+      <div class="dcard">
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-bottom:16px">
+          <div class="field" style="margin-bottom:0"><label>Campaign name</label><input type="text" value="Diwali pincode push" style="width:100%;background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:9px;color:var(--text)"></div>
+          <div class="field" style="margin-bottom:0"><label>Campaign code <span class="pill ok" style="font-size:9px">New</span></label><input type="text" value="CMP-DIWALI-01" style="width:100%;background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:9px;color:var(--text)"></div>
+          <div class="field" style="margin-bottom:0"><label>Platform</label>
+            <div class="theme-pill"><button class="active">Meta</button><button>Google</button></div>
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:16px">
+          <div class="field" style="margin-bottom:0"><label>Objective</label><input type="text" value="Conversions" style="width:100%;background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:9px;color:var(--text)"></div>
+          <div class="field" style="margin-bottom:0"><label>Daily budget (₹) <span class="pill warn" style="font-size:9px">Changed</span></label><input type="text" value="5,000" style="width:100%;background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:9px;color:var(--text)"></div>
+          <div class="field" style="margin-bottom:0"><label>Start date</label><input type="text" value="01 Dec 2026" style="width:100%;background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:9px;color:var(--text)"></div>
+          <div class="field" style="margin-bottom:0"><label>End date</label><input type="text" value="15 Dec 2026" style="width:100%;background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:9px;color:var(--text)"></div>
+        </div>
+        <div class="lbl" style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--muted);margin-bottom:8px">Scope lines <span class="pill ok" style="font-size:9px">New</span></div>
+        <div class="scope-line-row">
+          <div><div class="lbl">SKUs</div>A-101, A-102</div>
+          <div><div class="lbl">Pincodes</div>400001 to 400010</div>
+          <div><div class="lbl">Dates</div>01–15 Dec 2026</div>
+          <div><div class="lbl">Spend share</div>By sales share</div>
+        </div>
+        <button class="btn btn-ghost" style="margin-bottom:16px">+ Add scope line</button>
+        <div style="display:flex;gap:10px">
+          <button class="btn btn-ghost">Save draft</button>
+          <button class="btn btn-ghost" style="border-color:var(--signal);color:var(--signal)">Commit</button>
+          <button class="btn btn-pri">Commit and launch</button>
+        </div>
+      </div>
+
+      <h2 class="sec">Commit and launch states</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>State</th><th>Meaning</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill warn">Draft</span></td><td>Editable; ignored by the forecast</td></tr>
+          <tr><td><span class="pill ok">Committed</span></td><td>Locked; the planned spend counts in every forecast run; the stock check has run</td></tr>
+          <tr><td><span class="pill ok">Launched</span></td><td>The campaign exists on Meta or Google through the API; its status follows the platform</td></tr>
+          <tr><td>Completed</td><td>Ended; actual spend and results recorded</td></tr>
+          <tr><td><span class="pill risk">Withdrawn</span></td><td>A committed campaign that was never launched is withdrawn; history is kept</td></tr>
+        </tbody>
+      </table></div>
+      <div class="doc-note">Save draft, Commit, and Commit and launch are separate buttons, so planning and going live can be done together or apart. Commit runs the inventory view — if baseline demand plus expected uplift exceeds available stock, the page warns; the user can commit anyway or accept a suggested budget cap.</div>
+
+      <h2 class="sec">Spend flows back</h2>
+      <div class="flowd">
+        <div class="flowd-box"><b>Performance (Amplify)</b>Daily spend, impressions, clicks, conversions</div>
+        <div class="flowd-arrow">→</div>
+        <div class="flowd-box signal"><b>Marketing spend dataset</b>Under the campaign code, split over SKUs/pincodes by plan shares</div>
+        <div class="flowd-arrow">→</div>
+        <div class="flowd-box mint"><b>Next forecast run</b>Learns from the actuals</div>
+      </div>
+
+      <h2 class="sec">Lyra</h2>
+      <p style="font-size:13px;color:var(--text)">Lyra can draft a campaign from a sentence, for example <i>"a Meta campaign for SKU B in Mumbai at 5,000 a day for two weeks."</i> It creates a draft and shows a card with Commit and Commit and launch buttons. It never commits or launches on its own.</p>
+
+      <ul class="donewhen"><div class="dw-title">Done when</div>
+        <li>A campaign can be created with a code, one or more scope lines and dates.</li>
+        <li>Draft, Commit and Launch are separate, and a draft does not appear in any forecast.</li>
+        <li>A committed campaign changes the next forecast run for its SKUs and pincodes.</li>
+        <li>The stock warning appears at commit.</li>
+        <li>Daily spend from Performance appears in the marketing spend dataset under the campaign code.</li>
+        <li>Budgets show in the country currency.</li>
+      </ul>
+    </div>
+
+    <!-- 4. Scenarios -->
+    <div class="dbody" id="panel-scenarios" style="display:none">
+      <h1 class="dgreet"><span class="hl">Scenarios</span></h1>
+      <div class="mock-banner">Static review mockup — transcribed from the product team's spec. Nothing on this page is wired to real data.</div>
+      <p class="dsubtle">The what-if page. A scenario starts as a copy of the committed plan, the user changes levers, the model re-predicts, and the result is compared with the base run. Nothing in a scenario edits a committed scheme or campaign.</p>
+
+      <h2 class="sec">How a scenario works</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Diagram — "A scenario changes a copy of the plan, never the plan itself"</p>
+      <div class="dcard">
+        <div class="flowd">
+          <div class="flowd-box signal"><b>Committed plan</b>Schemes, campaigns, data</div>
+          <div class="flowd-col"><div class="flowd-label">copy</div><div class="flowd-arrow">→</div></div>
+          <div class="flowd-box"><b>Scenario</b>A copy, with the plan left as committed — levers: schemes, spend, holidays, caps, price/weather</div>
+        </div>
+        <div class="flowd" style="margin-top:4px">
+          <div class="flowd-box signal"><b>Committed plan</b></div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box"><b>Base run</b>Forecast on committed inputs</div>
+        </div>
+        <div class="flowd" style="margin-top:4px">
+          <div class="flowd-box"><b>Scenario</b></div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box"><b>Run on the copy</b>The model re-predicts with the changed levers</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box mint"><b>Compare vs base</b>Revenue, Units, Capped units, Stock needed</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box signal"><b>Apply to plan</b>Creates drafts to review and commit; nothing is committed automatically</div>
+        </div>
+      </div>
+
+      <h2 class="sec">Page layout</h2>
+      <div class="dcard">
+        <div class="ch">
+          <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+            <input type="text" value="Diwali spend +5%, holiday off in 560001" style="background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:7px 12px;font-size:12.5px;color:var(--text);width:280px">
+            <span class="pill ok">vs Base run</span>
+          </div>
+          <div style="display:flex;gap:8px"><button class="btn btn-ghost">Save</button><button class="btn btn-pri">Run</button><button class="btn btn-ghost">Apply to plan</button></div>
+        </div>
+        <div style="display:grid;grid-template-columns:220px 1fr;gap:18px">
+          <div>
+            <div class="lbl" style="font-family:var(--mono);font-size:10px;text-transform:uppercase;color:var(--muted);margin-bottom:10px">Levers</div>
+            <div style="font-size:12.5px;line-height:2.2">
+              <div>▸ Discount schemes <span style="color:var(--muted)">(0)</span></div>
+              <div style="color:var(--signal)">▸ Marketing spend <span class="pill ok" style="font-size:9px">+5%</span></div>
+              <div style="color:var(--signal)">▸ Holiday impact <span class="pill ok" style="font-size:9px">560001 off</span></div>
+              <div>▸ Hard cap <span style="color:var(--muted)">(0)</span></div>
+              <div>▸ Price and weather <span style="color:var(--muted)">(0)</span></div>
+              <div>▸ Stock limit <span style="color:var(--muted);font-style:italic">(later)</span></div>
+            </div>
+          </div>
+          <div>
+            <div class="kpis" style="grid-template-columns:repeat(4,1fr);margin-bottom:16px">
+              <div class="kpi" style="padding:14px"><div class="t">Revenue</div><div class="v" style="font-size:1.3rem">+6.2%</div><div class="d up">vs base run</div></div>
+              <div class="kpi" style="padding:14px"><div class="t">Units</div><div class="v" style="font-size:1.3rem">+5.8%</div><div class="d up">vs base run</div></div>
+              <div class="kpi" style="padding:14px"><div class="t">Capped units</div><div class="v" style="font-size:1.3rem">0</div><div class="d">lost to cap</div></div>
+              <div class="kpi" style="padding:14px"><div class="t">Stock needed</div><div class="v" style="font-size:1.3rem">+3.1%</div><div class="d up">vs base run</div></div>
+            </div>
+            <div class="table-wrap"><table class="dtable" style="font-size:12.5px">
+              <thead><tr><th>SKU</th><th>Pincode</th><th>Base</th><th>Scenario</th><th>Change</th></tr></thead>
+              <tbody>
+                <tr><td>A-101</td><td>400001</td><td>1,240</td><td>1,340</td><td style="color:var(--signal)">+8.1%</td></tr>
+                <tr><td>B-204</td><td>560001</td><td>860</td><td style="background:rgba(200,242,78,.08)">950</td><td style="color:var(--signal)">+10.5% <span style="color:var(--muted);font-size:10px">(holiday off)</span></td></tr>
+              </tbody>
+            </table></div>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="sec">Levers</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Lever</th><th>What the user can do</th><th>Applies at</th></tr></thead>
+        <tbody>
+          <tr><td>Discount schemes</td><td>Change the depth, dates or scope of a scheme; add or remove a scheme for this scenario only</td><td>SKU, pincode, date</td></tr>
+          <tr><td>Marketing spend</td><td>Add 5% more spend, overwrite an amount, shift dates, pause a campaign</td><td>Campaign, SKU, pincode</td></tr>
+          <tr><td>Holiday and festival impact</td><td>Switch a holiday or festival on or off</td><td>One pincode, a state, or all</td></tr>
+          <tr><td>Hard cap</td><td>Set a maximum forecast, in units or revenue</td><td>A pincode, optionally SKU x pincode</td></tr>
+          <tr><td>Price and weather</td><td>Override a planned price; turn the weather signal on or off</td><td>SKU, pincode, date</td></tr>
+          <tr><td>Stock limit (later)</td><td>Cap the forecast by available stock</td><td>SKU, pincode</td></tr>
+        </tbody>
+      </table></div>
+      <div class="doc-note">A cap is a constraint on the output, not an input to the model — units removed are never lost silently, they're reported as capped units. A hard cap can stay inside one scenario, or be saved as a standing cap applying to every later run (including the base run) until removed.</div>
+
+      <ul class="donewhen"><div class="dw-title">Done when</div>
+        <li>A scenario can be created, run, saved and compared with the base run.</li>
+        <li>Each lever can be set and shows in the comparison.</li>
+        <li>A hard cap reports the capped units.</li>
+        <li>A hard cap can stay inside one scenario, or be saved as a standing cap that applies to every later run until removed.</li>
+        <li>A holiday can be switched off for one pincode without affecting others.</li>
+        <li>Committed schemes and campaigns are unchanged after any scenario.</li>
+        <li>A scenario goes Stale when the plan changes.</li>
+      </ul>
+    </div>
+
+    <!-- 5. Output -->
+    <div class="dbody" id="panel-output" style="display:none">
+      <h1 class="dgreet"><span class="hl">Output</span></h1>
+      <div class="mock-banner">Static review mockup — transcribed from the product team's spec. Nothing on this page is wired to real data.</div>
+      <p class="dsubtle">The existing page where users review SKU and pincode forecasts for different periods. This adds one thing: a previous-year comparison for every metric the page shows.</p>
+
+      <h2 class="sec">What is added</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Mockup — "Output page: forecast beside last year, for every metric"</p>
+      <div class="dcard">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+          <span class="pill ok">Run: Committed plan</span>
+          <span class="pill ok">Period: Dec, weekly</span>
+          <span class="pill ok">SKU: all</span>
+          <span class="pill ok">Pincode: all</span>
+          <span class="pill ok">Compare: last year</span>
+        </div>
+
+        <div class="ch"><h4>Forecast vs last year, weekly</h4></div>
+        <svg viewBox="0 0 440 150" style="width:100%;height:150px;margin-bottom:18px">
+          <polyline points="10,110 65,95 120,88 175,70 230,60 285,48 340,38 395,30" fill="none" stroke="#C8F24E" stroke-width="2.5"/>
+          <polyline points="10,120 65,112 120,104 175,96 230,90 285,82 340,76 395,70" fill="none" stroke="#8694A6" stroke-width="2" stroke-dasharray="6,5"/>
+          <text x="10" y="138" fill="#8694A6" font-size="10">W1</text><text x="385" y="138" fill="#8694A6" font-size="10">W8</text>
+        </svg>
+        <div style="display:flex;gap:16px;font-size:11.5px;color:var(--muted);margin-bottom:18px;margin-top:-10px">
+          <span><svg width="14" height="3"><rect width="14" height="3" fill="#C8F24E"/></svg> Forecast</span>
+          <span><svg width="14" height="3"><rect width="14" height="3" fill="#8694A6"/></svg> Last year (dashed)</span>
+        </div>
+
+        <div class="kpis" style="grid-template-columns:repeat(3,1fr)">
+          <div class="kpi" style="padding:16px"><div class="t">Units</div><div class="v" style="font-size:1.5rem">+14%</div><div class="d up">1.20M forecast, 1.05M last year</div></div>
+          <div class="kpi" style="padding:16px"><div class="t">Revenue</div><div class="v" style="font-size:1.5rem">+14%</div><div class="d up">₹36.0M forecast, ₹31.5M last year</div></div>
+          <div class="kpi" style="padding:16px"><div class="t">Discount per unit</div><div class="v" style="font-size:1.5rem">−23%</div><div class="d down">₹2.4 forecast, ₹3.1 last year</div></div>
+        </div>
+
+        <div class="table-wrap" style="margin-top:18px"><table class="dtable">
+          <thead><tr><th>SKU</th><th>Pincode</th><th>Units</th><th>Units LY</th><th>Change</th><th>Revenue</th><th>Revenue LY</th><th>Change</th></tr></thead>
+          <tbody>
+            <tr><td>A-101</td><td>400001</td><td>1,240</td><td>1,080</td><td style="color:var(--signal)">+14.8%</td><td>₹3.10M</td><td>₹2.70M</td><td style="color:var(--signal)">+14.8%</td></tr>
+            <tr><td>B-204</td><td>560001</td><td>860</td><td>915</td><td style="color:#ff8585">−6.0%</td><td>₹2.15M</td><td>₹2.29M</td><td style="color:#ff8585">−6.1%</td></tr>
+            <tr><td>C-310</td><td>110001</td><td>540</td><td style="color:var(--muted)">no last year</td><td style="color:var(--muted)">new</td><td>₹1.35M</td><td style="color:var(--muted)">no last year</td><td style="color:var(--muted)">new</td></tr>
+          </tbody>
+        </table></div>
+        <p style="font-size:11px;color:var(--muted);margin-top:8px">Example values. Every metric shown gets its own last-year and change columns. A new SKU or pincode shows "no last year", never zero.</p>
+      </div>
+
+      <h2 class="sec">Metrics and where each comes from</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Metric</th><th>Forecast from</th><th>Last year from</th></tr></thead>
+        <tbody>
+          <tr><td>Units</td><td>The model, as the committed plan or the selected scenario</td><td>Units in the sales file</td></tr>
+          <tr><td>Revenue</td><td>Forecast units x forecast price</td><td>Net revenue in the sales file</td></tr>
+          <tr><td>Average price</td><td>Revenue divided by units</td><td>The same, from last year</td></tr>
+          <tr><td>Discount per unit and total discount</td><td>Committed schemes and the model</td><td>avg_discount_amt in the sales file</td></tr>
+          <tr><td>Share of units sold on a scheme</td><td>Committed schemes</td><td>Rows with a scheme_id</td></tr>
+          <tr><td>Marketing spend</td><td>Committed campaigns</td><td>The marketing spend dataset</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">How last year is matched</h2>
+      <ul style="padding-left:18px;font-size:13px;color:var(--text);line-height:1.9">
+        <li>Default: the same period shifted back 364 days, so weekdays line up. Two other options: the same calendar dates, and festival-aligned.</li>
+        <li>The comparison is at the same grain as the forecast, SKU x pincode x week, and sums up to category, state and total.</li>
+        <li>Last year is always actuals, never an earlier forecast.</li>
+        <li>A new SKU or pincode, or a week with no sales last year, shows "no last year," never zero. Totals state their coverage, e.g. "based on 92% of forecast units."</li>
+      </ul>
+
+      <ul class="donewhen"><div class="dw-title">Done when</div>
+        <li>Every metric on the page has last-year and change columns.</li>
+        <li>The comparison works for the committed plan and for any saved scenario.</li>
+        <li>New SKUs and pincodes show no last year, not zero, and totals state their coverage.</li>
+        <li>The 364-day default, same-date and festival-aligned options all work.</li>
+        <li>The export includes the last-year columns.</li>
+      </ul>
+    </div>
+
+    <!-- 6. Inventory -->
+    <div class="dbody" id="panel-inventory" style="display:none">
+      <h1 class="dgreet"><span class="hl">Inventory</span></h1>
+      <div class="mock-banner">Static review mockup — transcribed from the product team's spec. Nothing on this page is wired to real data.</div>
+      <p class="dsubtle">Answers one question: how much stock is needed, at the points in time the user chooses, to meet the forecast, and where will stock fall short. Reads the committed plan or any saved scenario.</p>
+
+      <h2 class="sec">How it works</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Diagram — "Inventory: forecast, stock and receipts in; required stock by date out"</p>
+      <div class="dcard">
+        <div class="flowd">
+          <div class="flowd-col">
+            <div class="flowd-box"><b>Forecast run</b>Plan or saved scenario; P50/P75/P90</div>
+            <div class="flowd-box"><b>Stock on hand</b>Opening snapshot per site and SKU</div>
+            <div class="flowd-box"><b>Inbound receipts</b>Receipts and expected receipts by day</div>
+            <div class="flowd-box"><b>Lead times</b>Learned from receipts, or SKU master</div>
+            <div class="flowd-box"><b>Site mapping</b>Which site serves which pincode</div>
+          </div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-box signal"><b>Inventory engine</b>Demand per site/day; projected stock over time; required stock at chosen dates; shortfall and order-by; roll-up to region/country</div>
+          <div class="flowd-arrow">→</div>
+          <div class="flowd-col">
+            <div class="flowd-box mint"><b>Required stock</b>At each date the user picks</div>
+            <div class="flowd-box mint"><b>Shortfall and order-by</b>By site and SKU</div>
+            <div class="flowd-box mint"><b>Alerts and export</b>Stockout risk dates; supply file</div>
+          </div>
+        </div>
+      </div>
+
+      <h2 class="sec">Page layout</h2>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:10px">Mockup — "Inventory page: stock needed at the points in time the user picks"</p>
+      <div class="dcard">
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:18px">
+          <span class="pill ok">Run: Committed plan</span>
+          <span class="pill ok">Points: 7 Dec, 14 Dec, 21 Dec</span>
+          <span class="pill ok">Level: site</span>
+          <span class="pill ok">Service level: P75</span>
+        </div>
+        <div class="ch"><h4>Projected vs required stock — A-101 at MUM-01</h4></div>
+        <svg viewBox="0 0 440 150" style="width:100%;height:150px;margin-bottom:10px">
+          <polygon points="10,40 60,55 130,95 200,118 395,135 395,150 10,150" fill="rgba(255,133,133,.12)"/>
+          <polyline points="10,40 60,55 130,95 200,118 395,135" fill="none" stroke="#54E6C4" stroke-width="2.5"/>
+          <polyline points="10,30 60,48 130,70 200,85 395,100" fill="none" stroke="#8694A6" stroke-width="2" stroke-dasharray="6,5"/>
+          <circle cx="130" cy="70" r="3.5" fill="#C8F24E"/><circle cx="200" cy="85" r="3.5" fill="#C8F24E"/><circle cx="330" cy="93" r="3.5" fill="#C8F24E"/>
+          <text x="120" y="20" fill="#8694A6" font-size="9">Dec 7</text><text x="190" y="20" fill="#8694A6" font-size="9">Dec 14</text><text x="315" y="20" fill="#8694A6" font-size="9">Dec 21</text>
+        </svg>
+        <div style="display:flex;gap:16px;font-size:11.5px;color:var(--muted);margin-bottom:18px">
+          <span><svg width="14" height="3"><rect width="14" height="3" fill="#54E6C4"/></svg> Projected</span>
+          <span><svg width="14" height="3"><rect width="14" height="3" fill="#8694A6"/></svg> Required (dashed)</span>
+          <span><svg width="10" height="10"><rect width="10" height="10" fill="rgba(255,133,133,.3)"/></svg> Shortfall (shaded)</span>
+        </div>
+        <div class="table-wrap"><table class="dtable">
+          <thead><tr><th>Point</th><th>Site</th><th>SKU</th><th>Required</th><th>Projected</th><th>Shortfall</th><th>Cover days</th><th>Order by</th><th>Status</th></tr></thead>
+          <tbody>
+            <tr><td>Dec 7</td><td>MUM-01</td><td>A-101</td><td>1,420</td><td>1,380</td><td>40</td><td>6.8</td><td>Dec 3</td><td><span class="pill warn">Amber</span></td></tr>
+            <tr><td>Dec 14</td><td>MUM-01</td><td>A-101</td><td>1,860</td><td>1,340</td><td>520</td><td>4.6</td><td>Dec 7</td><td><span class="pill risk">Red</span></td></tr>
+            <tr><td>Dec 21</td><td>MUM-01</td><td>A-101</td><td>2,100</td><td>1,020</td><td>1,080</td><td>3.3</td><td>Dec 14</td><td><span class="pill risk">Red</span></td></tr>
+          </tbody>
+        </table></div>
+        <p style="font-size:11px;color:var(--muted);margin-top:8px">Example values. Required stock covers forecast demand over the lead time at the chosen service level. Order by = the point in time minus the lead time.</p>
+      </div>
+
+      <h2 class="sec">Status rule</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Status</th><th>Rule</th></tr></thead>
+        <tbody>
+          <tr><td><span class="pill ok">Green</span></td><td>Projected stock is at or above the required stock</td></tr>
+          <tr><td><span class="pill warn">Amber</span></td><td>Projected stock covers P50 demand over the cover window but is below the required stock</td></tr>
+          <tr><td><span class="pill risk">Red</span></td><td>Projected stock is below P50 demand over the cover window</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">Levels</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Fulfilment model</th><th>Check stock at</th><th>Reason</th></tr></thead>
+        <tbody>
+          <tr><td>Quick commerce or hyperlocal</td><td>Site and pincode</td><td>Stock is local and stockouts are immediate</td></tr>
+          <tr><td>Marketplace with regional warehouses</td><td>Region</td><td>Pincodes share regional stock</td></tr>
+          <tr><td>Centralised national fulfilment</td><td>Country</td><td>One pool serves all pincodes</td></tr>
+        </tbody>
+      </table></div>
+
+      <ul class="donewhen"><div class="dw-title">Done when</div>
+        <li>The user can pick one or several points in time, or a repeating pattern, and see required stock for each.</li>
+        <li>The user can choose site, region or country, and P50, P75 or P90.</li>
+        <li>Projected stock uses opening stock, receipts and expected receipts, and the page names any missing input.</li>
+        <li>Each shortfall shows an order-by date based on the lead time.</li>
+        <li>The page works for the committed plan and for a saved scenario.</li>
+        <li>The required stock can be exported for the supply team.</li>
+      </ul>
+    </div>
+
+    <!-- 7. Lyra -->
+    <div class="dbody" id="panel-lyra" style="display:none">
+      <h1 class="dgreet"><span class="hl">Lyra</span></h1>
+      <div class="mock-banner">Static review mockup — transcribed from the product team's spec. Nothing on this page is wired to real data.</div>
+      <p class="dsubtle">Lyra already explains forecasts. This adds creation by chat for schemes, campaigns and scenarios, and says how the explanation should use the last-year comparison and scenarios. Chat panel on every page.</p>
+
+      <h2 class="sec">What Lyra can do</h2>
+      <div class="dcard" style="max-width:640px">
+        <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+          <div style="background:var(--signal-soft);border:1px solid rgba(200,242,78,.3);border-radius:14px 14px 2px 14px;padding:10px 14px;font-size:13px;max-width:80%">10% off SKU A, pincodes 400001 to 400010, 1 to 15 Dec, code DEC10</div>
+        </div>
+        <div style="display:flex;margin-bottom:18px">
+          <div style="background:var(--panel);border:1px solid var(--line-2);border-radius:14px 14px 14px 2px;padding:12px 14px;font-size:13px;max-width:85%">
+            <div style="color:var(--mint);font-weight:600;margin-bottom:6px">Lyra</div>
+            Drafted scheme <span class="mono" style="color:var(--signal)">DEC10</span> — 10% off, SKU A, pincodes 400001–400010, 1–15 Dec.
+            <div style="margin-top:8px;display:flex;gap:8px"><button class="dbtn" style="padding:5px 11px;font-size:12px">Open in page</button><button class="dbtn" style="padding:5px 11px;font-size:12px;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Commit</button></div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+          <div style="background:var(--signal-soft);border:1px solid rgba(200,242,78,.3);border-radius:14px 14px 2px 14px;padding:10px 14px;font-size:13px;max-width:80%">+5% spend on campaign C, and turn Diwali off for pincode 560001</div>
+        </div>
+        <div style="display:flex;margin-bottom:18px">
+          <div style="background:var(--panel);border:1px solid var(--line-2);border-radius:14px 14px 14px 2px;padding:12px 14px;font-size:13px;max-width:85%">
+            <div style="color:var(--mint);font-weight:600;margin-bottom:6px">Lyra</div>
+            Ran it. Revenue <span style="color:var(--signal)">+6.2%</span>, units <span style="color:var(--signal)">+5.8%</span> vs the base run, 0 capped units.
+            <div style="margin-top:8px"><button class="dbtn" style="padding:5px 11px;font-size:12px">Apply to plan</button></div>
+          </div>
+        </div>
+
+        <div style="display:flex;justify-content:flex-end;margin-bottom:6px">
+          <div style="background:var(--signal-soft);border:1px solid rgba(200,242,78,.3);border-radius:14px 14px 2px 14px;padding:10px 14px;font-size:13px;max-width:80%">why is SKU A high in 400001 in November compared with last year?</div>
+        </div>
+        <div style="display:flex">
+          <div style="background:var(--panel);border:1px solid var(--line-2);border-radius:14px 14px 14px 2px;padding:12px 14px;font-size:13px;max-width:85%">
+            <div style="color:var(--mint);font-weight:600;margin-bottom:6px">Lyra</div>
+            SKU A in 400001 is forecast <b style="color:var(--signal)">+18%</b> vs last November. Top drivers: scheme <span class="mono">DEC10</span> is committed for these dates and adds about 180 units; Diwali falls in this week, while last year it fell three weeks later.
+            <div style="font-size:11px;color:var(--muted);margin-top:8px">These are model attributions, not proof of cause.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="table-wrap" style="margin-top:20px"><table class="dtable">
+        <thead><tr><th>Ask</th><th>Lyra does</th><th>The user must</th></tr></thead>
+        <tbody>
+          <tr><td>Create a scheme</td><td>Fills a scheme draft from the sentence and shows it as a card</td><td>Press Commit in the page</td></tr>
+          <tr><td>Create a campaign</td><td>Fills a campaign draft and shows it as a card</td><td>Press Commit, or Commit and launch</td></tr>
+          <tr><td>Try a change</td><td>Creates a scenario, runs it and returns the comparison</td><td>Nothing; Apply to plan is a button</td></tr>
+          <tr><td>Explain a forecast</td><td>Names the drivers of a high or low forecast, in plain words</td><td>Nothing</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">Tools Lyra needs</h2>
+      <div class="table-wrap"><table class="dtable">
+        <thead><tr><th>Tool</th><th>Purpose</th></tr></thead>
+        <tbody>
+          <tr><td>list_schemes, create_scheme_draft</td><td>Read schemes; create a draft</td></tr>
+          <tr><td>list_campaigns, create_campaign_draft</td><td>Read campaigns; create a draft</td></tr>
+          <tr><td>create_scenario, run_scenario</td><td>Build overrides; run on a copy</td></tr>
+          <tr><td>get_forecast</td><td>By SKU, pincode and period, with a comparison to last year, the base run or a scenario</td></tr>
+          <tr><td>explain_forecast</td><td>Feature contributions grouped into drivers, for a run, SKU, pincode and period</td></tr>
+          <tr><td>get_inventory_status</td><td>Stock and open orders, for warnings</td></tr>
+        </tbody>
+      </table></div>
+
+      <h2 class="sec">Guardrails</h2>
+      <div class="dcard">
+        <ul style="padding-left:18px;font-size:13px;color:var(--text);line-height:1.9">
+          <li>Drafts and scenarios only. Commit, launch and withdraw need a click by the user.</li>
+          <li>Permissions follow the user's role: a viewer cannot create.</li>
+          <li>Show what was defaulted or assumed.</li>
+          <li>Forecast numbers come from the tools, never from the model's memory.</li>
+          <li>Ask when a SKU, pincode or date is ambiguous.</li>
+          <li>Keep an audit log of what was asked and what Lyra created.</li>
+        </ul>
+      </div>
+
+      <ul class="donewhen"><div class="dw-title">Done when</div>
+        <li>A scheme draft can be created from a sentence, and commit still needs a click.</li>
+        <li>A campaign draft can be created the same way.</li>
+        <li>A scenario can be created and run from a sentence, with the comparison returned.</li>
+        <li>An explanation lists drivers with direction and size, compares with last year, and states caveats.</li>
+        <li>Every created item shows Lyra as its creator.</li>
+      </ul>
+    </div>
+
+  </div>
+</div>
+
+<script>
+(function(){
+  var panels = {
+    'Onboarding':           document.getElementById('panel-onboarding'),
+    'Discount Schemes':     document.getElementById('panel-schemes'),
+    'Marketing Campaigns':  document.getElementById('panel-campaigns'),
+    'Scenarios':            document.getElementById('panel-scenarios'),
+    'Output':               document.getElementById('panel-output'),
+    'Inventory':            document.getElementById('panel-inventory'),
+    'Lyra':                 document.getElementById('panel-lyra'),
+  };
+  var navItems = document.querySelectorAll('.dnav li');
+  navItems.forEach(function(li){
+    li.addEventListener('click', function(){
+      var name = li.title;
+      try { localStorage.setItem('apra_mockup_panel', name); } catch(e) {}
+      navItems.forEach(function(x){ x.classList.remove('active'); });
+      li.classList.add('active');
+      Object.keys(panels).forEach(function(k){
+        if (panels[k]) panels[k].style.display = (k === name) ? '' : 'none';
+      });
+    });
+  });
+  document.addEventListener('DOMContentLoaded', function(){
+    var saved;
+    try { saved = localStorage.getItem('apra_mockup_panel'); } catch(e) {}
+    if (!saved || saved === 'Onboarding') return;
+    var target = Array.prototype.filter.call(navItems, function(li){ return li.title === saved; })[0];
+    if (target) target.click();
+  });
+
+  // Onboarding sub-step chips
+  var OB_STEPS = [
+    { key: 'country',   label: '1. Country',             dot: 'dot-done' },
+    { key: 'sales',     label: '2. Sales data',          dot: 'dot-done' },
+    { key: 'spend',     label: '3. Marketing spend',     dot: 'dot-skipped' },
+    { key: 'sku',       label: '4. SKU master',          dot: 'dot-amber' },
+    { key: 'inbound',   label: '5. Inbound receipts',    dot: 'dot-empty' },
+    { key: 'weather',   label: '6. Weather & festivals', dot: 'dot-empty' },
+    { key: 'review',    label: '7. Review & train',      dot: 'dot-empty' },
+  ];
+  var obChips = document.getElementById('obChips');
+  var obContent = document.getElementById('obContent');
+  OB_STEPS.forEach(function(step, i){
+    var chip = document.createElement('div');
+    chip.className = 'ob-chip' + (i === 0 ? ' active' : '');
+    chip.innerHTML = '<span class="dot ' + step.dot + '"></span>' + step.label;
+    chip.addEventListener('click', function(){
+      obChips.querySelectorAll('.ob-chip').forEach(function(c){ c.classList.remove('active'); });
+      chip.classList.add('active');
+      renderObStep(step.key);
+    });
+    obChips.appendChild(chip);
+  });
+
+  function renderObStep(key){
+    var tpl = document.getElementById('ob-tpl-' + key);
+    obContent.innerHTML = tpl ? tpl.innerHTML : '<p class="dsubtle">Not written yet.</p>';
+  }
+  renderObStep('country');
+})();
+</script>
+
+</body>
+</html>
