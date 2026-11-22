@@ -248,3 +248,13 @@
 #dashboard .kb-chat-form input{height:40px;box-sizing:border-box}
 #dashboard .kb-chat-form .dbtn{height:40px}
 
+/* ============================================================
+   Support
+============================================================ */
+/* Segmented status filter in the dashboard's sans style (shared). */
+#dashboard .dcard .ch .seg button{font-family:var(--body);font-size:12px;font-weight:600;letter-spacing:0;text-transform:none}
+#dashboard #supportFaqSelect{height:40px;box-sizing:border-box;padding:0 12px!important}
+#dashboard #supportFaqAnswer{line-height:1.6;color:var(--text)}
+/* Empty ticket list as a proper empty state. */
+#dashboard #supportEmpty{padding:34px 20px;margin:16px 0 4px!important;border:1px solid var(--line);border-radius:12px;
+  background:rgba(255,255,255,.015)}
