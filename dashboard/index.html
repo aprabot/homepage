@@ -222,16 +222,7 @@
   .ov-opp-empty p{margin:0;font-size:13px}
   .ov-opp-empty p.sub{margin-top:6px;font-size:12px;color:var(--muted-2)}
 
-  /* Inventory Requirement — ported from redesign-mockup/dashboard/index.html's
-     locked-horizon badge + KPI-tab + filter-bar + sortable-table pattern, onto
-     the real per-SKU required-inventory number (js/inventory.js's aggregated
-     bySku[...].byZip[...].total for the latest month) — see invReq* in
-     js/inventory.js for what's real vs. always "—" here. Site / Present /
-     In-Transit / Open POs / Delta / Inbound Frequency / Status have no real
-     data source anywhere in this app and are never computed, only rendered as
-     "—". The mockup's Site / Inbound Frequency / Stock Status filters are
-     dropped entirely (same treatment as the dead Overview controls above,
-     see ovEmpty) since there's nothing real to filter by. */
+  /* Inventory Requirement and the optional sample preview. */
   .inv-locked-badge{display:flex;align-items:center;gap:9px;color:var(--muted);margin:18px 0 20px}
   .inv-locked-badge svg{color:var(--muted-2)}
   .inv-locked-badge .inv-lockpill{font-family:var(--body);font-size:11px;font-weight:500;color:var(--muted-2);
@@ -289,6 +280,10 @@
   #inventoryReqTable tbody tr:nth-child(even){background:rgba(255,255,255,.012)}
   #inventoryReqTable tbody td{border-bottom-color:rgba(255,255,255,.05)}
   .inv-dim{opacity:.3}
+  .inv-sample-toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 10px}
+  .inv-sample-toolbar .dbtn{background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)}
+  #invSampleNotice[hidden]{display:none}
+  .inv-sample-cell{color:var(--muted)}
   #inventoryReqTfoot tr{background:rgba(255,255,255,.025);border-top:1px solid var(--line-2)}
   #inventoryReqTfoot td{font-weight:600;font-size:14px;color:var(--text)}
   #inventoryReqTfoot td.inv-foot-muted{font-weight:400;color:var(--muted)}
@@ -1084,7 +1079,7 @@
          Bedrock-generated AI Insights content). -->
     <div class="dbody" id="inventoryPanel" style="display:none">
       <h1 class="dgreet">Inventory</h1>
-      <p class="dsubtle">Required inventory per SKU — cycle stock + safety stock, from the real daily shipment history behind the current approved forecast. One row per SKU; fields with no real data source (present stock, in-transit, open POs, etc.) are always shown as "—", never fabricated.</p>
+      <p class="dsubtle">Required inventory per SKU combines cycle stock and safety stock from shipment history.</p>
 
       <div id="invLoading" style="margin-top:18px">
         <span class="skel-line wide"></span>
@@ -1094,13 +1089,10 @@
       <p class="dsubtle" id="invError" style="margin:20px 0 4px;display:none"></p>
 
       <div id="invContent" style="display:none;margin-top:18px">
-        <!-- Inventory Requirement — the only inventory view now. Only
-             "Required" (the SKU's summed real total[] across pincodes for
-             the latest month) is real data here; Site, Present, In-Transit,
-             Open POs, Delta, Inbound Frequency and Status have no real data
-             source anywhere in this app and always render "—" — never
-             computed as if the missing inputs were zero. See
-             js/inventory.js's invReqRender() and friends. -->
+        <div class="inv-sample-toolbar">
+          <button type="button" class="dbtn" id="invSampleToggle" aria-pressed="false" aria-controls="inventoryReqTable">Preview sample data</button>
+          <span id="invSampleNotice" class="pill warn" role="status" hidden>Sample inventory · Required uses forecast data</span>
+        </div>
         <div class="inv-locked-badge">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span style="font-size:12px">Required inventory — <b style="color:var(--text)" id="invReqMonthLabel">—</b></span>
@@ -1108,7 +1100,7 @@
         </div>
 
         <div class="inv-kpi-grid">
-          <button type="button" class="inv-kpi-tab" data-kpi-tab="present" disabled title="No data available yet — there is no present/on-hand inventory feed in this app">
+          <button type="button" class="inv-kpi-tab" data-kpi-tab="present" onclick="window.invReqPickKpiTab(this)" disabled title="No data available yet — there is no present/on-hand inventory feed in this app">
             <div class="inv-kpi-top">
               <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Total Inventory Units</span>
               <span class="inv-kpi-hint">No data</span>
@@ -1124,7 +1116,7 @@
             <div class="inv-kpi-val-row"><span class="inv-kpi-val" id="kpi-required-total">—</span><span class="inv-kpi-sub">Cycle + safety stock</span></div>
             <div class="inv-kpi-foot"><span>Required this month</span><span id="kpi-required-sub">—</span></div>
           </button>
-          <button type="button" class="inv-kpi-tab" data-kpi-tab="intransit" disabled title="No data available yet — there is no inbound-shipment tracking in this app">
+          <button type="button" class="inv-kpi-tab" data-kpi-tab="intransit" onclick="window.invReqPickKpiTab(this)" disabled title="No data available yet — there is no inbound-shipment tracking in this app">
             <div class="inv-kpi-top">
               <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 16V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1m8-1a1 1 0 0 1-1 1H9m4-1V8a1 1 0 0 1 1-1h2.586a1 1 0 0 1 .707.293l3.414 3.414a1 1 0 0 1 .293.707V16a1 1 0 0 1-1 1h-1m-6-1a1 1 0 0 0 1 1h1M5 17a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0m6 0a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0"/></svg></span>In-Transit Inventory</span>
               <span class="inv-kpi-hint">No data</span>
@@ -1132,7 +1124,7 @@
             <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub">—</span></div>
             <div class="inv-kpi-foot"><span>En-route to destination sites</span><span>—</span></div>
           </button>
-          <button type="button" class="inv-kpi-tab" data-kpi-tab="openpo" disabled title="No data available yet — there is no purchase-order data in this app">
+          <button type="button" class="inv-kpi-tab" data-kpi-tab="openpo" onclick="window.invReqPickKpiTab(this)" disabled title="No data available yet — there is no purchase-order data in this app">
             <div class="inv-kpi-top">
               <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Open PO Units</span>
               <span class="inv-kpi-hint">No data</span>
@@ -1151,7 +1143,7 @@
               <span id="invReqCounter" style="font-size:12px;font-weight:600;color:var(--text)">—</span>
               <span class="inv-active-pill" id="invActiveTabPill" style="display:none"><span id="invActiveTabText"></span><button type="button" id="invClearTabBtn" aria-label="Clear">×</button></span>
             </div>
-            <div class="inv-note">Required = this month's real cycle + safety stock. Site / Present / In-Transit / Open POs / Delta / Inbound Frequency / Status: no real data yet.</div>
+            <div class="inv-note" id="invSampleTableNote">Required uses this month’s cycle stock and safety stock. Other inventory fields are unavailable.</div>
           </div>
           <div class="table-wrap">
             <table class="dtable" id="inventoryReqTable">
@@ -1162,8 +1154,8 @@
                   <th>Present inventory</th>
                   <th class="amp-sortable" data-sort-key="required">Required <span class="ov-sort-ic">⇅</span></th>
                   <th>In-transit</th>
-                  <th>Open POs</th>
-                  <th title="Delta can't be computed — Present, In-Transit and Open POs have no real data, and treating them as zero would show a fake shortfall">Delta</th>
+                  <th>Open PO units</th>
+                  <th>Delta</th>
                   <th>Inbound frequency</th>
                   <th>Status</th>
                 </tr>
@@ -1173,11 +1165,11 @@
                 <tr>
                   <td>Total / net summary</td>
                   <td id="inv-foot-count" class="inv-foot-muted">—</td>
-                  <td>—</td>
+                  <td id="inv-foot-present">—</td>
                   <td id="inv-foot-required">—</td>
-                  <td>—</td>
-                  <td>—</td>
-                  <td>—</td>
+                  <td id="inv-foot-intransit">—</td>
+                  <td id="inv-foot-openpo">—</td>
+                  <td id="inv-foot-delta">—</td>
                   <td>—</td>
                   <td>—</td>
                 </tr>

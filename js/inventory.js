@@ -411,18 +411,27 @@
       });
   };
 
-  // Inventory Requirement — ported from redesign-mockup/dashboard/index.html's
-  // locked-horizon badge / KPI-tab / filter-bar / sortable-table pattern, onto
-  // the real per-SKU required-inventory number. One row per real SKU (not per
-  // SKU x pincode — see the file-level comment on why): "required" is the
-  // genuine sum of that SKU's total[] across every pincode, at the latest
-  // available month. Every other mockup column (site, present, in-transit,
-  // open POs, delta, inbound frequency, status) has no real data source
-  // anywhere in this app, so those always render "—" — never 0, never
-  // derived from treating the missing inputs as zero.
-  var invReqRows = null;       // [{sku, required}], latest month, built once per data load
+  // Latest monthly requirement plus an optional client-side sample preview.
+  var invReqRows = null;
   var invReqMonthIdx = null;
+  var invSampleEnabled = false;
   var invReqState = { sku: 'ALL', search: '', activeKpiTab: null, sortKey: 'sku', sortDir: 'asc' };
+  var inventoryKpis = {present: 'Present inventory', required: 'Recommended Inventory',
+                       intransit: 'In-transit inventory', openpo: 'Open PO units'};
+
+  function sampleInventory(required) {
+    var scale = Math.max(12, required);
+    var quantity = function (low, high) { return Math.round(scale * (low + Math.random() * (high - low))); };
+    var present = quantity(0.25, 1.05);
+    var intransit = quantity(0.02, 0.35);
+    var openpo = quantity(0.08, 0.45);
+    return {
+      site: 'Sample site ' + (1 + Math.floor(Math.random() * 3)),
+      present: present, intransit: intransit, openpo: openpo,
+      delta: present + intransit + openpo - required,
+      frequency: 'Every ' + (3 + Math.floor(Math.random() * 12)) + ' days',
+    };
+  }
 
   function invFmt(n) {
     return (n == null || isNaN(n)) ? '—' : Math.round(n).toLocaleString();
@@ -451,13 +460,27 @@
   }
 
   function invReqUpdateKpiTabUI() {
-    var tab = document.querySelector('.inv-kpi-tab[data-kpi-tab="required"]');
-    if (tab) tab.classList.toggle('active', invReqState.activeKpiTab === 'required');
+    var toggle = document.getElementById('invSampleToggle');
+    toggle.setAttribute('aria-pressed', String(invSampleEnabled));
+    toggle.textContent = invSampleEnabled ? 'Hide sample data' : 'Preview sample data';
+    document.getElementById('invSampleNotice').hidden = !invSampleEnabled;
+    document.getElementById('invSampleTableNote').textContent = invSampleEnabled
+      ? 'Site, on-hand, in-transit, PO units, and inbound frequency are samples. Delta compares sample supply with Required.'
+      : 'Required uses this month’s cycle stock and safety stock. Other inventory fields are unavailable.';
+
+    document.querySelectorAll('.inv-kpi-tab').forEach(function (tab) {
+      var key = tab.dataset.kpiTab;
+      tab.classList.toggle('active', invReqState.activeKpiTab === key);
+      if (key === 'required') return;
+      tab.disabled = !invSampleEnabled;
+      tab.title = invSampleEnabled ? 'Sort by sample ' + inventoryKpis[key] : 'Data unavailable';
+      tab.querySelector('.inv-kpi-hint').textContent = invSampleEnabled ? 'Sample' : 'No data';
+    });
     var pill = document.getElementById('invActiveTabPill');
-    if (!pill) return;
-    if (invReqState.activeKpiTab === 'required') {
+    if (invReqState.activeKpiTab) {
       document.getElementById('invActiveTabText').textContent =
-        'Sorted by Recommended Inventory (' + (invReqState.sortDir === 'desc' ? 'High → Low' : 'Low → High') + ')';
+        'Sorted by ' + inventoryKpis[invReqState.activeKpiTab] +
+        ' (' + (invReqState.sortDir === 'desc' ? 'High → Low' : 'Low → High') + ')';
       pill.style.display = 'inline-flex';
     } else {
       pill.style.display = 'none';
@@ -466,7 +489,11 @@
 
   function invReqRender() {
     if (!invReqRows) return;
-    var filtered = invReqRows.filter(function (row) {
+    var rows = invSampleEnabled ? invReqRows.map(function (row) {
+      if (!row.sample) row.sample = sampleInventory(row.required);
+      return Object.assign({}, row, row.sample);
+    }) : invReqRows;
+    var filtered = rows.filter(function (row) {
       if (invReqState.sku !== 'ALL' && row.sku !== invReqState.sku) return false;
       if (invReqState.search.trim() !== '') {
         var q = invReqState.search.trim().toLowerCase();
@@ -482,6 +509,13 @@
     });
 
     var totalRequired = filtered.reduce(function (sum, r) { return sum + r.required; }, 0);
+
+    ['present', 'intransit', 'openpo', 'delta'].forEach(function (key) {
+      var total = function (items) { return items.reduce(function (sum, row) { return sum + row[key]; }, 0); };
+      document.getElementById('inv-foot-' + key).textContent = invSampleEnabled && filtered.length ? invFmt(total(filtered)) : '—';
+      var card = document.querySelector('.inv-kpi-tab[data-kpi-tab="' + key + '"] .inv-kpi-val');
+      if (card) card.textContent = invSampleEnabled ? invFmt(total(rows)) : '—';
+    });
 
     var kpiTotal = document.getElementById('kpi-required-total');
     if (kpiTotal) kpiTotal.textContent = invFmt(invReqRows.reduce(function (s, r) { return s + r.required; }, 0));
@@ -517,24 +551,24 @@
       return;
     }
     var dim = '<td><span class="inv-dim">—</span></td>';
+    function sampleCell(value) {
+      return invSampleEnabled ? '<td class="inv-sample-cell">' + escapeHtml(value) + '</td>' : dim;
+    }
     body.innerHTML = filtered.map(function (row) {
+      var status = row.delta < 0 ? 'Shortfall' : row.delta === 0 ? 'Matched' : 'Surplus';
       return '<tr>' +
         '<td><b style="font-family:var(--mono);color:var(--text)">' + escapeHtml(row.sku) + '</b></td>' +
-        dim +
-        dim +
+        sampleCell(row.site) + sampleCell(invFmt(row.present)) +
         '<td style="color:var(--text);font-weight:600">' + invFmt(row.required) + '</td>' +
-        dim +
-        dim +
-        dim +
-        dim +
-        dim +
+        sampleCell(invFmt(row.intransit)) + sampleCell(invFmt(row.openpo)) +
+        sampleCell(invFmt(row.delta)) + sampleCell(row.frequency) + sampleCell(status) +
       '</tr>';
     }).join('');
   }
 
   window.invReqPickKpiTab = function (btn) {
     var tab = btn.dataset.kpiTab;
-    if (tab !== 'required') return; // the other 3 tabs are disabled (no real data to sort/filter by)
+    if (tab !== 'required' && !invSampleEnabled) return;
     if (invReqState.activeKpiTab === tab) {
       invReqState.activeKpiTab = null; invReqState.sortKey = 'sku'; invReqState.sortDir = 'asc';
     } else {
@@ -550,6 +584,16 @@
     var resetBtn = document.getElementById('invReqResetBtn');
     var clearTabBtn = document.getElementById('invClearTabBtn');
     if (!skuSel) return; // this section's markup isn't on the current page
+    document.getElementById('invSampleToggle').addEventListener('click', function () {
+      invSampleEnabled = !invSampleEnabled;
+      if (!invSampleEnabled && !['sku', 'required'].includes(invReqState.sortKey)) {
+        invReqState.activeKpiTab = null;
+        invReqState.sortKey = 'sku';
+        invReqState.sortDir = 'asc';
+      }
+      invReqUpdateKpiTabUI();
+      invReqRender();
+    });
     skuSel.addEventListener('change', function (e) { invReqState.sku = e.target.value; invReqRender(); });
     if (search) search.addEventListener('input', function (e) { invReqState.search = e.target.value; invReqRender(); });
     if (clearTabBtn) clearTabBtn.addEventListener('click', function () {
