@@ -864,10 +864,8 @@
     ],
   };
   // State-level holidays for India, keyed by the same full state name shown
-  // in PIN_PREFIX_TO_STATE_IN below (picked over a state-code abbreviation
-  // since there's no existing state-code convention anywhere else in the
-  // codebase to match, and the full name doubles as the "(State)" suffix
-  // shown on each holiday tag — see loadDefaultHolidays()).
+  // in PIN_PREFIX_TO_STATE_IN below. The full name is stored as the state
+  // and shown alongside the festival date.
   //
   // Same bar as HOLIDAY_RULES above: only state holidays with a fixed (or
   // effectively fixed) Gregorian date are listed — state-formation-day
@@ -978,9 +976,9 @@
   var HOLIDAY_WINDOW_DAYS = 365; // show defaults over the coming year, matching the forecast horizon
 
   function nthWeekdayOfMonth(year, month, weekday, n) {
-    var d = new Date(year, month - 1, 1);
-    var offset = (weekday - d.getDay() + 7) % 7;
-    d.setDate(1 + offset + (n - 1) * 7);
+    var d = new Date(Date.UTC(year, month - 1, 1));
+    var offset = (weekday - d.getUTCDay() + 7) % 7;
+    d.setUTCDate(1 + offset + (n - 1) * 7);
     return d;
   }
 
@@ -988,13 +986,14 @@
   // rules array into concrete dates falling within the next
   // HOLIDAY_WINDOW_DAYS days (rules can span two calendar years).
   function resolveRules(rules) {
-    var today = new Date(); today.setHours(0, 0, 0, 0);
+    var now = new Date();
+    var today = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()));
     var horizon = new Date(today.getTime() + HOLIDAY_WINDOW_DAYS * 86400000);
     var out = [];
-    [today.getFullYear(), today.getFullYear() + 1].forEach(function (year) {
+    [today.getUTCFullYear(), today.getUTCFullYear() + 1].forEach(function (year) {
       rules.forEach(function (rule) {
         var d = rule.day
-          ? new Date(year, rule.month - 1, rule.day)
+          ? new Date(Date.UTC(year, rule.month - 1, rule.day))
           : nthWeekdayOfMonth(year, rule.month, rule.weekday, rule.n);
         if (d >= today && d <= horizon) out.push({ date: d, name: rule.name });
       });
@@ -1009,44 +1008,56 @@
     return resolveRules(rules);
   }
 
-  // Resolves state-level holidays for every Indian state detected from the
-  // sales file's postal codes (see pinToStatesIN), merging and
-  // deduping across states for multi-region businesses. Each holiday name
-  // gets a "(State)" suffix so it reads differently from the national list
-  // and the user can tell at a glance which state pulled it in — useful if
-  // pincode inference catches a state that doesn't actually apply to them,
-  // since they can then just remove that one tag instead of guessing why
-  // it's there. Only ever called for IN; other countries have no state data.
   function resolveStateHolidays(pincodes) {
-    var states = pinToStatesIN(pincodes);
-    var out = [];
-    states.forEach(function (state) {
-      var rules = HOLIDAY_RULES_STATE_IN[state];
-      if (!rules || !rules.length) return;
-      resolveRules(rules).forEach(function (h) {
-        out.push({ date: h.date, name: h.name + ' (' + state + ')' });
+    return pinToStatesIN(pincodes).flatMap(function (state) {
+      return resolveRules(HOLIDAY_RULES_STATE_IN[state] || []).map(function (holiday) {
+        return { ...holiday, state: state };
       });
     });
-    return out.sort(function (a, b) { return a.date - b.date; });
   }
 
-  function holidayKey(date, name) { return date.toISOString().slice(0, 10) + '|' + name; }
+  function holidayStateNames(country) {
+    return country === 'IN' ? Object.keys(HOLIDAY_RULES_STATE_IN).sort() : [];
+  }
+
+  function normalizeHolidayState(value, country) {
+    var state = String(value ?? '').trim().replace(/\s+/g, ' ');
+    if (state.length < 2 || state.length > 80 || !/\p{L}/u.test(state)) return null;
+    return holidayStateNames(country).find(function (name) {
+      return name.toLowerCase() === state.toLowerCase();
+    }) || state;
+  }
+
+  function holidayKey(entry) {
+    return JSON.stringify([entry.country, entry.state?.toLowerCase() || '', entry.date.toISOString().slice(0, 10),
+      entry.name.toLowerCase()]);
+  }
+
+  function holidaysForCountry(country = currentCountry()) {
+    return Object.values(holidayState).filter(function (holiday) { return holiday.country === country; });
+  }
+
+  function renderHolidayStateChoices() {
+    var options = document.getElementById('obHolidayStateOptions');
+    var states = holidayStateNames(currentCountry());
+    options.replaceChildren(...states.map(function (state) { return new Option(state, state); }));
+  }
 
   function renderHolidayList() {
     var listEl = document.getElementById('obHolidayList');
     var emptyEl = document.getElementById('obHolidayEmpty');
     if (!listEl) return; // step not present on this page
-    var keys = Object.keys(holidayState).sort(function (a, b) {
-      return holidayState[a].date - holidayState[b].date;
+    var holidays = holidaysForCountry().sort(function (a, b) {
+      return a.date - b.date || (a.state || '').localeCompare(b.state || '') || a.name.localeCompare(b.name);
     });
     listEl.innerHTML = '';
-    emptyEl.style.display = keys.length ? 'none' : '';
+    emptyEl.style.display = holidays.length ? 'none' : '';
     emptyEl.textContent = HOLIDAY_RULES[currentCountry()]
       ? 'No holidays listed yet — add one below.'
       : "We don't have default holidays for this country yet — add any that apply below.";
 
-    keys.forEach(function (key) {
-      var h = holidayState[key];
+    holidays.forEach(function (h) {
+      var scope = h.state || 'Nationwide';
       var tag = document.createElement('span');
       tag.className = 'sku-tag';
 
@@ -1056,15 +1067,15 @@
 
       var meta = document.createElement('span');
       meta.className = 'tag-meta';
-      meta.textContent = h.date.toISOString().slice(0, 10);
+      meta.textContent = h.date.toISOString().slice(0, 10) + ' · ' + scope;
       tag.appendChild(meta);
 
       var rm = document.createElement('button');
       rm.type = 'button';
-      rm.setAttribute('aria-label', 'Remove ' + h.name);
+      rm.setAttribute('aria-label', 'Remove ' + h.name + ' in ' + scope);
       rm.textContent = '×';
       rm.addEventListener('click', function () {
-        delete holidayState[key];
+        delete holidayState[holidayKey(h)];
         renderHolidayList();
       });
       tag.appendChild(rm);
@@ -1082,7 +1093,7 @@
     var intro = document.getElementById('obHolidayIntro');
     if (!pill || !intro) return;
     var country = currentCountry();
-    var n = Object.keys(holidayState).length;
+    var n = holidaysForCountry(country).length;
     // Only name states that actually contributed holidays — a detected
     // state with no built-in state rules adds nothing.
     var states = (country === 'IN' ? pinToStatesIN(salesPins) : []).filter(function (s) {
@@ -1096,13 +1107,13 @@
         (states.length
           ? ', plus state holidays for ' + states.join(', ') + ' (from your sales file’s pincodes)'
           : country === 'IN' ? '. Upload a sales file with postal codes to add state holidays' : '') +
-        '. Festivals whose dates move every year (Diwali, Holi, Eid) aren’t built in — add them with Override.';
+        '. Use Override to add festivals by state or region.';
     } else {
       pill.className = n ? 'pill ok' : 'pill warn';
       pill.textContent = n
         ? n + ' festival' + (n === 1 ? '' : 's') + ' & holidays added'
         : 'No built-in calendar for ' + countryName(country) + ' yet';
-      text = 'Use Override to add the festivals and holidays that apply to you.';
+      text = 'Use Override to add festivals by state or region.';
     }
     intro.textContent = text + ' Saved with your setup — training doesn’t use festivals yet.';
   }
@@ -1121,28 +1132,46 @@
     Object.keys(holidayState).forEach(function (key) {
       if (holidayState[key].auto) delete holidayState[key];
     });
-    resolveHolidays(country).forEach(function (h) {
-      holidayState[holidayKey(h.date, h.name)] = { date: h.date, name: h.name, auto: true };
+    var detected = country === 'IN' ? resolveStateHolidays(salesPins) : [];
+    resolveHolidays(country).concat(detected).forEach(function (holiday) {
+      var entry = { ...holiday, state: holiday.state || null, country: country, auto: true };
+      var key = holidayKey(entry);
+      if (!holidayState[key]) holidayState[key] = entry;
     });
-    if (country === 'IN') {
-      resolveStateHolidays(salesPins).forEach(function (h) {
-        holidayState[holidayKey(h.date, h.name)] = { date: h.date, name: h.name, auto: true };
-      });
-    }
     holidayCountryLoaded = signature;
     renderHolidayList();
+  }
+
+  function parseHolidayDate(value) {
+    var day = String(value ?? '').trim();
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return null;
+    var date = new Date(day + 'T00:00:00Z');
+    return !isNaN(date.getTime()) && date.toISOString().slice(0, 10) === day ? date : null;
   }
 
   function addManualHoliday() {
     var dateInput = document.getElementById('obHolidayDate');
     var nameInput = document.getElementById('obHolidayName');
-    var dateStr = dateInput.value;
+    var stateInput = document.getElementById('obHolidayState');
+    var status = document.getElementById('obHolidayAddStatus');
+    var country = currentCountry();
+    var date = parseHolidayDate(dateInput.value);
     var name = nameInput.value.trim();
-    if (!dateStr || !name) return;
-    var date = new Date(dateStr + 'T00:00:00Z');
-    if (isNaN(date.getTime())) return;
-    holidayState[holidayKey(date, name)] = { date: date, name: name, auto: false };
+    var state = normalizeHolidayState(stateInput.value, country);
+    if (!date || !name || !state) {
+      setStatus(status, 'Enter a valid date, a festival name, and a state or region.', 'err');
+      (!date ? dateInput : !name ? nameInput : stateInput).focus();
+      return;
+    }
+    var entry = { date: date, name: name, state: state, country: country, auto: false };
+    var key = holidayKey(entry);
+    if (holidayState[key]) {
+      setStatus(status, 'That festival is already listed for ' + state + ' on this date.', 'err');
+      return;
+    }
+    holidayState[key] = entry;
     dateInput.value = ''; nameInput.value = '';
+    setStatus(status, 'Added for ' + state + '.', 'ok');
     renderHolidayList();
   }
 
@@ -1151,6 +1180,8 @@
     if (!file) return;
     var status = document.getElementById('obHolidayFileStatus');
     var version = ++holidayImportVersion;
+    var country = currentCountry();
+    var defaultState = normalizeHolidayState(document.getElementById('obHolidayImportState').value, country);
     input.value = '';
     setStatus(status, 'Reading ' + file.name + '…');
 
@@ -1166,7 +1197,7 @@
       var workbook = extension === 'xlsx'
         ? XLSX.read(await file.arrayBuffer(), { type: 'array', cellDates: true })
         : XLSX.read(await file.text(), { type: 'string', raw: true, FS: extension === 'tsv' ? '\t' : ',' });
-      if (version !== holidayImportVersion) return;
+      if (version !== holidayImportVersion || country !== currentCountry()) return;
       var sheet = workbook.SheetNames.find(function (name) {
         return /^(festivals|holidays)$/i.test(name.trim());
       }) || workbook.SheetNames[0];
@@ -1174,28 +1205,34 @@
       var headers = (rows.shift() || []).map(function (value) { return String(value).trim().toLowerCase(); });
       var dateIndex = headers.indexOf('date');
       var nameIndex = headers.indexOf('name');
+      var stateIndex = headers.indexOf('state');
+      if (stateIndex === -1) stateIndex = headers.indexOf('region');
       if (dateIndex === -1 || nameIndex === -1 || !rows.length) {
         throw new Error('Include date and name columns and at least one festival.');
       }
 
+      if (stateIndex === -1 && !defaultState) {
+        throw new Error('Add a state column or enter a default state or region above the upload.');
+      }
       var holidays = rows.map(function (row, index) {
         var value = row[dateIndex];
         var day = value instanceof Date && !isNaN(value.getTime())
           ? [String(value.getFullYear()).padStart(4, '0'), String(value.getMonth() + 1).padStart(2, '0'),
             String(value.getDate()).padStart(2, '0')].join('-')
           : String(value ?? '').trim();
-        var date = new Date(day + 'T00:00:00Z');
+        var date = parseHolidayDate(day);
         var name = String(row[nameIndex] ?? '').trim();
-        if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || isNaN(date.getTime()) ||
-            date.toISOString().slice(0, 10) !== day || !name) {
-          throw new Error('Check festival entry ' + (index + 1) + '. Use a valid YYYY-MM-DD date and a name.');
+        var stateValue = stateIndex < 0 ? '' : String(row[stateIndex] ?? '').trim();
+        var state = stateValue ? normalizeHolidayState(stateValue, country) : defaultState;
+        if (!date || !name || !state) {
+          throw new Error('Check festival entry ' + (index + 1) + '. Include a valid YYYY-MM-DD date, name, and state or region.');
         }
-        return { date: date, name: name, auto: false };
+        return { date: date, name: name, state: state, country: country, auto: false };
       });
 
       var added = 0;
       holidays.forEach(function (holiday) {
-        var key = holidayKey(holiday.date, holiday.name);
+        var key = holidayKey(holiday);
         if (!holidayState[key]) {
           holidayState[key] = holiday;
           added++;
@@ -1436,6 +1473,7 @@
     }
     if (stepIs(n, 'sku')) { renderSkuMasterSummary(); renderNewSkuList(); }
     if (stepIs(n, 'weather')) {
+      renderHolidayStateChoices();
       loadDefaultHolidays();
       renderFestivalCard();
       renderWeatherCard();
@@ -1525,9 +1563,9 @@
         var s = newSkuState[id];
         return { id: id, first_shipped: s.firstDate.toISOString().slice(0, 10), launch_date: s.launchDate, confirmed: s.confirmed };
       }),
-      holidays: Object.keys(holidayState).map(function (key) {
-        var h = holidayState[key];
-        return { date: h.date.toISOString().slice(0, 10), name: h.name, auto: h.auto };
+      holidays: holidaysForCountry().map(function (h) {
+        return { date: h.date.toISOString().slice(0, 10), name: h.name, country: h.country,
+          scope: h.state ? 'state' : 'country', state: h.state, auto: h.auto };
       }),
       scheme_ids: schemeIds,
       sku_master_key: skuMasterKey,
@@ -1661,7 +1699,10 @@
     newSkuState = {};
     holidayState = {};
     holidayImportVersion++;
-    setStatus(document.getElementById('obHolidayFileStatus'), '');
+    ['obHolidayFileStatus', 'obHolidayAddStatus'].forEach(function (id) { setStatus(document.getElementById(id), ''); });
+    ['obHolidayDate', 'obHolidayName', 'obHolidayState', 'obHolidayImportState'].forEach(function (id) {
+      document.getElementById(id).value = '';
+    });
     holidayCountryLoaded = null;
     lastHistWarnings = [];
     lastWeatherWarnings = [];
@@ -1714,7 +1755,13 @@
     var countrySelect = document.getElementById('obCountry');
     if (!countrySelect) return; // onboarding panel not present on this page
 
-    countrySelect.addEventListener('change', function () { updateCountryMap(); renderCountryDefaults(); });
+    countrySelect.addEventListener('change', function () {
+      holidayImportVersion++;
+      ['obHolidayState', 'obHolidayImportState'].forEach(function (id) { document.getElementById(id).value = ''; });
+      ['obHolidayFileStatus', 'obHolidayAddStatus'].forEach(function (id) { setStatus(document.getElementById(id), ''); });
+      updateCountryMap();
+      renderCountryDefaults();
+    });
     updateCountryMap();
     renderCountryDefaults();
 
@@ -1826,8 +1873,10 @@
 
     document.getElementById('obHolidayFile').addEventListener('change', function () { importHolidayFile(this); });
     document.getElementById('obHolidayAdd').addEventListener('click', addManualHoliday);
-    document.getElementById('obHolidayName').addEventListener('keydown', function (e) {
-      if (e.key === 'Enter') { e.preventDefault(); addManualHoliday(); }
+    ['obHolidayDate', 'obHolidayName', 'obHolidayState'].forEach(function (id) {
+      document.getElementById(id).addEventListener('keydown', function (e) {
+        if (e.key === 'Enter') { e.preventDefault(); addManualHoliday(); }
+      });
     });
 
     document.getElementById('obWeatherFile').addEventListener('change', function () {

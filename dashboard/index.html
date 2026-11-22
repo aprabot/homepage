@@ -102,6 +102,11 @@
   .ob-stepper-step.current .n{border-color:var(--signal);color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
   .ob-stepper-step.current .lbl{color:var(--text);font-weight:600}
   .ob-stepper-seg{flex:0 0 auto;width:100%;height:1px;background:var(--line-2);margin-top:13px;max-width:60px}
+  .ob-festival-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(112px,1fr));align-items:end;gap:8px;margin-top:14px}
+  .ob-festival-fields .field,.ob-festival-region{margin:0}
+  .ob-festival-region{margin-bottom:10px;max-width:300px}
+  .ob-festival-fields input,.ob-festival-region input{width:100%;min-width:0}
+  .ob-festival-fields .dbtn{justify-self:start}
   .ob-shopify-card{max-width:640px;padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--ink-2)}
   .ob-shopify-controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-bottom:10px}
   .ob-shopify-controls .field{flex:1 1 230px;margin:0}
@@ -1786,18 +1791,25 @@
               <p class="dsubtle" id="obHolidayIntro" style="margin:12px 0 0;font-size:12px"></p>
               <div id="obHolidayOverride" style="display:none;margin-top:14px">
                 <div style="margin-bottom:14px">
+                  <div class="field ob-festival-region">
+                    <label for="obHolidayImportState">Default state or region for this file</label>
+                    <input id="obHolidayImportState" type="text" list="obHolidayStateOptions" maxlength="80" autocomplete="off">
+                  </div>
                   <label for="obHolidayFile" style="display:block;margin-bottom:6px">Upload festivals</label>
                   <input id="obHolidayFile" class="file-input" type="file" accept=".csv,.tsv,.xlsx" aria-describedby="obHolidayFileHelp">
-                  <p class="dsubtle" id="obHolidayFileHelp" style="margin:6px 0;font-size:12px">CSV, TSV, or XLSX with <code>date</code> (YYYY-MM-DD) and <code>name</code> columns. Imported festivals are added to the list.</p>
+                  <p class="dsubtle" id="obHolidayFileHelp" style="margin:6px 0;font-size:12px">CSV, TSV, or XLSX with <code>date</code> (YYYY-MM-DD), <code>name</code>, and <code>state</code> columns. A default state can cover rows without one.</p>
                   <p class="stest-msg" id="obHolidayFileStatus" role="status"></p>
                 </div>
                 <div id="obHolidayList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
                 <p class="stest-msg" id="obHolidayEmpty" style="margin-top:8px;color:var(--muted)"></p>
-                <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
-                  <input id="obHolidayDate" type="date" style="flex:0 0 150px">
-                  <input id="obHolidayName" type="text" placeholder="Festival or holiday name" style="flex:1;min-width:120px">
-                  <button type="button" class="dbtn" id="obHolidayAdd">Add</button>
+                <div class="ob-festival-fields">
+                  <div class="field"><label for="obHolidayDate">Date</label><input id="obHolidayDate" type="date"></div>
+                  <div class="field"><label for="obHolidayName">Festival name</label><input id="obHolidayName" type="text" maxlength="120"></div>
+                  <div class="field"><label for="obHolidayState">State or region</label><input id="obHolidayState" type="text" list="obHolidayStateOptions" maxlength="80" autocomplete="off"></div>
+                  <button type="button" class="dbtn" id="obHolidayAdd">Add festival</button>
+                  <datalist id="obHolidayStateOptions"></datalist>
                 </div>
+                <p class="stest-msg" id="obHolidayAddStatus" role="status"></p>
               </div>
             </div>
           </div>
