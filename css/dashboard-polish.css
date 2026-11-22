@@ -106,3 +106,43 @@
   color:var(--text);border:1px solid var(--line-2);box-shadow:none}
 #scheme-list .dbtn+.dbtn{margin-left:6px}
 #scheme-list .dbtn:hover{border-color:var(--signal);color:var(--signal);transform:none}
+
+/* ---------- Shared: KPI tiles and pills ---------- */
+#dashboard .kpi .t{font-family:var(--body);text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:var(--muted)}
+#dashboard .pill{font-family:var(--body);font-weight:600}
+
+/* ============================================================
+   Scenarios
+============================================================ */
+/* The workspace heading is this page's title — size it like one. */
+#dashboard .scenario-workspace-head h2{font-family:var(--display);font-size:1.6rem;font-weight:600;letter-spacing:-.02em}
+#dashboard .scenario-workspace-head .dsubtle{font-size:.95rem}
+
+/* Run form: a quiet inset panel with evenly spaced fields. */
+#dashboard #scenarioRunForm{background:rgba(255,255,255,.015);border:1px solid var(--line);border-radius:12px;padding:16px}
+#dashboard #scenarioRunForm label,#dashboard .scenario-comparison-head label{font-family:var(--body);text-transform:none;
+  letter-spacing:0;font-size:12.5px;font-weight:600;color:var(--muted)}
+#dashboard #scenarioRunForm input:not([type="checkbox"]),#dashboard #scenarioRunForm select,
+#dashboard .scenario-comparison-head select{height:38px;box-sizing:border-box;border-radius:9px}
+#dashboard .scenario-levers-title{font-size:13.5px;font-weight:600;color:var(--text)}
+
+/* Lever sections: rows with a chevron and a hover state. */
+#dashboard #scenarioRunForm details{border-top:1px solid var(--line);margin:0;padding:0}
+#dashboard #scenarioRunForm details>summary{list-style:none;display:flex;align-items:center;justify-content:space-between;
+  margin:0;padding:10px 2px;font-size:13px;font-weight:500;color:var(--text);cursor:pointer}
+#dashboard #scenarioRunForm details>summary::-webkit-details-marker{display:none}
+#dashboard #scenarioRunForm details>summary::after{content:'';width:7px;height:7px;border-right:1.5px solid var(--muted);
+  border-bottom:1.5px solid var(--muted);transform:rotate(45deg);transition:transform .15s;margin-right:4px}
+#dashboard #scenarioRunForm details[open]>summary::after{transform:rotate(-135deg)}
+#dashboard #scenarioRunForm details>summary:hover{color:var(--signal)}
+#dashboard #scenarioRunForm details[open]{padding-bottom:10px}
+
+/* Save draft is secondary to Run. */
+#dashboard #scenarioSaveDraft{background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);box-shadow:none}
+#dashboard #scenarioSaveDraft:hover{border-color:var(--muted-2);transform:none}
+
+/* Result tiles and chart frame. */
+#dashboard .scenario-result-kpis{gap:10px}
+#dashboard .scenario-result-kpis .kpi{padding:12px 14px;border-radius:12px}
+#dashboard .scenario-forecast-chart{border-radius:12px}
+#dashboard .scenario-forecast-chart figcaption b{font-size:13.5px}
