@@ -328,7 +328,8 @@
       hideBtBtn.addEventListener('click',()=>{
         hideBacktest=!hideBacktest;
         hideBtBtn.classList.toggle('on',hideBacktest);
-        hideBtBtn.textContent=hideBacktest?'Show Backtest':'Hide Backtest';
+        hideBtBtn.textContent=hideBacktest?'Full history':'Recent weeks';
+        hideBtBtn.setAttribute('aria-pressed',String(!hideBacktest));
         drawChart();
       });
     }
@@ -357,7 +358,7 @@
       b.setAttribute('aria-pressed',String(b===btn));
     });
     const lblEl=document.getElementById('fclyKpiWapeLabel');
-    if(lblEl)lblEl.textContent=fclyHorizon+'W';
+    if(lblEl)lblEl.textContent=String(fclyHorizon);
     fclyRender();
     drawChart();
   };
@@ -400,8 +401,25 @@
     const ids=skuId==='ALL'?Object.keys(DATA.skus):[skuId];
     return ids.flatMap(id=>{
       const series=zip?DATA.skus[id]?.byZip?.[zip]:DATA.skus[id];
-      return series?[{sku:id,...fclyPeriod(series,weekCount),wape:fclySkuTrailingWape(series,fclyHorizon)}]:[];
+      if(!series)return [];
+      const period=fclyPeriod(series,weekCount);
+      // Same estimate as the Revenue card: forecast units × the SKU's
+      // historical average selling price (null when either is missing).
+      const price=DATA.skus[id]?.avgPrice;
+      const revenue=period.units!=null&&Number.isFinite(price)?period.units*price:null;
+      return [{sku:id,...period,revenue,wape:fclySkuTrailingWape(series,fclyHorizon)}];
     });
+  }
+
+  // Compact money-style figure for the KPI card (no currency symbol: the
+  // input data doesn't say which currency its prices are in).
+  function fclyCompact(value){
+    if(value==null)return '—';
+    const abs=Math.abs(value);
+    if(abs>=1e9)return (value/1e9).toFixed(2)+'B';
+    if(abs>=1e6)return (value/1e6).toFixed(2)+'M';
+    if(abs>=1e4)return (value/1e3).toFixed(1)+'K';
+    return value.toLocaleString(undefined,{maximumFractionDigits:2});
   }
 
   function fclyRender(){
@@ -415,26 +433,30 @@
     const weekCount=gap<0?future.length:gap;
     const period=fclyPeriod(series,weekCount);
     const setTxt=(id,v)=>{const el=document.getElementById(id); if(el)el.textContent=v;};
-    const units=period.units==null?'—':nf(period.units);
     const comparison=period.change!=null;
-    setTxt('fclyYoY',comparison?fclyChange(period.change):period.units==null?'—':nfFull(period.units));
-    const horizon=weekCount<fclyHorizon?weekCount+' of '+fclyHorizon+' weeks':'';
+    const horizon=weekCount<fclyHorizon?weekCount+' of '+fclyHorizon+' weeks available':'';
+    const span='Next '+(weekCount||fclyHorizon)+' week'+((weekCount||fclyHorizon)===1?'':'s');
+    const kpi=(id,text,dim)=>{const el=document.getElementById(id); if(!el)return; el.textContent=text; el.classList.toggle('fc-dim',!!dim);};
+
+    kpi('fclyKpiUnits',period.units==null?'—':nfFull(period.units),period.units==null);
+    const delta=document.getElementById('fclyYoY');
+    delta.hidden=!comparison;
+    delta.textContent=comparison?fclyChange(period.change)+' vs LY':'';
+    delta.dataset.direction=period.change>0?'up':period.change<0?'down':'';
     setTxt('fclyUnitsDetail',period.units==null?'Forecast units unavailable':
-      (comparison?units+' vs. '+nf(period.prior)+' LY':'Forecast units')+(horizon?' · '+horizon:''));
-    document.getElementById('fclyYoY').dataset.direction=period.change>0?'up':period.change<0?'down':'';
+      (comparison?span+' · last year '+nfFull(period.prior):span+' · no last-year data')+(horizon?' · '+horizon:''));
+
     const w=series===DATA.all?trailingWape(fclyHorizon):fclySkuTrailingWape(series,fclyHorizon);
-    setTxt('fclyKpiWape',w==null?'—':w.toFixed(2)+'%');
+    kpi('fclyKpiWape',w==null?'—':w.toFixed(1)+'%',w==null);
 
     let rows=fclyBuildRows(skuId,zip,weekCount);
     const revenue=fclyPricing(rows,'avgPrice');
     const discount=fclyPricing(rows,'avgDiscount');
-    const amount=value=>value==null?'—':value.toLocaleString(undefined,{maximumFractionDigits:2});
-    setTxt('fclyKpiRevenue',amount(revenue));
-    setTxt('fclyRevenueDetail',revenue==null?'Price data unavailable':
-      'Estimated from historical prices'+(horizon?' · '+horizon:''));
-    setTxt('fclyKpiDiscount',amount(discount));
-    setTxt('fclyDiscountDetail',discount==null?'Discount data unavailable':
-      'Historical average, weighted by forecast units');
+    kpi('fclyKpiRevenue',fclyCompact(revenue),revenue==null);
+    document.getElementById('fclyKpiRevenue').title=revenue==null?'':revenue.toLocaleString(undefined,{maximumFractionDigits:2});
+    setTxt('fclyRevenueDetail',revenue==null?'Price data unavailable':'Estimated from historical prices');
+    kpi('fclyKpiDiscount',discount==null?'—':discount.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}),discount==null);
+    setTxt('fclyDiscountDetail',discount==null?'Discount data unavailable':'Historical average, weighted by forecast units');
     rows.sort((a,b)=>{
       const av=a[fclySort.key],bv=b[fclySort.key];
       const dir=fclySort.dir==='asc'?1:-1;
@@ -462,10 +484,10 @@
       const icon=th.querySelector('.ov-sort-ic'); if(!icon)return;
       if(th.dataset.sortKey===fclySort.key){
         icon.textContent=fclySort.dir==='asc'?'↑':'↓';
-        icon.style.opacity=1;
+        icon.style.opacity='';
         th.setAttribute('aria-sort',fclySort.dir==='asc'?'ascending':'descending');
       } else {
-        icon.textContent='⇅'; icon.style.opacity=.5;
+        icon.textContent='⇅'; icon.style.opacity='';
         th.removeAttribute('aria-sort');
       }
     });
@@ -473,19 +495,18 @@
     const body=document.getElementById('fclyResultsBody');
     if(!body)return;
     if(!rows.length){
-      const columns=document.getElementById('fclyResultsTable').classList.contains('fcly-data-only')?5:11;
-      body.innerHTML='<tr><td colspan="'+columns+'" style="text-align:center;padding:24px;color:var(--muted)">No SKUs match your current filter.</td></tr>';
+      body.innerHTML='<tr><td colspan="6" style="text-align:center;padding:24px;color:var(--muted);font-family:var(--body)">No SKUs match your current filter.</td></tr>';
       return;
     }
-    const unavailable='<td class="ov-dim fcly-unavailable-column">—</td>';
-    const unavailableNumber='<td class="ov-dim fcly-unavailable-column fcly-number">—</td>';
+    const cell=(value,text,cls)=>`<td class="fcly-number${value==null?' ov-dim':cls?' '+cls:''}">${value==null?'—':text}</td>`;
     body.innerHTML=rows.map(r=>
-      `<tr><th scope="row" class="skucell">${escHtml(r.sku)}</th>`+unavailable.repeat(5)+
-      `<td class="fcly-number" title="Last year: ${r.prior==null?'—':nfFull(r.prior)} · Change: ${fclyChange(r.change)}">${r.units==null?'—':nfFull(r.units)}</td>`+
-      `<td class="fcly-number fcly-comparison-column">${r.prior==null?'—':nfFull(r.prior)}</td>`+
-      `<td class="fcly-number fcly-comparison-column">${fclyChange(r.change)}</td>`+
-      unavailableNumber.repeat(3)+
-      `<td class="fcly-number">${r.wape==null?'—':r.wape.toFixed(1)+'%'}</td></tr>`
+      `<tr><th scope="row" class="skucell">${escHtml(r.sku)}</th>`+
+      cell(r.units,r.units==null?'':nfFull(r.units))+
+      cell(r.prior,r.prior==null?'':nfFull(r.prior))+
+      cell(r.change,fclyChange(r.change),r.change>0?'fc-up':r.change<0?'fc-down':'')+
+      cell(r.revenue,r.revenue==null?'':Math.round(r.revenue).toLocaleString())+
+      cell(r.wape,r.wape==null?'':r.wape.toFixed(1)+'%')+
+      '</tr>'
     ).join('');
   }
 
@@ -501,17 +522,6 @@
     });
     document.getElementById('fclyPrevPage').addEventListener('click',()=>{fclyPage=Math.max(1,fclyPage-1);fclyRender();});
     document.getElementById('fclyNextPage').addEventListener('click',()=>{fclyPage++;fclyRender();});
-    const table=document.getElementById('fclyResultsTable');
-    document.getElementById('fclyDataOnly').addEventListener('click',event=>{
-      const compact=table.classList.toggle('fcly-data-only');
-      event.currentTarget.setAttribute('aria-pressed',String(compact));
-      if(!compact&&(fclySort.key==='prior'||fclySort.key==='change')){
-        fclySort.key='units';
-        fclySort.dir='desc';
-      }
-      fclyPage=1;
-      fclyRender();
-    });
     document.querySelectorAll('#fclyResultsTable .amp-sortable').forEach(th=>{
       th.addEventListener('click',()=>{
         const key=th.dataset.sortKey;
@@ -556,15 +566,27 @@
     const length=DATA.weeks.length;
     const boundaryIndex=DATA.backtestWeeks ?? length;
     const hasForward=boundaryIndex<length;
+    // Default view: a few recent actual weeks for context, then the forecast
+    // horizon. "Full history" shows the whole backtest as well.
+    const context=hasForward?Math.min(boundaryIndex,Math.max(8,Math.min(fclyHorizon,26))):0;
     const end=hasForward?Math.min(length,boundaryIndex+fclyHorizon):length;
-    const start=hasForward?(hideBacktest?boundaryIndex:0):Math.max(0,length-fclyHorizon);
+    const start=hasForward?(hideBacktest?boundaryIndex-context:0):Math.max(0,length-fclyHorizon);
     const N=end-start, st=start;
     const weeks=DATA.weeks.slice(st,end), a=s.a.slice(st,end), f=s.f.slice(st,end), w=s.w.slice(st,end);
+    const hasA=a.some(Number.isFinite), hasW=w.some(Number.isFinite);
+    document.querySelectorAll('#fcLegend .lgd-item').forEach(el=>{
+      el.hidden=(el.dataset.k==='a'&&!hasA)||(el.dataset.k==='w'&&!hasW);
+    });
+    const sub=document.getElementById('fcChartSub');
+    if(sub)sub.textContent=!hasForward?'Last '+N+' weeks of the backtest'
+      :hideBacktest?'Last '+context+' weeks of actuals, then the next '+(end-boundaryIndex)+' weeks of forecast'
+      :'Full backtest history, then the next '+(end-boundaryIndex)+' weeks of forecast';
+    const showW=hasW&&fcVisible.w;
     const box=document.getElementById('forecastChart'), cv=document.getElementById('fcCanvas');
     const cw=box.clientWidth||720, ch=box.clientHeight||260, dpr=window.devicePixelRatio||1;
     cv.width=cw*dpr; cv.height=ch*dpr; const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.clearRect(0,0,cw,ch);
-    const padL=52,padR=46,padT=16,padB=26;
+    const padL=52,padR=showW?46:18,padT=16,padB=26;
     const uMax=Math.max(1,...a.filter(Number.isFinite),...f.filter(Number.isFinite))*1.12;
     const wVals=w.filter(x=>x!=null); const wMax=(wVals.length?Math.max(1,...wVals):100)*1.15;
     const X=i=>padL+i*(cw-padL-padR)/(N-1||1);
@@ -574,10 +596,10 @@
     ctx.font='10px JetBrains Mono';
     for(let g=0;g<=4;g++){const y=padT+(ch-padT-padB)*g/4;
       ctx.strokeStyle='rgba(255,255,255,.06)';ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(cw-padR,y);ctx.stroke();
-      ctx.fillStyle='#5C6878';ctx.textAlign='right';ctx.fillText(nf(uMax*(1-g/4)),padL-8,y+3);
-      ctx.textAlign='left';ctx.fillStyle='#7AA2FF';ctx.fillText(Math.round(wMax*(1-g/4))+'%',cw-padR+8,y+3);}
+      ctx.fillStyle='#8694A6';ctx.textAlign='right';ctx.fillText(nf(uMax*(1-g/4)),padL-8,y+3);
+      if(showW){ctx.textAlign='left';ctx.fillStyle='#7AA2FF';ctx.fillText(Math.round(wMax*(1-g/4))+'%',cw-padR+8,y+3);}}
     // x labels (~7)
-    ctx.fillStyle='#5C6878';ctx.textAlign='center';
+    ctx.fillStyle='#8694A6';ctx.textAlign='center';
     const step=Math.max(1,Math.round(N/7));
     for(let i=0;i<N;i+=step){const d=weeks[i].slice(5);ctx.fillText(d,X(i),ch-8);}
     const line=(arr,Y,color,dash)=>{ctx.strokeStyle=color;ctx.lineWidth=2.2;ctx.setLineDash(dash||[]);
@@ -589,11 +611,21 @@
       const grad=ctx.createLinearGradient(0,padT,0,ch-padB);
       grad.addColorStop(0,'rgba(84,230,196,.22)');grad.addColorStop(1,'rgba(84,230,196,0)');
       ctx.beginPath();let sx=null;a.forEach((v,i)=>{if(v==null)return;const x=X(i),y=Yu(v);if(sx===null){ctx.moveTo(x,y);sx=x;}else ctx.lineTo(x,y);});
-      if(sx!==null){ctx.lineTo(X(N-1),Yu(0));ctx.lineTo(sx,Yu(0));ctx.closePath();ctx.fillStyle=grad;ctx.fill();}
+      let lastA=-1; a.forEach((v,i)=>{if(v!=null)lastA=i;});
+      if(sx!==null){ctx.lineTo(X(lastA),Yu(0));ctx.lineTo(sx,Yu(0));ctx.closePath();ctx.fillStyle=grad;ctx.fill();}
     }
-    if(fcVisible.w) line(w,Yw,'#7AA2FF');                 // wape (right axis)
+    if(showW) line(w,Yw,'#7AA2FF');                       // wape (right axis)
     if(fcVisible.a) line(a,Yu,'#54E6C4');                 // actual
-    if(fcVisible.f) line(f,Yu,'#C8F24E',[7,5]);           // forecast (dashed)
+    // Lime is too faint on the light theme's cream background — same darker
+    // olive the light theme already uses for lime text.
+    const fcLime=document.documentElement.dataset.theme==='light'?'#6E9400':'#C8F24E';
+    if(fcVisible.f) line(f,Yu,fcLime,[7,5]);              // forecast (dashed)
+    // Short ranges get point markers so individual weeks are readable.
+    if(N<=16){
+      const dots=(arr,color)=>{ctx.fillStyle=color;arr.forEach((v,i)=>{if(v==null)return;ctx.beginPath();ctx.arc(X(i),Yu(v),2.6,0,7);ctx.fill();});};
+      if(fcVisible.a)dots(a,'#54E6C4');
+      if(fcVisible.f)dots(f,fcLime);
+    }
     // "today" divider — backtest ends, forward-only forecast begins (skip if data has no forward portion, e.g. older cached format)
     const backtestTotal=DATA.backtestWeeks||DATA.weeks.length;
     const boundary=backtestTotal-st;
@@ -601,10 +633,10 @@
       const bx=X(boundary-0.5);
       ctx.strokeStyle='rgba(255,255,255,.18)';ctx.setLineDash([3,3]);
       ctx.beginPath();ctx.moveTo(bx,padT);ctx.lineTo(bx,ch-padB);ctx.stroke();ctx.setLineDash([]);
-      ctx.fillStyle='#5C6878';ctx.font='9px JetBrains Mono';ctx.textAlign='left';
+      ctx.fillStyle='#8694A6';ctx.font='9px JetBrains Mono';ctx.textAlign='left';
       ctx.fillText('FORECAST →',bx+4,padT+10);
     }
-    fcGeom={weeks,a,f,w,X,Yu,Yw,N,padL,padR,cw,ch,padT,padB};
+    fcGeom={weeks,a,f,w,X,Yu,Yw,N,padL,padR,cw,ch,padT,padB,showW};
   }
 
   function onHover(e){
@@ -618,7 +650,7 @@
     ctx.strokeStyle='rgba(200,242,78,.35)';ctx.setLineDash([3,4]);ctx.beginPath();
     ctx.moveTo(g.X(i),g.padT);ctx.lineTo(g.X(i),g.ch-g.padB);ctx.stroke();ctx.setLineDash([]);
     const dot=(v,Y,c)=>{if(v==null)return;ctx.fillStyle=c;ctx.beginPath();ctx.arc(g.X(i),Y(v),3.5,0,7);ctx.fill();};
-    dot(g.a[i],g.Yu,'#54E6C4');dot(g.f[i],g.Yu,'#C8F24E');dot(g.w[i],g.Yw,'#7AA2FF');
+    dot(g.a[i],g.Yu,'#54E6C4');dot(g.f[i],g.Yu,'#C8F24E');if(g.showW)dot(g.w[i],g.Yw,'#7AA2FF');
     const tip=document.getElementById('fcTip');
     const row=(c,l,val)=>`<div class="rw"><i style="background:${c}"></i>${l}<b>${val}</b></div>`;
     tip.innerHTML=`<div class="wk">${g.weeks[i]}</div>`+
@@ -1088,7 +1120,7 @@
     // Include the backtest before drawing the annotated selection.
     hideBacktest=false;
     const hideBtBtn=document.getElementById('hideBacktestBtn');
-    if(hideBtBtn){ hideBtBtn.classList.remove('on'); hideBtBtn.textContent='Hide Backtest'; }
+    if(hideBtBtn){ hideBtBtn.classList.remove('on'); hideBtBtn.textContent='Recent weeks'; hideBtBtn.setAttribute('aria-pressed','true'); }
 
     const input=document.getElementById('skuInput');
     if(annot.sku){ if(input)input.value=annot.sku; selectSku(annot.sku); }

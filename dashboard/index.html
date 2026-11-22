@@ -301,78 +301,76 @@
   #dashboard .cb-launch-icon svg{width:32px;height:32px}
   #dashboard .cb-launch-label{display:none}
 
-  #forecastPeriodComparison{margin-top:16px}
-  #forecastPeriodComparison{--fc-blue:#3178f5;--fc-chart-bg:var(--ink-2);--fc-tile:var(--ink-3);--fc-edge:var(--line-2);--fc-grid:var(--line)}
-  [data-theme="dark"] #forecastsPanel{
-    background:radial-gradient(ellipse at 18% 2%,#15223a 0%,#10192b 36%,#0c1323 100%)}
-  [data-theme="dark"] #forecastPeriodComparison{
-    --fc-chart-bg:#111b2e;--fc-tile:#1a263c;--fc-edge:#2a3851;--fc-grid:#202d44;
-    --text:#e8efff;--muted:#a6b8d3;--muted-2:#7e94b5;--line:var(--fc-grid)}
-  .fcly-horizon{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin:4px 0 16px;font-size:15px;font-weight:700}
-  .fcly-horizon>svg{color:#74c1ff;width:20px;height:20px}
-  #fclyHorizonSeg{display:flex;flex-wrap:wrap;gap:8px}
-  #fclyHorizonSeg button{padding:8px 16px;min-height:34px;border:1px solid var(--fc-edge);border-radius:22px;
-    background:transparent;color:var(--text);font:inherit;font-size:12px;cursor:pointer}
-  #fclyHorizonSeg button.active{background:linear-gradient(110deg,#2365e4,var(--fc-blue));border-color:#4084ff;color:white}
-  .fcly-kpi-strip{display:grid;grid-template-columns:1fr 1fr .97fr 1.08fr 1.02fr;gap:14px;margin:0 0 16px}
-  .fcly-kpi-chip{--tone:#58afff;min-width:0;min-height:111px;padding:11px 14px 12px;border-radius:12px;
-    border:1px solid color-mix(in srgb,var(--tone) 42%,var(--fc-edge));
-    background:radial-gradient(ellipse at 20% 0%,color-mix(in srgb,var(--tone) 15%,var(--fc-chart-bg)),var(--fc-chart-bg) 86%)}
-  .fcly-kpi-chip:nth-child(2){--tone:#55d58c}
-  .fcly-kpi-chip:nth-child(3){--tone:#b680fa}
-  .fcly-kpi-chip:nth-child(4){--tone:#f4a55e}
-  .fcly-kpi-chip:nth-child(5){--tone:#43c9f5}
-  .fcly-kpi-label{display:flex;align-items:center;gap:8px;font-size:12px;line-height:1.15;min-height:29px;font-weight:700;color:var(--text)}
-  .fcly-kpi-label svg{width:27px;height:27px;padding:4px;border-radius:8px;color:var(--tone);flex:none;
-    background:color-mix(in srgb,var(--tone) 13%,transparent);filter:drop-shadow(0 0 5px color-mix(in srgb,var(--tone) 38%,transparent))}
-  .fcly-kpi-value{display:block;margin-top:4px;color:var(--text);font:750 clamp(24px,2.45vw,34px)/1.1 var(--body);font-variant-numeric:tabular-nums}
-  .fcly-kpi-foot{display:block;margin-top:6px;font-size:11.5px;color:var(--muted);min-height:15px}
-  #fclyYoY[data-direction="up"]{color:var(--text)}
-  #fclyYoY[data-direction="down"]{color:#ff968f}
-  .fcly-frame{background:var(--fc-chart-bg);border:1px solid var(--fc-edge);border-radius:11px}
-  .fcly-table-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
-  .fcly-filterbar{display:grid;grid-template-columns:1.1fr 1.16fr 1fr 1fr 1fr .95fr;margin:14px 0 11px;overflow:hidden}
-  .fcly-filter{min-width:0;padding:8px 11px 10px;border-right:1px solid var(--fc-grid)}
-  .fcly-filter:last-child{border-right:0}
-  .fcly-filter label{display:block;margin-bottom:5px;font-size:10.5px;text-transform:uppercase;color:var(--muted);font-weight:700}
-  .fcly-filter select{width:100%;min-height:30px;padding:5px 9px;border:1px solid var(--fc-edge);border-radius:7px;
-    background:var(--fc-tile);color:var(--text);font:inherit;font-size:12px}
-  .fcly-filter select:enabled{cursor:pointer}
-  .fcly-filter select:disabled{color:var(--muted);opacity:.86}
-  .fcly-results{overflow:hidden}
-  .fcly-table-head{padding:9px 12px;font-size:12px;color:var(--text)}
-  .fcly-table-actions{display:flex;flex-wrap:wrap;align-items:center;gap:7px}
-  .fcly-table-actions button{padding:4px 8px;border:1px solid var(--fc-edge);border-radius:6px;
-    background:var(--fc-tile);color:var(--text);font:600 11px var(--body);cursor:pointer}
-  .fcly-table-actions button[aria-pressed="true"]{border-color:var(--fc-blue);color:var(--text)}
+  /* Forecasts page — header with horizon, four KPI cards, the weekly chart,
+     and the SKU table with its filters in the table header. Uses the shared
+     theme tokens so it matches the rest of the dashboard in both themes. */
+  .fc-head{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;margin-bottom:20px}
+  .fc-horizon{display:flex;align-items:center;gap:10px}
+  .fc-horizon-lbl{font-size:12px;font-weight:600;color:var(--muted)}
+  .fcly-kpi-strip{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:0 0 16px}
+  .fcly-kpi-chip{min-width:0;padding:16px 18px;border-radius:14px;background:var(--panel);border:1px solid var(--line)}
+  .fcly-kpi-label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:600;color:var(--muted)}
+  .fcly-kpi-label svg{width:24px;height:24px;padding:4px;border-radius:7px;flex:none;color:var(--muted);
+    background:var(--ink-3);border:1px solid var(--line-2)}
+  .fcly-kpi-row{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-top:12px}
+  .fcly-kpi-value{color:var(--text);font:600 clamp(24px,2.3vw,30px)/1.1 var(--display);letter-spacing:-.02em;
+    font-variant-numeric:tabular-nums;white-space:nowrap}
+  .fcly-kpi-value.fc-dim{color:var(--muted-2)}
+  .fcly-delta{font-size:12px;font-weight:600;padding:2px 8px;border-radius:100px;background:var(--ink-3);color:var(--muted);white-space:nowrap}
+  .fcly-delta[hidden]{display:none}
+  .fcly-delta[data-direction="up"]{background:rgba(84,230,196,.12);color:#54E6C4}
+  .fcly-delta[data-direction="down"]{background:rgba(255,133,133,.12);color:#ff8585}
+  .fcly-kpi-foot{display:block;margin-top:8px;font-size:12px;line-height:1.4;color:var(--muted)}
+  .fc-chart-card .ch{align-items:flex-start;margin-bottom:12px}
+  .fc-chart-sub{display:block;margin:4px 0 0;font-size:12.5px}
+  .fc-filter-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .fc-filter-row .sku-search input{width:190px;height:34px;font-family:var(--body)}
+  .fc-ghost-btn{height:34px;padding:0 12px;font-size:12px;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)}
+  .fc-ghost-btn:hover{box-shadow:none;border-color:var(--muted-2)}
+  #fcLegend .lgd-item[hidden]{display:none}
+  [data-theme="light"] #fcLegend .lgd-item[data-k="f"] i{border-top-color:#6E9400!important}
+  #forecastsPanel #hideBacktestBtn.on{background:var(--ink-3);color:var(--text);border-color:var(--line-2)}
+  #forecastsPanel #hideBacktestBtn[aria-pressed="true"]{background:var(--signal-soft);color:var(--signal);border-color:var(--signal)}
+  .fcly-results{padding:0;overflow:hidden;margin-top:16px}
+  .fcly-table-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;
+    padding:14px 18px;border-bottom:1px solid var(--line)}
+  .fcly-filters{display:flex;gap:10px;flex-wrap:wrap}
+  .fcly-filter{display:grid;gap:5px;font-size:11.5px;font-weight:600;color:var(--muted)}
+  .fcly-filter select{min-width:150px;height:34px;padding:0 10px;border:1px solid var(--line-2);border-radius:8px;
+    background:var(--ink);color:var(--text);font:500 13px var(--body)}
+  .fcly-filter select:focus{outline:none;border-color:var(--signal)}
+  .fcly-filter select:disabled{color:var(--muted-2);cursor:not-allowed}
+  .fcly-table-actions{display:flex;flex-wrap:wrap;align-items:center;gap:8px;font-size:12px;color:var(--muted)}
+  .fcly-table-actions button{height:30px;padding:0 10px;border:1px solid var(--line-2);border-radius:8px;
+    background:var(--ink-3);color:var(--text);font:600 12px var(--body);cursor:pointer}
   .fcly-table-actions button:disabled{color:var(--muted-2);cursor:default}
-  .fcly-results .table-wrap{max-height:325px;overflow:auto;scrollbar-width:thin;scrollbar-color:var(--muted-2) var(--fc-chart-bg)}
-  #fclyResultsTable{margin:0;min-width:870px;border-collapse:separate;border-spacing:0}
-  #fclyResultsTable th,#fclyResultsTable td{padding:5px 10px;border-right:1px solid var(--fc-grid);
-    border-bottom:1px solid var(--fc-grid);white-space:nowrap;font:500 12px/1.45 var(--body)}
-  #fclyResultsTable tr>:last-child{border-right:0}
-  #fclyResultsTable thead th{position:sticky;top:0;z-index:2;background:var(--fc-tile);color:var(--text);
-    letter-spacing:0;text-transform:none;font-weight:700}
+  .fcly-table-actions [hidden]{display:none}
+  .fcly-results .table-wrap{max-height:460px;overflow:auto;scrollbar-width:thin}
+  #fclyResultsTable{margin:0;min-width:620px;border-collapse:separate;border-spacing:0}
+  #fclyResultsTable th,#fclyResultsTable td{padding:11px 18px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
+  #fclyResultsTable thead th{position:sticky;top:0;z-index:2;background:var(--ink-2);font-family:var(--body);
+    text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:var(--muted)}
   #fclyResultsTable .fcly-number{text-align:right}
   #fclyResultsTable th button{display:inline-flex;gap:6px;align-items:center;padding:0;background:none;border:0;color:inherit;font:inherit;cursor:pointer}
-  #fclyResultsTable th button:focus-visible{outline:2px solid var(--fc-blue);outline-offset:2px}
-  #fclyResultsTable tbody tr{--fc-row-bg:var(--fc-chart-bg)}
-  #fclyResultsTable tbody tr:nth-child(even){--fc-row-bg:color-mix(in srgb,var(--fc-tile) 24%,var(--fc-chart-bg))}
-  #fclyResultsTable tbody tr:hover,#fclyResultsTable tbody tr:focus-within{--fc-row-bg:color-mix(in srgb,var(--fc-blue) 12%,var(--fc-chart-bg))}
-  #fclyResultsTable tbody td,#fclyResultsTable tbody th{background:var(--fc-row-bg);color:var(--text);font-variant-numeric:tabular-nums}
-  #fclyResultsTable .skucell,#fclyResultsTable thead th:first-child{position:sticky;left:0;z-index:1}
-  #fclyResultsTable thead th:first-child{top:0;z-index:3}
-  #fclyResultsTable .skucell{text-transform:none;letter-spacing:0;text-align:left;font-weight:650}
+  #fclyResultsTable th.fcly-number button{flex-direction:row-reverse}
+  #fclyResultsTable th button:hover{color:var(--text)}
+  #fclyResultsTable th button:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+  #fclyResultsTable tbody tr{cursor:default}
+  #fclyResultsTable tbody tr:hover td,#fclyResultsTable tbody tr:hover th{background:rgba(255,255,255,.025)}
+  #fclyResultsTable tbody td{color:var(--text);font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+  #fclyResultsTable .skucell{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--text);text-align:left;
+    text-transform:none;letter-spacing:0}
   #fclyResultsTable .ov-dim{color:var(--muted-2)}
-  #fclyResultsTable th[aria-sort]{box-shadow:inset 0 -2px var(--fc-blue)}
-  #fclyResultsTable .ov-sort-ic{color:var(--fc-blue)}
-  #fclyResultsTable .fcly-comparison-column,#fclyResultsTable.fcly-data-only .fcly-unavailable-column{display:none}
-  #fclyResultsTable.fcly-data-only{min-width:430px}
-  #fclyResultsTable.fcly-data-only .fcly-comparison-column{display:table-cell}
-  .fcly-table-actions [hidden]{display:none}
-  @media(max-width:1100px){.fcly-kpi-chip{padding-inline:9px}}
-  @media(max-width:880px){.fcly-kpi-strip,.fcly-filterbar{grid-template-columns:repeat(3,minmax(0,1fr))}}
-  @media(max-width:520px){.fcly-kpi-strip,.fcly-filterbar{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  #fclyResultsTable .fc-up{color:#54E6C4}
+  #fclyResultsTable .fc-down{color:#ff8585}
+  #fclyResultsTable .ov-sort-ic{opacity:0;transition:opacity .15s}
+  #fclyResultsTable th:hover .ov-sort-ic{opacity:.5}
+  #fclyResultsTable th[aria-sort] .ov-sort-ic{opacity:1;color:var(--text)}
+  [data-theme="light"] #fclyResultsTable th,[data-theme="light"] #fclyResultsTable td{border-bottom-color:rgba(0,0,0,.06)}
+  [data-theme="light"] #fclyResultsTable tbody tr:hover td,[data-theme="light"] #fclyResultsTable tbody tr:hover th{background:rgba(0,0,0,.025)}
+  @media(max-width:980px){.fcly-kpi-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:520px){.fcly-kpi-strip{grid-template-columns:1fr}.fc-filter-row .sku-search input{width:100%}
+    .fcly-filter select{min-width:0;width:100%}.fcly-filters{display:grid;grid-template-columns:1fr 1fr;width:100%}}
   /* Integrations & Settings panel (OAuth connect/disconnect) */
   .amp-connect-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:1100px}
   .amp-shop-input{background:var(--ink);border:1px solid var(--line-2);border-radius:8px;
@@ -709,41 +707,62 @@
 
     <!-- Forecasts panel -->
     <div class="dbody" id="forecastsPanel" style="display:none">
-      <h1 class="dgreet">Period-over-period</h1>
+      <div class="fc-head">
+        <div>
+          <h1 class="dgreet" style="margin-bottom:4px">Forecasts</h1>
+          <p class="dsubtle" style="margin:0">The approved forecast for the weeks ahead, compared with last year and checked against the backtest.</p>
+        </div>
+        <div class="fc-horizon">
+          <span class="fc-horizon-lbl" id="fclyHorizonLbl">Horizon</span>
+          <div class="theme-pill" id="fclyHorizonSeg" role="group" aria-labelledby="fclyHorizonLbl">
+            <button class="active" data-h="4" aria-pressed="true" onclick="fclyPickHorizon(this)">4 weeks</button>
+            <button data-h="12" aria-pressed="false" onclick="fclyPickHorizon(this)">12 weeks</button>
+            <button data-h="52" aria-pressed="false" onclick="fclyPickHorizon(this)">52 weeks</button>
+          </div>
+        </div>
+      </div>
 
       <div id="forecastPeriodComparison">
-        <div class="fcly-horizon">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4" stroke-linecap="round"/></svg>
-          <span>Time Horizon:</span>
-          <div id="fclyHorizonSeg" role="group" aria-label="Forecast horizon">
-            <button class="active" data-h="4" aria-pressed="true" onclick="fclyPickHorizon(this)">Net 4 Weeks</button>
-            <button data-h="12" aria-pressed="false" onclick="fclyPickHorizon(this)">Net 12 Weeks</button>
-            <button data-h="52" aria-pressed="false" onclick="fclyPickHorizon(this)">Net 52 Weeks</button>
+        <div class="fcly-kpi-strip">
+          <div class="fcly-kpi-chip">
+            <span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg>Forecast units</span>
+            <div class="fcly-kpi-row"><b class="fcly-kpi-value" id="fclyKpiUnits">—</b><span class="fcly-delta" id="fclyYoY" hidden></span></div>
+            <span class="fcly-kpi-foot" id="fclyUnitsDetail"></span>
+          </div>
+          <div class="fcly-kpi-chip">
+            <span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20v-5m5 5v-8m5 8V8m5 12V4"/></svg>Revenue</span>
+            <div class="fcly-kpi-row"><b class="fcly-kpi-value" id="fclyKpiRevenue">—</b></div>
+            <span class="fcly-kpi-foot" id="fclyRevenueDetail"></span>
+          </div>
+          <div class="fcly-kpi-chip">
+            <span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 11 3h9v9l-8 8-9-9Z"/><circle cx="15.5" cy="8.5" r="1.5"/></svg>Avg discount / unit</span>
+            <div class="fcly-kpi-row"><b class="fcly-kpi-value" id="fclyKpiDiscount">—</b></div>
+            <span class="fcly-kpi-foot" id="fclyDiscountDetail"></span>
+          </div>
+          <div class="fcly-kpi-chip">
+            <span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r=".6"/></svg>Backtest error (WAPE)</span>
+            <div class="fcly-kpi-row"><b class="fcly-kpi-value" id="fclyKpiWape" title="Weighted absolute percentage error. Lower is better.">—</b></div>
+            <span class="fcly-kpi-foot">Last <span id="fclyKpiWapeLabel">4</span> backtest weeks · lower is better</span>
           </div>
         </div>
 
-        <div class="fcly-kpi-strip">
-          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg>Units</span><b class="fcly-kpi-value" id="fclyYoY">—</b><span class="fcly-kpi-foot" id="fclyUnitsDetail"></span></div>
-          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20v-5m5 5v-8m5 8V8m5 12V4"/></svg>Revenue</span><b class="fcly-kpi-value" id="fclyKpiRevenue">—</b><span class="fcly-kpi-foot" id="fclyRevenueDetail"></span></div>
-          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 11 3h9v9l-8 8-9-9Z"/><circle cx="16" cy="7" r="1"/></svg>Average Discount / Unit</span><b class="fcly-kpi-value" id="fclyKpiDiscount">—</b><span class="fcly-kpi-foot" id="fclyDiscountDetail"></span></div>
-          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9v6h5l8 4V5l-8 4H3Zm5 6 2 5m9-11 2-2m-2 6h3m-3 3 2 2"/></svg>Marketing Spend / Units Sold</span><b class="fcly-kpi-value">—</b><span class="fcly-kpi-foot">vs. — LY</span></div>
-          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="m12 12 8-8"/></svg>WAPE / Forecast Accuracy</span><b class="fcly-kpi-value" id="fclyKpiWape" title="Weighted absolute percentage error. Lower is better.">—</b><span class="fcly-kpi-foot"><span id="fclyKpiWapeLabel">4W</span> backtest</span></div>
-        </div>
-
-        <div class="dcard">
+        <div class="dcard fc-chart-card">
           <div class="ch" style="flex-wrap:wrap;gap:12px">
-            <h4>Forecast vs actuals — shipped units</h4>
-            <div class="fc-filter-row" style="display:flex;gap:10px;align-items:center;flex-wrap:nowrap;overflow-x:auto">
-              <div class="sku-search" style="flex:0 0 auto">
-                <input id="skuInput" list="skuList" placeholder="Search SKU… (blank = all)">
+            <div>
+              <h4>Weekly shipped units</h4>
+              <span class="dsubtle fc-chart-sub" id="fcChartSub">Recent actuals and the forecast ahead</span>
+            </div>
+            <div class="fc-filter-row">
+              <div class="sku-search">
+                <input id="skuInput" list="skuList" placeholder="Search SKU" aria-label="Search SKU">
                 <datalist id="skuList"></datalist>
               </div>
-              <button class="dbtn on" id="hideBacktestBtn" style="display:none;flex:0 0 auto;padding:5px 9px;font-size:11px;white-space:nowrap;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Show Backtest</button>
+              <button type="button" class="dbtn fc-ghost-btn on" id="hideBacktestBtn" style="display:none" aria-pressed="false">Full history</button>
             </div>
           </div>
           <div class="selbar">
             <span id="selName">All SKUs</span>
-            <span class="selwape">selection WAPE&nbsp;<b id="selWape">—</b></span>
+            <span class="selwape">Backtest WAPE, all weeks&nbsp;<b id="selWape">—</b></span>
           </div>
           <div class="dchart" id="forecastChart">
             <canvas id="fcCanvas"></canvas>
@@ -761,20 +780,14 @@
           </div>
         </div>
 
-        <div class="fcly-filterbar fcly-frame">
-          <div class="fcly-filter"><label for="fclySkuFilter">SKU</label><select id="fclySkuFilter"><option value="ALL">All SKUs</option></select></div>
-          <div class="fcly-filter"><label for="zipInput">ZIP code</label><select id="zipInput" disabled><option value="">All ZIP codes</option></select></div>
-          <div class="fcly-filter fcly-filter-disabled" title="Data unavailable"><label for="fcly-store">Store</label><select id="fcly-store" disabled><option>All Stores</option></select></div>
-          <div class="fcly-filter fcly-filter-disabled" title="Data unavailable"><label for="fcly-category">Category</label><select id="fcly-category" disabled><option>All Categories</option></select></div>
-          <div class="fcly-filter fcly-filter-disabled" title="Data unavailable"><label for="fcly-brand">Brand</label><select id="fcly-brand" disabled><option>All Brands</option></select></div>
-          <div class="fcly-filter fcly-filter-disabled" title="Data unavailable"><label for="fcly-channel">Channel</label><select id="fcly-channel" disabled><option>All Channels</option></select></div>
-        </div>
-
-        <div class="fcly-frame fcly-results">
+        <div class="dcard fcly-results">
           <div class="fcly-table-head">
-            <span id="fclyResultsCount" aria-live="polite">Loading results…</span>
+            <div class="fcly-filters">
+              <label class="fcly-filter">SKU<select id="fclySkuFilter"><option value="ALL">All SKUs</option></select></label>
+              <label class="fcly-filter">ZIP code<select id="zipInput" disabled><option value="">All ZIP codes</option></select></label>
+            </div>
             <div class="fcly-table-actions">
-              <button type="button" id="fclyDataOnly" aria-pressed="false" aria-controls="fclyResultsTable">Forecast data only</button>
+              <span id="fclyResultsCount" aria-live="polite">Loading results…</span>
               <button type="button" id="fclyPrevPage" aria-controls="fclyResultsTable" hidden>Previous</button>
               <button type="button" id="fclyNextPage" aria-controls="fclyResultsTable" hidden>Next</button>
             </div>
@@ -784,24 +797,17 @@
               <thead>
                 <tr>
                   <th scope="col" class="amp-sortable" data-sort-key="sku"><button type="button">SKU <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
-                  <th scope="col" class="fcly-unavailable-column">Region</th>
-                  <th scope="col" class="fcly-unavailable-column">Store</th>
-                  <th scope="col" class="fcly-unavailable-column">Category</th>
-                  <th scope="col" class="fcly-unavailable-column">Brand</th>
-                  <th scope="col" class="fcly-unavailable-column">Channel</th>
                   <th scope="col" class="amp-sortable fcly-number" data-sort-key="units"><button type="button">Units <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
-                  <th scope="col" class="amp-sortable fcly-number fcly-comparison-column" data-sort-key="prior"><button type="button">Last year <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
-                  <th scope="col" class="amp-sortable fcly-number fcly-comparison-column" data-sort-key="change"><button type="button">Change <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
-                  <th scope="col" class="fcly-unavailable-column fcly-number">Revenue</th>
-                  <th scope="col" class="fcly-unavailable-column fcly-number">Avg Discount / Unit</th>
-                  <th scope="col" class="fcly-unavailable-column fcly-number">Marketing Spend / Unit</th>
-                  <th scope="col" class="amp-sortable fcly-number" data-sort-key="wape"><button type="button">WAPE <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                  <th scope="col" class="amp-sortable fcly-number" data-sort-key="prior"><button type="button">Last year <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                  <th scope="col" class="amp-sortable fcly-number" data-sort-key="change"><button type="button">Change <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                  <th scope="col" class="amp-sortable fcly-number" data-sort-key="revenue" title="Forecast units × the SKU's historical average selling price"><button type="button">Revenue <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                  <th scope="col" class="amp-sortable fcly-number" data-sort-key="wape" title="Backtest error over the same number of weeks — lower is better"><button type="button">WAPE <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
                 </tr>
               </thead>
               <tbody id="fclyResultsBody">
-                <tr class="skel-row"><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td></tr>
-                <tr class="skel-row"><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td></tr>
-                <tr class="skel-row"><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td></tr>
+                <tr class="skel-row"><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td></tr>
+                <tr class="skel-row"><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td></tr>
+                <tr class="skel-row"><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td></tr>
               </tbody>
             </table>
           </div>
