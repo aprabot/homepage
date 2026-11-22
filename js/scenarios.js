@@ -430,7 +430,72 @@
     checkApprovalChange(scenarios);
     checkRunCompletion(prevScenarios, scenarios);
     syncScenarioWorkspace(scenarios);
+    renderLastRun(scenarios);
   };
+
+  // "Last run" card at the top of the Scenario workspace: the most recently
+  // started scenario, its status (live while running — the list re-polls
+  // every 8s then), its accuracy once it completes or its error if it
+  // failed, and shortcuts to compare it with the approved plan or open its
+  // details. Built from the scenario list this page already loads; the
+  // container is created here so the page markup doesn't need to change.
+  function renderLastRun(scenarios) {
+    var workspace = scenarioElement('scenarioWorkspace');
+    if (!workspace) return;
+    var box = document.getElementById('scenarioLastRun');
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'scenarioLastRun';
+      box.className = 'scenario-last-run';
+      box.setAttribute('aria-live', 'polite');
+      var head = workspace.querySelector('.scenario-workspace-head');
+      head.insertAdjacentElement('afterend', box);
+      box.addEventListener('click', function (event) {
+        var btn = event.target.closest('[data-last-run-action]');
+        if (!btn) return;
+        if (btn.dataset.lastRunAction === 'compare') window.compareWithApproved(btn.dataset.id);
+        else window.viewScenario(btn.dataset.id);
+      });
+    }
+    var last = scenarios.slice().sort(function (a, b) {
+      return String(b.created_at || '').localeCompare(String(a.created_at || ''));
+    })[0];
+    if (!last) { box.hidden = true; box.innerHTML = ''; return; }
+    box.hidden = false;
+    box.dataset.status = last.approved ? 'approved' : last.status || '';
+
+    var who = (last.requested_by || '').split('@')[0];
+    var meta = [who ? 'by ' + escapeHtml(who) : '', last.status === 'running' ? 'started ' + fmtRelative(last.created_at) : fmtRelative(last.created_at)]
+      .filter(Boolean).join(' · ');
+    var detail;
+    if (last.status === 'running') {
+      detail = '<span class="slr-running">' + SPINNER_SVG + ' Running — results usually arrive within a few minutes.</span>';
+    } else if (last.status === 'failed') {
+      detail = '<span class="slr-error">' + escapeHtml(last.error || 'The run failed.') + '</span>';
+    } else {
+      detail = '<span class="slr-metric">Backtest WAPE <b>' + (last.wape != null ? last.wape.toFixed(2) + '%' : '—') + '</b></span>' +
+        '<span class="slr-metric">Volume error <b>' + (last.volume_error != null
+          ? (last.volume_error > 0 ? '+' : '') + last.volume_error.toFixed(2) + '%' : '—') + '</b></span>' +
+        (last.approved ? '<span class="slr-metric">This is the live forecast</span>' : '');
+    }
+    var comparing = workspaceRunId === last.id;
+    var actions = '';
+    if (last.status === 'completed' && !last.approved) {
+      actions += '<button type="button" class="dbtn slr-btn" data-last-run-action="compare" data-id="' + escapeHtml(last.id) + '"' +
+        (comparing ? ' disabled' : '') + '>' + (comparing ? 'Shown below' : 'Compare with approved') + '</button>';
+    }
+    actions += '<button type="button" class="dbtn slr-btn slr-ghost" data-last-run-action="view" data-id="' + escapeHtml(last.id) + '">View details</button>';
+
+    box.innerHTML =
+      '<div class="slr-main">' +
+        '<div class="slr-kicker">Last run ' + statusPill(last) + '</div>' +
+        '<div class="slr-title">' + escapeHtml(last.label || 'Untitled scenario') + '</div>' +
+        '<div class="slr-meta" title="' + escapeHtml(fmtAbsolute(last.created_at)) + '">' + meta + '</div>' +
+        '<div class="slr-config">' + escapeHtml(configDescription(last)) + '</div>' +
+        '<div class="slr-detail">' + detail + '</div>' +
+      '</div>' +
+      '<div class="slr-actions">' + actions + '</div>';
+  }
 
   var scenarioLeverSupport = false;
   var pendingScenarioChoices = {};
@@ -800,6 +865,7 @@
     workspaceRunId = id;
     workspaceComparisonKey = '';
     syncScenarioWorkspace(lastScenarios);
+    renderLastRun(lastScenarios);
     scenarioElement('scenarioWorkspace').scrollIntoView({block:'start'});
     scenarioElement('scenarioRunSelection').focus({preventScroll:true});
   };
@@ -2006,6 +2072,7 @@
       scenarioElement('scenarioRunSelection').addEventListener('change', function (event) {
         workspaceRunId = event.target.value;
         syncScenarioWorkspace(lastScenarios);
+        renderLastRun(lastScenarios);
       });
       scenarioElement('scenarioApplyPlan').addEventListener('click', function (event) {
         var id = workspaceRunId;
