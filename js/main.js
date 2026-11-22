@@ -113,13 +113,28 @@
     let num=0,den=0; a.forEach((av,i)=>{if(av!=null){num+=Math.abs(av-f[i]);den+=av;}});
     return {w, overall: den?100*num/den:null};
   }
+  function forecastZipSeries(skuId,zip){
+    if(skuId!=='ALL')return DATA.skus[skuId]?.byZip?.[zip];
+    const matches=Object.values(DATA.skus).map(sku=>sku.byZip?.[zip]).filter(Boolean);
+    if(!matches.length)return null;
+    const sumWeeks=field=>{
+      const totals=DATA.weeks.map(()=>null);
+      matches.forEach(series=>series[field]?.forEach((value,i)=>{
+        if(Number.isFinite(value))totals[i]=(totals[i]??0)+value;
+      }));
+      return totals;
+    };
+    return {a:sumWeeks('a'),f:sumWeeks('f')};
+  }
+
   function getSeries(sel){
     if(!sel||sel==='ALL') return {a:DATA.all.a,f:DATA.all.f,w:DATA.all.w,name:'All SKUs',overall:DATA.overallWape};
     if(sel.indexOf('|')!==-1){
       const [skuId,zip]=sel.split('|');
-      const sku=DATA.skus[skuId]; const o=sku&&sku.byZip&&sku.byZip[zip];
+      const o=forecastZipSeries(skuId,zip);
       if(!o) return null;
-      const r=seriesWape(o.a,o.f); return {a:o.a,f:o.f,w:r.w,name:skuId+' · '+zip,overall:r.overall};
+      const r=seriesWape(o.a,o.f);
+      return {...o,w:r.w,name:(skuId==='ALL'?'All SKUs':skuId)+' · '+zip,overall:r.overall};
     }
     const o=DATA.skus[sel]; if(!o) return null;
     const r=seriesWape(o.a,o.f); return {a:o.a,f:o.f,w:r.w,name:sel,overall:r.overall};
@@ -284,7 +299,7 @@
   function initDashboard(){
     renderDashboardData();
     drawOverviewTrend();
-    if(dashReady){drawChart();fclyRender();return;}
+    if(dashReady){selectSku(getSeries(curSel)?curSel:'ALL');return;}
     dashReady=true;
 
     document.getElementById('ovTrendCard')?.addEventListener('click',()=>goToPanel('Forecasts'));
@@ -305,7 +320,6 @@
     input.addEventListener('keydown',e=>{if(e.key==='Enter')apply();});
     document.getElementById('zipInput').addEventListener('change',e=>{
       const baseSkuId=(curSel||'').split('|')[0];
-      if(!baseSkuId||baseSkuId==='ALL')return;
       selectSku(e.target.value?baseSkuId+'|'+e.target.value:baseSkuId);
     });
     const hideBtBtn=document.getElementById('hideBacktestBtn');
@@ -324,12 +338,12 @@
     cv.addEventListener('mouseleave',()=>{document.getElementById('fcTip').style.opacity=0;drawChart();});
     new ResizeObserver(()=>drawChart()).observe(document.getElementById('forecastChart'));
 
-    selectSku('');
     initFcly();
+    selectSku('');
   }
 
   // Period-over-period compares the forward window with weekday-aligned historical shipments.
-  let fclyHorizon=4, fclySkuFilter='ALL', fclyPage=1;
+  let fclyHorizon=4, fclyPage=1;
   const fclyPageSize=25;
   const fclySort={key:'units',dir:'desc'};
 
@@ -382,18 +396,21 @@
     return value==null?'—':(value>0?'+':'')+value.toFixed(1)+'%';
   }
 
-  function fclyBuildRows(weekCount){
-    return Object.keys(DATA.skus).map(id=>{
-      const series=DATA.skus[id];
-      return {sku:id,...fclyPeriod(series,weekCount),wape:fclySkuTrailingWape(series,fclyHorizon)};
+  function fclyBuildRows(skuId,zip,weekCount){
+    const ids=skuId==='ALL'?Object.keys(DATA.skus):[skuId];
+    return ids.flatMap(id=>{
+      const series=zip?DATA.skus[id]?.byZip?.[zip]:DATA.skus[id];
+      return series?[{sku:id,...fclyPeriod(series,weekCount),wape:fclySkuTrailingWape(series,fclyHorizon)}]:[];
     });
   }
 
   function fclyRender(){
     if(!window.DATA)return;
-    const series=fclySkuFilter==='ALL'?DATA.all:DATA.skus[fclySkuFilter]||DATA.all;
+    const [skuId,zip]=curSel.split('|');
+    const series=zip?forecastZipSeries(skuId,zip):skuId==='ALL'?DATA.all:DATA.skus[skuId];
+    if(!series)return;
     const forecastStart=DATA.backtestWeeks??DATA.weeks.length;
-    const future=DATA.all.f.slice(forecastStart,forecastStart+fclyHorizon);
+    const future=(zip?series:DATA.all).f.slice(forecastStart,forecastStart+fclyHorizon);
     const gap=future.findIndex(value=>!Number.isFinite(value));
     const weekCount=gap<0?future.length:gap;
     const period=fclyPeriod(series,weekCount);
@@ -408,8 +425,7 @@
     const w=series===DATA.all?trailingWape(fclyHorizon):fclySkuTrailingWape(series,fclyHorizon);
     setTxt('fclyKpiWape',w==null?'—':w.toFixed(2)+'%');
 
-    let rows=fclyBuildRows(weekCount);
-    if(fclySkuFilter!=='ALL')rows=rows.filter(r=>r.sku===fclySkuFilter);
+    let rows=fclyBuildRows(skuId,zip,weekCount);
     const revenue=fclyPricing(rows,'avgPrice');
     const discount=fclyPricing(rows,'avgDiscount');
     const amount=value=>value==null?'—':value.toLocaleString(undefined,{maximumFractionDigits:2});
@@ -479,7 +495,9 @@
     skuSel.innerHTML='<option value="ALL">All SKUs</option>'+
       Object.keys(DATA.skus).sort().map(id=>`<option value="${id}">${id}</option>`).join('');
     skuSel.addEventListener('change',e=>{
-      selectSku(e.target.value);
+      const id=e.target.value;
+      const zip=document.getElementById('zipInput').value;
+      selectSku(zip&&(id==='ALL'||DATA.skus[id]?.byZip?.[zip])?id+'|'+zip:id);
     });
     document.getElementById('fclyPrevPage').addEventListener('click',()=>{fclyPage=Math.max(1,fclyPage-1);fclyRender();});
     document.getElementById('fclyNextPage').addEventListener('click',()=>{fclyPage++;fclyRender();});
@@ -503,53 +521,32 @@
         fclyRender();
       });
     });
-    skuSel.value=fclySkuFilter;
-    fclyRender();
   }
 
   function selectSku(sel){
     const s=getSeries(sel||'ALL');
     if(!s){ document.getElementById('selName').textContent='SKU “'+sel+'” not found';
             document.getElementById('selWape').textContent='—'; return; }
+    if(curSel!==(sel||'ALL'))fclyPage=1;
     curSel=sel||'ALL';
     document.getElementById('selName').textContent=s.name;
     document.getElementById('selWape').textContent=s.overall==null?'—':s.overall.toFixed(2)+'%';
     drawChart();
     const [baseSkuId,zip]=curSel.split('|');
     document.getElementById('skuInput').value=baseSkuId==='ALL'?'':baseSkuId;
-    if (fclySkuFilter!==baseSkuId) {
-      fclySkuFilter=baseSkuId;
-      fclyPage=1;
-      document.getElementById('fclySkuFilter').value=baseSkuId;
-      fclyRender();
-    }
+    document.getElementById('fclySkuFilter').value=baseSkuId;
     renderZipFilter(baseSkuId,zip||'');
+    fclyRender();
   }
 
-  // Lets the chart be filtered straight to one postal code for the currently
-  // selected SKU, without going through the postal-code table — options are
-  // scoped to whichever SKU is selected since the aggregate "All SKUs" view
-  // has no per-ZIP breakdown to filter.
-  function renderZipFilter(baseSkuId,selectedZip){
+  function renderZipFilter(skuId,selectedZip){
     const sel=document.getElementById('zipInput');
-    const sku=baseSkuId&&DATA.skus[baseSkuId];
-    const byZip=sku&&sku.byZip;
-    const zips=byZip?Object.keys(byZip):[];
-    if(!zips.length){
-      sel.innerHTML='<option value="">All postal codes</option>';
-      sel.disabled=true;
-      sel.title='Pick a SKU first to filter by its postal codes';
-      sel.value='';
-      return;
-    }
-    const bt=DATA.backtestWeeks!=null?DATA.backtestWeeks:DATA.weeks.length;
-    const sumRange=(arr,s,e)=>arr.slice(s,e).reduce((acc,x)=>acc+(x||0),0);
-    const sorted=zips.map(z=>({z,vol:sumRange(byZip[z].a,0,bt)})).sort((x,y)=>y.vol-x.vol);
-    sel.innerHTML='<option value="">All postal codes</option>'+
-      sorted.map(o=>`<option value="${o.z}">${o.z}</option>`).join('');
-    sel.disabled=false;
-    sel.title='Filter the chart to one postal code';
-    sel.value=(selectedZip&&byZip[selectedZip])?selectedZip:'';
+    const skus=skuId==='ALL'?Object.values(DATA.skus):[DATA.skus[skuId]];
+    const zips=[...new Set(skus.flatMap(sku=>Object.keys(sku?.byZip||{})))].sort();
+    sel.replaceChildren(new Option('All ZIP codes',''),...zips.map(zip=>new Option(zip,zip)));
+    sel.disabled=!zips.length;
+    sel.title=zips.length?'Filter by ZIP code':'ZIP code data unavailable';
+    sel.value=zips.includes(selectedZip)?selectedZip:'';
   }
 
   function drawChart(){

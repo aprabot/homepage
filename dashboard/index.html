@@ -735,11 +735,6 @@
                 <input id="skuInput" list="skuList" placeholder="Search SKU… (blank = all)">
                 <datalist id="skuList"></datalist>
               </div>
-              <div class="sku-search" style="flex:0 0 auto">
-                <select id="zipInput" disabled title="Pick a SKU first to filter by its postal codes">
-                  <option value="">All postal codes</option>
-                </select>
-              </div>
               <button class="dbtn on" id="hideBacktestBtn" style="display:none;flex:0 0 auto;padding:5px 9px;font-size:11px;white-space:nowrap;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Show Backtest</button>
             </div>
           </div>
@@ -765,7 +760,7 @@
 
         <div class="fcly-filterbar fcly-frame">
           <div class="fcly-filter"><label for="fclySkuFilter">SKU</label><select id="fclySkuFilter"><option value="ALL">All SKUs</option></select></div>
-          <div class="fcly-filter fcly-filter-disabled" title="Data unavailable"><label for="fcly-region">Region</label><select id="fcly-region" disabled><option>All Regions</option></select></div>
+          <div class="fcly-filter"><label for="zipInput">ZIP code</label><select id="zipInput" disabled><option value="">All ZIP codes</option></select></div>
           <div class="fcly-filter fcly-filter-disabled" title="Data unavailable"><label for="fcly-store">Store</label><select id="fcly-store" disabled><option>All Stores</option></select></div>
           <div class="fcly-filter fcly-filter-disabled" title="Data unavailable"><label for="fcly-category">Category</label><select id="fcly-category" disabled><option>All Categories</option></select></div>
           <div class="fcly-filter fcly-filter-disabled" title="Data unavailable"><label for="fcly-brand">Brand</label><select id="fcly-brand" disabled><option>All Brands</option></select></div>
