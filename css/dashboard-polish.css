@@ -218,3 +218,21 @@
 #dashboard .amp-connect-card:has(.pill.ok) .amp-conn-btn:hover{border-color:#ff8585;color:#ff8585;transform:none}
 #dashboard .amp-shop-input{height:38px;box-sizing:border-box;padding:0 12px;background:var(--ink);border:1px solid var(--line-2);
   border-radius:9px;color:var(--text);font:500 13px var(--body)}
+
+/* ============================================================
+   Settings
+============================================================ */
+/* Section headings as real headings, not tiny spaced capitals. */
+#dashboard .scard h4{font-family:var(--body);font-size:15px;font-weight:600;text-transform:none;letter-spacing:0;color:var(--text)}
+#dashboard .scard-head{margin-bottom:12px}
+/* One neutral icon style instead of a different tint per card. */
+#dashboard .scard-ic,#dashboard .scard-ic.c-signal,#dashboard .scard-ic.c-mint,#dashboard .scard-ic.c-blue{
+  background:var(--ink-3);color:var(--muted);border:1px solid var(--line-2)}
+/* Rows: a touch more air and more readable descriptions. */
+#dashboard .scard{padding:22px 24px}
+#dashboard .srow{padding:14px 8px;border-radius:8px}
+#dashboard .srow-label{font-size:.92rem}
+#dashboard .srow-desc{font-size:.84rem;line-height:1.5}
+/* "Reset defaults" is secondary to Save. */
+#dashboard .settings-body .dbtn[onclick^="reset"]{background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);box-shadow:none}
+#dashboard .settings-body .dbtn[onclick^="reset"]:hover{border-color:var(--muted-2);transform:none}
