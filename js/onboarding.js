@@ -1262,9 +1262,9 @@
       !histKey ? tile('SKU master', '', 'Needs sales data')
         : unconfirmed ? tile('SKU master', 'warn', unconfirmed + ' to confirm')
         : tile('SKU master', 'ok', 'Ready'),
-      inboundKey ? tile('Inbound receipts', 'ok', 'Received')
-        : inboundSkipped ? tile('Inbound receipts', 'warn', 'Skipped')
-        : tile('Inbound receipts', '', 'Not provided'),
+      inboundKey ? tile('Upload inbound data', 'ok', 'Received')
+        : inboundSkipped ? tile('Upload inbound data', 'warn', 'Skipped')
+        : tile('Upload inbound data', '', 'Not provided'),
       sheetWeather ? tile('Weather & festivals', 'ok', 'Ready')
         : tile('Weather & festivals', 'warn', 'Default weather'),
     ];
@@ -1289,7 +1289,7 @@
     if (Object.keys(newSkuState).length) kept.push('launch dates');
     if (schemeIds.length) kept.push('scheme IDs');
     if (spendKey) kept.push('marketing spend');
-    if (inboundKey) kept.push('inbound receipts');
+    if (inboundKey) kept.push('inbound data');
     if (fileWeather) kept.push('your separate weather file');
     note.innerHTML = '<b>Will use:</b> ' + escapeHtml(used) + '. ' +
       '<b>Saved for later, not used in training yet:</b> ' + escapeHtml(joinList(kept)) + '.';
