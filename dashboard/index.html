@@ -111,6 +111,7 @@
   .ob-shopify-controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-bottom:10px}
   .ob-shopify-controls .field{flex:1 1 230px;margin:0}
   .ob-shopify-controls[hidden]{display:none}
+  #obReady [hidden]{display:none}
   #obShopifyStatus,#obShopifyCheckResult{margin:8px 0 0}
   #obShopifyRefresh:disabled{opacity:.7;cursor:wait}
   @media(max-width:760px){.ob-stepper-seg{flex:1 1 20px;min-width:2px;max-width:24px}.ob-stepper-step{flex:1 0 46px}.ob-stepper{overflow-x:auto;padding:3px 3px 7px}}
@@ -1836,7 +1837,7 @@
               <div class="flowd-box">Validating</div><div class="flowd-arrow">→</div>
               <div class="flowd-box mint">Done</div>
             </div>
-            <p class="dsubtle" style="margin:14px 0 0">Runs in the background — close this and come back anytime. When it's done you'll get a link to review it in Scenarios before it goes live.</p>
+            <p class="dsubtle" style="margin:14px 0 0">Runs in the background — close this and come back anytime. When it's done, the forecast appears here and becomes your live forecast on the Forecasts tab — you'll also find it in Scenarios.</p>
           </div>
           </div>
 
@@ -1854,14 +1855,33 @@
           <p class="dsubtle" id="obPreparingMsg" style="margin-bottom:0">Training a forecasting model on your uploaded data — this can take a few minutes.</p>
         </div>
 
-        <div id="obReady" style="display:none;text-align:center;padding:40px 20px">
-          <div style="width:48px;height:48px;border-radius:50%;background:var(--signal-soft);display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
-            <svg viewBox="0 0 24 24" fill="none" stroke="var(--signal)" stroke-width="2.5" width="24" height="24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        <div id="obReady" style="display:none;padding:32px 4px 8px">
+          <div style="text-align:center">
+            <div style="width:48px;height:48px;border-radius:50%;background:var(--signal-soft);display:flex;align-items:center;justify-content:center;margin:0 auto 14px">
+              <svg viewBox="0 0 24 24" fill="none" stroke="var(--signal)" stroke-width="2.5" width="24" height="24"><path d="M20 6L9 17l-5-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </div>
+            <h3 style="margin-bottom:6px">Your forecast is ready</h3>
+            <p class="dsubtle" id="obReadyIntro" style="margin-bottom:0">Trained on your data — here's what it predicts.</p>
           </div>
-          <h3 style="margin-bottom:6px">Your model is ready</h3>
-          <p class="dsubtle" style="margin-bottom:16px">We've trained a forecasting model on your data. Head to Scenarios to review it and approve it to go live.</p>
-          <button type="button" class="dbtn" id="obGoScenarios">Go to Scenarios →</button>
-          <button type="button" class="link-btn" id="obStartOver" style="margin-left:10px">Start over</button>
+          <div id="obReadyPreview" hidden>
+            <div class="ob-stat-grid ob-stat-4">
+              <div class="ob-stat"><div class="ob-stat-lbl" id="obReadyUnitsLbl">Forecast units</div><b id="obReadyUnits">—</b></div>
+              <div class="ob-stat"><div class="ob-stat-lbl">SKUs</div><b id="obReadySkus">—</b></div>
+              <div class="ob-stat"><div class="ob-stat-lbl" title="Weighted absolute percentage error on held-out history — lower is better">Backtest error (WAPE)</div><b id="obReadyWape">—</b></div>
+              <div class="ob-stat"><div class="ob-stat-lbl">Forecast period</div><b id="obReadyRange" style="font-size:13px">—</b></div>
+            </div>
+            <div id="obReadyChartWrap" style="display:none;margin-top:16px">
+              <div class="ch" style="margin-bottom:8px"><h4 style="font-size:13.5px">Weekly forecast units</h4></div>
+              <canvas id="obReadyChart" style="width:100%;height:220px;display:block;border-radius:12px;border:1px solid var(--line)"></canvas>
+            </div>
+          </div>
+          <p class="stest-msg" id="obReadyStatus" style="text-align:center;margin-top:16px"></p>
+          <div style="display:flex;gap:10px;justify-content:center;align-items:center;flex-wrap:wrap;margin-top:12px">
+            <button type="button" class="btn btn-pri" id="obGoLive" hidden>Make this my live forecast</button>
+            <button type="button" class="btn btn-pri" id="obOpenForecasts" hidden>Open Forecasts →</button>
+            <button type="button" class="dbtn" id="obGoScenarios" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Go to Scenarios →</button>
+            <button type="button" class="link-btn" id="obStartOver">Start over</button>
+          </div>
         </div>
 
         <div id="obFailed" style="display:none;text-align:center;padding:40px 20px">

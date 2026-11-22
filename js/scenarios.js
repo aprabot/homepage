@@ -2028,6 +2028,16 @@
       loadScenarios().then(loadApprovals);
     }
 
+    // Keep the list current when runs are created elsewhere (onboarding fires
+    // apra:scenarios-changed) and whenever the Scenarios tab is opened —
+    // otherwise a run started after page load never shows up until a reload.
+    var refreshScenarioList = function () { loadScenarios().then(loadApprovals); };
+    document.addEventListener('apra:scenarios-changed', refreshScenarioList);
+    var scenariosNav = Array.prototype.find.call(document.querySelectorAll('.dnav li'), function (li) {
+      return li.getAttribute('title') === 'Scenarios';
+    });
+    if (scenariosNav) scenariosNav.addEventListener('click', refreshScenarioList);
+
     var bell = document.getElementById('notifBell');
     var drop = document.getElementById('notifDrop');
     if (bell && drop) {

@@ -1580,12 +1580,130 @@
     uploadFile(buildOnboardingProfile(), null).catch(function () {}); // best-effort, never blocks the main flow
   }
 
-  function showPreparingResult(state, message) {
+  function showPreparingResult(state, message, scenario, isAdmin) {
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     document.getElementById('obPreparing').style.display = 'none';
     document.getElementById('obReady').style.display = (state === 'ready') ? '' : 'none';
     document.getElementById('obFailed').style.display = (state === 'failed') ? '' : 'none';
     if (state === 'failed' && message) document.getElementById('obFailedMsg').textContent = message;
+    if (state === 'ready') renderReadyForecast(scenario, isAdmin);
+    if (state === 'ready' || state === 'failed') document.dispatchEvent(new Event('apra:scenarios-changed'));
+  }
+
+  // The runner records why a run failed (e.g. a missing column) — show that
+  // instead of a generic message, so the user knows what to fix.
+  function failedRunMessage(scenario) {
+    return scenario && scenario.error
+      ? 'The model run failed: ' + scenario.error
+      : 'The model run failed — you can try again.';
+  }
+
+  // Review & train's result. When the run completes, an admin's onboarding
+  // forecast becomes the organization's live forecast automatically (the
+  // same approval the Scenarios tab's "Apply to plan" does), so it shows on
+  // Forecasts / Overview right away and in Scenarios as the approved run.
+  // Each run is made live at most once (remembered per browser), so coming
+  // back to Getting Started later never overrides a forecast someone has
+  // approved since. Non-admins see the forecast but can't approve it.
+  var readyScenarioId = null;
+  var AUTO_LIVE_KEY = 'apra_onboarding_live:';
+
+  function wasMadeLive(id) {
+    try { return localStorage.getItem(AUTO_LIVE_KEY + id) === '1'; } catch (e) { return false; }
+  }
+
+  function rememberMadeLive(id) {
+    try { localStorage.setItem(AUTO_LIVE_KEY + id, '1'); } catch (e) {}
+  }
+
+  function showLive(status) {
+    document.getElementById('obGoLive').hidden = true;
+    document.getElementById('obOpenForecasts').hidden = false;
+    setStatus(status, 'Live — this forecast is now on the Forecasts tab and approved in Scenarios.', 'ok');
+  }
+
+  function renderReadyForecast(scenario, isAdmin) {
+    var preview = document.getElementById('obReadyPreview');
+    var status = document.getElementById('obReadyStatus');
+    var goLive = document.getElementById('obGoLive');
+    preview.hidden = true;
+    goLive.hidden = true;
+    document.getElementById('obOpenForecasts').hidden = true;
+    readyScenarioId = scenario ? scenario.id : null;
+    if (!scenario) { setStatus(status, ''); return; }
+
+    var autoLive = false, nextStep;
+    if (scenario.approved) {
+      rememberMadeLive(scenario.id);
+      nextStep = null;
+    } else if (isAdmin && !wasMadeLive(scenario.id)) {
+      autoLive = true;
+    } else if (isAdmin) {
+      // Made live before, and a different forecast has been approved since.
+      goLive.hidden = false;
+      nextStep = ['A different forecast is live now. Make this one live again to show it on Forecasts.'];
+    } else {
+      nextStep = ['An admin in your organization needs to approve it in Scenarios before it shows on Forecasts.'];
+    }
+
+    setStatus(status, autoLive ? 'Making it your live forecast…' : 'Loading your forecast…');
+    if (autoLive) makeOnboardingForecastLive();
+    else if (!nextStep) showLive(status);
+
+    APRA_SESSION.fetch(SCENARIOS_API + '/' + encodeURIComponent(scenario.id) + '/result')
+      .then(function (r) { return r.ok ? r.json() : Promise.reject(new Error('result unavailable')); })
+      .then(function (result) {
+        if (readyScenarioId !== scenario.id) return; // user started over meanwhile
+        var start = Number.isInteger(result.backtestWeeks) ? result.backtestWeeks : 0;
+        var weeks = (result.weeks || []).slice(start);
+        var forecast = ((result.all || {}).f || []).slice(start);
+        var points = [], total = 0;
+        weeks.forEach(function (week, i) {
+          if (!Number.isFinite(forecast[i])) return;
+          points.push({ date: new Date(week), units: forecast[i] });
+          total += forecast[i];
+        });
+        setText('obReadyUnitsLbl', points.length ? 'Forecast units · next ' + points.length + ' weeks' : 'Forecast units');
+        setText('obReadyUnits', points.length ? Math.round(total).toLocaleString() : '—');
+        setText('obReadySkus', result.skus ? Object.keys(result.skus).length.toLocaleString() : '—');
+        setText('obReadyWape', Number.isFinite(result.overallWape) ? result.overallWape.toFixed(1) + '%' : '—');
+        // Week labels are week starts, so the period ends six days after the last one.
+        setText('obReadyRange', points.length
+          ? fmtDay(points[0].date) + ' – ' + fmtDay(new Date(points[points.length - 1].date.getTime() + 6 * 86400000))
+          : '—');
+        preview.hidden = false;
+        drawLineChart('obReadyChart', 'obReadyChartWrap', points);
+        if (nextStep) setStatus(status, nextStep[0], nextStep[1]);
+      })
+      .catch(function () {
+        if (readyScenarioId !== scenario.id || !nextStep) return;
+        setStatus(status, 'The forecast finished, but its preview couldn’t be loaded. ' + nextStep[0], 'err');
+      });
+  }
+
+  // Approves the run (copies it to the live forecast) and refreshes Overview,
+  // Forecasts, Scenarios, AI Insights and Inventory — see approveScenario()
+  // in js/scenarios.js. Also used by the retry button if the automatic
+  // attempt fails.
+  function makeOnboardingForecastLive() {
+    var btn = document.getElementById('obGoLive');
+    var status = document.getElementById('obReadyStatus');
+    var id = readyScenarioId;
+    if (!id || typeof window.approveScenario !== 'function') return;
+    btn.hidden = true;
+    setStatus(status, 'Making it your live forecast…');
+    window.approveScenario(id, btn).then(function () {
+      if (readyScenarioId !== id) return;
+      rememberMadeLive(id);
+      btn.disabled = false;
+      btn.textContent = 'Make this my live forecast';
+      showLive(status);
+    }).catch(function (err) {
+      if (readyScenarioId !== id) return;
+      var reason = err && err.message && err.message !== 'approve failed' ? err.message : '';
+      btn.hidden = false;
+      setStatus(status, (reason || 'Could not make it your live forecast.') + ' Try again, or approve it in Scenarios.', 'err');
+    });
   }
 
   // Mirrors js/scenarios.js's own polling (8s interval on GET /scenarios,
@@ -1610,8 +1728,8 @@
         .then(function (d) {
           var match = (d.scenarios || []).filter(function (s) { return s.id === scenarioId; })[0];
           if (!match) return; // not indexed yet — try again next tick
-          if (match.status === 'completed') showPreparingResult('ready');
-          else if (match.status === 'failed') showPreparingResult('failed', 'The model run failed — you can try again.');
+          if (match.status === 'completed') showPreparingResult('ready', null, match, d.you_are_admin === true);
+          else if (match.status === 'failed') showPreparingResult('failed', failedRunMessage(match));
         })
         .catch(function () {}); // transient error — just try again next tick
     }, POLL_MS);
@@ -1631,6 +1749,7 @@
       .then(function (res) {
         if (!res.ok) throw new Error(res.d.error || 'Could not start model preparation.');
         try { localStorage.setItem(ONBOARDING_SCENARIO_KEY, res.d.scenario_id); } catch (e) {}
+        document.dispatchEvent(new Event('apra:scenarios-changed')); // show the running run in Scenarios
         pollOnboardingScenario(res.d.scenario_id);
       })
       .catch(function (err) {
@@ -1664,8 +1783,8 @@
           document.getElementById('obWalkthroughCard').style.display = (step === 1) ? 'flex' : 'none';
           return;
         }
-        if (match.status === 'completed') { showPreparingResult('ready'); return; }
-        if (match.status === 'failed') { showPreparingResult('failed', 'The model run failed — you can try again.'); return; }
+        if (match.status === 'completed') { showPreparingResult('ready', null, match, d.you_are_admin === true); return; }
+        if (match.status === 'failed') { showPreparingResult('failed', failedRunMessage(match)); return; }
         document.getElementById('obPreparingMsg').textContent =
           'Training a forecasting model on your uploaded data — this can take a few minutes.';
         pollOnboardingScenario(scenarioId);
@@ -1681,6 +1800,7 @@
   function startOnboardingOver() {
     try { localStorage.removeItem(ONBOARDING_SCENARIO_KEY); } catch (e) {}
     histKey = null;
+    readyScenarioId = null;
     salesSkuIds = skuMasterIds = skuMasterKey = null;
     skuMasterUploading = false;
     skuMasterUploadVersion++;
@@ -1801,6 +1921,13 @@
     });
 
     document.getElementById('obStartOver').addEventListener('click', startOnboardingOver);
+    document.getElementById('obGoLive').addEventListener('click', makeOnboardingForecastLive);
+    document.getElementById('obOpenForecasts').addEventListener('click', function () {
+      var forecasts = Array.prototype.find.call(document.querySelectorAll('.dnav li'), function (li) {
+        return li.getAttribute('title') === 'Forecasts';
+      });
+      if (forecasts) forecasts.click();
+    });
     initShopifyStep();
 
     showStep(1);
