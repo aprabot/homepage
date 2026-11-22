@@ -441,15 +441,6 @@
       ? '' : 'Advanced levers require the updated Forecast backend.';
   }
 
-  window.openScenarioWorkspace = function () {
-    if (window.getComputedStyle(scenarioElement('scenariosPanel')).display === 'none') {
-      var nav = document.querySelector('.dnav li[title="Scenarios"]');
-      if (nav) nav.click();
-    }
-    scenarioElement('scenarioWorkspace').scrollIntoView({block:'start'});
-    scenarioElement('rf-label').focus({preventScroll:true});
-  };
-
   var scenarioDraftFields = [
     'rf-label', 'rf-source', 'rf-exclude', 'rf-spend', 'rf-campaign',
     'rf-holiday-off', 'rf-holiday-postal', 'rf-cap', 'rf-price', 'rf-postal',

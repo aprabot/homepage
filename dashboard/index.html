@@ -435,7 +435,7 @@
   .ads-scope-line{min-width:0;border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0}
   .ads-scope-line legend{color:var(--muted);font-size:12px}
   .ads-plan-actions{margin:12px 0}
-  .scenario-workspace{margin-top:20px;scroll-margin-top:12px}
+  .scenario-workspace{scroll-margin-top:12px}
   .scenario-workspace-head,.scenario-comparison-head,.scenario-workspace-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .scenario-workspace-head h2{font-size:18px}
   .scenario-workspace-head .dsubtle{margin:4px 0 0}
@@ -898,67 +898,6 @@
 
     <!-- Scenarios panel -->
     <div class="dbody" id="scenariosPanel" style="display:none">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
-        <div>
-          <h1 class="dgreet">Scenarios</h1>
-          <p class="dsubtle" style="margin-bottom:0">Run forecast variants against the real pipeline, compare results, and approve which one powers Overview &amp; Forecasts.</p>
-        </div>
-        <button class="dbtn" onclick="openScenarioWorkspace()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="15" height="15"><polygon points="6,4 20,12 6,20"/></svg>
-          Run new forecast
-        </button>
-      </div>
-
-      <div class="dcard" style="margin-top:24px">
-        <div class="ch" style="flex-wrap:wrap;gap:12px">
-          <h4>Revision history</h4>
-          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
-            <div class="sku-search" style="flex:0 0 auto">
-              <input type="text" id="scenariosSearchInput" placeholder="Search by name or requester…" style="width:200px">
-            </div>
-            <div class="seg" id="scenariosStatusSeg">
-              <button type="button" class="on" data-status="all">All</button>
-              <button type="button" data-status="approved">Approved</button>
-              <button type="button" data-status="completed">Completed</button>
-              <button type="button" data-status="running">Running</button>
-              <button type="button" data-status="failed">Failed</button>
-            </div>
-            <button class="dbtn" id="refreshScenariosBtn" style="padding:7px 10px;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" onclick="refreshScenarios(this)" aria-label="Refresh">
-              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M21 12a9 9 0 1 1-2.64-6.36M21 3v6h-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            </button>
-            <button class="dbtn" id="compareBtn" style="display:none;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" onclick="openCompareModal()">Compare selected (2)</button>
-          </div>
-        </div>
-        <div class="table-wrap">
-          <table class="dtable">
-            <thead><tr>
-              <th style="width:30px"></th><th>Scenario</th><th>Requested by</th><th>Config</th>
-              <th>WAPE</th><th>Volume error</th><th>Status</th><th>Created</th><th></th>
-            </tr></thead>
-            <tbody id="scenariosBody">
-              <tr class="skel-row"><td><span class="skel-line" style="width:16px"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td></td></tr>
-              <tr class="skel-row"><td><span class="skel-line" style="width:16px"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td></td></tr>
-              <tr class="skel-row"><td><span class="skel-line" style="width:16px"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td></td></tr>
-            </tbody>
-          </table>
-        </div>
-        <p class="dsubtle" id="scenariosEmpty" style="margin:32px 0 12px;text-align:center;display:none">No scenarios yet — run your first forecast above.</p>
-        <p class="dsubtle" id="scenariosNoMatch" style="margin:32px 0 12px;text-align:center;display:none">No scenarios match this search/filter.</p>
-        <div id="scenariosPagination" style="display:none;align-items:center;justify-content:center;gap:14px;margin-top:14px"></div>
-      </div>
-
-      <div class="dcard" style="margin-top:20px">
-        <div class="ch">
-          <h4>Approval history</h4>
-          <span class="dsubtle" style="margin:0;font-size:.8rem">who approved what, when, and what it replaced — across every scenario</span>
-        </div>
-        <div class="table-wrap" style="max-height:360px">
-          <table class="dtable">
-            <thead><tr><th>Scenario</th><th>Approved by</th><th>When</th><th>Replaced</th><th>WAPE</th><th>Volume error</th></tr></thead>
-            <tbody id="orgApprovalsBody"><tr><td colspan="6" class="dsubtle">Loading…</td></tr></tbody>
-          </table>
-        </div>
-      </div>
       <section class="dcard scenario-workspace" id="scenarioWorkspace" aria-labelledby="scenarioWorkspaceTitle">
         <div class="scenario-workspace-head">
           <div>
