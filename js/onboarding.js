@@ -14,6 +14,8 @@
 
   var map = null, markersLayer = null, areaLayer = null;
   var histKey = null;
+  var spendKey = null, spendSkipped = false;
+  var inboundKey = null, inboundSkipped = false;
   var TOTAL_STEPS = 7;
   var step = 1;
   var holidayCountryLoaded = null; // signature ("country|sorted,detected,states") of the defaults currently loaded into holidayState — see loadDefaultHolidays()
@@ -1053,6 +1055,8 @@
     var sections = [
       { label: 'Serviceable area (channel/distributor/pincode)', warnings: lastAreaWarnings, uploaded: !!(areaFile && areaFile.files.length), required: false },
       { label: 'Historical shipment data', warnings: lastHistWarnings, uploaded: !!histKey, required: true },
+      { label: 'Marketing spend', warnings: [], uploaded: !!spendKey, required: false },
+      { label: 'Inbound receipts', warnings: [], uploaded: !!inboundKey, required: false },
       { label: 'Weather', warnings: lastWeatherWarnings, uploaded: weatherChartPoints.length > 0, required: false },
     ];
 
@@ -1110,6 +1114,8 @@
         return { date: h.date.toISOString().slice(0, 10), name: h.name, auto: h.auto };
       }),
       channel_distributor_mapping: channelDistributorRows,
+      marketing_spend_key: spendKey, marketing_spend_skipped: spendSkipped,
+      inbound_receipts_key: inboundKey, inbound_receipts_skipped: inboundSkipped,
     };
     return new File([JSON.stringify(profile, null, 2)], 'onboarding-profile.txt', { type: 'application/json' });
   }
@@ -1222,6 +1228,8 @@
   function startOnboardingOver() {
     try { localStorage.removeItem(ONBOARDING_SCENARIO_KEY); } catch (e) {}
     histKey = null;
+    spendKey = null; spendSkipped = false;
+    inboundKey = null; inboundSkipped = false;
     newSkuState = {};
     holidayState = {};
     holidayCountryLoaded = null;
@@ -1237,12 +1245,14 @@
     document.getElementById('obPreparing').style.display = 'none';
     document.getElementById('obSetupForm').style.display = '';
 
-    ['obAreaFile', 'obHistFile', 'obWeatherFile'].forEach(function (id) {
+    ['obAreaFile', 'obHistFile', 'obSpendFile', 'obInboundFile', 'obWeatherFile'].forEach(function (id) {
       var el = document.getElementById(id); if (el) el.value = '';
     });
     document.getElementById('obAreaStatus').textContent = '';
     document.getElementById('obHistStatus').textContent = '';
     document.getElementById('obHistChartWrap').style.display = 'none';
+    document.getElementById('obSpendStatus').textContent = '';
+    document.getElementById('obInboundStatus').textContent = '';
     document.getElementById('obWeatherFileStatus').textContent = '';
     document.getElementById('obWeatherChartWrap').style.display = 'none';
     ['obAreaWarnings', 'obHistWarnings', 'obWeatherWarnings'].forEach(function (id) { renderWarnings(id, []); });
@@ -1339,6 +1349,44 @@
         updateSubmitState();
       }).catch(function () {});
       previewHistChart(file); // runs independently of the upload — just reads the local file
+    });
+
+    // Marketing spend / inbound receipts: real uploads via the same
+    // presigned-S3 endpoint as every other file here, but not consumable by
+    // forecast.py yet — same status as channelDistributorRows/newSkuState/
+    // holidayState above, just a file instead of parsed rows. Never gates
+    // Next (both are optional, same treatment as the serviceable-area/
+    // weather uploads).
+    document.getElementById('obSpendFile').addEventListener('change', function () {
+      var file = this.files[0];
+      if (!file) return;
+      spendSkipped = false;
+      var statusEl = document.getElementById('obSpendStatus');
+      uploadFile(file, statusEl).then(function (key) {
+        spendKey = key;
+        setStatus(statusEl, 'Received — not used in forecasting yet, kept on file.', 'ok');
+      }).catch(function () {});
+    });
+    document.getElementById('obSpendSkipBtn').addEventListener('click', function () {
+      spendSkipped = true; spendKey = null;
+      document.getElementById('obSpendFile').value = '';
+      setStatus(document.getElementById('obSpendStatus'), 'No marketing spend data — noted.', 'ok');
+    });
+
+    document.getElementById('obInboundFile').addEventListener('change', function () {
+      var file = this.files[0];
+      if (!file) return;
+      inboundSkipped = false;
+      var statusEl = document.getElementById('obInboundStatus');
+      uploadFile(file, statusEl).then(function (key) {
+        inboundKey = key;
+        setStatus(statusEl, 'Received — not used in forecasting yet, kept on file.', 'ok');
+      }).catch(function () {});
+    });
+    document.getElementById('obInboundSkipBtn').addEventListener('click', function () {
+      inboundSkipped = true; inboundKey = null;
+      document.getElementById('obInboundFile').value = '';
+      setStatus(document.getElementById('obInboundStatus'), 'No inbound receipts data — noted.', 'ok');
     });
 
     document.getElementById('obNewSkuAdd').addEventListener('click', addManualNewSku);

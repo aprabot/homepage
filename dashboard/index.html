@@ -1257,15 +1257,15 @@
           <div class="ob-stepper" id="obStepper">
             <div class="ob-stepper-step" id="obStepperStep1"><div class="n">1</div><div class="lbl">Country</div></div>
             <div class="ob-stepper-seg"></div>
-            <div class="ob-stepper-step" id="obStepperStep2"><div class="n">2</div><div class="lbl">Serviceable area</div></div>
+            <div class="ob-stepper-step" id="obStepperStep2"><div class="n">2</div><div class="lbl">Sales data</div></div>
             <div class="ob-stepper-seg"></div>
-            <div class="ob-stepper-step" id="obStepperStep3"><div class="n">3</div><div class="lbl">Sales history</div></div>
+            <div class="ob-stepper-step" id="obStepperStep3"><div class="n">3</div><div class="lbl">Marketing spend</div></div>
             <div class="ob-stepper-seg"></div>
-            <div class="ob-stepper-step" id="obStepperStep4"><div class="n">4</div><div class="lbl">New SKUs</div></div>
+            <div class="ob-stepper-step" id="obStepperStep4"><div class="n">4</div><div class="lbl">SKU master</div></div>
             <div class="ob-stepper-seg"></div>
-            <div class="ob-stepper-step" id="obStepperStep5"><div class="n">5</div><div class="lbl">Holidays</div></div>
+            <div class="ob-stepper-step" id="obStepperStep5"><div class="n">5</div><div class="lbl">Inbound receipts</div></div>
             <div class="ob-stepper-seg"></div>
-            <div class="ob-stepper-step" id="obStepperStep6"><div class="n">6</div><div class="lbl">Weather</div></div>
+            <div class="ob-stepper-step" id="obStepperStep6"><div class="n">6</div><div class="lbl">Weather &amp; festivals</div></div>
             <div class="ob-stepper-seg"></div>
             <div class="ob-stepper-step" id="obStepperStep7"><div class="n">7</div><div class="lbl">Review &amp; train</div></div>
           </div>
@@ -1546,22 +1546,6 @@
 
           <div class="ob-step" id="obStep2" style="display:none">
           <div class="field">
-            <label for="obAreaFile">What's your serviceable area? Upload your channel &amp; distributor to pincode mapping (CSV or TXT)</label>
-            <p class="stest-msg" style="margin-top:6px;color:var(--muted)">
-              Needs a header row with <b>channel</b>, <b>distributor</b>, and <b>pincode</b> columns, e.g.:<br>
-              <span class="mono" style="font-size:12px">channel,distributor,pincode<br>Retail,ABC Distributors,110001</span>
-            </p>
-            <input type="file" id="obAreaFile" class="file-input" accept=".csv,.txt">
-            <p class="stest-msg" id="obAreaStatus" style="margin-top:6px"></p>
-            <ul id="obAreaWarnings" class="ob-warn-list" style="display:none"></ul>
-          </div>
-
-          <div id="obMap" style="height:320px;border-radius:12px;overflow:hidden;margin-top:14px;border:1px solid var(--line)"></div>
-          <p class="dsubtle" style="margin-top:8px;margin-bottom:0;font-size:12.5px">A large list can take a few minutes to fully plot (yellow border = still working) — no need to wait here, go ahead and answer the next question.</p>
-          </div>
-
-          <div class="ob-step" id="obStep3" style="display:none">
-          <div class="field">
             <label for="obHistFile">Do you have historical shipment data to share?</label>
             <input type="file" id="obHistFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
             <p class="stest-msg" style="margin-top:6px;color:var(--muted)">
@@ -1578,14 +1562,42 @@
             <div class="ch" style="margin-bottom:8px"><h4 style="font-size:13.5px">Aggregated shipment volume over time</h4></div>
             <canvas id="obHistChart" style="width:100%;height:200px;display:block;border-radius:12px;border:1px solid var(--line)"></canvas>
           </div>
+
+          <hr style="border:none;border-top:1px solid var(--line);margin:22px 0">
+
+          <div class="field">
+            <label for="obAreaFile">What's your serviceable area? Upload your channel &amp; distributor to pincode mapping (CSV or TXT)</label>
+            <p class="stest-msg" style="margin-top:6px;color:var(--muted)">
+              Needs a header row with <b>channel</b>, <b>distributor</b>, and <b>pincode</b> columns, e.g.:<br>
+              <span class="mono" style="font-size:12px">channel,distributor,pincode<br>Retail,ABC Distributors,110001</span>
+            </p>
+            <input type="file" id="obAreaFile" class="file-input" accept=".csv,.txt">
+            <p class="stest-msg" id="obAreaStatus" style="margin-top:6px"></p>
+            <ul id="obAreaWarnings" class="ob-warn-list" style="display:none"></ul>
+          </div>
+
+          <div id="obMap" style="height:320px;border-radius:12px;overflow:hidden;margin-top:14px;border:1px solid var(--line)"></div>
+          <p class="dsubtle" style="margin-top:8px;margin-bottom:0;font-size:12.5px">A large list can take a few minutes to fully plot (yellow border = still working) — no need to wait here, go ahead and answer the next question.</p>
+          </div>
+
+          <div class="ob-step" id="obStep3" style="display:none">
+          <div class="field">
+            <label for="obSpendFile">Do you have marketing spend or campaign data?</label>
+            <p class="dsubtle" style="margin-bottom:12px">Optional. We don't factor marketing spend into the forecast yet, but we'll keep whatever you upload on file for when that lands — nothing here blocks training.</p>
+            <input type="file" id="obSpendFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
+            <p class="stest-msg" id="obSpendStatus" style="margin-top:6px"></p>
+            <div style="margin-top:12px">
+              <button type="button" class="dbtn" id="obSpendSkipBtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">I have no marketing spend data</button>
+            </div>
+          </div>
           </div>
 
           <div class="ob-step" id="obStep4" style="display:none">
           <div class="field">
-            <label>Newly launched SKUs</label>
+            <label>SKU master — newly launched SKUs</label>
             <p class="dsubtle" style="margin-bottom:12px">We scan your historical data for SKUs that only started shipping recently — these need special handling since they don't have much sales history yet. Confirm the ones we found, or add any we missed.</p>
             <div id="obNewSkuList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-            <p class="stest-msg" id="obNewSkuEmpty" style="margin-top:8px;color:var(--muted)">No newly launched SKUs detected yet — upload historical data on the previous step, or add one manually below.</p>
+            <p class="stest-msg" id="obNewSkuEmpty" style="margin-top:8px;color:var(--muted)">No newly launched SKUs detected yet — upload historical data on the Sales data step, or add one manually below.</p>
             <div style="display:flex;gap:8px;margin-top:14px">
               <input id="obNewSkuInput" type="text" placeholder="e.g. SKU-014" style="flex:1">
               <button type="button" class="dbtn" id="obNewSkuAdd">Add</button>
@@ -1595,31 +1607,43 @@
 
           <div class="ob-step" id="obStep5" style="display:none">
           <div class="field">
-            <label>Holidays</label>
-            <p class="dsubtle" style="margin-bottom:12px" id="obHolidayIntro">Default holidays for the selected country, shown below — remove any that don't apply, or add ones we missed (festival dates like Diwali, Holi, or Eid shift every year, so add those yourself).</p>
-            <div id="obHolidayList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
-            <p class="stest-msg" id="obHolidayEmpty" style="margin-top:8px;color:var(--muted)"></p>
-            <div style="display:flex;gap:8px;margin-top:14px">
-              <input id="obHolidayDate" type="date" style="flex:0 0 170px">
-              <input id="obHolidayName" type="text" placeholder="Holiday name" style="flex:1">
-              <button type="button" class="dbtn" id="obHolidayAdd">Add</button>
+            <label for="obInboundFile">Do you have inbound receipts — stock arriving at each site?</label>
+            <p class="dsubtle" style="margin-bottom:12px">Optional. This isn't used in forecasting yet, but it's what will let Inventory eventually project stock and flag reorders — we'll keep whatever you upload on file for that.</p>
+            <input type="file" id="obInboundFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
+            <p class="stest-msg" id="obInboundStatus" style="margin-top:6px"></p>
+            <div style="margin-top:12px">
+              <button type="button" class="dbtn" id="obInboundSkipBtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">I have no inbound receipts data</button>
             </div>
           </div>
           </div>
 
           <div class="ob-step" id="obStep6" style="display:none">
-          <div class="field">
-            <label for="obWeatherFile">Weather</label>
-            <p class="dsubtle" style="margin-bottom:12px" id="obWeatherIntro">Temperature for your area — from your Weather sheet if you included one, or upload a separate weather file below.</p>
-            <input type="file" id="obWeatherFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
-            <p class="stest-msg" style="margin-top:6px;color:var(--muted)">.xlsx with a Weather sheet, or .csv/.tsv/.txt with date and temperature columns.</p>
-            <p class="stest-msg" id="obWeatherFileStatus" style="margin-top:6px"></p>
-            <ul id="obWeatherWarnings" class="ob-warn-list" style="display:none"></ul>
-            <div id="obWeatherChartWrap" style="display:none;margin-top:14px">
-              <div class="ch" style="margin-bottom:8px"><h4 style="font-size:13.5px">Temperature over time (from your Weather sheet)</h4></div>
-              <canvas id="obWeatherChart" style="width:100%;height:200px;display:block;border-radius:12px;border:1px solid var(--line)"></canvas>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div class="field">
+              <label for="obWeatherFile">Weather</label>
+              <p class="dsubtle" style="margin-bottom:12px" id="obWeatherIntro">Temperature for your area — from your Weather sheet if you included one, or upload a separate weather file below.</p>
+              <input type="file" id="obWeatherFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
+              <p class="stest-msg" style="margin-top:6px;color:var(--muted)">.xlsx with a Weather sheet, or .csv/.tsv/.txt with date and temperature columns.</p>
+              <p class="stest-msg" id="obWeatherFileStatus" style="margin-top:6px"></p>
+              <ul id="obWeatherWarnings" class="ob-warn-list" style="display:none"></ul>
+              <div id="obWeatherChartWrap" style="display:none;margin-top:14px">
+                <div class="ch" style="margin-bottom:8px"><h4 style="font-size:13.5px">Temperature over time (from your Weather sheet)</h4></div>
+                <canvas id="obWeatherChart" style="width:100%;height:200px;display:block;border-radius:12px;border:1px solid var(--line)"></canvas>
+              </div>
+              <p class="stest-msg" id="obWeatherEmpty" style="margin-top:14px;color:var(--muted)"></p>
             </div>
-            <p class="stest-msg" id="obWeatherEmpty" style="margin-top:14px;color:var(--muted)"></p>
+
+            <div class="field">
+              <label>Festivals &amp; holidays</label>
+              <p class="dsubtle" style="margin-bottom:12px" id="obHolidayIntro">Default holidays for the selected country, shown below — remove any that don't apply, or add ones we missed (festival dates like Diwali, Holi, or Eid shift every year, so add those yourself).</p>
+              <div id="obHolidayList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
+              <p class="stest-msg" id="obHolidayEmpty" style="margin-top:8px;color:var(--muted)"></p>
+              <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+                <input id="obHolidayDate" type="date" style="flex:0 0 170px">
+                <input id="obHolidayName" type="text" placeholder="Holiday name" style="flex:1">
+                <button type="button" class="dbtn" id="obHolidayAdd">Add</button>
+              </div>
+            </div>
           </div>
           </div>
 
