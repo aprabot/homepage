@@ -236,3 +236,15 @@
 /* "Reset defaults" is secondary to Save. */
 #dashboard .settings-body .dbtn[onclick^="reset"]{background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);box-shadow:none}
 #dashboard .settings-body .dbtn[onclick^="reset"]:hover{border-color:var(--muted-2);transform:none}
+
+/* ============================================================
+   Knowledge Base
+============================================================ */
+/* Editor: comfortable line height and inner padding for long-form text. */
+#dashboard .kb-editor{line-height:1.65;padding:16px 18px;font-size:13px}
+#dashboard #kbUpdated{font-variant-numeric:tabular-nums}
+/* Test chat: same surface and control heights as the rest of the dashboard. */
+#dashboard .kb-chat-body{border-radius:12px;padding:14px}
+#dashboard .kb-chat-form input{height:40px;box-sizing:border-box}
+#dashboard .kb-chat-form .dbtn{height:40px}
+
