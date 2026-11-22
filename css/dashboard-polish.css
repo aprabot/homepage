@@ -146,3 +146,16 @@
 #dashboard .scenario-result-kpis .kpi{padding:12px 14px;border-radius:12px}
 #dashboard .scenario-forecast-chart{border-radius:12px}
 #dashboard .scenario-forecast-chart figcaption b{font-size:13.5px}
+
+/* ============================================================
+   Inventory
+============================================================ */
+/* Filter labels match the rest of the dashboard's form labels. */
+#dashboard .inv-filter-field label{font-family:var(--body);font-size:12px;font-weight:600;letter-spacing:0;
+  text-transform:none;color:var(--muted)}
+/* Column headers stay on one line; the table scrolls if it must. */
+#dashboard #inventoryReqTable th{white-space:nowrap}
+/* Period line sits a little closer to the cards it describes. */
+#dashboard .inv-locked-badge{margin:16px 0 14px;font-size:12.5px}
+#dashboard .inv-kpi-tab{border-radius:14px}
+#dashboard .inv-kpi-tab .inv-kpi-label{font-size:12.5px;font-weight:600}
