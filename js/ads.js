@@ -15,13 +15,17 @@
   function escHtml(s) { return String(s == null ? '' : s).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;'); }
 
   var shopifyStatusCache = null;
+  async function loadAccountConnections() {
+    var res = await apiFetch(OAUTH_API + '/status');
+    if (!res.ok) throw new Error('Could not load account connections.');
+    shopifyStatusCache = res.body.shopify?.status === 'connected';
+    return res.body;
+  }
+
   function fetchShopifyStatus() {
-    if (shopifyStatusCache !== null) return Promise.resolve(shopifyStatusCache);
-    return apiFetch(OAUTH_API + '/status').then(function (res) {
-      if (!res.ok) throw new Error('Could not load Shopify connection.');
-      shopifyStatusCache = !!( res.body.shopify && res.body.shopify.status === 'connected');
-      return shopifyStatusCache;
-    });
+    return shopifyStatusCache === null
+      ? loadAccountConnections().then(function () { return shopifyStatusCache; })
+      : Promise.resolve(shopifyStatusCache);
   }
 
   function loadProducts() {
@@ -361,28 +365,34 @@
   }
 
   function loadConnectAccounts() {
-    apiFetch(OAUTH_API + '/status').then(function (res) {
-      if (!res.ok) throw new Error();
-      renderConnectAccounts(res.body);
-    }).catch(function () {
+    return loadAccountConnections().then(renderConnectAccounts).catch(function () {
       document.getElementById('ads-integration-status').textContent = 'Could not load account connections.';
     });
   }
 
-  function connectPlatform(platform, shop) {
+  async function getAuthorizationUrl(platform, shop) {
     var url = OAUTH_API + '/' + platform + '/start';
     if (shop) url += '?shop=' + encodeURIComponent(shop);
-    apiFetch(url).then(function (res) {
-      if (res.ok) {
-        window.location.href = res.body.authorize_url;
-      } else if (res.status === 501) {
-        alert(platform.charAt(0).toUpperCase() + platform.slice(1) +
-          ' integration is pending app review — not connectable yet.');
-      } else {
-        alert('Could not start the connection: ' + (res.body.error || 'unknown error'));
-      }
-    });
+    var res = await apiFetch(url);
+    if (!res.ok || !res.body.authorize_url) {
+      throw new Error(res.body.error || 'Could not start the connection.');
+    }
+    return res.body.authorize_url;
   }
+
+  function connectPlatform(platform, shop) {
+    getAuthorizationUrl(platform, shop).then(function (url) {
+      window.location.href = url;
+    }).catch(function (error) { alert(error.message); });
+  }
+
+  window.APRA_COMMERCE = {
+    shopifyStatus: async function () {
+      var connections = await loadAccountConnections();
+      return connections.shopify || { status: 'not_connected' };
+    },
+    authorize: getAuthorizationUrl,
+  };
 
   function disconnectPlatform(platform) {
     if (!confirm('Disconnect this ' + platform + ' account? Reconnect to resume syncing account data.')) return;

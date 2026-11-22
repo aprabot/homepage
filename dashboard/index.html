@@ -102,6 +102,13 @@
   .ob-stepper-step.current .n{border-color:var(--signal);color:var(--signal);box-shadow:0 0 0 3px var(--signal-soft)}
   .ob-stepper-step.current .lbl{color:var(--text);font-weight:600}
   .ob-stepper-seg{flex:0 0 auto;width:100%;height:1px;background:var(--line-2);margin-top:13px;max-width:60px}
+  .ob-shopify-card{max-width:640px;padding:16px;border:1px solid var(--line);border-radius:10px;background:var(--ink-2)}
+  .ob-shopify-controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-bottom:10px}
+  .ob-shopify-controls .field{flex:1 1 230px;margin:0}
+  .ob-shopify-controls[hidden]{display:none}
+  #obShopifyStatus{margin:8px 0 0}
+  @media(max-width:760px){.ob-stepper-seg{flex:1 1 20px;min-width:2px;max-width:24px}.ob-stepper-step{flex:1 0 46px}.ob-stepper{overflow-x:auto;padding:3px 3px 7px}}
+
   .ob-nav-row{display:flex;justify-content:space-between;align-items:center;margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
 
   /* Country step: real <select id="obCountry"> on the left, a stylized
@@ -1571,19 +1578,21 @@
           <div class="ob-stepper" id="obStepper">
             <div class="ob-stepper-step" id="obStepperStep1"><div class="n">1</div><div class="lbl">Country</div></div>
             <div class="ob-stepper-seg"></div>
-            <div class="ob-stepper-step" id="obStepperStep2"><div class="n">2</div><div class="lbl">Sales data</div></div>
+            <div class="ob-stepper-step" id="obStepperStep2"><div class="n">2</div><div class="lbl">Connect with Shopify</div></div>
             <div class="ob-stepper-seg"></div>
-            <div class="ob-stepper-step" id="obStepperStep3"><div class="n">3</div><div class="lbl">Marketing spend</div></div>
+            <div class="ob-stepper-step" id="obStepperStep3"><div class="n">3</div><div class="lbl">Sales data</div></div>
             <div class="ob-stepper-seg"></div>
-            <div class="ob-stepper-step" id="obStepperStep4"><div class="n">4</div><div class="lbl">SKU master</div></div>
+            <div class="ob-stepper-step" id="obStepperStep4"><div class="n">4</div><div class="lbl">Marketing spend</div></div>
             <div class="ob-stepper-seg"></div>
-            <div class="ob-stepper-step" id="obStepperStep5"><div class="n">5</div><div class="lbl">Upload inbound data</div></div>
+            <div class="ob-stepper-step" id="obStepperStep5"><div class="n">5</div><div class="lbl">SKU master</div></div>
             <div class="ob-stepper-seg"></div>
-            <div class="ob-stepper-step" id="obStepperStep6"><div class="n">6</div><div class="lbl">Weather &amp; festivals</div></div>
+            <div class="ob-stepper-step" id="obStepperStep6"><div class="n">6</div><div class="lbl">Upload inbound data</div></div>
             <div class="ob-stepper-seg"></div>
-            <div class="ob-stepper-step" id="obStepperStep7"><div class="n">7</div><div class="lbl">Review &amp; train</div></div>
+            <div class="ob-stepper-step" id="obStepperStep7"><div class="n">7</div><div class="lbl">Weather &amp; festivals</div></div>
+            <div class="ob-stepper-seg"></div>
+            <div class="ob-stepper-step" id="obStepperStep8"><div class="n">8</div><div class="lbl">Review &amp; train</div></div>
           </div>
-          <div class="ob-progress" id="obProgress" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Question 1 of 7</div>
+          <div class="ob-progress" id="obProgress" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Question 1 of 8</div>
 
           <div class="ob-step" id="obStep1">
           <p class="dsubtle" style="margin-bottom:16px">Country sets the defaults for every later step — postal-code pattern, festival calendar, currency and date format. Pick it once; it locks after your first file upload.</p>
@@ -1688,6 +1697,22 @@
           </div>
 
           <div class="ob-step" id="obStep2" style="display:none">
+            <div class="ob-shopify-card">
+              <div class="ch"><h4>Connect with Shopify</h4><span class="pill">Optional</span></div>
+              <p class="dsubtle">Connect your store to sync its product catalog and inventory. Forecast training still uses the sales file you upload in the next step.</p>
+              <div id="obShopifyControls" class="ob-shopify-controls">
+                <div class="field">
+                  <label for="obShopifyDomain">Shopify store domain</label>
+                  <input type="text" id="obShopifyDomain" placeholder="yourstore.myshopify.com" autocomplete="url" autocapitalize="none" spellcheck="false">
+                </div>
+                <button type="button" class="btn btn-pri" id="obShopifyConnect" disabled>Connect with Shopify</button>
+              </div>
+              <button type="button" class="link-btn" id="obShopifyRefresh">Check connection</button>
+              <p class="stest-msg" id="obShopifyStatus" role="status"></p>
+            </div>
+          </div>
+
+          <div class="ob-step" id="obStep3" style="display:none">
           <p class="dsubtle" style="margin-bottom:16px">Upload your sales history — the one file every forecast depends on. If you track discount schemes, add a <span class="mono">scheme_id</span> column and we'll pick up every scheme ID automatically.</p>
           <div class="dcard" style="margin:0">
             <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -1697,7 +1722,7 @@
             <div class="field" style="margin-bottom:0">
               <label for="obHistFile">Upload sales file</label>
               <input type="file" id="obHistFile" class="file-input" accept=".xlsx,.csv,.tsv,.txt">
-              <p class="stest-msg" style="margin-top:6px;color:var(--muted)">Needs <span class="mono">ship_day</span>, <span class="mono">asin</span>, <span class="mono">postal_code</span> and <span class="mono">shipped_units</span> columns. The .xlsx template can also carry Price, Future Price (planned discounts) and Weather sheets.</p>
+              <p class="stest-msg" style="margin-top:6px;color:var(--muted)">Needs <span class="mono">ship_day</span>, <span class="mono">sku</span>, <span class="mono">postal_code</span> and <span class="mono">shipped_units</span> columns. The .xlsx template can also carry Price, Future Price (planned discounts) and Weather sheets.</p>
               <p class="stest-msg" id="obHistStatus" style="margin-top:6px"></p>
               <ul id="obHistWarnings" class="ob-warn-list" style="display:none"></ul>
             </div>
@@ -1711,7 +1736,7 @@
           </div>
           </div>
 
-          <div class="ob-step" id="obStep3" style="display:none">
+          <div class="ob-step" id="obStep4" style="display:none">
           <p class="dsubtle" style="margin-bottom:16px">Optional, but it will sharpen how your ad spend connects to demand. No campaign data? Just say so below and move on — nothing here blocks you. Spend isn't used in the forecast yet; anything you upload is kept on file for when it is.</p>
           <div class="dcard" style="margin:0">
             <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -1727,19 +1752,25 @@
                 <div class="ob-stat"><div class="ob-stat-lbl">Detail level</div><b id="obSpendDetail">—</b></div>
               </div>
               <span class="pill ok" id="obSpendChannels" style="display:none;margin-top:12px"></span>
-              <p class="stest-msg" style="margin:12px 0 0;color:var(--muted)">Expected columns: <span class="mono">date</span>, <span class="mono">campaign</span>, <span class="mono">channel</span>, <span class="mono">spend</span> — plus <span class="mono">postal_code</span> and <span class="mono">asin</span> if you have that detail.</p>
+              <p class="stest-msg" style="margin:12px 0 0;color:var(--muted)">Expected columns: <span class="mono">date</span>, <span class="mono">campaign</span>, <span class="mono">channel</span>, <span class="mono">spend</span> — plus <span class="mono">postal_code</span> and <span class="mono">sku</span> if you have that detail.</p>
             </div>
           </div>
           </div>
 
-          <div class="ob-step" id="obStep4" style="display:none">
-          <p class="dsubtle" style="margin-bottom:16px">Your product list, pre-filled from the SKUs in your sales file. Confirm anything newly launched, and fix its launch date if the first sale isn't the real launch.</p>
+          <div class="ob-step" id="obStep5" style="display:none">
+          <p class="dsubtle" style="margin-bottom:16px">Upload your SKU master to compare it with the sales file. You can also confirm launch dates for newly launched SKUs.</p>
           <div class="dcard" style="margin:0">
-            <div class="ob-stat-grid ob-stat-4" style="margin-top:0">
+            <div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:10px">
+              <button type="button" class="dbtn" id="obSkuMasterTpl">Download template</button>
+              <label class="field" style="margin:0">Upload SKU master <input type="file" id="obSkuMasterFile" accept=".csv,.tsv,.txt,.xlsx" aria-describedby="obSkuMasterHelp" class="file-input"></label>
+            </div>
+            <p class="dsubtle" id="obSkuMasterHelp" style="font-size:12px">Include a <code>sku</code> column. The file is optional and saved with your setup.</p>
+            <p class="stest-msg" id="obSkuMasterStatus" role="status"></p>
+            <div class="ob-stat-grid ob-stat-4">
               <div class="ob-stat"><div class="ob-stat-lbl">SKUs in sales</div><b id="obSkuInSales">—</b></div>
-              <div class="ob-stat" title="There's no separate SKU master upload yet, so there's nothing to compare against"><div class="ob-stat-lbl">SKUs in master</div><b class="ob-dim">—</b></div>
-              <div class="ob-stat" title="There's no separate SKU master upload yet, so there's nothing to compare against"><div class="ob-stat-lbl">Matched</div><b class="ob-dim">—</b></div>
-              <div class="ob-stat" title="There's no separate SKU master upload yet, so there's nothing to compare against"><div class="ob-stat-lbl">Missing either side</div><b class="ob-dim">—</b></div>
+              <div class="ob-stat"><div class="ob-stat-lbl">SKUs in master</div><b id="obSkuInMaster">—</b></div>
+              <div class="ob-stat"><div class="ob-stat-lbl">Matched</div><b id="obSkuMatched">—</b></div>
+              <div class="ob-stat" title="Unique SKUs that appear in only one of the two files"><div class="ob-stat-lbl">Missing either side</div><b id="obSkuMissing">—</b></div>
             </div>
             <div class="ob-callout">
               <b>Newly launched SKUs</b>
@@ -1751,7 +1782,7 @@
           </div>
           </div>
 
-          <div class="ob-step" id="obStep5" style="display:none">
+          <div class="ob-step" id="obStep6" style="display:none">
           <p class="dsubtle" style="margin-bottom:16px">Receipts record stock arriving at each warehouse or site. Together with your sales data, this is what will let Inventory project stock and flag what to reorder. It isn't used yet — anything you upload is kept on file for when it is.</p>
           <div class="dcard" style="margin:0">
             <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
@@ -1768,7 +1799,7 @@
           </div>
           </div>
 
-          <div class="ob-step" id="obStep6" style="display:none">
+          <div class="ob-step" id="obStep7" style="display:none">
           <p class="dsubtle" style="margin-bottom:16px">Weather comes from the Weather sheet in your sales file; festivals from the built-in calendar for your country, plus state holidays for the pincodes you sell to. Review both, and override anything you need to.</p>
           <div class="ob-two-col">
             <div class="dcard" style="margin:0">
@@ -1809,7 +1840,7 @@
           </div>
           </div>
 
-          <div class="ob-step" id="obStep7" style="display:none">
+          <div class="ob-step" id="obStep8" style="display:none">
           <p class="dsubtle" style="margin-bottom:16px">Here's everything you've set up. Fix anything that needs attention, then start training — it runs in the background, so feel free to close this.</p>
           <div class="dcard" style="margin:0">
             <div class="ob-review-grid" id="obReviewTiles"></div>

@@ -15,9 +15,11 @@
   var SCENARIOS_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/scenarios';
 
   var histKey = null;
+  var salesSkuIds = null, skuMasterIds = null, skuMasterKey = null;
+  var skuMasterUploading = false, skuMasterUploadVersion = 0;
   var spendKey = null, spendSkipped = false;
   var inboundKey = null, inboundSkipped = false;
-  var STEP_NAMES = ['country', 'sales', 'spend', 'sku', 'inbound', 'weather', 'review'];
+  var STEP_NAMES = ['country', 'shopify', 'sales', 'spend', 'sku', 'inbound', 'weather', 'review'];
   var TOTAL_STEPS = STEP_NAMES.length;
   var step = 1;
   var holidayCountryLoaded = null; // signature ("country|sorted,detected,states") of the defaults currently loaded into holidayState — see loadDefaultHolidays()
@@ -183,7 +185,9 @@
 
   var DATE_COLS = ['ship_day', 'date', 'day'];
   var UNITS_COLS = ['shipped_units', 'units', 'qty', 'quantity'];
-  var ASIN_COLS = ['asin', 'sku', 'sku_id'];
+  var SKU_COLS = ['sku', 'sku_id', 'asin'];
+
+  function normalizedSku(value) { return String(value ?? '').trim(); }
   var TEMP_COLS = ['temp_mean', 'temperature', 'temp'];
   var NEW_SKU_WINDOW_DAYS = 90; // flag a SKU as "newly launched" if its first ship date is this close to the dataset's most recent day
 
@@ -207,7 +211,7 @@
     if (ext === 'xlsx') {
       return file.arrayBuffer().then(function (buf) {
         var wb = XLSX.read(buf, { type: 'array' });
-        var sheetName = wb.SheetNames.filter(function (n) { return n.toLowerCase() === preferredSheet; })[0]
+        var sheetName = wb.SheetNames.find(function (n) { return n.trim().toLowerCase() === preferredSheet; })
           || wb.SheetNames[0];
         return XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: null, raw: false });
       });
@@ -273,10 +277,10 @@
     }
     var dateCol = findCol(rows[0], DATE_COLS);
     var unitsCol = findCol(rows[0], UNITS_COLS);
-    var asinCol = findCol(rows[0], ASIN_COLS);
+    var skuCol = findCol(rows[0], SKU_COLS);
     if (!dateCol) warnings.push('No recognizable date column found (expected one of: ' + DATE_COLS.join(', ') + ') — shipment volume can’t be charted or checked further.');
     if (!unitsCol) warnings.push('No recognizable units column found (expected one of: ' + UNITS_COLS.join(', ') + ') — shipment volume can’t be charted or checked further.');
-    if (!asinCol) warnings.push('No recognizable SKU/ASIN column found (expected one of: ' + ASIN_COLS.join(', ') + ') — newly launched SKUs can’t be auto-detected.');
+    if (!skuCol) warnings.push('No SKU column found. Include a sku column to detect newly launched SKUs.');
     if (!dateCol || !unitsCol) return warnings; // nothing further to check without both
 
     var badDates = 0, badUnits = 0, negUnits = 0, totalUnits = 0, days = {};
@@ -425,29 +429,29 @@
     if (!rows.length) return {};
     var dateCol = findCol(rows[0], DATE_COLS);
     var unitsCol = findCol(rows[0], UNITS_COLS);
-    var asinCol = findCol(rows[0], ASIN_COLS);
-    if (!dateCol || !asinCol) return {};
+    var skuCol = findCol(rows[0], SKU_COLS);
+    if (!dateCol || !skuCol) return {};
 
-    var perAsin = {}, maxDate = null;
+    var perSku = {}, maxDate = null;
     rows.forEach(function (row) {
       var d = new Date(row[dateCol]);
-      var asin = row[asinCol];
-      if (isNaN(d.getTime()) || !asin) return;
+      var sku = normalizedSku(row[skuCol]);
+      if (isNaN(d.getTime()) || !sku) return;
       var u = unitsCol ? parseFloat(row[unitsCol]) : 0;
       if (isNaN(u)) u = 0;
       if (!maxDate || d > maxDate) maxDate = d;
-      if (!perAsin[asin]) perAsin[asin] = { firstDate: d, totalUnits: 0 };
-      if (d < perAsin[asin].firstDate) perAsin[asin].firstDate = d;
-      perAsin[asin].totalUnits += u;
+      if (!perSku[sku]) perSku[sku] = { firstDate: d, totalUnits: 0 };
+      if (d < perSku[sku].firstDate) perSku[sku].firstDate = d;
+      perSku[sku].totalUnits += u;
     });
     if (!maxDate) return {};
 
-    var flagged = {};
-    Object.keys(perAsin).forEach(function (asin) {
-      var info = perAsin[asin];
+    var flagged = Object.create(null);
+    Object.keys(perSku).forEach(function (sku) {
+      var info = perSku[sku];
       var ageDays = (maxDate - info.firstDate) / 86400000;
       if (ageDays <= NEW_SKU_WINDOW_DAYS) {
-        flagged[asin] = { firstDate: info.firstDate, totalUnits: info.totalUnits, auto: true };
+        flagged[sku] = { firstDate: info.firstDate, totalUnits: info.totalUnits, auto: true };
       }
     });
     return flagged;
@@ -524,14 +528,17 @@
   function renderSalesSummary(rows) {
     var first = rows[0] || {};
     var dateCol = findCol(first, DATE_COLS);
-    var asinCol = findCol(first, ASIN_COLS);
+    var skuCol = findCol(first, SKU_COLS);
     var pinCol = findCol(first, PIN_COLS);
     var schemeCol = findCol(first, SCHEME_COLS);
     var country = currentCountry();
-    var pins = {}, skus = {}, schemes = {}, minD = null, maxD = null, badPins = 0;
+    var pins = {}, skus = new Set(), schemes = {}, minD = null, maxD = null, badPins = 0;
 
     rows.forEach(function (row) {
-      if (asinCol && row[asinCol]) skus[row[asinCol]] = true;
+      if (skuCol) {
+        var sku = normalizedSku(row[skuCol]);
+        if (sku) skus.add(sku);
+      }
       if (pinCol && row[pinCol]) {
         var pc = String(row[pinCol]).trim();
         if (pc && !pins[pc]) {
@@ -552,12 +559,13 @@
       }
     });
 
+    salesSkuIds = skuCol ? skus : null;
     salesPins = pinCol ? Object.keys(pins) : [];
     schemeIds = schemeCol ? Object.keys(schemes) : [];
     salesSummary = {
       rows: rows.length,
       pins: pinCol ? salesPins.length : null,
-      skus: asinCol ? Object.keys(skus).length : null,
+      skus: salesSkuIds ? salesSkuIds.size : null,
       rangeText: minD ? rangeText(minD, maxD) : null,
       hasPinCol: !!pinCol,
       badPins: badPins,
@@ -567,7 +575,7 @@
     setText('obSalesPins', salesSummary.pins == null ? '—' : salesSummary.pins.toLocaleString());
     setText('obSalesSkus', salesSummary.skus == null ? '—' : salesSummary.skus.toLocaleString());
     setText('obSalesRange', salesSummary.rangeText || '—');
-    setText('obSkuInSales', salesSummary.skus == null ? '—' : salesSummary.skus.toLocaleString());
+    renderSkuMasterSummary();
 
     var callout = document.getElementById('obSchemeCallout');
     if (callout) {
@@ -668,7 +676,7 @@
       var first = rows[0];
       var cCol = findCol(first, SPEND_CAMPAIGN_COLS), chCol = findCol(first, SPEND_CHANNEL_COLS);
       var aCol = findCol(first, SPEND_AMOUNT_COLS), dCol = findCol(first, SPEND_DATE_COLS);
-      var pCol = findCol(first, PIN_COLS), sCol = findCol(first, ASIN_COLS);
+      var pCol = findCol(first, PIN_COLS), sCol = findCol(first, SKU_COLS);
       var lastDate = {}, byChannel = {}, total = 0;
 
       rows.forEach(function (r) {
@@ -751,14 +759,76 @@
   function downloadSalesTemplate() {
     var pin = SALES_TEMPLATE_PIN[currentCountry()] || '110001';
     downloadText('apra_sales_template.csv',
-      'ship_day,asin,postal_code,shipped_units\n' +
+      'ship_day,sku,postal_code,shipped_units\n' +
       '2025-01-06,SKU-EXAMPLE-001,' + pin + ',42\n' +
       '2025-01-06,SKU-EXAMPLE-002,' + pin + ',17\n');
   }
 
+  function renderSkuMasterSummary() {
+    var matched = salesSkuIds && skuMasterIds
+      ? Array.from(salesSkuIds).filter(function (sku) { return skuMasterIds.has(sku); }).length
+      : null;
+    setText('obSkuInSales', salesSkuIds ? salesSkuIds.size.toLocaleString() : '—');
+    setText('obSkuInMaster', skuMasterIds ? skuMasterIds.size.toLocaleString() : '—');
+    setText('obSkuMatched', matched == null ? '—' : matched.toLocaleString());
+    setText('obSkuMissing', matched == null ? '—'
+      : (salesSkuIds.size + skuMasterIds.size - 2 * matched).toLocaleString());
+  }
+
+  async function uploadSkuMaster(input) {
+    var file = input.files[0];
+    if (!file) return;
+    input.value = '';
+    var status = document.getElementById('obSkuMasterStatus');
+    var version = ++skuMasterUploadVersion;
+    skuMasterUploading = true;
+    input.disabled = true;
+    updateSubmitState();
+    setStatus(status, 'Reading ' + file.name + '…');
+    try {
+      if (!/\.(csv|xlsx|tsv|txt)$/i.test(file.name)) throw new Error('Choose a CSV, TSV, TXT, or XLSX file.');
+      var rows;
+      if (/\.(csv|tsv|txt)$/i.test(file.name) && typeof XLSX !== 'undefined') {
+        var text = await file.text();
+        var delimiter = /\.tsv$/i.test(file.name) || (/\.txt$/i.test(file.name) && text.split(/\r?\n/, 1)[0].includes('\t')) ? '\t' : ',';
+        var book = XLSX.read(text, {type: 'string', raw: true, FS: delimiter});
+        var sheet = book.Sheets[book.SheetNames[0]];
+        rows = sheet ? XLSX.utils.sheet_to_json(sheet, {defval: null}) : [];
+      } else rows = await readTabularRows(file, 'sku master');
+      var column = rows.length && findCol(rows[0], SKU_COLS);
+      var ids = new Set(column ? rows.map(function (row) { return normalizedSku(row[column]); }).filter(Boolean) : []);
+      if (!ids.size) throw new Error('Include a sku column with at least one SKU.');
+      if (version !== skuMasterUploadVersion) return;
+
+      setStatus(status, 'Uploading ' + file.name + '…');
+      var key = await uploadFile(file, null);
+      if (version !== skuMasterUploadVersion) return;
+      skuMasterKey = key;
+      skuMasterIds = ids;
+      lockCountry();
+      renderSkuMasterSummary();
+      setStatus(status, file.name + ' saved with your setup.', 'ok');
+    } catch (error) {
+      if (version !== skuMasterUploadVersion) return;
+      setStatus(status, (error.message || 'Could not upload the SKU master.') +
+        (skuMasterKey ? ' The previous SKU master is still in use.' : ''), 'err');
+    } finally {
+      if (version === skuMasterUploadVersion) {
+        skuMasterUploading = false;
+        input.disabled = false;
+        updateSubmitState();
+        if (stepIs(step, 'review')) renderReviewSummary();
+      }
+    }
+  }
+
+  function downloadSkuMasterTemplate() {
+    downloadText('apra_sku_master_template.csv', 'sku,product_name\nSKU-EXAMPLE-001,Example product\n');
+  }
+
   function downloadInboundTemplate() {
     downloadText('apra_inbound_receipts_template.csv',
-      'receipt_date,site_code,site_name,asin,units_received\n' +
+      'receipt_date,site_code,site_name,sku,units_received\n' +
       '2025-01-06,DC-01,Main DC,SKU-EXAMPLE-001,500\n');
   }
 
@@ -1186,7 +1256,7 @@
   function updateSubmitState() {
     // Historical data is the only required upload — gates the final step's button.
     var btn = document.getElementById('obNext');
-    if (btn && step === TOTAL_STEPS) btn.disabled = !histKey;
+    if (btn && step === TOTAL_STEPS) btn.disabled = !histKey || skuMasterUploading;
   }
 
   // Purely visual done/current/upcoming state on the numbered stepper
@@ -1203,6 +1273,111 @@
       if (!el) continue;
       el.classList.toggle('done', i < n);
       el.classList.toggle('current', i === n);
+    }
+  }
+
+  var shopifyConnection = null;
+  var shopifyAttempt = null;
+  var shopifyPolling = null;
+  var shopifyStatusRequest = null;
+
+  function updateShopifyStep(message, kind) {
+    var controls = document.getElementById('obShopifyControls');
+    var connect = document.getElementById('obShopifyConnect');
+    var connected = shopifyConnection?.status === 'connected';
+    controls.hidden = connected;
+    connect.disabled = Boolean(shopifyAttempt);
+    if (stepIs(step, 'shopify')) {
+      document.getElementById('obNext').textContent = connected ? 'Continue →' : 'Skip for now →';
+    }
+    if (message != null) setStatus(document.getElementById('obShopifyStatus'), message, kind);
+    if (stepIs(step, 'review')) renderReviewSummary();
+  }
+
+  function endShopifyAttempt() {
+    if (shopifyPolling) clearInterval(shopifyPolling);
+    shopifyPolling = null;
+    shopifyAttempt = null;
+  }
+
+  function refreshShopifyConnection() {
+    if (shopifyStatusRequest) return shopifyStatusRequest;
+    shopifyStatusRequest = window.APRA_COMMERCE.shopifyStatus().then(function (status) {
+      shopifyConnection = status;
+      if (status.status === 'connected') {
+        endShopifyAttempt();
+        updateShopifyStep(status.external_account_id ? 'Connected to ' + status.external_account_id : 'Shopify connected.', 'ok');
+      } else if (!shopifyAttempt) {
+        updateShopifyStep('No Shopify store connected.');
+      }
+    }).catch(function () {
+      if (!shopifyAttempt) updateShopifyStep('Could not check your connection. Try again or skip this step.', 'err');
+    }).finally(function () {
+      shopifyStatusRequest = null;
+    });
+    return shopifyStatusRequest;
+  }
+
+  async function connectOnboardingShopify() {
+    if (shopifyAttempt) return;
+    var input = document.getElementById('obShopifyDomain');
+    var shop = input.value.trim().toLowerCase().replace(/^https:\/\//, '').replace(/\/$/, '');
+    if (!/^[a-z0-9][a-z0-9-]*\.myshopify\.com$/.test(shop)) {
+      updateShopifyStep('Enter a Shopify domain such as yourstore.myshopify.com.', 'err');
+      input.focus();
+      return;
+    }
+    var popup = window.open('about:blank', '_blank');
+    if (!popup) {
+      updateShopifyStep('Allow pop-ups for this site, then try again.', 'err');
+      return;
+    }
+
+    var attempt = {id:crypto.randomUUID(), popup:popup};
+    shopifyAttempt = attempt;
+    updateShopifyStep('Opening Shopify authorization…');
+    try {
+      popup.sessionStorage.setItem('apra_onboarding_shopify', attempt.id);
+      popup.opener = null;
+      var address = new URL(await window.APRA_COMMERCE.authorize('shopify', shop));
+      if (address.protocol !== 'https:' || address.hostname !== shop) {
+        throw new Error('Shopify returned an unexpected authorization address.');
+      }
+      if (shopifyAttempt !== attempt) { popup.close(); return; }
+      popup.location.replace(address.href);
+      updateShopifyStep('Approve the connection in the Shopify tab, then return here.');
+      var checks = 0;
+      shopifyPolling = setInterval(function () {
+        if (++checks <= 24) refreshShopifyConnection();
+        else {
+          endShopifyAttempt();
+          updateShopifyStep('If you finished in Shopify, select Check connection.');
+        }
+      }, 5000);
+    } catch (error) {
+      popup.close();
+      if (shopifyAttempt !== attempt) return;
+      endShopifyAttempt();
+      updateShopifyStep(error.message || 'Could not start Shopify authorization.', 'err');
+    }
+  }
+
+  function initShopifyStep() {
+    document.getElementById('obShopifyConnect').addEventListener('click', connectOnboardingShopify);
+    document.getElementById('obShopifyRefresh').addEventListener('click', refreshShopifyConnection);
+    window.addEventListener('focus', function () {
+      if (shopifyAttempt) refreshShopifyConnection();
+    });
+    if (typeof BroadcastChannel === 'function') {
+      var channel = new BroadcastChannel('apra-onboarding-shopify');
+      channel.addEventListener('message', function (event) {
+        if (!shopifyAttempt || event.data?.id !== shopifyAttempt.id) return;
+        if (event.data.connected) refreshShopifyConnection();
+        else {
+          endShopifyAttempt();
+          updateShopifyStep('Shopify authorization did not complete. Try again or skip this step.', 'err');
+        }
+      });
     }
   }
 
@@ -1224,9 +1399,13 @@
     var next = document.getElementById('obNext');
     back.disabled = (n === 1);
     next.textContent = (n === TOTAL_STEPS) ? 'Train →' : 'Continue →';
-    next.disabled = (n === TOTAL_STEPS) ? !histKey : false;
+    next.disabled = n === TOTAL_STEPS && (!histKey || skuMasterUploading);
 
-    if (stepIs(n, 'sku')) renderNewSkuList();
+    if (stepIs(n, 'shopify')) {
+      updateShopifyStep();
+      refreshShopifyConnection();
+    }
+    if (stepIs(n, 'sku')) { renderSkuMasterSummary(); renderNewSkuList(); }
     if (stepIs(n, 'weather')) {
       loadDefaultHolidays();
       renderFestivalCard();
@@ -1253,15 +1432,17 @@
     var tile = function (label, cls, text) { return { label: label, cls: cls, text: text }; };
     var tiles = [
       tile('Country', 'ok', 'Ready'),
+      shopifyConnection?.status === 'connected' ? tile('Shopify', 'ok', 'Connected')
+        : tile('Shopify', '', shopifyAttempt ? 'Authorization pending' : shopifyConnection ? 'Skipped' : 'Connection unverified'),
       !histKey ? tile('Sales data', 'risk', 'Required')
         : lastHistWarnings.length ? tile('Sales data', 'warn', 'Usable w/ warnings')
         : tile('Sales data', 'ok', 'Ready'),
       spendKey ? tile('Marketing spend', 'ok', 'Received')
         : spendSkipped ? tile('Marketing spend', 'warn', 'Skipped')
         : tile('Marketing spend', '', 'Not provided'),
-      !histKey ? tile('SKU master', '', 'Needs sales data')
-        : unconfirmed ? tile('SKU master', 'warn', unconfirmed + ' to confirm')
-        : tile('SKU master', 'ok', 'Ready'),
+      skuMasterUploading ? tile('SKU master', '', 'Uploading')
+        : skuMasterKey ? tile('SKU master', 'ok', unconfirmed ? 'Uploaded · ' + unconfirmed + ' to confirm' : 'Uploaded')
+        : tile('SKU master', '', unconfirmed ? unconfirmed + ' launch dates to confirm' : 'Not uploaded'),
       inboundKey ? tile('Upload inbound data', 'ok', 'Received')
         : inboundSkipped ? tile('Upload inbound data', 'warn', 'Skipped')
         : tile('Upload inbound data', '', 'Not provided'),
@@ -1288,6 +1469,7 @@
     var kept = ['festivals & holidays'];
     if (Object.keys(newSkuState).length) kept.push('launch dates');
     if (schemeIds.length) kept.push('scheme IDs');
+    if (skuMasterKey) kept.push('SKU master');
     if (spendKey) kept.push('marketing spend');
     if (inboundKey) kept.push('inbound data');
     if (fileWeather) kept.push('your separate weather file');
@@ -1319,6 +1501,7 @@
         return { date: h.date.toISOString().slice(0, 10), name: h.name, auto: h.auto };
       }),
       scheme_ids: schemeIds,
+      sku_master_key: skuMasterKey,
       marketing_spend_key: spendKey, marketing_spend_skipped: spendSkipped,
       inbound_receipts_key: inboundKey, inbound_receipts_skipped: inboundSkipped,
       weather_file_key: weatherFileKey,
@@ -1431,6 +1614,16 @@
   function startOnboardingOver() {
     try { localStorage.removeItem(ONBOARDING_SCENARIO_KEY); } catch (e) {}
     histKey = null;
+    salesSkuIds = skuMasterIds = skuMasterKey = null;
+    skuMasterUploading = false;
+    skuMasterUploadVersion++;
+    var skuInput = document.getElementById('obSkuMasterFile');
+    skuInput.disabled = false;
+    skuInput.value = '';
+    setStatus(document.getElementById('obSkuMasterStatus'), '');
+    renderSkuMasterSummary();
+    if (shopifyAttempt) shopifyAttempt.popup.close();
+    endShopifyAttempt();
     spendKey = null; spendSkipped = false;
     inboundKey = null; inboundSkipped = false;
     weatherFileKey = null;
@@ -1532,11 +1725,14 @@
     });
 
     document.getElementById('obStartOver').addEventListener('click', startOnboardingOver);
+    initShopifyStep();
 
     showStep(1);
 
     document.getElementById('obSalesTplCsv').addEventListener('click', downloadSalesTemplate);
     document.getElementById('obInboundTpl').addEventListener('click', downloadInboundTemplate);
+    document.getElementById('obSkuMasterTpl').addEventListener('click', downloadSkuMasterTemplate);
+    document.getElementById('obSkuMasterFile').addEventListener('change', function () { uploadSkuMaster(this); });
 
     document.getElementById('obHistFile').addEventListener('change', function () {
       var file = this.files[0];

@@ -75,7 +75,7 @@ def _update_index(org_id, scenario_id, patch):
 
 REQUIRED_INPUT_COLS = {
     'ship_day': {'ship_day'},
-    'asin': {'asin'},
+    'sku': {'asin'},
     'postal_code': {'postal_code'},
     'shipped_units': {'shipped_units', 'shipment_units'},
 }
@@ -90,7 +90,7 @@ def _count_series(path):
     site's own comment). Cheap: only reads the two key columns, not the
     whole file."""
     import pandas as pd
-    df = pd.read_csv(path, sep='\t', usecols=lambda c: c.strip().lower() in ('asin', 'postal_code'))
+    df = pd.read_csv(path, sep='\t', dtype=str, usecols=lambda c: c.strip().lower() in ('asin', 'postal_code'))
     df.columns = [c.strip().lower() for c in df.columns]
     return df[['asin', 'postal_code']].drop_duplicates().shape[0]
 
@@ -103,12 +103,20 @@ def _validate_custom_input(path):
     if missing:
         raise ValueError(
             f"Uploaded file is missing required column(s): {', '.join(missing)}. "
-            f"Expected at least: ship_day, asin, postal_code, shipped_units "
+            f"Expected at least: ship_day, sku, postal_code, shipped_units "
             f"(see the input template).")
 
 
-def _strip_cols(df):
-    df.columns = [str(c).strip() for c in df.columns]
+def _normalize_upload_columns(df):
+    """Translate uploaded SKU headers to the bundled model's product key."""
+    df.columns = [str(column).strip().lower() for column in df.columns]
+    aliases = ('sku', 'sku_id', 'asin')
+    product = next((column for column in aliases if column in df.columns), None)
+    if product is None:
+        return df
+    alternate = [column for column in aliases if column != product and column in df.columns]
+    df = df.drop(columns=alternate).rename(columns={product: 'asin'})
+    df['asin'] = df['asin'].astype('string').str.strip()
     return df
 
 
@@ -117,7 +125,7 @@ def _merge_exogenous_sheet(ship_df, other_df, key_candidates, required_keys, lab
     using whichever of key_candidates are present in both. Skips (with a log
     line, not an error) if the required subset of keys isn't there — an
     unrecognized sheet shouldn't take down the whole run."""
-    other_df = _strip_cols(other_df).dropna(how='all')
+    other_df = _normalize_upload_columns(other_df).dropna(how='all')
     if other_df.empty:
         return ship_df
     merge_keys = [c for c in key_candidates if c in ship_df.columns and c in other_df.columns]
@@ -158,13 +166,13 @@ def _download_custom_input(key):
     has_custom_future_prices = False
 
     if ext == '.xlsx':
-        sheets = pd.read_excel(local_raw, sheet_name=None)
+        sheets = pd.read_excel(local_raw, sheet_name=None, dtype=str)
         by_name = {str(k).strip().lower(): v for k, v in sheets.items()}
 
         ship_df = by_name.get('shipments')
         if ship_df is None:  # backward-compatible: no explicit "Shipments" tab
             ship_df = next(iter(sheets.values()))
-        ship_df = _strip_cols(ship_df).dropna(how='all')
+        ship_df = _normalize_upload_columns(ship_df).dropna(how='all')
 
         price_df = by_name.get('price')
         if price_df is not None:
@@ -174,7 +182,7 @@ def _download_custom_input(key):
 
         weather_df = by_name.get('weather')
         if weather_df is not None:
-            weather_df = _strip_cols(weather_df).dropna(how='all')
+            weather_df = _normalize_upload_columns(weather_df).dropna(how='all')
             if not weather_df.empty:
                 weather_df.to_csv(RAW_WEATHER, sep='\t', index=False)
                 has_custom_weather = True
@@ -185,7 +193,7 @@ def _download_custom_input(key):
         # its own file and fed to forecast.py's --future-prices instead.
         future_price_df = by_name.get('future price')
         if future_price_df is not None:
-            future_price_df = _strip_cols(future_price_df).dropna(how='all')
+            future_price_df = _normalize_upload_columns(future_price_df).dropna(how='all')
             cols_lower = {c.strip().lower() for c in future_price_df.columns}
             has_price_col = bool({'avg_our_price', 'avg_discount_amt'} & cols_lower)
             if future_price_df.empty:
@@ -199,11 +207,10 @@ def _download_custom_input(key):
                 has_custom_future_prices = True
 
         ship_df.to_csv(RAW_INPUT, sep='\t', index=False)
-    elif ext == '.csv':
-        df = pd.read_csv(local_raw, dtype=str)
-        df.to_csv(RAW_INPUT, sep='\t', index=False)
-    else:  # .tsv / .txt — already tab-separated
-        os.replace(local_raw, RAW_INPUT)
+    else:
+        delimiter = ',' if ext == '.csv' else '\t'
+        df = pd.read_csv(local_raw, sep=delimiter, dtype=str)
+        _normalize_upload_columns(df).to_csv(RAW_INPUT, sep='\t', index=False)
 
     _validate_custom_input(RAW_INPUT)
     return has_custom_weather, has_custom_future_prices
@@ -271,7 +278,7 @@ def _seasonal_index(raw_path):
     """
     import pandas as pd
 
-    df = pd.read_csv(raw_path, sep='\t', parse_dates=['ship_day'])
+    df = pd.read_csv(raw_path, sep='\t', parse_dates=['ship_day'], dtype={'asin': str, 'ASIN': str})
     asin_col = 'asin' if 'asin' in df.columns else 'ASIN'
     unit_col = 'shipped_units' if 'shipped_units' in df.columns else 'shipment_units'
     df = df.rename(columns={asin_col: 'ASIN', unit_col: 'units'})
@@ -385,7 +392,7 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None, l
     """
     import pandas as pd
 
-    df = pd.read_csv(tsv_path, sep='\t', parse_dates=['ship_day'], dtype={'postal_code':str})
+    df = pd.read_csv(tsv_path, sep='\t', parse_dates=['ship_day'], dtype={'ASIN': str, 'postal_code': str})
     df['week'] = df['ship_day'].dt.to_period('W-SUN').dt.start_time
 
     wk_asin = (df.groupby(['ASIN', 'week'], as_index=False)
@@ -415,7 +422,7 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None, l
     if raw_history_path and os.path.exists(raw_history_path):
         try:
             price_df = pd.read_csv(raw_history_path, sep='\t',
-                                    usecols=['asin', 'shipped_units', 'avg_our_price'])
+                                    usecols=['asin', 'shipped_units', 'avg_our_price'], dtype={'asin': str})
             price_df = price_df.dropna(subset=['avg_our_price'])
             if not price_df.empty:
                 price_df['weighted'] = price_df['avg_our_price'] * price_df['shipped_units']
@@ -432,7 +439,7 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None, l
     future_wk_asin_zip = None
     future_weeks = []
     if future_tsv_path and os.path.exists(future_tsv_path):
-        fdf = pd.read_csv(future_tsv_path, sep='\t', parse_dates=['ship_day'], dtype={'postal_code':str})
+        fdf = pd.read_csv(future_tsv_path, sep='\t', parse_dates=['ship_day'], dtype={'ASIN': str, 'postal_code': str})
         fdf['week'] = fdf['ship_day'].dt.to_period('W-SUN').dt.start_time
         future_wk_asin = (fdf.groupby(['ASIN', 'week'], as_index=False)
                               .agg(f=('forecast_units', 'sum')))
@@ -602,15 +609,10 @@ def compute_monthly_inventory(raw_history_path, anon):
         print(f"INVENTORY_CALC_SKIPPED: raw_history_path={raw_history_path!r} missing or falsy")
         return None
     try:
-        # Column NAMES survive a custom upload in whatever case the user's
-        # file had (validation is case-insensitive, but _download_custom_input
-        # writes RAW_INPUT with the original header casing) — same tolerance
-        # _count_series() already needed for exactly this reason, extended
-        # here to also cover the shipped_units/shipment_units alias
-        # REQUIRED_INPUT_COLS itself accepts.
+        # Read legacy default datasets and normalized custom uploads identically.
         wanted = {'ship_day', 'asin', 'postal_code', 'shipped_units', 'shipment_units'}
         df = pd.read_csv(raw_history_path, sep='\t',
-                          usecols=lambda c: c.strip().lower() in wanted)
+                          dtype=str, usecols=lambda c: c.strip().lower() in wanted)
         df.columns = [c.strip().lower() for c in df.columns]
         if 'shipped_units' not in df.columns and 'shipment_units' in df.columns:
             df = df.rename(columns={'shipment_units': 'shipped_units'})
