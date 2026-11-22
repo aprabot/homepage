@@ -287,3 +287,12 @@
 [data-theme="light"] #dashboard #fclyResultsTable .fc-down{color:#B3261E}
 [data-theme="light"] #dashboard #fcLegend .lgd-item[data-k="a"] i{background:#0E9384!important}
 [data-theme="light"] #dashboard #fcLegend .lgd-item[data-k="w"] i{background:#3D6FE0!important}
+
+/* ---------- Light mode: Getting Started + status messages ----------
+   Success / error / warning messages are hard-coded light teal / red /
+   amber for the dark theme; darker variants keep them readable on white
+   (used across onboarding, settings and the scheme editor). */
+[data-theme="light"] #dashboard .stest-msg.ok{color:#0B7A6D}
+[data-theme="light"] #dashboard .stest-msg.err{color:#B3261E}
+[data-theme="light"] #dashboard .stest-msg.warn{color:#8B6000}
+[data-theme="light"] #dashboard .ob-stepper-step.done + .ob-stepper-seg{background:rgba(90,146,0,.5)}

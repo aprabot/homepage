@@ -369,12 +369,31 @@
   // Generic day/week-bucketed line chart, reused for both shipment volume
   // and temperature. Non-negative series (units) keep a zero baseline;
   // series that dip below zero (temperature) get their own min instead.
+  // Per-theme chart colours — the dark theme's lime line and white grid are
+  // too faint on the light theme's white cards.
+  function chartPalette() {
+    return document.documentElement.dataset.theme === 'light'
+      ? { grid: 'rgba(17,19,24,.08)', axis: '#52606E', line: '#5A8A00', fill: '90,138,0' }
+      : { grid: 'rgba(255,255,255,.06)', axis: '#8694A6', line: '#C8F24E', fill: '200,242,78' };
+  }
+
+  // Last drawing of each chart, so a theme switch can redraw it in the new colours.
+  var drawnCharts = {};
+  new MutationObserver(function () {
+    Object.keys(drawnCharts).forEach(function (id) {
+      var c = drawnCharts[id], wrap = document.getElementById(c[1]);
+      if (wrap && wrap.style.display !== 'none') drawLineChart.apply(null, c);
+    });
+  }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+
   function drawLineChart(canvasId, wrapId, points, fmt) {
     fmt = fmt || function (v) { return Math.round(v); };
     var wrap = document.getElementById(wrapId);
     var cv = document.getElementById(canvasId);
-    if (!points.length) { wrap.style.display = 'none'; return false; }
+    if (!points.length) { wrap.style.display = 'none'; delete drawnCharts[canvasId]; return false; }
     wrap.style.display = '';
+    drawnCharts[canvasId] = [canvasId, wrapId, points, fmt];
+    var P = chartPalette();
 
     var dpr = window.devicePixelRatio || 1;
     var cw = cv.clientWidth || 600, ch = cv.clientHeight || 200;
@@ -396,9 +415,9 @@
     ctx.font = '10px JetBrains Mono, monospace';
     for (var g = 0; g <= 3; g++) {
       var y = padT + (g / 3) * (ch - padT - padB);
-      ctx.strokeStyle = 'rgba(255,255,255,.06)';
+      ctx.strokeStyle = P.grid;
       ctx.beginPath(); ctx.moveTo(padL, y); ctx.lineTo(cw - padR, y); ctx.stroke();
-      ctx.fillStyle = '#5C6878'; ctx.textAlign = 'right';
+      ctx.fillStyle = P.axis; ctx.textAlign = 'right';
       ctx.fillText(fmt(vMax - (g / 3) * (vMax - vMin)), padL - 8, y + 3);
     }
 
@@ -407,15 +426,15 @@
       var x = X(i), y = Y(p.units);
       if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
     });
-    ctx.strokeStyle = '#C8F24E'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.strokeStyle = P.line; ctx.lineWidth = 2; ctx.stroke();
 
     var grad = ctx.createLinearGradient(0, padT, 0, ch - padB);
-    grad.addColorStop(0, 'rgba(200,242,78,.28)');
-    grad.addColorStop(1, 'rgba(200,242,78,0)');
+    grad.addColorStop(0, 'rgba(' + P.fill + ',.28)');
+    grad.addColorStop(1, 'rgba(' + P.fill + ',0)');
     ctx.lineTo(X(N - 1), Y(vMin)); ctx.lineTo(X(0), Y(vMin)); ctx.closePath();
     ctx.fillStyle = grad; ctx.fill();
 
-    ctx.fillStyle = '#5C6878'; ctx.textAlign = 'left';
+    ctx.fillStyle = P.axis; ctx.textAlign = 'left';
     ctx.fillText(points[0].date.toISOString().slice(0, 10), padL, ch - 6);
     ctx.textAlign = 'right';
     ctx.fillText(points[N - 1].date.toISOString().slice(0, 10), cw - padR, ch - 6);
