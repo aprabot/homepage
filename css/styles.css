@@ -716,7 +716,7 @@
   .uchip .av{width:34px;height:34px;border-radius:50%;background:linear-gradient(135deg,var(--signal),var(--mint));
     display:flex;align-items:center;justify-content:center;font-weight:700;color:#0A0E15;font-size:14px}
   .uchip .nm{font-size:14px;font-weight:600;line-height:1.1}
-  .uchip .rl{font-size:11.5px;color:var(--muted);font-family:var(--mono)}
+  .uchip .rl{font-size:11.5px;color:var(--muted);font-family:var(--body)}
   .dbody{padding:30px 32px 60px;flex:1;overflow-y:auto;min-height:0}
   .dgreet{font-family:var(--display);font-weight:600;font-size:1.9rem;letter-spacing:-.025em;margin-bottom:4px}
   .dgreet .hl{color:var(--signal)}

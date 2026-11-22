@@ -989,6 +989,23 @@
     if (btn && step === TOTAL_STEPS) btn.disabled = !histKey;
   }
 
+  // Purely visual done/current/upcoming state on the numbered stepper
+  // above the steps — mirrors the same `n` showStep() already received,
+  // doesn't gate or drive navigation itself (unlike the redesign mockup's
+  // version, where clicking a stepper node jumps straight to that step).
+  // Kept that way deliberately: the real wizard's forward progress is tied
+  // to upload/validation state in several places (e.g. the final step's
+  // button staying disabled without histKey), and letting the stepper itself
+  // jump steps would bypass that gating.
+  function updateStepper(n) {
+    for (var i = 1; i <= TOTAL_STEPS; i++) {
+      var el = document.getElementById('obStepperStep' + i);
+      if (!el) continue;
+      el.classList.toggle('done', i < n);
+      el.classList.toggle('current', i === n);
+    }
+  }
+
   function showStep(n) {
     step = n;
     for (var i = 1; i <= TOTAL_STEPS; i++) {
@@ -996,6 +1013,7 @@
       if (el) el.style.display = (i === n) ? '' : 'none';
     }
     document.getElementById('obProgress').textContent = 'Question ' + n + ' of ' + TOTAL_STEPS;
+    updateStepper(n);
 
     // Keep the walkthrough card out of the way once the user is actually
     // working through the questionnaire — only show it back on question 1.
@@ -1233,9 +1251,33 @@
     showStep(1);
   }
 
+  // Country step's decorative outline-map diagram — swaps which <g> is
+  // visible inside the shared #obMapSvg based on the real #obCountry
+  // <select>. Purely additive/cosmetic: only countries with a drawn outline
+  // (India/US/Japan/UK) get a matching shape, everything else just leaves
+  // whichever shape was last shown hidden-by-default on load (India, since
+  // that's the select's own default) rather than guessing a new outline.
+  var COUNTRY_MAP_IDS = { IN: 'obMapIndia', US: 'obMapUS', JP: 'obMapJapan', GB: 'obMapUK' };
+
+  function updateCountryMap() {
+    var svg = document.getElementById('obMapSvg');
+    if (!svg) return; // step not present on this page
+    var country = currentCountry();
+    var shapeId = COUNTRY_MAP_IDS[country];
+    Object.keys(COUNTRY_MAP_IDS).forEach(function (code) {
+      var g = document.getElementById(COUNTRY_MAP_IDS[code]);
+      if (g) g.style.display = (COUNTRY_MAP_IDS[code] === shapeId) ? '' : 'none';
+    });
+    var label = document.getElementById('obMapLabel');
+    if (label) label.textContent = countryName(country) + (shapeId ? '' : ' (no outline drawn yet)');
+  }
+
   function init() {
     var countrySelect = document.getElementById('obCountry');
     if (!countrySelect) return; // onboarding panel not present on this page
+
+    countrySelect.addEventListener('change', updateCountryMap);
+    updateCountryMap();
 
     document.getElementById('obBack').addEventListener('click', function () {
       if (step > 1) showStep(step - 1);

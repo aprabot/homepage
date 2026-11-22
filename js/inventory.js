@@ -509,9 +509,9 @@
       if (!icon) return;
       if (th.dataset.sortKey === invReqState.sortKey) {
         icon.textContent = invReqState.sortDir === 'asc' ? '↑' : '↓';
-        icon.style.opacity = 1; icon.style.color = 'var(--signal)';
+        icon.style.opacity = 1; icon.style.color = 'var(--text)';
       } else {
-        icon.textContent = '⇅'; icon.style.opacity = .5; icon.style.color = '';
+        icon.textContent = '⇅'; icon.style.opacity = 0; icon.style.color = '';
       }
     });
 
@@ -521,17 +521,18 @@
       body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px 20px;color:var(--muted)">No SKUs match your current filters.</td></tr>';
       return;
     }
+    var dim = '<td><span class="inv-dim">—</span></td>';
     body.innerHTML = filtered.map(function (row) {
       return '<tr>' +
         '<td><b style="font-family:var(--mono);color:var(--text)">' + escapeHtml(row.sku) + '</b></td>' +
-        '<td>—</td>' +
-        '<td>—</td>' +
+        dim +
+        dim +
         '<td style="color:var(--text);font-weight:600">' + invFmt(row.required) + '</td>' +
-        '<td>—</td>' +
-        '<td>—</td>' +
-        '<td>—</td>' +
-        '<td>—</td>' +
-        '<td>—</td>' +
+        dim +
+        dim +
+        dim +
+        dim +
+        dim +
       '</tr>';
     }).join('');
   }
