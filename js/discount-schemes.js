@@ -4,8 +4,9 @@
   const get = id => document.getElementById(id);
   const form = get('scheme-form');
   const scopes = get('scheme-scope');
+  const registry = get('scheme-registry');
   const status = get('scheme-status');
-  let schemes = [], canEdit = false, editing = null;
+  let schemes = [], canEdit = false, editing = null, displayOnly = false, opener = null;
 
   async function request(payload) {
     const response = await APRA_SESSION.fetch(api, {
@@ -84,31 +85,72 @@
     });
   }
 
+  function refreshScopeControls() {
+    const rows = Array.from(scopes.children);
+    const count = rows.length;
+    get('scheme-scope-count').textContent = count ? count + (count === 1 ? ' line' : ' lines') : '';
+    const flat = form.elements.mechanic.value === 'Flat amount off';
+    get('scheme-discount-help').textContent = flat
+      ? 'Enter a discount amount in the selling price currency.'
+      : 'Enter the effective discount percentage for each scope line.';
+    rows.forEach((row, index) => {
+      row.querySelector('legend').textContent = 'Scope line ' + (index + 1);
+      row.querySelector('.scheme-discount-unit').hidden = flat;
+      row.querySelector('input[name="discount"]').max = flat ? '1000000' : '99';
+      const remove = row.querySelector('button');
+      remove.hidden = displayOnly;
+      remove.disabled = count < 2;
+      remove.setAttribute('aria-label', 'Remove scope line ' + (index + 1));
+    });
+    get('scheme-add').disabled = count >= 30;
+  }
+
   function addLine(values = {}) {
     const row = get('scheme-line').content.firstElementChild.cloneNode(true);
     row.querySelectorAll('input').forEach(input => { input.value = values[input.name] ?? ''; });
-    row.querySelector('button').onclick = () => { if (scopes.children.length > 1) row.remove(); };
+    const start = row.querySelector('input[name="start_date"]');
+    const end = row.querySelector('input[name="end_date"]');
+    const syncDates = () => { end.min = start.value; };
+    start.addEventListener('change', syncDates);
+    syncDates();
+    row.querySelector('button').onclick = () => {
+      const neighbor = row.nextElementSibling || row.previousElementSibling;
+      row.remove();
+      refreshScopeControls();
+      neighbor?.querySelector('input').focus();
+    };
     scopes.append(row);
+    return row;
   }
 
   function open(scheme, readOnly = false) {
     editing = scheme;
+    displayOnly = readOnly;
+    opener = document.activeElement;
     form.reset();
     scopes.replaceChildren();
     get('scheme-error').textContent = '';
-    get('scheme-title').textContent = scheme ? scheme.code : 'Create scheme';
+    get('scheme-title').textContent = scheme ? (readOnly ? scheme.code : 'Edit scheme') : 'Create scheme';
     ['code', 'name', 'mechanic'].forEach(name => {
       if (scheme?.[name]) form.elements[name].value = scheme[name];
     });
     form.elements.code.readOnly = Boolean(scheme);
     if (scheme?.scope?.length) scheme.scope.forEach(addLine);
-    else addLine({ start_date: scheme?.first_seen, end_date: scheme?.last_seen });
-    form.querySelectorAll('input, select, button').forEach(control => {
-      control.disabled = readOnly && control.id !== 'scheme-close';
-    });
+    else if (!readOnly) addLine({ start_date: scheme?.first_seen, end_date: scheme?.last_seen });
+    form.querySelectorAll('input, select').forEach(control => { control.disabled = readOnly; });
     ['scheme-add', 'scheme-draft', 'scheme-commit'].forEach(id => { get(id).hidden = readOnly; });
+    refreshScopeControls();
+    registry.hidden = true;
     form.hidden = false;
-    form.scrollIntoView({block: 'nearest'});
+    form.scrollIntoView({block:'start'});
+    get('scheme-title').focus({preventScroll:true});
+  }
+
+  function close() {
+    form.hidden = true;
+    registry.hidden = false;
+    if (opener?.isConnected && !opener.disabled && opener !== document.body) opener.focus();
+    else get('scheme-new').focus();
   }
 
   form.addEventListener('submit', async event => {
@@ -122,25 +164,37 @@
     if (action === 'commit' && !confirm('Commit this scheme and start a new forecast run?')) return;
     const controls = Array.from(form.querySelectorAll('button'));
     controls.forEach(button => { button.disabled = true; });
+    form.setAttribute('aria-busy', 'true');
     const message = get('scheme-error');
     message.textContent = 'Saving…';
     try {
       const result = await request({action, code: fields.code.value, name: fields.name.value,
         mechanic: fields.mechanic.value, scope, version: editing?.version || 0});
-      form.hidden = true;
       await load();
+      close();
       if (result.warning) status.textContent = result.warning;
       if (result.scenario_id) status.textContent = 'Scheme committed. A forecast run has started in Scenarios.';
     } catch (error) {
       message.textContent = error.message;
     } finally {
       controls.forEach(button => { button.disabled = false; });
+      refreshScopeControls();
+      form.removeAttribute('aria-busy');
     }
   });
 
   get('scheme-new').onclick = () => open(null);
-  get('scheme-close').onclick = () => { form.hidden = true; };
-  get('scheme-add').onclick = () => { if (scopes.children.length < 30) addLine(); };
+  get('scheme-close').onclick = close;
+  get('scheme-add').onclick = () => {
+    if (scopes.children.length >= 30) return;
+    const row = addLine();
+    refreshScopeControls();
+    row.querySelector('input').focus();
+  };
+  form.elements.mechanic.addEventListener('change', refreshScopeControls);
+  form.addEventListener('keydown', event => {
+    if (event.key === 'Escape' && !form.hasAttribute('aria-busy')) close();
+  });
   get('scheme-search').oninput = render;
   get('scheme-filter').onchange = render;
   get('scheme-source').onchange = render;

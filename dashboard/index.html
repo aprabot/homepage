@@ -435,6 +435,46 @@
   .ads-scope-line{min-width:0;border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0}
   .ads-scope-line legend{color:var(--muted);font-size:12px}
   .ads-plan-actions{margin:12px 0}
+  .scheme-editor{--scheme-surface:var(--ink-2);--scheme-field:var(--ink);--scheme-border:var(--line-2);max-width:1100px}
+  [data-theme="dark"] .scheme-editor{color-scheme:dark;--scheme-surface:#111b2d;--scheme-field:#101827;--scheme-border:#2b3a53}
+  .scheme-editor-header{margin-bottom:18px}
+  .scheme-back{display:inline-flex;align-items:center;gap:7px;margin:0 0 12px;padding:0;border:0;background:none;color:var(--muted);
+    font:600 12px var(--body);cursor:pointer}
+  .scheme-back:hover{color:var(--text)}
+  .scheme-editor-card{padding:18px;border:1px solid var(--scheme-border);border-radius:12px;background:var(--scheme-surface)}
+  .scheme-editor-card+.scheme-editor-card{margin-top:14px}
+  .scheme-section-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:13px}
+  .scheme-section-head h2{display:flex;align-items:center;gap:8px;font:700 15px var(--body)}
+  .scheme-section-head .dsubtle{margin:4px 0 0;font-size:12px}
+  .scheme-line-count{color:var(--muted);font-size:11px;font-weight:600}
+  .scheme-detail-fields,.scheme-scope-fields{display:grid;gap:10px;align-items:end}
+  .scheme-detail-fields{grid-template-columns:minmax(145px,1fr) minmax(170px,1.55fr) minmax(150px,1fr)}
+  .scheme-scope-fields{grid-template-columns:minmax(94px,1fr) minmax(100px,1fr) repeat(2,minmax(117px,1.1fr)) minmax(100px,.8fr) auto}
+  .scheme-editor label{display:grid;gap:5px;min-width:0;color:var(--muted);font:600 12px var(--body)}
+  .scheme-editor input,.scheme-editor select{min-width:0;width:100%;height:36px;padding:7px 9px;border:1px solid var(--scheme-border);
+    border-radius:7px;background:var(--scheme-field);color:var(--text);font:500 13px var(--body)}
+  .scheme-editor input:focus,.scheme-editor select:focus{border-color:var(--signal);outline:2px solid var(--signal-soft)}
+  .scheme-editor input::placeholder{color:var(--muted-2)}
+  .scheme-editor input:read-only,.scheme-editor input:disabled,.scheme-editor select:disabled{color:var(--muted)}
+  .scheme-scope-line{min-width:0;padding:10px 12px 12px;border:1px solid var(--scheme-border);border-radius:9px}
+  .scheme-scope-line+.scheme-scope-line{margin-top:9px}
+  .scheme-scope-label{padding:0 6px;color:var(--muted);font:600 11px var(--body)}
+  .scheme-discount-input{position:relative;display:block}
+  .scheme-discount-input:has(.scheme-discount-unit:not([hidden])) input{padding-right:32px}
+  .scheme-discount-unit{position:absolute;right:10px;top:50%;transform:translateY(-50%);pointer-events:none;color:var(--muted)}
+  .scheme-remove{height:36px;padding:0 5px;border:0;background:none;color:var(--muted);font:600 11px var(--body);cursor:pointer}
+  .scheme-remove:hover:not(:disabled){color:var(--text)}
+  .scheme-remove:disabled{opacity:.45;cursor:default}
+  .scheme-editor-footer{display:flex;justify-content:space-between;align-items:center;gap:12px;flex-wrap:wrap;
+    padding:13px 0;margin-top:3px}
+  .scheme-editor-footer .stest-msg{margin:0}
+  .scheme-editor-actions{margin-left:auto;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+  .scheme-editor-actions .btn{min-height:36px;padding:8px 13px;font-size:12px}
+  .scheme-editor .scheme-add,.scheme-editor #scheme-draft{background:var(--scheme-field);color:var(--text);border:1px solid var(--scheme-border)}
+  .scheme-editor .scheme-add:hover:enabled,.scheme-editor #scheme-draft:hover:enabled{border-color:var(--muted-2);background:var(--ink-3)}
+  @media(max-width:960px){.scheme-scope-fields{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media(max-width:600px){.scheme-editor-card{padding:12px}.scheme-detail-fields,.scheme-scope-fields{grid-template-columns:repeat(2,minmax(0,1fr))}}
+  @media(max-width:375px){.scheme-detail-fields,.scheme-scope-fields{grid-template-columns:minmax(0,1fr)}}
   .scenario-workspace{scroll-margin-top:12px}
   .scenario-workspace-head,.scenario-comparison-head,.scenario-workspace-actions{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
   .scenario-workspace-head h2{font-size:18px}
@@ -774,6 +814,7 @@
     </div>
 
     <div class="dbody" id="discountSchemesPanel" style="display:none">
+      <div id="scheme-registry">
       <div class="ads-heading">
         <div><h1 class="dgreet">Discount Schemes</h1><p class="dsubtle">Manage promotions and apply committed discounts to future forecasts.</p></div>
         <button type="button" class="dbtn" id="scheme-new" disabled>+ Create scheme</button>
@@ -790,35 +831,56 @@
         </table>
         <p class="dsubtle" id="scheme-status" role="status"></p>
       </div>
-      <form class="dcard ads-plan-form" id="scheme-form" hidden>
-        <h2 id="scheme-title">Create scheme</h2>
-        <div class="ads-fields">
-          <label>Scheme ID<input name="code" maxlength="80" required></label>
-          <label>Name<input name="name" maxlength="120" required></label>
-          <label>Mechanic<select name="mechanic"><option>Percent off</option><option>Flat amount off</option><option>Buy X get Y</option><option>Bundle</option><option>Free gift</option><option>Cashback</option><option>Tiered</option></select></label>
-        </div>
-        <h3>Scope</h3>
-        <p class="dsubtle">For Flat amount off, enter a value in the selling price currency. For other mechanics, enter the effective discount percentage.</p>
-        <div id="scheme-scope"></div>
-        <button type="button" class="dbtn" id="scheme-add">+ Add scope line</button>
-        <p class="stest-msg" id="scheme-error" role="status"></p>
-        <div class="ads-plan-actions">
-          <button type="button" class="dbtn" id="scheme-close">Close</button>
-          <button type="submit" class="dbtn" id="scheme-draft" value="draft">Save draft</button>
-          <button type="submit" class="dbtn" id="scheme-commit" value="commit">Commit and run</button>
-        </div>
+      </div>
+      <form id="scheme-form" class="scheme-editor" aria-labelledby="scheme-title" hidden>
+        <header class="scheme-editor-header">
+          <button type="button" class="scheme-back" id="scheme-close">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16" aria-hidden="true"><path d="M19 12H5m7 7-7-7 7-7"/></svg>
+            Discount Schemes
+          </button>
+          <h1 class="dgreet" id="scheme-title" tabindex="-1">Create scheme</h1>
+        </header>
+
+        <section class="scheme-editor-card" aria-labelledby="scheme-details-heading">
+          <div class="scheme-section-head">
+            <h2 id="scheme-details-heading">Scheme details</h2>
+          </div>
+          <div class="scheme-detail-fields">
+            <label>Scheme ID<input name="code" maxlength="80" placeholder="e.g. SUMMER-10" required></label>
+            <label>Name<input name="name" maxlength="120" placeholder="e.g. Summer promotion" required></label>
+            <label>Mechanic<select name="mechanic"><option>Percent off</option><option>Flat amount off</option><option>Buy X get Y</option><option>Bundle</option><option>Free gift</option><option>Cashback</option><option>Tiered</option></select></label>
+          </div>
+        </section>
+
+        <section class="scheme-editor-card scheme-editor-scope" aria-labelledby="scheme-scope-heading">
+          <div class="scheme-section-head">
+            <div>
+              <h2 id="scheme-scope-heading">Scope <span class="scheme-line-count" id="scheme-scope-count"></span></h2>
+              <p class="dsubtle" id="scheme-discount-help">Enter the percentage discount for each SKU, postal code, and date range.</p>
+            </div>
+            <button type="button" class="dbtn scheme-add" id="scheme-add">+ Add scope line</button>
+          </div>
+          <div id="scheme-scope"></div>
+        </section>
+        <footer class="scheme-editor-footer">
+          <p class="stest-msg" id="scheme-error" role="status" aria-atomic="true"></p>
+          <div class="scheme-editor-actions">
+            <button type="submit" class="dbtn" id="scheme-draft" value="draft">Save draft</button>
+            <button type="submit" class="btn btn-pri" id="scheme-commit" value="commit">Commit and run</button>
+          </div>
+        </footer>
       </form>
       <template id="scheme-line">
-        <fieldset class="ads-scope-line">
-          <legend>Scope line</legend>
-          <div class="ads-fields">
+        <fieldset class="scheme-scope-line">
+          <legend class="scheme-scope-label">Scope line</legend>
+          <div class="scheme-scope-fields">
             <label>Forecast SKU<input name="sku" required placeholder="SKU-001"></label>
-            <label>Postal code<input name="postal_code" required maxlength="12"></label>
+            <label>Postal code<input name="postal_code" required maxlength="12" placeholder="Postal code"></label>
             <label>Start date<input name="start_date" type="date" required></label>
             <label>End date<input name="end_date" type="date" required></label>
-            <label>Discount<input name="discount" required type="number" min="0.01" step="any"></label>
+            <label><span>Discount</span><span class="scheme-discount-input"><input name="discount" required type="number" min="0.01" step="any" aria-label="Discount" aria-describedby="scheme-discount-help"><span class="scheme-discount-unit" aria-hidden="true">%</span></span></label>
+            <button type="button" class="scheme-remove">Remove</button>
           </div>
-          <button type="button" class="dbtn">Remove line</button>
         </fieldset>
       </template>
     </div>
