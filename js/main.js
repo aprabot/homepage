@@ -94,7 +94,7 @@
   // segmented control toggle (period selector handled in initDashboard)
 
   /* ===== REAL BACKTEST DASHBOARD (data from DATA in data.js) ===== */
-  let dashReady=false, curSel='ALL', curWeeks=52, fcGeom=null, hideBacktest=true, ovHorizon=52;
+  let dashReady=false, curSel='ALL', fcGeom=null, hideBacktest=true, ovHorizon=52;
   const fcVisible={a:true,f:true,w:true};
   document.querySelectorAll('#fcLegend .lgd-item').forEach(el=>{
     el.addEventListener('click',()=>{
@@ -155,36 +155,20 @@
     setTxt('ovMxWape52',w52==null?'—':w52.toFixed(0)+'%');
     ovPickHorizon(document.querySelector('#ovHorizonSeg button[data-w="'+ovHorizon+'"]')||document.querySelector('#ovHorizonSeg button.active'));
 
-    // top SKUs by volume (for movers + table)
+    // Top SKUs by volume for the Overview list and Forecast SKU picker.
     const rows=Object.keys(DATA.skus).map(a=>{
       const o=DATA.skus[a], vol=o.a.reduce((s,x)=>s+(x||0),0);
-      return {a, vol, wape:seriesWape(o.a,o.f).overall, avgF:o.f.reduce((s,x)=>s+(x||0),0)/o.f.length};
+      return {a, vol, wape:seriesWape(o.a,o.f).overall};
     }).filter(r=>r.vol>0&&r.wape!=null).sort((x,y)=>y.vol-x.vol);
 
-    // movers: top 6 by volume (shown on both the Forecasts tab and Overview)
+    // Overview movers: top six by volume.
     const moversHtml=rows.slice(0,6).map(r=>{
       const good=r.wape<=DATA.overallWape;
       return `<li data-sku="${r.a}"><div><div class="nmx">${r.a}</div><div class="sku">${nfFull(r.vol)} units · 2024</div></div>`+
              `<span class="chg ${good?'up':'down'}">${r.wape.toFixed(1)}%</span></li>`;
     }).join('');
-    document.getElementById('moversList').innerHTML=moversHtml;
     const ovMovers=document.getElementById('ovMoversList');
     if(ovMovers)ovMovers.innerHTML=moversHtml;
-
-    // table: top 12 by volume
-    const F=computeForwardStats();
-    const confPill=id=>{const c=F.confidenceOf[id];
-      const cls=c==='High'?'ok':c==='Medium'?'warn':'risk';
-      return `<span class="pill ${cls}" title="Forward-looking confidence, ranked by backtest volume — this pipeline's long-horizon forecast holds up best for top sellers">${c||'—'}</span>`;};
-    document.getElementById('skuBody').innerHTML=rows.slice(0,12).map(r=>{
-      const acc=Math.max(0,100-r.wape);
-      const cls=r.wape<=30?'ok':r.wape<=45?'warn':'risk';
-      const lab=r.wape<=30?'Strong':r.wape<=45?'Fair':'High error';
-      return `<tr data-sku="${r.a}"><td class="skucell">${r.a}</td><td>${nfFull(r.vol)}</td>`+
-        `<td>${nfFull(r.avgF)}</td><td>${r.wape.toFixed(1)}%</td>`+
-        `<td><div class="bar-mini"><i style="width:${acc.toFixed(0)}%"></i></div></td>`+
-        `<td><span class="pill ${cls}">${lab}</span></td><td>${confPill(r.a)}</td></tr>`;
-    }).join('');
 
     // SKU datalist (capped so the picker stays snappy; free-text search still hits any SKU)
     document.getElementById('skuList').innerHTML=rows.slice(0,400).map(r=>`<option value="${r.a}">`).join('');
@@ -324,44 +308,6 @@
       if(!baseSkuId||baseSkuId==='ALL')return;
       selectSku(e.target.value?baseSkuId+'|'+e.target.value:baseSkuId);
     });
-    const periodSeg=document.getElementById('periodSeg');
-    const customBtn=document.getElementById('periodCustomBtn');
-    const customWrap=document.getElementById('periodCustomWrap');
-    const customInput=document.getElementById('periodCustomInput');
-    const customUp=document.getElementById('periodCustomUp');
-    const customDown=document.getElementById('periodCustomDown');
-    periodSeg.querySelectorAll('button').forEach(b=>{
-      b.addEventListener('click',()=>{
-        if(b.dataset.w==='custom'){
-          customWrap.style.display='';
-          customInput.focus();
-          return; // wait for a value — don't touch curWeeks or the 'on' state yet
-        }
-        customWrap.style.display='none';
-        customBtn.textContent='Custom';
-        periodSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
-        b.classList.add('on'); curWeeks=+b.dataset.w; drawChart();
-      });
-    });
-    function commitCustomWeeks(keepOpen){
-      const v=parseInt(customInput.value,10);
-      if(!v||v<1){ customWrap.style.display='none'; return; }
-      periodSeg.querySelectorAll('button').forEach(x=>x.classList.remove('on'));
-      customBtn.classList.add('on'); customBtn.textContent=v+'W';
-      curWeeks=v; drawChart();
-      if(!keepOpen) customWrap.style.display='none';
-    }
-    customInput.addEventListener('keydown',e=>{if(e.key==='Enter')commitCustomWeeks(false);});
-    customInput.addEventListener('blur',()=>commitCustomWeeks(false));
-    [customUp,customDown].forEach(b=>b.addEventListener('mousedown',e=>e.preventDefault()));
-    customUp.addEventListener('click',()=>{
-      customInput.value=Math.min(1000,(parseInt(customInput.value,10)||curWeeks)+1);
-      commitCustomWeeks(true);
-    });
-    customDown.addEventListener('click',()=>{
-      customInput.value=Math.max(1,(parseInt(customInput.value,10)||curWeeks)-1);
-      commitCustomWeeks(true);
-    });
     const hideBtBtn=document.getElementById('hideBacktestBtn');
     if(hideBtBtn && DATA.backtestWeeks!=null && DATA.backtestWeeks<DATA.weeks.length){
       hideBtBtn.style.display='';
@@ -372,13 +318,6 @@
         drawChart();
       });
     }
-    document.getElementById('moversList').addEventListener('click',e=>{
-      const li=e.target.closest('li'); if(li){input.value=li.dataset.sku;selectSku(li.dataset.sku);}});
-    document.getElementById('skuBody').addEventListener('click',e=>{
-      const tr=e.target.closest('tr'); if(tr){input.value=tr.dataset.sku;selectSku(tr.dataset.sku);}});
-    document.getElementById('skuZipBody').addEventListener('click',e=>{
-      const tr=e.target.closest('tr'); if(tr){selectSku(tr.dataset.sku+'|'+tr.dataset.zip);}});
-
     // hover + resize
     const cv=document.getElementById('fcCanvas');
     cv.addEventListener('mousemove',onHover);
@@ -393,24 +332,6 @@
   let fclyHorizon=4, fclySkuFilter='ALL', fclyPage=1;
   const fclyPageSize=25;
   const fclySort={key:'units',dir:'desc'};
-
-  // fcPickTab is exposed on window since it's invoked from an inline
-  // onclick= in dashboard/index.html. Scoped strictly to this page's own
-  // two tab panels (#fcTabBar / .fc-tab-panel) — must not touch Overview's
-  // or Inventory's unrelated markup (a bug class already hit once in this
-  // codebase with similarly-named ov-/inv- toggles).
-  window.fcPickTab=function(btn){
-    const target=btn.dataset.tab;
-    document.querySelectorAll('#fcTabBar button').forEach(b=>b.classList.remove('active'));
-    btn.classList.add('active');
-    document.querySelectorAll('#forecastsPanel .fc-tab-panel').forEach(p=>{
-      p.style.display=(p.id===target)?'':'none';
-    });
-    const graph=document.getElementById('sharedForecastCard');
-    document.getElementById(target+'ForecastHost').appendChild(graph);
-    document.getElementById('fcTip').style.opacity=0;
-    if(dashReady && window.DATA)drawChart();
-  };
 
   // Update the forward window and trailing backtest accuracy for the chosen horizon.
   window.fclyPickHorizon=function(btn){
@@ -578,7 +499,6 @@
       document.getElementById('fclySkuFilter').value=baseSkuId;
       fclyRender();
     }
-    renderSkuZipTable(baseSkuId);
     renderZipFilter(baseSkuId,zip||'');
   }
 
@@ -608,65 +528,15 @@
     sel.value=(selectedZip&&byZip[selectedZip])?selectedZip:'';
   }
 
-  // Per-ZIP breakdown for whichever SKU is currently selected — the model
-  // predicts at SKU x postal_code x day natively; this just stops throwing
-  // that dimension away before it reaches the chart data. Swaps in for the
-  // SKU table (rather than appearing below it) so there's nothing to scroll
-  // to find — window.backToSkuTable() below swaps it back.
-  function renderSkuZipTable(baseSkuId){
-    const detailCard=document.getElementById('skuDetailCard');
-    const card=document.getElementById('skuZipCard'), body=document.getElementById('skuZipBody');
-    const sku=DATA.skus[baseSkuId];
-    const byZip=sku&&sku.byZip;
-    if(!byZip||!Object.keys(byZip).length){ card.style.display='none'; detailCard.style.display=''; return; }
-
-    const bt=DATA.backtestWeeks!=null?DATA.backtestWeeks:DATA.weeks.length;
-    const totalWeeks=DATA.weeks.length, fwdWeeks=totalWeeks-bt;
-    const trailWin=Math.min(fwdWeeks||1,bt)||1;
-    const sumRange=(arr,s,e)=>arr.slice(s,e).reduce((acc,x)=>acc+(x||0),0);
-    const trendPill=t=>{if(t==null)return '<span class="pill warn">n/a</span>';
-      const cls=t>=0?'ok':'risk'; return `<span class="pill ${cls}">${t>=0?'+':''}${t.toFixed(1)}%</span>`;};
-
-    const rows=Object.keys(byZip).map(zip=>{
-      const o=byZip[zip];
-      const backtestVol=sumRange(o.a,0,bt);
-      const avgF=o.f.reduce((s,x)=>s+(x||0),0)/o.f.length;
-      const fwdVol=fwdWeeks>0?sumRange(o.f,bt,totalWeeks):0;
-      const trailVol=sumRange(o.a,Math.max(0,bt-trailWin),bt);
-      const trend=(fwdWeeks>0&&trailVol)?100*(fwdVol-trailVol)/trailVol:null;
-      return {zip,backtestVol,avgF,trend};
-    }).sort((x,y)=>y.backtestVol-x.backtestVol);
-
-    body.innerHTML=rows.map(r=>
-      `<tr data-sku="${baseSkuId}" data-zip="${r.zip}"><td class="skucell">${r.zip}</td>`+
-      `<td>${nfFull(r.backtestVol)}</td><td>${nfFull(r.avgF)}</td><td>${trendPill(r.trend)}</td></tr>`
-    ).join('');
-    const nameEl=document.getElementById('skuZipSkuName');
-    if(nameEl)nameEl.textContent=' — '+baseSkuId;
-    detailCard.style.display='none';
-    card.style.display='';
-  }
-
-  window.backToSkuTable=function(){
-    document.getElementById('skuZipCard').style.display='none';
-    document.getElementById('skuDetailCard').style.display='';
-  };
-
   function drawChart(){
     const s=getSeries(curSel); if(!s)return;
     const fcSkel=document.getElementById('fcChartSkel');
     if(fcSkel)fcSkel.style.display='none';
-    const comparison=document.getElementById('sharedForecastCard').parentElement.id==='fcTab2ForecastHost';
     const length=DATA.weeks.length;
     const boundaryIndex=DATA.backtestWeeks ?? length;
     const hasForward=boundaryIndex<length;
-    let end=length, start=Math.max(0,length-(comparison?fclyHorizon:curWeeks));
-    if(hasForward && comparison){
-      end=Math.min(length,boundaryIndex+fclyHorizon);
-      start=hideBacktest?boundaryIndex:0;
-    } else if(hasForward){
-      start=hideBacktest?Math.max(start,boundaryIndex):0;
-    }
+    const end=hasForward?Math.min(length,boundaryIndex+fclyHorizon):length;
+    const start=hasForward?(hideBacktest?boundaryIndex:0):Math.max(0,length-fclyHorizon);
     const N=end-start, st=start;
     const weeks=DATA.weeks.slice(st,end), a=s.a.slice(st,end), f=s.f.slice(st,end), w=s.w.slice(st,end);
     const box=document.getElementById('forecastChart'), cv=document.getElementById('fcCanvas');
@@ -1194,10 +1064,8 @@
     cbClearAnnotation();
     goToPanel('Forecasts');
 
-    // Widen first so selectSku's own drawChart() call below already uses
-    // the full window — avoids drawing twice.
+    // Include the backtest before drawing the annotated selection.
     hideBacktest=false;
-    curWeeks=1000;
     const hideBtBtn=document.getElementById('hideBacktestBtn');
     if(hideBtBtn){ hideBtBtn.classList.remove('on'); hideBtBtn.textContent='Hide Backtest'; }
 
