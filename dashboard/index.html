@@ -133,6 +133,69 @@
   .ov-opp-empty svg{margin-bottom:10px;opacity:.45}
   .ov-opp-empty p{margin:0;font-size:13px}
   .ov-opp-empty p.sub{margin-top:6px;font-size:12px;color:var(--muted-2)}
+
+  /* Inventory Requirement — ported from redesign-mockup/dashboard/index.html's
+     locked-horizon badge + KPI-tab + filter-bar + sortable-table pattern, onto
+     the real per-SKU required-inventory number (js/inventory.js's aggregated
+     bySku[...].byZip[...].total for the latest month) — see invReq* in
+     js/inventory.js for what's real vs. always "—" here. Site / Present /
+     In-Transit / Open POs / Delta / Inbound Frequency / Status have no real
+     data source anywhere in this app and are never computed, only rendered as
+     "—". The mockup's Site / Inbound Frequency / Stock Status filters are
+     dropped entirely (same treatment as the dead Overview controls above,
+     see ovEmpty) since there's nothing real to filter by. */
+  .inv-locked-badge{display:inline-flex;align-items:center;gap:9px;background:var(--signal-soft);
+    border:1px solid rgba(200,242,78,.3);color:var(--signal);padding:9px 14px;border-radius:10px;margin:18px 0 20px}
+  .inv-locked-badge .inv-lockpill{font-family:var(--mono);font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;
+    background:rgba(200,242,78,.22);padding:2px 7px;border-radius:5px;margin-left:2px}
+
+  .inv-kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+  @media(max-width:980px){.inv-kpi-grid{grid-template-columns:1fr 1fr}}
+  .inv-kpi-tab{text-align:left;background:var(--panel);border:1px solid var(--line);border-radius:12px;
+    padding:14px 16px;cursor:pointer;transition:border-color .18s,transform .18s;font-family:inherit;color:inherit}
+  .inv-kpi-tab:hover{transform:translateY(-2px);border-color:var(--line-2)}
+  .inv-kpi-tab.active{border-color:var(--kpi-accent);box-shadow:0 0 0 1px var(--kpi-accent)}
+  .inv-kpi-tab:disabled{cursor:not-allowed;opacity:.5}
+  .inv-kpi-tab:disabled:hover{transform:none;border-color:var(--line)}
+  .inv-kpi-tab .inv-kpi-top{display:flex;align-items:center;justify-content:space-between;gap:8px}
+  .inv-kpi-tab .inv-kpi-label{display:flex;align-items:center;gap:8px;font-size:12px;font-weight:500;color:var(--muted)}
+  .inv-kpi-ic{width:24px;height:24px;border-radius:7px;display:flex;align-items:center;justify-content:center;flex:none;
+    background:var(--kpi-accent-soft);color:var(--kpi-accent);border:1px solid var(--kpi-accent-line)}
+  .inv-kpi-ic svg{width:13px;height:13px}
+  .inv-kpi-tab .inv-kpi-hint{font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--kpi-accent);opacity:0;transition:opacity .15s}
+  .inv-kpi-tab:not(:disabled):hover .inv-kpi-hint{opacity:1}
+  .inv-kpi-tab .inv-kpi-val-row{display:flex;align-items:baseline;justify-content:space-between;gap:8px;margin-top:10px}
+  .inv-kpi-tab .inv-kpi-val{font-family:var(--display);font-weight:600;font-size:1.4rem;letter-spacing:-.02em;color:var(--text)}
+  .inv-kpi-tab .inv-kpi-sub{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--kpi-accent)}
+  .inv-kpi-tab .inv-kpi-foot{display:flex;justify-content:space-between;gap:8px;margin-top:6px;font-size:11px;color:var(--muted-2)}
+  .inv-kpi-tab .inv-kpi-foot span:last-child{font-family:var(--mono);color:var(--muted)}
+  .inv-kpi-tab[data-kpi-tab="present"]{--kpi-accent:#7AA2FF;--kpi-accent-soft:rgba(122,162,255,.14);--kpi-accent-line:rgba(122,162,255,.3)}
+  .inv-kpi-tab[data-kpi-tab="required"]{--kpi-accent:#C8F24E;--kpi-accent-soft:var(--signal-soft);--kpi-accent-line:rgba(200,242,78,.3)}
+  .inv-kpi-tab[data-kpi-tab="intransit"]{--kpi-accent:#B296FF;--kpi-accent-soft:rgba(178,150,255,.14);--kpi-accent-line:rgba(178,150,255,.3)}
+  .inv-kpi-tab[data-kpi-tab="openpo"]{--kpi-accent:#ffcf5c;--kpi-accent-soft:rgba(255,207,92,.14);--kpi-accent-line:rgba(255,207,92,.3)}
+
+  .inv-filterbar{display:grid;grid-template-columns:1fr 1.6fr;gap:12px;margin-bottom:18px}
+  @media(max-width:780px){.inv-filterbar{grid-template-columns:1fr}}
+  .inv-filter-field label{display:block;font-family:var(--mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;
+    color:var(--muted-2);margin-bottom:6px}
+  .inv-filter-field select,.inv-filter-field input{width:100%;background:var(--ink);border:1px solid var(--line-2);
+    border-radius:9px;padding:8px 11px;font-size:12.5px;color:var(--text);font-family:inherit}
+  .inv-filter-field select:focus,.inv-filter-field input:focus{outline:none;border-color:var(--signal)}
+  .inv-filter-search{display:flex;gap:8px}
+  .inv-filter-search input{flex:1}
+
+  .inv-table-topbar{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:10px;
+    padding:14px 20px;border-bottom:1px solid var(--line)}
+  .inv-active-pill{display:inline-flex;align-items:center;gap:7px;font-size:11px;color:var(--signal);
+    background:var(--signal-soft);border:1px solid rgba(200,242,78,.3);padding:4px 10px;border-radius:100px}
+  .inv-active-pill button{background:none;border:none;color:var(--signal);cursor:pointer;font-size:13px;line-height:1;padding:0}
+  .inv-note{font-size:11px;color:var(--muted-2)}
+  .amp-sortable{cursor:pointer;user-select:none;white-space:nowrap}
+  .amp-sortable:hover{color:var(--text)}
+  #inventoryReqTable tbody td:nth-child(n+3){font-family:var(--mono)}
+  #inventoryReqTable tbody tr:nth-child(even){background:rgba(255,255,255,.012)}
+  #inventoryReqTfoot td{font-weight:600}
 </style>
 </head>
 <body>
@@ -641,6 +704,109 @@
           <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:18px">
             <p class="dsubtle" style="margin:0;font-size:11.5px;max-width:560px" id="invAssumptions"></p>
             <button type="button" class="dbtn" id="invDownloadBtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);flex:none">⬇ Download full CSV</button>
+          </div>
+        </div>
+
+        <!-- Inventory Requirement — ported from
+             redesign-mockup/dashboard/index.html's locked-horizon badge / KPI
+             tabs / filter bar / sortable table. Only "Required" (the SKU's
+             summed real total[] across pincodes for the latest month) is
+             real data here; Site, Present, In-Transit, Open POs, Delta,
+             Inbound Frequency and Status have no real data source anywhere
+             in this app and always render "—" — never computed as if the
+             missing inputs were zero. See js/inventory.js's invReqRender()
+             and friends. -->
+        <h2 class="sec" style="margin-top:32px">Inventory Requirement</h2>
+        <p class="dsubtle" style="margin-top:-4px">One row per SKU — the only real number below is Required, the SKU's total cycle + safety stock summed across all its pincodes. Site, Present, In-Transit, Open POs, Delta, Inbound Frequency and Status have no real data source yet, so they're always shown as "—".</p>
+
+        <div class="inv-locked-badge">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <span style="font-size:12px;color:var(--text)">Required inventory — <b id="invReqMonthLabel">—</b></span>
+          <span class="inv-lockpill" title="The real data behind this number is monthly, not a rolling 4-week window — this label matches the actual granularity computed server-side">Monthly</span>
+        </div>
+
+        <div class="inv-kpi-grid">
+          <button type="button" class="inv-kpi-tab" data-kpi-tab="present" disabled title="No data available yet — there is no present/on-hand inventory feed in this app">
+            <div class="inv-kpi-top">
+              <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Total Inventory Units</span>
+              <span class="inv-kpi-hint">No data</span>
+            </div>
+            <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub">Present On-Hand</span></div>
+            <div class="inv-kpi-foot"><span>System-wide physical stock</span><span>—</span></div>
+          </button>
+          <button type="button" class="inv-kpi-tab" data-kpi-tab="required" onclick="window.invReqPickKpiTab(this)">
+            <div class="inv-kpi-top">
+              <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Recommended Inventory</span>
+              <span class="inv-kpi-hint">Sort desc</span>
+            </div>
+            <div class="inv-kpi-val-row"><span class="inv-kpi-val" id="kpi-required-total">—</span><span class="inv-kpi-sub">Cycle + safety stock</span></div>
+            <div class="inv-kpi-foot"><span>Required this month</span><span id="kpi-required-sub">—</span></div>
+          </button>
+          <button type="button" class="inv-kpi-tab" data-kpi-tab="intransit" disabled title="No data available yet — there is no inbound-shipment tracking in this app">
+            <div class="inv-kpi-top">
+              <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 16V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1m8-1a1 1 0 0 1-1 1H9m4-1V8a1 1 0 0 1 1-1h2.586a1 1 0 0 1 .707.293l3.414 3.414a1 1 0 0 1 .293.707V16a1 1 0 0 1-1 1h-1m-6-1a1 1 0 0 0 1 1h1M5 17a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0m6 0a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0"/></svg></span>In-Transit Inventory</span>
+              <span class="inv-kpi-hint">No data</span>
+            </div>
+            <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub">—</span></div>
+            <div class="inv-kpi-foot"><span>En-route to destination sites</span><span>—</span></div>
+          </button>
+          <button type="button" class="inv-kpi-tab" data-kpi-tab="openpo" disabled title="No data available yet — there is no purchase-order data in this app">
+            <div class="inv-kpi-top">
+              <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Open PO Units</span>
+              <span class="inv-kpi-hint">No data</span>
+            </div>
+            <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub">—</span></div>
+            <div class="inv-kpi-foot"><span>Confirmed vendor orders</span><span>—</span></div>
+          </button>
+        </div>
+
+        <div class="dcard" style="padding:16px 18px">
+          <div class="inv-filterbar" style="margin:0">
+            <div class="inv-filter-field"><label for="invReqSkuFilter">SKU</label><select id="invReqSkuFilter"><option value="ALL">All SKUs</option></select></div>
+            <div class="inv-filter-field inv-filter-search">
+              <div style="flex:1"><label for="invReqSearch">Quick Search</label><input type="text" id="invReqSearch" placeholder="SKU…"></div>
+              <button type="button" class="dbtn" id="invReqResetBtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);align-self:flex-end;font-size:11.5px;padding:8px 11px">Reset</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="dcard" style="padding:0;overflow:hidden;margin-top:16px">
+          <div class="inv-table-topbar">
+            <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+              <span id="invReqCounter" style="font-size:12px;font-weight:600;color:var(--text)">—</span>
+              <span class="inv-active-pill" id="invActiveTabPill" style="display:none"><span id="invActiveTabText"></span><button type="button" id="invClearTabBtn" aria-label="Clear">×</button></span>
+            </div>
+            <div class="inv-note">Site / Present / In-Transit / Open POs / Delta / Inbound Frequency / Status: no real data yet <span style="color:var(--muted-2);margin-left:8px">⇅ click a header to sort</span></div>
+          </div>
+          <div class="table-wrap">
+            <table class="dtable" id="inventoryReqTable">
+              <thead>
+                <tr>
+                  <th class="amp-sortable" data-sort-key="sku">SKU <span class="ov-sort-ic">⇅</span></th>
+                  <th>Site</th>
+                  <th>Present Inventory</th>
+                  <th class="amp-sortable" data-sort-key="required">Required <span class="ov-sort-ic">⇅</span></th>
+                  <th>In-Transit</th>
+                  <th>Open POs</th>
+                  <th title="Delta can't be computed — Present, In-Transit and Open POs have no real data, and treating them as zero would show a fake shortfall">Delta</th>
+                  <th>Inbound Frequency</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody id="inventoryReqBody"></tbody>
+              <tfoot id="inventoryReqTfoot">
+                <tr>
+                  <td>Total / net summary</td>
+                  <td id="inv-foot-count" style="color:var(--muted);font-weight:400">—</td>
+                  <td>—</td>
+                  <td id="inv-foot-required">—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td>—</td>
+                  <td colspan="2" style="color:var(--muted);font-weight:400;font-size:11px">Required = this month's real cycle + safety stock</td>
+                </tr>
+              </tfoot>
+            </table>
           </div>
         </div>
       </div>

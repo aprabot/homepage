@@ -63,6 +63,7 @@
   window.invalidateInventory = function () {
     loaded = false;
     lastData = null;
+    invReqRows = null;
   };
 
   function escapeHtml(s) {
@@ -405,6 +406,7 @@
         showState('content');
         initCatalogSummary();
         detailView.initForData();
+        initInvReq();
       })
       .catch(function (err) {
         loaded = true;
@@ -414,8 +416,178 @@
       });
   };
 
+  // Inventory Requirement — ported from redesign-mockup/dashboard/index.html's
+  // locked-horizon badge / KPI-tab / filter-bar / sortable-table pattern, onto
+  // the real per-SKU required-inventory number. One row per real SKU (not per
+  // SKU x pincode — see the file-level comment on why): "required" is the
+  // genuine sum of that SKU's total[] across every pincode, at the latest
+  // available month. Every other mockup column (site, present, in-transit,
+  // open POs, delta, inbound frequency, status) has no real data source
+  // anywhere in this app, so those always render "—" — never 0, never
+  // derived from treating the missing inputs as zero.
+  var invReqRows = null;       // [{sku, required}], latest month, built once per data load
+  var invReqMonthIdx = null;
+  var invReqState = { sku: 'ALL', search: '', activeKpiTab: null, sortKey: 'sku', sortDir: 'asc' };
+
+  function invFmt(n) {
+    return (n == null || isNaN(n)) ? '—' : Math.round(n).toLocaleString();
+  }
+
+  function buildInvReqRows() {
+    var i = lastData.months.length - 1;
+    invReqMonthIdx = i;
+    var skuIds = Object.keys(lastData.bySku).sort();
+    return skuIds.map(function (skuId) {
+      var byZip = lastData.bySku[skuId].byZip;
+      var required = 0;
+      Object.keys(byZip).forEach(function (zip) {
+        required += byZip[zip].total[i];
+      });
+      return { sku: skuId, required: required };
+    });
+  }
+
+  function invReqPopulateDropdowns() {
+    var sel = document.getElementById('invReqSkuFilter');
+    if (!sel) return;
+    sel.innerHTML = '<option value="ALL">All SKUs</option>' + invReqRows.map(function (r) {
+      return '<option value="' + escapeHtml(r.sku) + '">' + escapeHtml(r.sku) + '</option>';
+    }).join('');
+  }
+
+  function invReqUpdateKpiTabUI() {
+    var tab = document.querySelector('.inv-kpi-tab[data-kpi-tab="required"]');
+    if (tab) tab.classList.toggle('active', invReqState.activeKpiTab === 'required');
+    var pill = document.getElementById('invActiveTabPill');
+    if (!pill) return;
+    if (invReqState.activeKpiTab === 'required') {
+      document.getElementById('invActiveTabText').textContent =
+        'Sorted by Recommended Inventory (' + (invReqState.sortDir === 'desc' ? 'High → Low' : 'Low → High') + ')';
+      pill.style.display = 'inline-flex';
+    } else {
+      pill.style.display = 'none';
+    }
+  }
+
+  function invReqRender() {
+    if (!invReqRows) return;
+    var filtered = invReqRows.filter(function (row) {
+      if (invReqState.sku !== 'ALL' && row.sku !== invReqState.sku) return false;
+      if (invReqState.search.trim() !== '') {
+        var q = invReqState.search.trim().toLowerCase();
+        if (row.sku.toLowerCase().indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+
+    filtered.sort(function (a, b) {
+      var av = a[invReqState.sortKey], bv = b[invReqState.sortKey];
+      if (typeof av === 'string') return invReqState.sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+      return invReqState.sortDir === 'asc' ? av - bv : bv - av;
+    });
+
+    var totalRequired = filtered.reduce(function (sum, r) { return sum + r.required; }, 0);
+
+    var kpiTotal = document.getElementById('kpi-required-total');
+    if (kpiTotal) kpiTotal.textContent = invFmt(invReqRows.reduce(function (s, r) { return s + r.required; }, 0));
+    var kpiSub = document.getElementById('kpi-required-sub');
+    if (kpiSub) kpiSub.textContent = invReqRows.length + ' SKUs';
+
+    var monthLabel = document.getElementById('invReqMonthLabel');
+    if (monthLabel && lastData && invReqMonthIdx != null) monthLabel.textContent = fmtMonth(lastData.months[invReqMonthIdx]);
+
+    var footCount = document.getElementById('inv-foot-count');
+    if (footCount) footCount.textContent = filtered.length + ' rows';
+    var footRequired = document.getElementById('inv-foot-required');
+    if (footRequired) footRequired.textContent = invFmt(totalRequired);
+
+    var counter = document.getElementById('invReqCounter');
+    if (counter) counter.textContent = 'Showing ' + filtered.length + ' of ' + invReqRows.length + ' SKUs';
+
+    document.querySelectorAll('#inventoryReqTable .amp-sortable').forEach(function (th) {
+      var icon = th.querySelector('.ov-sort-ic');
+      if (!icon) return;
+      if (th.dataset.sortKey === invReqState.sortKey) {
+        icon.textContent = invReqState.sortDir === 'asc' ? '↑' : '↓';
+        icon.style.opacity = 1; icon.style.color = 'var(--signal)';
+      } else {
+        icon.textContent = '⇅'; icon.style.opacity = .5; icon.style.color = '';
+      }
+    });
+
+    var body = document.getElementById('inventoryReqBody');
+    if (!body) return;
+    if (!filtered.length) {
+      body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px 20px;color:var(--muted)">No SKUs match your current filters.</td></tr>';
+      return;
+    }
+    body.innerHTML = filtered.map(function (row) {
+      return '<tr>' +
+        '<td><b style="font-family:var(--mono);color:var(--text)">' + escapeHtml(row.sku) + '</b></td>' +
+        '<td>—</td>' +
+        '<td>—</td>' +
+        '<td style="color:var(--text);font-weight:600">' + invFmt(row.required) + '</td>' +
+        '<td>—</td>' +
+        '<td>—</td>' +
+        '<td>—</td>' +
+        '<td>—</td>' +
+        '<td>—</td>' +
+      '</tr>';
+    }).join('');
+  }
+
+  window.invReqPickKpiTab = function (btn) {
+    var tab = btn.dataset.kpiTab;
+    if (tab !== 'required') return; // the other 3 tabs are disabled (no real data to sort/filter by)
+    if (invReqState.activeKpiTab === tab) {
+      invReqState.activeKpiTab = null; invReqState.sortKey = 'sku'; invReqState.sortDir = 'asc';
+    } else {
+      invReqState.activeKpiTab = tab; invReqState.sortKey = 'required'; invReqState.sortDir = 'desc';
+    }
+    invReqUpdateKpiTabUI();
+    invReqRender();
+  };
+
+  function invReqWireEvents() {
+    var skuSel = document.getElementById('invReqSkuFilter');
+    var search = document.getElementById('invReqSearch');
+    var resetBtn = document.getElementById('invReqResetBtn');
+    var clearTabBtn = document.getElementById('invClearTabBtn');
+    if (!skuSel) return; // this section's markup isn't on the current page
+    skuSel.addEventListener('change', function (e) { invReqState.sku = e.target.value; invReqRender(); });
+    if (search) search.addEventListener('input', function (e) { invReqState.search = e.target.value; invReqRender(); });
+    if (clearTabBtn) clearTabBtn.addEventListener('click', function () {
+      invReqState.activeKpiTab = null; invReqState.sortKey = 'sku'; invReqState.sortDir = 'asc';
+      invReqUpdateKpiTabUI(); invReqRender();
+    });
+    if (resetBtn) resetBtn.addEventListener('click', function () {
+      invReqState = { sku: 'ALL', search: '', activeKpiTab: null, sortKey: 'sku', sortDir: 'asc' };
+      skuSel.value = 'ALL';
+      if (search) search.value = '';
+      invReqUpdateKpiTabUI(); invReqRender();
+    });
+    document.querySelectorAll('#inventoryReqTable .amp-sortable').forEach(function (th) {
+      th.addEventListener('click', function () {
+        var key = th.dataset.sortKey;
+        if (invReqState.sortKey === key) invReqState.sortDir = invReqState.sortDir === 'asc' ? 'desc' : 'asc';
+        else { invReqState.sortKey = key; invReqState.sortDir = key === 'sku' ? 'asc' : 'desc'; }
+        invReqRender();
+      });
+    });
+  }
+
+  function initInvReq() {
+    if (!document.getElementById('inventoryReqBody')) return; // markup not on this page
+    invReqRows = buildInvReqRows();
+    invReqState = { sku: 'ALL', search: '', activeKpiTab: null, sortKey: 'sku', sortDir: 'asc' };
+    invReqPopulateDropdowns();
+    invReqUpdateKpiTabUI();
+    invReqRender();
+  }
+
   function init() {
     detailView.wireEvents();
+    invReqWireEvents();
   }
 
   document.addEventListener('DOMContentLoaded', init);
