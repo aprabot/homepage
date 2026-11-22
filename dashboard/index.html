@@ -316,6 +316,69 @@
   .fcly-filter.fcly-filter-disabled select{cursor:not-allowed}
   #fclyResultsTable tbody td:nth-child(n+2){font-family:var(--mono);font-size:12.5px}
   #fclyResultsTable .ov-dim{color:var(--muted-2)}
+  /* Integrations & Settings panel (OAuth connect/disconnect) */
+  .amp-connect-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:1100px}
+  .amp-shop-input{background:var(--ink);border:1px solid var(--line-2);border-radius:8px;
+    padding:7px 10px;font-size:12.5px;color:var(--text);font-family:inherit}
+  .amp-connect-card{border:1px solid var(--line-2);border-radius:12px;padding:20px}
+  .amp-connect-card h4{display:flex;align-items:center;gap:10px;margin-bottom:6px}
+  .amp-connect-card .desc{color:var(--muted);font-size:13px;margin-bottom:14px}
+  .pf-ic{flex-shrink:0;vertical-align:middle}
+  .amp-connect-card .row{display:flex;justify-content:space-between;align-items:center;gap:10px}
+
+  /* Shared table (Campaigns, Products) */
+  .amp-table{width:100%;border-collapse:collapse;font-size:13.5px}
+  .amp-table th{text-align:left;font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);
+    padding:8px 10px;border-bottom:2px solid var(--line-2)}
+  .amp-table td{padding:10px;border-bottom:1px solid var(--line);vertical-align:middle}
+  .amp-table tbody tr:hover td{background:var(--panel)}
+  .amp-table tbody tr.amp-group-start td{border-top:1px solid var(--line-2)}
+  .amp-row-actions{display:flex;gap:6px}
+  .amp-row-actions .dbtn{padding:5px 11px;font-size:12.5px}
+  .amp-sku-thumb{width:38px;height:38px;border-radius:8px;object-fit:cover;background:var(--panel);
+    border:1px solid var(--line);vertical-align:middle;margin-right:10px}
+  .amp-thumb-placeholder{width:38px;height:38px;border-radius:8px;background:var(--panel);
+    border:1px dashed var(--line-2);display:inline-flex;align-items:center;justify-content:center;
+    vertical-align:middle;margin-right:10px;color:var(--muted);flex:none}
+  .amp-variant-indent{color:var(--muted);margin-right:5px}
+
+  /* Products panel: catalog summary strip + empty states */
+  .amp-catalog-kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:18px}
+  .amp-catalog-kpi{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px}
+  .amp-catalog-kpi .t{font-size:11px;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);margin-bottom:4px}
+  .amp-catalog-kpi .v{font-size:1.3rem;font-weight:600}
+  .amp-empty-card{text-align:center;padding:34px 20px;border:1px dashed var(--line-2);border-radius:12px;color:var(--muted)}
+  .amp-empty-card svg{margin-bottom:10px;opacity:.45}
+  .amp-empty-card p{margin:0;font-size:13px}
+  @media(max-width:880px){.amp-catalog-kpis{grid-template-columns:1fr 1fr}}
+  .amp-sortable{cursor:pointer;user-select:none;white-space:nowrap}
+  .amp-sortable:hover{color:var(--text)}
+  .amp-sort-arrow{font-size:9px;margin-left:3px;opacity:.7}
+  .amp-spinner{display:inline-block;width:11px;height:11px;border:2px solid currentColor;
+    border-right-color:transparent;border-radius:50%;animation:amp-spin .7s linear infinite;
+    vertical-align:-1px;margin-right:6px}
+  @keyframes amp-spin{to{transform:rotate(360deg)}}
+
+
+  .dnav .ads-nav-heading{padding:0;margin-top:9px;cursor:default}
+  #ads-nav-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;padding:8px 14px;background:none;border:0;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
+  #ads-nav-toggle svg{width:14px;height:14px}
+  #ads-nav-toggle[aria-expanded="false"] svg{transform:rotate(-90deg)}
+  .dnav [data-ads-nav][hidden],.ads-plan-form[hidden],.ads-plan-form button[hidden]{display:none}
+  .dside-collapsed #ads-nav-toggle span{display:none}
+  .dside-collapsed #ads-nav-toggle{justify-content:center}
+  .ads-heading,.ads-plan-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .ads-heading{justify-content:space-between}
+  .ads-table-card,.ads-plan-form{margin-top:18px;overflow:auto}
+  #productsPanel .dcard{overflow-x:auto}
+  .ads-fields{display:grid;grid-template-columns:repeat(auto-fit,minmax(155px,1fr));gap:12px;margin:12px 0}
+  .ads-fields label{display:grid;gap:6px;color:var(--muted);font-size:12px}
+  .ads-fields input,.ads-fields select{width:100%;padding:8px;border:1px solid var(--line-2);border-radius:8px;background:var(--ink);color:var(--text);font:inherit;font-size:14px}
+  .ads-scope-line{min-width:0;border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0}
+  .ads-scope-line legend{color:var(--muted);font-size:12px}
+  .ads-plan-actions{margin:12px 0}
+  #ads-plan-list td:last-child button + button{margin-left:6px}
+  @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -333,9 +396,13 @@
       <li class="active" title="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span class="lbl">Overview</span></li>
       <li title="Forecasts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Forecasts</span></li>
       <li title="Scenarios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Scenarios</span></li>
-      <li title="Amplify" onclick="window.location.href='../amplify/'"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M10 13a5 5 0 0 0 7.5.5l2-2a5 5 0 0 0-7-7l-1 1" stroke-linecap="round" stroke-linejoin="round"/><path d="M14 11a5 5 0 0 0-7.5-.5l-2 2a5 5 0 0 0 7 7l1-1" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Amplify</span></li>
       <li title="AI Insights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" stroke-linejoin="round"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" stroke-linejoin="round"/></svg><span class="lbl">AI Insights</span></li>
       <li title="Inventory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Inventory</span></li>
+      <li class="ads-nav-heading"><button type="button" id="ads-nav-toggle" aria-expanded="true"><span>Ads</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></li>
+      <li title="Campaigns" data-ads-nav><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m22 2-7 20-4-9-9-4Z" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 2 11 13" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Campaigns</span></li>
+      <li title="Products" data-ads-nav><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="1.5"/></svg><span class="lbl">Products</span></li>
+      <li title="Performance" data-ads-nav><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 14 4-4" stroke-linecap="round"/><path d="M3.34 19a10 10 0 1 1 17.32 0" stroke-linecap="round"/></svg><span class="lbl">Performance</span></li>
+      <li title="Integrations" data-ads-nav><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M9 17H7A5 5 0 0 1 7 7h2" stroke-linecap="round"/><path d="M15 7h2a5 5 0 1 1 0 10h-2" stroke-linecap="round"/><line x1="8" y1="12" x2="16" y2="12" stroke-linecap="round"/></svg><span class="lbl">Integrations</span></li>
       <li title="Settings"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M19 12a7 7 0 0 0-.1-1l2-1.5-2-3.4-2.3 1a7 7 0 0 0-1.7-1l-.3-2.5h-4l-.3 2.5a7 7 0 0 0-1.7 1l-2.3-1-2 3.4 2 1.5a7 7 0 0 0 0 2l-2 1.5 2 3.4 2.3-1a7 7 0 0 0 1.7 1l.3 2.5h4l.3-2.5a7 7 0 0 0 1.7-1l2.3 1 2-3.4-2-1.5c.1-.3.1-.6.1-1Z" stroke-linejoin="round"/></svg><span class="lbl">Settings</span></li>
       <li title="Knowledge Base"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20" stroke-linecap="round" stroke-linejoin="round"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2Z" stroke-linecap="round" stroke-linejoin="round"/><path d="M9 7h7M9 11h5" stroke-linecap="round"/></svg><span class="lbl">Knowledge Base</span></li>
       <li title="Support"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a8 8 0 0 1 16 0" stroke-linecap="round"/><rect x="2" y="12" width="5" height="7" rx="2"/><rect x="17" y="12" width="5" height="7" rx="2"/><path d="M20 19a4 4 0 0 1-4 4h-2" stroke-linecap="round"/></svg><span class="lbl">Support</span></li>
@@ -1579,6 +1646,144 @@
         </div>
       </div>
     </div>
+    <div class="dbody" id="campaignsPanel" style="display:none">
+      <div class="ads-heading">
+        <div>
+          <h1 class="dgreet">Campaigns</h1>
+          <p class="dsubtle">Plan ad spend by forecast SKU and postal code.</p>
+        </div>
+        <button type="button" class="dbtn" id="ads-new-plan" disabled>+ New campaign</button>
+      </div>
+      <div class="dcard ads-table-card">
+        <table class="amp-table">
+          <thead><tr><th>Campaign</th><th>Platform</th><th>Dates</th><th>Daily budget</th><th>Status</th><th>Actions</th></tr></thead>
+          <tbody id="ads-plan-list"></tbody>
+        </table>
+        <p class="dsubtle" id="ads-plan-status" role="status"></p>
+      </div>
+      <form class="dcard ads-plan-form" id="ads-plan-form" hidden>
+        <h2 id="ads-plan-title">New campaign</h2>
+        <div class="ads-fields">
+          <label>Campaign name<input name="name" required maxlength="120"></label>
+          <label>Campaign code<input name="code" required maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_\-]{0,39}"></label>
+          <label>Platform<select name="platform"><option value="meta">Meta</option><option value="google">Google</option></select></label>
+          <label>Objective<input name="objective" required maxlength="40"></label>
+          <label>Daily budget (JPY)<input name="daily_budget_yen" type="number" required min="1" step="1"></label>
+          <label>Start date<input name="start_date" type="date" required></label>
+          <label>End date<input name="end_date" type="date" required></label>
+        </div>
+        <h3>Scope</h3>
+        <p class="dsubtle">Allocate 100% of the daily budget across the scope lines active on each day.</p>
+        <div id="ads-scope-lines"></div>
+        <button type="button" class="dbtn" id="ads-add-scope">+ Add scope line</button>
+        <p class="stest-msg" id="ads-plan-error" role="status"></p>
+        <div class="ads-plan-actions">
+          <button type="button" class="dbtn" id="ads-close-plan">Close</button>
+          <button type="submit" class="dbtn" id="ads-save-plan" value="save">Save draft</button>
+          <button type="submit" class="dbtn" id="ads-commit-plan" value="commit">Commit</button>
+        </div>
+        <p class="dsubtle">Live ad launches are unavailable.</p>
+      </form>
+      <template id="ads-scope-template">
+        <fieldset class="ads-scope-line">
+          <legend>Scope line</legend>
+          <div class="ads-fields">
+            <label>Forecast SKU<input name="sku" placeholder="SKU-001" required pattern="SKU-\d{3,}" maxlength="20"></label>
+            <label>Postal codes<input name="postal_codes" placeholder="Comma-separated" required maxlength="1300"></label>
+            <label>Start date<input name="line_start" type="date" required></label>
+            <label>End date<input name="line_end" type="date" required></label>
+            <label>Spend share (%)<input name="share" type="number" required min="1" max="100"></label>
+          </div>
+          <button type="button" class="dbtn ads-remove-scope">Remove line</button>
+        </fieldset>
+      </template>
+    </div>
+    <!-- Products panel -->
+    <div class="dbody" id="productsPanel" style="display:none">
+      <h1 class="dgreet">Products</h1>
+
+      <div class="amp-catalog-kpis" id="amp-catalog-kpis" style="display:none;margin-top:18px">
+        <div class="amp-catalog-kpi"><div class="t">Products</div><div class="v" id="amp-kpi-products">—</div></div>
+        <div class="amp-catalog-kpi"><div class="t">Units in stock</div><div class="v" id="amp-kpi-stock">—</div></div>
+        <div class="amp-catalog-kpi" id="amp-kpi-sold-card" style="display:none"><div class="t">Units sold</div><div class="v" id="amp-kpi-sold">—</div></div>
+        <div class="amp-catalog-kpi" id="amp-kpi-revenue-card" style="display:none"><div class="t">Revenue</div><div class="v" id="amp-kpi-revenue">—</div></div>
+      </div>
+
+      <div class="ch" style="margin-top:4px;display:flex;align-items:center;justify-content:space-between"><h4>Your Shopify store</h4><button type="button" class="dbtn" id="amp-shopify-refresh-btn" style="padding:5px 11px;font-size:12.5px">Refresh</button></div>
+      <p class="dsubtle">Your real, live catalog — shown as soon as Shopify is connected, no setup needed.</p>
+      <div class="dcard" style="margin-top:12px" id="amp-shopify-catalog-card">
+        <div class="amp-empty-card" id="amp-shopify-catalog-empty">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="30" height="30"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <p id="amp-shopify-catalog-empty-text">Connect Shopify (Integrations) to see your real catalog and live inventory here.</p>
+        </div>
+        <input type="text" id="amp-shopify-search" placeholder="Search by product, variant, or SKU…" style="display:none;width:100%;margin-bottom:12px;background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text);font-family:inherit">
+        <table class="amp-table" id="amp-shopify-catalog-table" style="display:none">
+          <thead><tr>
+            <th class="amp-sortable" data-sort-key="product">Product</th>
+            <th>Variant</th><th>SKU</th>
+            <th class="amp-sortable" data-sort-key="inventory">Inventory on hand</th>
+            <th class="amp-sortable" id="amp-shopify-units-col" data-sort-key="sold">Units sold</th>
+            <th class="amp-sortable" id="amp-shopify-revenue-col" data-sort-key="revenue">Revenue</th>
+          </tr></thead>
+          <tbody id="amp-shopify-catalog-body"></tbody>
+        </table>
+      </div>
+
+      <div class="ch" style="margin-top:28px;display:flex;align-items:center;justify-content:space-between"><h4>Manual catalog</h4><button type="button" class="dbtn" id="amp-manual-add-btn" style="padding:5px 11px;font-size:12.5px">Add product</button></div>
+      <p class="dsubtle">Products you maintain yourself — for anything not in Shopify, or if you don't use Shopify at all.</p>
+      <div class="dcard" style="margin-top:12px">
+        <div class="amp-empty-card" id="amp-manual-catalog-empty" role="status">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="30" height="30"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+          <p>No manually-added products yet.</p>
+        </div>
+        <table class="amp-table" id="amp-manual-catalog-table" style="display:none">
+          <thead><tr><th>Product</th><th></th></tr></thead>
+          <tbody id="amp-manual-catalog-body"></tbody>
+        </table>
+      </div>
+    </div>
+
+
+    <div class="dbody" id="performancePanel" style="display:none">
+      <h1 class="dgreet">Performance</h1>
+      <div class="dcard ads-table-card">
+        <p class="dsubtle">Live campaign results are unavailable. Performance will appear when live ad reporting is connected.</p>
+      </div>
+    </div>
+    <!-- Integrations & Settings panel (OAuth connect/disconnect) -->
+    <div class="dbody" id="integrationsPanel" style="display:none">
+      <h1 class="dgreet">Integrations</h1>
+      <p class="dsubtle">Connect your Shopify store to sync products and inventory. Meta and Google campaign launches are unavailable.</p>
+
+      <p class="dsubtle" id="ads-integration-status" role="status"></p>
+      <div class="amp-connect-grid" style="margin-top:22px">
+        <div class="amp-connect-card meta" id="amp-connect-meta" data-platform="meta">
+          <h4><svg class="pf-ic" viewBox="0 0 24 24" width="18" height="18" fill="#0668E1" aria-hidden="true"><path d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z"/></svg>Meta Ads</h4>
+          <p class="desc">Facebook and Instagram Ads</p>
+          <div class="row">
+            <span class="pill amp-conn-status">—</span>
+            <button class="dbtn amp-conn-btn" disabled>Connect</button>
+          </div>
+        </div>
+        <div class="amp-connect-card google" id="amp-connect-google" data-platform="google">
+          <h4><svg class="pf-ic" viewBox="0 0 24 24" width="18" height="18" fill="#4285F4" aria-hidden="true"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>Google Ads</h4>
+          <p class="desc">Search, Display and Performance Max</p>
+          <div class="row">
+            <span class="pill amp-conn-status">—</span>
+            <button class="dbtn amp-conn-btn" disabled>Connect</button>
+          </div>
+        </div>
+        <div class="amp-connect-card shopify" id="amp-connect-shopify" data-platform="shopify">
+          <h4><svg class="pf-ic" viewBox="0 0 24 24" width="18" height="18" fill="#95BF47" aria-hidden="true"><path d="M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z"/></svg>Shopify</h4>
+          <p class="desc">Read-only product catalog and inventory sync.</p>
+          <input type="text" class="amp-shop-input" placeholder="yourstore.myshopify.com" style="width:100%;margin-bottom:10px">
+          <div class="row">
+            <span class="pill amp-conn-status">—</span>
+            <button class="dbtn amp-conn-btn" disabled>Connect</button>
+          </div>
+        </div>
+      </div>
+    </div>
   </div>
 
   <!-- Run new forecast modal -->
@@ -1885,6 +2090,7 @@
 <script src="../js/inventory.js"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
+<script src="../js/ads.js"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/onboarding.js"></script>
 <script src="../js/tour.js"></script>
@@ -1928,16 +2134,29 @@
       'Scenarios':       document.getElementById('scenariosPanel'),
       'AI Insights':     document.getElementById('insightsPanel'),
       'Inventory':       document.getElementById('inventoryPanel'),
+      'Campaigns':       document.getElementById('campaignsPanel'),
+      'Products':        document.getElementById('productsPanel'),
+      'Performance':     document.getElementById('performancePanel'),
+      'Integrations':    document.getElementById('integrationsPanel'),
       'Settings':        document.getElementById('settingsPanel'),
       'Knowledge Base':  document.getElementById('knowledgePanel'),
       'Support':         document.getElementById('supportPanel'),
       'Getting Started': document.getElementById('onboardingPanel')
     };
     var report = document.querySelector('.dtop .report-menu');
-    var navItems = document.querySelectorAll('.dnav li');
+    var navItems = document.querySelectorAll('.dnav li[title]');
+    var adsToggle = document.getElementById('ads-nav-toggle');
+    var adsItems = document.querySelectorAll('[data-ads-nav]');
+    function setAdsExpanded(expanded) {
+      adsToggle.setAttribute('aria-expanded', String(expanded));
+      adsItems.forEach(function(item){ item.hidden = !expanded; });
+    }
+    adsToggle.addEventListener('click', function(event){
+      event.stopPropagation();
+      setAdsExpanded(adsToggle.getAttribute('aria-expanded') !== 'true');
+    });
 
     navItems.forEach(function(li){
-      if (li.title === 'Amplify') return; // real navigation to a sibling page, not a panel toggle
       li.addEventListener('click', function(){
         var name = li.textContent.trim();
         try { localStorage.setItem('apra_dashboard_panel', name); } catch(e) {}
@@ -1946,14 +2165,19 @@
         li.classList.add('active');
 
         var isSettings = name === 'Settings';
+        var isAds = li.hasAttribute('data-ads-nav');
+        if (isAds) setAdsExpanded(true);
 
         Object.keys(panels).forEach(function(k){
           if(panels[k]) panels[k].style.display = (k === name) ? '' : 'none';
         });
 
-        report.style.display = (isSettings || name === 'Getting Started' || name === 'Knowledge Base' || name === 'Support') ? 'none' : '';
+        report.style.display = (isSettings || isAds || name === 'Getting Started' || name === 'Knowledge Base' || name === 'Support') ? 'none' : '';
 
         if(isSettings) syncSettingsPanel();
+        if(name === 'Campaigns') window.loadAdsCampaigns();
+        if(name === 'Products') window.loadAdsProducts();
+        if(name === 'Integrations') window.loadAdsIntegrations();
         if(name === 'AI Insights' && window.loadInsights) window.loadInsights();
         if(name === 'Inventory' && window.loadInventory) window.loadInventory();
         if(name === 'Knowledge Base' && window.loadKnowledgeTab) window.loadKnowledgeTab();
@@ -1968,6 +2192,15 @@
     document.addEventListener('DOMContentLoaded', function(){
       var saved;
       try { saved = localStorage.getItem('apra_dashboard_panel'); } catch(e) {}
+      var params = new URLSearchParams(location.search);
+      var callback = params.has('connected') || params.has('error');
+      if (callback || params.get('tab') === 'integrations') saved = 'Integrations';
+      if (params.get('tab') === 'campaigns' && !callback) saved = 'Campaigns';
+      if (callback) {
+        document.getElementById('ads-integration-status').textContent =
+          params.has('error') ? 'Account connection failed. Try connecting again.' : 'Account connection completed.';
+        history.replaceState(null, '', location.pathname);
+      }
       if(!saved || saved === 'Overview') return;
       var target = Array.prototype.filter.call(navItems, function(li){
         return li.textContent.trim() === saved;

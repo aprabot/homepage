@@ -3,36 +3,22 @@
 Runs the real `forecast.py` pipeline (from `aprabot/forecast`) inside Lambda via
 subprocess, then anonymizes and uploads the weekly result to S3.
 
-## Amplify feedback loop: campaign spend as a real forecast.py input
+## Ads campaign planning
 
-Before invoking `forecast.py`, `_build_ad_spend_tsv()` queries the org's live, SKU-linked,
-`active` Amplify campaigns (`aprabot-amplify` DynamoDB table — needs its own scoped
-`dynamodb:Query`/`GetItem` grant on this Lambda's role, added alongside this feature) and
-builds an `--ad-spend` calendar from real budget/date data: each campaign's
-`daily_budget_yen` over its `[start_date, end_date]`, broadcast from its SKU down to postal
-codes proportional to that SKU's real historical ZIP volume share — the same ratio-
-propagation idea `_apply_seasonal_correction`'s ZIP broadcast already uses, not a new
-disaggregation method. Only wired up for this org's own default dataset (`not
-custom_input_key`) — a custom "what-if" upload isn't guaranteed to share the live
-scenario's SKU-### numbering, so resolving against it there risks attributing spend to
-the wrong ASIN.
+The Ads dashboard saves plans in the existing campaign DynamoDB table under
+`PLAN#<code>`. Only committed plans are read by the runner. On commit the
+campaign API pins the approved forecast revision so the runner can use that
+revision's private SKU mapping even after SKU ranks change. An approved forecast
+created by the updated runner is required to commit a plan.
 
-Resolving Amplify's `SKU-001`-style ids back to real ASINs reuses `anon.json`
-(`orgs/{org}/scenarios/{scenario_id}/anon.json`), read from whichever scenario is
-currently live (`orgs/{org}/forecast/latest.json`'s own `id` field) — this file is now
-written unconditionally for every non-custom run (previously only written when the async
-explain-runner invoke also fired), since a *later* run depends on an *earlier* run having
-already persisted it.
+For each scope line, the runner allocates its share of the JPY daily budget
+across matching postal codes in proportion to historical shipments. It limits
+the calendar to the forward horizon and passes matching rows to `--ad-spend`.
+A scope with no matching history contributes no spend. Drafts, withdrawn plans,
+and simulated platform campaigns contribute no spend.
 
-Never writes an all-zero/empty file pretending to be a real signal — if the org has no
-active SKU-linked campaigns, or the SKU can't be resolved to an ASIN, or that ASIN has no
-historical ZIP volume to broadcast against, `--ad-spend` is omitted from the forecast.py
-invocation entirely.
-
-**Known limitation, by design**: zero historical ad-spend data exists yet (Amplify is
-new), so this mechanism trains fine but can't learn a real ad-spend effect — see
-`forecast.py`'s own `--ad-spend` help text. Shipping the real plumbing now; validating
-whether it should ever be default-on is a deliberate, separate future step.
+Historical ad actuals are unavailable. Passing scheduled spend through this
+interface does not establish a learned lift or guarantee a change in units.
 
 ## Deploy dependencies (not committed — rebuild before deploying)
 

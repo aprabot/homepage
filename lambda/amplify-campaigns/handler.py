@@ -1024,6 +1024,139 @@ def get_campaign_performance(org, platform, campaign_id):
                         'days': days, 'totals': totals})
 
 
+def _plans_response(org, email):
+    items = []
+    query = {'KeyConditionExpression': Key('pk').eq(f'ORG#{org}') & Key('sk').begins_with('PLAN#'),
+             'ConsistentRead': True}
+    while True:
+        page = table.query(**query)
+        items.extend(page.get('Items', []))
+        if not page.get('LastEvaluatedKey'):
+            break
+        query['ExclusiveStartKey'] = page['LastEvaluatedKey']
+    return _resp(200, {'plans': [_public_plan(p) for p in sorted(items, key=lambda p: p['code'])],
+                       'can_edit': _is_admin(org, email)})
+
+
+def _public_plan(plan):
+    return {k: v for k, v in plan.items() if k not in ('pk', 'sk', 'forecast_id')}
+
+
+def _plan_date(value):
+    if not isinstance(value, str) or not re.fullmatch(r'\d{4}-\d{2}-\d{2}', value):
+        raise ValueError('Dates must use YYYY-MM-DD.')
+    return datetime.strptime(value, '%Y-%m-%d').date()
+
+
+def _plan_fields(org, body):
+    def required_text(field, limit):
+        value = body.get(field)
+        if not isinstance(value, str) or not value.strip() or len(value.strip()) > limit:
+            raise ValueError(f'{field.replace("_", " ").capitalize()} is required (max {limit} characters).')
+        return value.strip()
+
+    name = required_text('name', 120)
+    objective = required_text('objective', 40)
+    platform = body.get('platform')
+    if platform not in ('meta', 'google'):
+        raise ValueError('Choose Meta or Google.')
+    budget = body.get('daily_budget_yen')
+    if type(budget) is not int or not 1 <= budget <= _budget_ceiling(org):
+        raise ValueError('Enter a whole-yen daily budget within the organization limit.')
+    start, end = _plan_date(body.get('start_date')), _plan_date(body.get('end_date'))
+    if not 0 <= (end - start).days < 364:
+        raise ValueError('Campaign dates must span between 1 and 364 days.')
+
+    scope = body.get('scope')
+    if not isinstance(scope, list) or not 1 <= len(scope) <= 20:
+        raise ValueError('Add between 1 and 20 scope lines.')
+    lines = []
+    for line in scope:
+        if not isinstance(line, dict):
+            raise ValueError('Invalid scope line.')
+        sku = line.get('sku')
+        if not isinstance(sku, str) or not re.fullmatch(r'SKU-\d{3,}', sku):
+            raise ValueError('Enter a forecast SKU (for example SKU-001).')
+        postal = line.get('postal_codes')
+        if not isinstance(postal, list) or not 1 <= len(postal) <= 100 or any(
+                not isinstance(v, str) or not re.fullmatch(r'[A-Z0-9 -]{2,12}', v) for v in postal):
+            raise ValueError('Enter up to 100 postal codes per scope line.')
+        share = line.get('share')
+        if type(share) is not int or not 1 <= share <= 100:
+            raise ValueError('Use a whole-number spend share from 1 to 100.')
+        line_start, line_end = _plan_date(line.get('start_date')), _plan_date(line.get('end_date'))
+        if not start <= line_start <= line_end <= end:
+            raise ValueError('Each scope line must fall within the campaign dates.')
+        lines.append({'sku': sku, 'postal_codes': list(dict.fromkeys(postal)), 'share': share,
+                      'start_date': line_start.isoformat(), 'end_date': line_end.isoformat()})
+
+    shares = {}
+    day = start
+    while day <= end:
+        label = day.isoformat()
+        shares[label] = sum(line['share'] for line in lines if line['start_date'] <= label <= line['end_date'])
+        day += timedelta(days=1)
+    if any(total != 100 for total in shares.values()):
+        raise ValueError('Active scope lines must allocate 100% of spend on each campaign day.')
+    return {'name': name, 'platform': platform, 'objective': objective, 'daily_budget_yen': budget,
+            'start_date': start.isoformat(), 'end_date': end.isoformat(), 'scope': lines}
+
+
+def _plan_forecast_id(org, scope):
+    forecast = _read_json(f'orgs/{org}/forecast/latest.json') or {}
+    if not forecast.get('id'):
+        raise ValueError('Approve a forecast before committing a campaign.')
+    if not forecast.get('campaignPlanningReady'):
+        raise ValueError('Run and approve a new forecast to enable campaign planning for its SKUs.')
+    if any(line['sku'] not in (forecast.get('skus') or {}) for line in scope):
+        raise ValueError('Each scope SKU must exist in the approved forecast.')
+    return forecast['id']
+
+
+def _save_plan(org, email, event):
+    try:
+        body = json.loads(event.get('body') or '{}')
+        if not isinstance(body, dict):
+            raise ValueError('Expected a campaign plan.')
+        code = body.get('code')
+        if not isinstance(code, str) or not re.fullmatch(r'[A-Z0-9][A-Z0-9_-]{0,39}', code):
+            raise ValueError('Use a campaign code of up to 40 letters, digits, hyphens or underscores.')
+        action = body.get('action')
+        if action not in ('save', 'commit', 'withdraw'):
+            raise ValueError('Unknown campaign action.')
+        key = {'pk': f'ORG#{org}', 'sk': f'PLAN#{code}'}
+        previous = table.get_item(Key=key, ConsistentRead=True).get('Item')
+        version = body.get('version')
+        if (previous is None and version is not None) or (previous is not None and (
+                type(version) is not int or version != previous['version'])):
+            return _resp(409, {'error': 'This campaign code already exists or the plan has changed. Reload and retry.'})
+        if action == 'withdraw':
+            if not previous or previous['status'] != 'committed':
+                raise ValueError('Only a committed plan can be withdrawn.')
+            plan = {**previous, 'status': 'withdrawn'}
+        else:
+            if previous and previous['status'] != 'draft':
+                raise ValueError('Only a draft can be changed.')
+            plan = {**key, 'code': code, **_plan_fields(org, body), 'status': 'draft'}
+            if action == 'commit':
+                if body.get('stock_unavailable_ack') is not True:
+                    raise ValueError('Acknowledge that available stock and expected uplift could not be verified.')
+                plan['forecast_id'] = _plan_forecast_id(org, plan['scope'])
+                plan.update(status='committed', committed_at=_now(), stock_check='unavailable')
+        plan.update(version=(version or 0) + 1, updated_at=_now(), updated_by=email)
+        if previous:
+            table.put_item(Item=plan, ConditionExpression=Attr('version').eq(version))
+        else:
+            table.put_item(Item=plan, ConditionExpression=Attr('pk').not_exists())
+        return _resp(200 if previous else 201, _public_plan(plan))
+    except ValueError as exc:
+        return _resp(400, {'error': str(exc)})
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            return _resp(409, {'error': 'This plan changed. Reload and retry.'})
+        raise
+
+
 def handler(event, context):
     # Self-invoked async job, not an API Gateway request at all (see
     # _invoke_shopify_catalog_sync_async) — the one path in this Lambda that
@@ -1041,6 +1174,14 @@ def handler(event, context):
     try:
         caller_email = _claims(event).get('email')
         org = _org_id(caller_email)
+
+        if path == '/amplify-campaigns' and qs.get('view') == 'plans':
+            if method == 'GET':
+                return _plans_response(org, caller_email)
+            if method == 'POST':
+                if not _is_admin(org, caller_email):
+                    return _resp(403, {'error': 'Only an admin can change campaign plans.'})
+                return _save_plan(org, caller_email, event)
 
         if method == 'GET' and path == '/amplify-campaigns':
             return list_campaigns(org)

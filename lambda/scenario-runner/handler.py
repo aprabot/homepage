@@ -199,7 +199,7 @@ def _download_custom_input(key):
 
         ship_df.to_csv(RAW_INPUT, sep='\t', index=False)
     elif ext == '.csv':
-        df = pd.read_csv(local_raw)
+        df = pd.read_csv(local_raw, dtype=str)
         df.to_csv(RAW_INPUT, sep='\t', index=False)
     else:  # .tsv / .txt — already tab-separated
         os.replace(local_raw, RAW_INPUT)
@@ -237,7 +237,7 @@ def _trim_partial_trailing_week(path):
     propagates through the entire forward horizon.
     """
     import pandas as pd
-    df = pd.read_csv(path, sep='\t')
+    df = pd.read_csv(path, sep='\t', dtype=str)
     date_col = next((c for c in df.columns if c.strip().lower() == 'ship_day'), None)
     if not date_col:
         return
@@ -713,61 +713,31 @@ def build_explain_by_sku(explain_path, anon):
     return out
 
 
-# ── Ad-spend feedback loop (Amplify campaigns -> forecast.py --ad-spend) ───
-# Real campaign budget becomes a genuine forward-covariate input to the next
-# forecast, via the exact same --future-prices threading mechanism forecast.py
-# already has (see forecast.py's load_ad_spend_calendar / --ad-spend). This is
-# an opt-in, unvalidated-by-backtest mechanism (mirrors --weights/--monotone's
-# own history in this codebase) — ship the real plumbing, don't claim a WAPE
-# improvement from it.
-def _active_sku_campaigns(org_id):
-    """This org's active, SKU-linked Amplify campaigns — paused/draft/ended
-    campaigns represent no real forward spend, and a campaign never pointed
-    at a SKU (created from scratch, not from a recommendation) has nothing
-    to broadcast to postal codes."""
-    items = []
-    kwargs = {'KeyConditionExpression': Key('pk').eq(f'ORG#{org_id}') & Key('sk').begins_with('CAMP#')}
+# Committed campaign plans supply scheduled spend for the forecast input.
+def _committed_campaign_plans(org_id):
+    query = {'KeyConditionExpression': Key('pk').eq(f'ORG#{org_id}') & Key('sk').begins_with('PLAN#'),
+             'ConsistentRead': True}
     while True:
-        resp = amplify_table.query(**kwargs)
-        items.extend(resp.get('Items', []))
-        if 'LastEvaluatedKey' not in resp:
+        page = amplify_table.query(**query)
+        yield from (plan for plan in page.get('Items', []) if plan.get('status') == 'committed')
+        if not page.get('LastEvaluatedKey'):
             break
-        kwargs['ExclusiveStartKey'] = resp['LastEvaluatedKey']
-    return [c for c in items
-            if c.get('status') == 'active' and c.get('sku') and c.get('daily_budget_yen')]
+        query['ExclusiveStartKey'] = page['LastEvaluatedKey']
 
 
-def _sku_to_asin_map(org_id):
-    """Resolve Amplify's SKU-### ids back to real ASINs via the currently
-    live/approved scenario's own anon.json. SKU numbering is a rank-by-volume
-    assignment recomputed fresh every scenario run — this is "the mapping
-    Amplify's own UI is showing the org right now" (it reads the same
-    forecast/latest.json), not guaranteed byte-identical to whatever THIS
-    new run will itself produce, but it's the only mapping that makes
-    "SKU-003" a meaningful, consistent id to attribute spend against.
-    """
-    latest = _read_json(f'orgs/{org_id}/forecast/latest.json')
-    if not latest or not latest.get('id'):
-        return {}
-    anon = _read_json(f'orgs/{org_id}/scenarios/{latest["id"]}/anon.json')
-    if not anon:
-        return {}
-    return {sku: asin for asin, sku in anon.items()}
-
-
-def _zip_volume_shares(raw_path, asins):
-    """Each asin's historical shipped_units share by postal_code, over this
-    org's full raw history — the same kind of ZIP-level ratio propagation
-    _apply_seasonal_correction already uses to spread a SKU-level correction
-    down to its ZIP breakdown, reused here to spread a SKU-level ad budget
-    the same way (Amplify campaigns are SKU-only, never ZIP-targeted)."""
+def _shipment_scope_history(raw_path, asins):
+    """Return targeted sales mix and the latest actual shipment date."""
     import pandas as pd
 
-    df = pd.read_csv(raw_path, sep='\t',
-                      usecols=lambda c: c.strip().lower() in ('asin', 'postal_code', 'shipped_units', 'shipment_units'))
+    df = pd.read_csv(raw_path, sep='\t', dtype=str,
+                      usecols=lambda c: c.strip().lower() in ('asin', 'postal_code', 'ship_day', 'shipped_units', 'shipment_units'))
     df.columns = [c.strip().lower() for c in df.columns]
     if 'shipped_units' not in df.columns and 'shipment_units' in df.columns:
         df = df.rename(columns={'shipment_units': 'shipped_units'})
+    df['asin'] = df['asin'].str.strip()
+    df['postal_code'] = df['postal_code'].str.strip()
+    df['shipped_units'] = pd.to_numeric(df['shipped_units'], errors='coerce').fillna(0).clip(lower=0)
+    last_actual = pd.to_datetime(df['ship_day'], errors='coerce').dt.normalize().max()
     df = df[df['asin'].isin(asins)]
     totals = df.groupby(['asin', 'postal_code'])['shipped_units'].sum()
 
@@ -778,71 +748,54 @@ def _zip_volume_shares(raw_path, asins):
         sub = totals.loc[asin]
         if sub.sum() > 0:
             shares[asin] = (sub / sub.sum()).to_dict()
-    return shares
+    return shares, last_actual
 
 
 def _build_ad_spend_tsv(org_id, raw_path, out_path):
-    """Build an --ad-spend calendar (asin, postal_code, ship_day,
-    ad_spend_yen) from this org's live Amplify campaigns. Returns True if a
-    real, non-empty file was written; False if there's nothing real to
-    attribute (no active SKU-linked campaigns, no resolvable SKU->ASIN
-    mapping, or no historical ZIP volume to broadcast against) — the caller
-    omits --ad-spend entirely in that case rather than pass an all-zero file
-    pretending to be a real signal.
-    """
     import pandas as pd
 
-    campaigns = _active_sku_campaigns(org_id)
-    if not campaigns:
+    mappings = {}
+    scoped = []
+    for plan in _committed_campaign_plans(org_id):
+        forecast_id = plan['forecast_id']
+        if forecast_id not in mappings:
+            anon = _read_json(f'orgs/{org_id}/scenarios/{forecast_id}/anon.json') or {}
+            mappings[forecast_id] = {sku: asin for asin, sku in anon.items()}
+        for line in plan['scope']:
+            asin = mappings[forecast_id].get(line['sku'])
+            if asin:
+                scoped.append((plan, {**line, 'asin': asin}))
+            else:
+                print(f"AD_SPEND_SKIP: plan {plan['code']} is missing its approved SKU mapping")
+    if not scoped:
         return False
-
-    sku_to_asin = _sku_to_asin_map(org_id)
-    if not sku_to_asin:
-        print(f"AD_SPEND_SKIPPED[{org_id}]: no live scenario anon.json to resolve SKU ids against")
+    volume, last_actual = _shipment_scope_history(raw_path, {line['asin'] for _, line in scoped})
+    if pd.isna(last_actual):
         return False
-
-    resolved = []
-    for c in campaigns:
-        asin = sku_to_asin.get(c['sku'])
-        if asin:
-            resolved.append((asin, c))
-        else:
-            print(f"AD_SPEND_SKIP: campaign {c.get('campaign_id')} sku={c.get('sku')!r} "
-                  f"not in the live scenario's SKU mapping — skipping")
-    if not resolved:
-        return False
-
-    shares = _zip_volume_shares(raw_path, {asin for asin, _ in resolved})
-
-    rows = []
-    for asin, c in resolved:
-        zip_shares = shares.get(asin)
-        if not zip_shares:
-            print(f"AD_SPEND_SKIP: asin={asin} (sku={c['sku']}) has no historical "
-                  f"ZIP volume in this org's raw data — skipping")
+    first_forecast_day = last_actual + pd.Timedelta(days=1)
+    last_forecast_day = last_actual + pd.Timedelta(days=FUTURE_HORIZON_DAYS)
+    rows = {}
+    for plan, line in scoped:
+        historical = volume.get(line['asin'], {})
+        target_postal_codes = set(line['postal_codes'])
+        weights = {postal: weight for postal, weight in historical.items()
+                   if postal.upper() in target_postal_codes}
+        total = sum(weights.values())
+        if not total:
+            print(f"AD_SPEND_SKIP: plan {plan['code']} scope has no matching shipment volume")
             continue
-        try:
-            start = pd.Timestamp(c['start_date'])
-            end = pd.Timestamp(c['end_date'])
-        except (KeyError, ValueError, TypeError):
-            continue
-        daily_budget = float(c['daily_budget_yen'])
+        amount = float(plan['daily_budget_yen']) * int(line['share']) / 100
+        start = max(first_forecast_day, pd.Timestamp(line['start_date']))
+        end = min(last_forecast_day, pd.Timestamp(line['end_date']))
         for day in pd.date_range(start, end, freq='D'):
-            day_str = day.strftime('%Y-%m-%d')
-            for zip_code, share in zip_shares.items():
-                rows.append({'asin': asin, 'postal_code': zip_code,
-                             'ship_day': day_str, 'ad_spend_yen': daily_budget * share})
-
+            for postal, weight in weights.items():
+                if weight:
+                    key = (line['asin'], postal, day.strftime('%Y-%m-%d'))
+                    rows[key] = rows.get(key, 0) + amount * weight / total
     if not rows:
         return False
-
-    out = pd.DataFrame(rows)
-    # Two campaigns can overlap on the same SKU/ZIP/day (e.g. a new campaign
-    # launched before an old one ends) — sum their spend, don't overwrite.
-    out = (out.groupby(['asin', 'postal_code', 'ship_day'], as_index=False)['ad_spend_yen']
-              .sum())
-    out.to_csv(out_path, sep='\t', index=False)
-    print(f"AD_SPEND: wrote {len(out):,} row(s) to {out_path} from {len(resolved)} campaign(s)")
+    pd.DataFrame([(*key, spend) for key, spend in rows.items()],
+                 columns=['asin', 'postal_code', 'ship_day', 'ad_spend_yen']).to_csv(out_path, sep='\t', index=False)
     return True
 
 
@@ -912,18 +865,8 @@ def handler(event, context):
         if known_prices and has_custom_future_prices:
             args += ['--future-prices', RAW_FUTURE_PRICES]
 
-        # Amplify campaign spend -> forecast.py covariate. Only for this
-        # org's own default dataset, never a custom "what-if" upload — a
-        # custom upload's SKU-### numbering isn't guaranteed to match the
-        # live scenario's anon.json (could be a different catalog/date
-        # range entirely), so resolving Amplify's sku ids against it there
-        # risks silently attributing spend to the wrong ASIN.
-        has_ad_spend = False
-        if not custom_input_key:
-            try:
-                has_ad_spend = _build_ad_spend_tsv(org_id, RAW_INPUT, RAW_AD_SPEND)
-            except Exception as exc:
-                print(f"AD_SPEND_BUILD_FAILED[{scenario_id}]: {exc} — continuing without --ad-spend")
+        # Resolve committed plans against their original approved forecast.
+        has_ad_spend = _build_ad_spend_tsv(org_id, RAW_INPUT, RAW_AD_SPEND)
         if has_ad_spend:
             args += ['--ad-spend', RAW_AD_SPEND]
 
@@ -950,6 +893,8 @@ def handler(event, context):
         # verbatim copy of a completed scenario's result.json, written by
         # approve_scenario()) back to the scenario_id whose explain/ data to read.
         result_json['id'] = scenario_id
+        _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/anon.json', anon)
+        result_json['campaignPlanningReady'] = True
 
         _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/result.json', result_json)
 
@@ -966,15 +911,6 @@ def handler(event, context):
             print(f"INVENTORY_CALC: wrote orgs/{org_id}/scenarios/{scenario_id}/inventory.json")
         else:
             print(f"INVENTORY_CALC: compute_monthly_inventory returned None — nothing written")
-
-        if not custom_input_key:
-            # Persisted unconditionally (not just when explain-runner also
-            # fires below) — this is what lets a LATER scenario run resolve
-            # Amplify's SKU-### ids back to real ASINs for --ad-spend (see
-            # _sku_to_asin_map), which needs this run's own anon.json the
-            # moment it becomes the org's live/approved scenario, regardless
-            # of whether the async explain enhancement below ever runs.
-            _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/anon.json', anon)
 
         if inline_explain:
             # Small custom upload — --explain already ran inline above (fast,
