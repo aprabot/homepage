@@ -650,7 +650,7 @@
          Bedrock-generated AI Insights content). -->
     <div class="dbody" id="inventoryPanel" style="display:none">
       <h1 class="dgreet">Inventory</h1>
-      <p class="dsubtle">Cycle Stock + Safety Stock required per SKU × pincode × month, from the real daily shipment history behind the current approved forecast.</p>
+      <p class="dsubtle">Required inventory per SKU — cycle stock + safety stock, from the real daily shipment history behind the current approved forecast. One row per SKU; fields with no real data source (present stock, in-transit, open POs, etc.) are always shown as "—", never fabricated.</p>
 
       <div id="invLoading" style="margin-top:18px">
         <span class="skel-line wide"></span>
@@ -660,65 +660,13 @@
       <p class="dsubtle" id="invError" style="margin:20px 0 4px;display:none"></p>
 
       <div id="invContent" style="display:none;margin-top:18px">
-        <div class="dcard">
-          <div class="ch">
-            <h4>Monthly Inventory</h4>
-            <div class="sku-search" style="flex:0 0 auto"><select id="ovInvMonthSelect" style="min-width:130px"></select></div>
-          </div>
-          <div class="kpis" id="ovInvKpis" style="grid-template-columns:repeat(3,1fr);margin-bottom:0"></div>
-          <div style="margin-top:18px">
-            <h3 style="font-size:12px;color:var(--muted);margin-bottom:8px;text-transform:uppercase;letter-spacing:.04em">Top SKUs by inventory need</h3>
-            <ul class="movers" id="ovInvMoversList"></ul>
-          </div>
-        </div>
-
-        <div class="dcard" style="margin-top:20px">
-          <div class="ch"><h4>Drill into one SKU × pincode</h4></div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;margin:16px 0">
-            <div class="sku-search" style="flex:0 0 auto"><select id="invSkuSelect" style="min-width:140px"></select></div>
-            <div class="sku-search" style="flex:0 0 auto"><select id="invZipSelect" style="min-width:140px"></select></div>
-            <span class="dsubtle" id="invAsOf" style="margin:0 0 0 auto;font-size:12.5px"></span>
-          </div>
-
-          <div class="kpis" id="invKpis" style="grid-template-columns:repeat(5,1fr)"></div>
-
-          <div class="dchart" style="height:220px;margin-top:8px"><canvas id="invChart"></canvas></div>
-          <div class="chart-legend" id="invLegend">
-            <span class="lgd-item"><i style="background:#54E6C4"></i>Cycle stock</span>
-            <span class="lgd-item"><i style="background:#C8F24E"></i>Safety stock</span>
-            <span class="lgd-item"><i style="background:#7AA2FF;border-radius:0;height:0;border-top:2px dashed #7AA2FF"></i>Total</span>
-          </div>
-
-          <!-- Same data as the chart above, in exact monthly numbers — the
-               chart shows the shape/trend, this is for reading a specific
-               month's real figures without eyeballing the chart or
-               downloading the CSV. -->
-          <h3 style="font-size:12px;color:var(--muted);margin:22px 0 8px;text-transform:uppercase;letter-spacing:.04em">Monthly breakdown</h3>
-          <div class="table-wrap" style="max-height:320px">
-            <table class="dtable">
-              <thead><tr><th>Month</th><th>Avg daily demand</th><th>Std dev (daily)</th><th>Cycle stock</th><th>Safety stock</th><th>Total needed</th></tr></thead>
-              <tbody id="invMonthlyTableBody"></tbody>
-            </table>
-          </div>
-
-          <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-top:18px">
-            <p class="dsubtle" style="margin:0;font-size:11.5px;max-width:560px" id="invAssumptions"></p>
-            <button type="button" class="dbtn" id="invDownloadBtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);flex:none">⬇ Download full CSV</button>
-          </div>
-        </div>
-
-        <!-- Inventory Requirement — ported from
-             redesign-mockup/dashboard/index.html's locked-horizon badge / KPI
-             tabs / filter bar / sortable table. Only "Required" (the SKU's
-             summed real total[] across pincodes for the latest month) is
-             real data here; Site, Present, In-Transit, Open POs, Delta,
-             Inbound Frequency and Status have no real data source anywhere
-             in this app and always render "—" — never computed as if the
-             missing inputs were zero. See js/inventory.js's invReqRender()
-             and friends. -->
-        <h2 class="sec" style="margin-top:32px">Inventory Requirement</h2>
-        <p class="dsubtle" style="margin-top:-4px">One row per SKU — the only real number below is Required, the SKU's total cycle + safety stock summed across all its pincodes. Site, Present, In-Transit, Open POs, Delta, Inbound Frequency and Status have no real data source yet, so they're always shown as "—".</p>
-
+        <!-- Inventory Requirement — the only inventory view now. Only
+             "Required" (the SKU's summed real total[] across pincodes for
+             the latest month) is real data here; Site, Present, In-Transit,
+             Open POs, Delta, Inbound Frequency and Status have no real data
+             source anywhere in this app and always render "—" — never
+             computed as if the missing inputs were zero. See
+             js/inventory.js's invReqRender() and friends. -->
         <div class="inv-locked-badge">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span style="font-size:12px;color:var(--text)">Required inventory — <b id="invReqMonthLabel">—</b></span>
