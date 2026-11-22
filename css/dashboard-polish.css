@@ -185,3 +185,36 @@
 #dashboard #insightsWatch li::before{background:#ffcf5c}
 #dashboard #insightsOpportunities li::before{background:#54E6C4}
 @media(max-width:640px){#dashboard #insightsFindings li{grid-template-columns:1fr;gap:4px}}
+
+/* ============================================================
+   Ads — Campaigns, Products, Performance, Integrations
+============================================================ */
+/* Shared Ads headings and empty / status lines. */
+#dashboard .ads-heading{align-items:flex-end;margin-bottom:4px}
+#dashboard .ads-heading .dsubtle{margin-bottom:0}
+#dashboard #ads-plan-status{text-align:center;padding:26px 0 10px;margin:0}
+
+/* Products: KPI tiles with sans labels and larger values. */
+#dashboard .amp-catalog-kpi{border-radius:14px;padding:16px 18px}
+#dashboard .amp-catalog-kpi .t{font-family:var(--body);text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;margin-bottom:6px}
+#dashboard .amp-catalog-kpi .v{font-family:var(--display);font-size:24px;letter-spacing:-.01em;font-variant-numeric:tabular-nums}
+#dashboard #amp-shopify-refresh-btn{background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);box-shadow:none}
+#dashboard #amp-shopify-search{height:38px;box-sizing:border-box;border-radius:9px!important;padding:0 12px!important}
+#dashboard #amp-shopify-catalog-table td{padding:10px}
+
+/* Performance: the "not connected yet" message as a proper empty state. */
+#dashboard #performancePanel .ads-table-card{text-align:center;padding:44px 24px}
+#dashboard #performancePanel .ads-table-card::before{content:'';display:block;width:34px;height:34px;margin:0 auto 12px;opacity:.5;
+  background:no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238694A6' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M4 20V10M10 20V4M16 20v-7M22 20H2'/%3E%3C/svg%3E")}
+#dashboard #performancePanel .ads-table-card .dsubtle{margin:0;max-width:460px;margin-inline:auto}
+
+/* Integrations: equal-height cards, status pinned to the bottom, and
+   Disconnect as a secondary action (Connect stays primary). */
+#dashboard .amp-connect-grid{align-items:stretch}
+#dashboard .amp-connect-card{display:flex;flex-direction:column;background:var(--panel);border-color:var(--line);border-radius:14px}
+#dashboard .amp-connect-card .row{margin-top:auto;flex-wrap:wrap}
+#dashboard .amp-connect-card .pill{white-space:normal;line-height:1.35;max-width:100%}
+#dashboard .amp-connect-card:has(.pill.ok) .amp-conn-btn{background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);box-shadow:none}
+#dashboard .amp-connect-card:has(.pill.ok) .amp-conn-btn:hover{border-color:#ff8585;color:#ff8585;transform:none}
+#dashboard .amp-shop-input{height:38px;box-sizing:border-box;padding:0 12px;background:var(--ink);border:1px solid var(--line-2);
+  border-radius:9px;color:var(--text);font:500 13px var(--body)}
