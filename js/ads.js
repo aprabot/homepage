@@ -16,7 +16,7 @@
 
   var shopifyStatusCache = null;
   async function loadAccountConnections() {
-    var res = await apiFetch(OAUTH_API + '/status');
+    var res = await apiFetch(OAUTH_API + '/status', {cache:'no-store', signal:AbortSignal.timeout(12000)});
     if (!res.ok) throw new Error('Could not load account connections.');
     shopifyStatusCache = res.body.shopify?.status === 'connected';
     return res.body;
@@ -389,7 +389,11 @@
   window.APRA_COMMERCE = {
     shopifyStatus: async function () {
       var connections = await loadAccountConnections();
-      return connections.shopify || { status: 'not_connected' };
+      var shopify = connections.shopify;
+      if (!shopify || !['connected', 'revoked', 'not_connected'].includes(shopify.status)) {
+        throw new Error('Unexpected Shopify status.');
+      }
+      return shopify;
     },
     authorize: getAuthorizationUrl,
   };

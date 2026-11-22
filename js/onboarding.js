@@ -1308,14 +1308,42 @@
         endShopifyAttempt();
         updateShopifyStep(status.external_account_id ? 'Connected to ' + status.external_account_id : 'Shopify connected.', 'ok');
       } else if (!shopifyAttempt) {
-        updateShopifyStep('No Shopify store connected.');
+        updateShopifyStep(status.status === 'revoked' ? 'Shopify was disconnected.' : 'No Shopify store connected.');
       }
+      return status;
     }).catch(function () {
       if (!shopifyAttempt) updateShopifyStep('Could not check your connection. Try again or skip this step.', 'err');
+      return null;
     }).finally(function () {
       shopifyStatusRequest = null;
     });
     return shopifyStatusRequest;
+  }
+
+  async function checkShopifyConnection() {
+    var button = document.getElementById('obShopifyRefresh');
+    var result = document.getElementById('obShopifyCheckResult');
+    button.disabled = true;
+    button.textContent = 'Checking…';
+    setStatus(result, 'Checking Shopify connection…');
+    try {
+      var status = await refreshShopifyConnection();
+      if (!status) {
+        setStatus(result, 'Check failed. Try again in a moment.', 'err');
+        return;
+      }
+      var message = status.status === 'connected'
+        ? 'Connection confirmed.'
+        : 'Shopify authorization is still pending.';
+      if (!shopifyAttempt && status.status !== 'connected') {
+        message = 'No active Shopify connection. Select Connect with Shopify to authorize your store.';
+      }
+      var time = new Date().toLocaleTimeString(undefined, {hour:'numeric', minute:'2-digit', second:'2-digit'});
+      setStatus(result, message + ' Checked at ' + time + '.', status.status === 'connected' ? 'ok' : '');
+    } finally {
+      button.disabled = false;
+      button.textContent = 'Check connection';
+    }
   }
 
   async function connectOnboardingShopify() {
@@ -1333,6 +1361,7 @@
       return;
     }
 
+    setStatus(document.getElementById('obShopifyCheckResult'), '');
     var attempt = {id:crypto.randomUUID(), popup:popup};
     shopifyAttempt = attempt;
     updateShopifyStep('Opening Shopify authorization…');
@@ -1364,7 +1393,7 @@
 
   function initShopifyStep() {
     document.getElementById('obShopifyConnect').addEventListener('click', connectOnboardingShopify);
-    document.getElementById('obShopifyRefresh').addEventListener('click', refreshShopifyConnection);
+    document.getElementById('obShopifyRefresh').addEventListener('click', checkShopifyConnection);
     window.addEventListener('focus', function () {
       if (shopifyAttempt) refreshShopifyConnection();
     });

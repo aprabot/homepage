@@ -106,7 +106,8 @@
   .ob-shopify-controls{display:flex;flex-wrap:wrap;align-items:flex-end;gap:10px;margin-bottom:10px}
   .ob-shopify-controls .field{flex:1 1 230px;margin:0}
   .ob-shopify-controls[hidden]{display:none}
-  #obShopifyStatus{margin:8px 0 0}
+  #obShopifyStatus,#obShopifyCheckResult{margin:8px 0 0}
+  #obShopifyRefresh:disabled{opacity:.7;cursor:wait}
   @media(max-width:760px){.ob-stepper-seg{flex:1 1 20px;min-width:2px;max-width:24px}.ob-stepper-step{flex:1 0 46px}.ob-stepper{overflow-x:auto;padding:3px 3px 7px}}
 
   .ob-nav-row{display:flex;justify-content:space-between;align-items:center;margin-top:24px;padding-top:20px;border-top:1px solid var(--line)}
@@ -1709,6 +1710,7 @@
               </div>
               <button type="button" class="link-btn" id="obShopifyRefresh">Check connection</button>
               <p class="stest-msg" id="obShopifyStatus" role="status"></p>
+              <p class="stest-msg" id="obShopifyCheckResult" role="status" aria-atomic="true"></p>
             </div>
           </div>
 
@@ -2281,10 +2283,10 @@
 <script src="../js/inventory.js"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
-<script src="../js/ads.js"></script>
+<script src="../js/ads.js?v=shopify-check"></script>
 <script src="../js/discount-schemes.js"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
-<script src="../js/onboarding.js"></script>
+<script src="../js/onboarding.js?v=shopify-check"></script>
 <script src="../js/tour.js"></script>
 <script src="../js/qrcode-lib.js"></script>
 <script src="../js/mfa.js"></script>
