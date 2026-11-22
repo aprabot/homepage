@@ -281,41 +281,56 @@
   #dashboard .cb-launch-icon svg{width:32px;height:32px}
   #dashboard .cb-launch-label{display:none}
 
-  /* Forecasts — "Period-over-period" tab, ported from redesign-mockup/
-     dashboard/index.html's fcTabBar/fcTab1/fcTab2 pattern onto the real
-     Forecasts panel as a second tab alongside the existing real "Forecast"
-     tab (left untouched, just wrapped as fcTab1). Real data: total/per-SKU
-     forecast Units, WAPE at any horizon (trailingWape()/seriesWape()), SKU
-     identity. Revenue / Avg Discount/Unit / Marketing Spend / Region /
-     Store / Category / Brand / Channel have no real data source anywhere
-     in DATA, so those KPI chips and table columns always render "—" and
-     the mockup's non-SKU filter dropdowns are dropped entirely (same
-     "drop dead controls" treatment as ovEmpty/invReq above) — only SKU
-     survives as a real, working filter. "Last Year" has no real baseline
-     either (only one year of actuals exists), so the Performance Trend
-     chart reuses the real actual-vs-forecast line (same series/colors as
-     the Forecast tab's chart), not a fabricated YoY comparison. */
   .fc-tabbar{margin:18px 0 20px;display:inline-flex}
   .fc-tab-panel{margin-top:4px}
-  .fcly-kpi-strip{display:grid;grid-template-columns:repeat(5,1fr);gap:10px;margin:18px 0}
-  @media(max-width:900px){.fcly-kpi-strip{grid-template-columns:1fr 1fr}}
-  .fcly-kpi-chip{background:var(--panel);border:1px solid var(--line);border-radius:10px;padding:12px 15px;
-    display:flex;align-items:center;justify-content:space-between;gap:10px;transition:border-color .18s}
-  .fcly-kpi-chip:hover{border-color:var(--line-2)}
-  .fcly-kpi-chip>span:first-child{font-size:12px;color:var(--muted);white-space:nowrap}
-  .fcly-kpi-chip b{font-family:var(--display);font-weight:600;font-size:15px}
-  .fcly-kpi-chip b.ov-dim{color:var(--muted-2);font-weight:500}
-
-  .fcly-filterbar{display:flex;gap:14px;flex-wrap:wrap;margin:18px 0 20px}
-  .fcly-filter{display:flex;align-items:center;gap:9px;background:var(--ink-3);border:1px solid var(--line-2);
-    border-radius:9px;padding:8px 12px}
-  .fcly-filter label{font-family:var(--mono);font-size:10.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted-2)}
-  .fcly-filter select{background:none;border:none;color:var(--text);font-family:var(--body);font-size:13.5px;cursor:pointer}
-  .fcly-filter select:focus{outline:none}
-  .fcly-filter.fcly-filter-disabled{opacity:.5}
-  .fcly-filter.fcly-filter-disabled select{cursor:not-allowed}
-  #fclyResultsTable tbody td:nth-child(n+2){font-family:var(--mono);font-size:12.5px}
+  #fcTab2{--fc-blue:#397fff;--fc-chart-bg:var(--ink-2);--fc-edge:var(--line-2)}
+  .fcly-horizon{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:4px 0 14px;font-size:14px;font-weight:650}
+  .fcly-horizon>svg{color:#64b9ff}
+  #fclyHorizonSeg{display:flex;flex-wrap:wrap;gap:7px}
+  #fclyHorizonSeg button{padding:8px 14px;border:1px solid var(--fc-edge);border-radius:22px;background:transparent;color:var(--text);font:inherit;font-size:12px;cursor:pointer}
+  #fclyHorizonSeg button.active{background:var(--fc-blue);border-color:var(--fc-blue);color:white}
+  .fcly-kpi-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:12px;margin:0 0 15px}
+  .fcly-kpi-chip{--tone:#58afff;min-width:0;min-height:109px;padding:13px 15px;border-radius:12px;
+    border:1px solid color-mix(in srgb,var(--tone) 42%,var(--line));background:linear-gradient(120deg,color-mix(in srgb,var(--tone) 12%,var(--fc-chart-bg)),var(--fc-chart-bg) 85%)}
+  .fcly-kpi-chip:nth-child(2){--tone:#55d58c}
+  .fcly-kpi-chip:nth-child(3){--tone:#b680fa}
+  .fcly-kpi-chip:nth-child(4){--tone:#f4a55e}
+  .fcly-kpi-chip:nth-child(5){--tone:#43c9f5}
+  .fcly-kpi-label{display:flex;align-items:center;gap:8px;font-size:12px;min-height:28px;font-weight:650}
+  .fcly-kpi-label svg,.fcly-chart-title svg{color:var(--tone,#58c2ff);flex:none}
+  .fcly-kpi-value{display:block;margin-top:4px;font:700 clamp(21px,2.35vw,32px)/1.2 var(--body);font-variant-numeric:tabular-nums}
+  .fcly-kpi-foot{display:block;margin-top:4px;font-size:11px;color:var(--muted);min-height:15px}
+  #fclyYoY[data-direction="up"]{color:#70dca0}
+  #fclyYoY[data-direction="down"]{color:#ff968f}
+  .fcly-frame{background:var(--fc-chart-bg);border:1px solid var(--fc-edge);border-radius:12px}
+  .fcly-chart{padding:12px 14px 6px}
+  .fcly-chart-head,.fcly-table-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  .fcly-chart-title{display:flex;align-items:center;gap:8px;font-size:15px}
+  .fcly-chart .dchart{height:clamp(172px,16vw,232px);margin-top:8px}
+  .fcly-chart .chart-legend{margin:0}
+  .fcly-chart .chart-legend .lgd-item{font-size:11px}
+  .fcly-filterbar{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));margin:14px 0 11px;overflow:hidden}
+  .fcly-filter{min-width:0;padding:8px 10px;border-right:1px solid var(--line)}
+  .fcly-filter:last-child{border-right:0}
+  .fcly-filter label{display:block;margin-bottom:5px;font-size:10px;text-transform:uppercase;color:var(--muted);font-weight:650}
+  .fcly-filter select{width:100%;padding:6px 8px;border:1px solid var(--line-2);border-radius:7px;background:var(--ink-3);color:var(--text);font:inherit;font-size:12px}
+  .fcly-filter select:enabled{cursor:pointer}
+  .fcly-filter select:disabled{color:var(--muted);opacity:.78}
+  .fcly-results{overflow:hidden}
+  .fcly-table-head{padding:9px 11px;font-size:12px}
+  .fcly-table-head .dsubtle{margin:0;font-size:10px}
+  .fcly-results .table-wrap{max-height:340px;overflow:auto}
+  #fclyResultsTable{margin:0;min-width:850px;font-size:11.5px}
+  #fclyResultsTable th,#fclyResultsTable td{padding:7px 9px;border-right:1px solid var(--line);white-space:nowrap}
+  #fclyResultsTable th{position:sticky;top:0;z-index:1;background:var(--ink-3);color:var(--text);letter-spacing:0;text-transform:none}
+  #fclyResultsTable th button{display:inline-flex;gap:6px;align-items:center;padding:0;background:none;border:0;color:inherit;font:inherit;cursor:pointer}
+  #fclyResultsTable th button:focus-visible{outline:2px solid var(--fc-blue);outline-offset:2px}
+  #fclyResultsTable td{font-variant-numeric:tabular-nums}
   #fclyResultsTable .ov-dim{color:var(--muted-2)}
+  #fclyResultsTable .ov-sort-ic{color:var(--fc-blue)}
+  @media(max-width:1100px){.fcly-kpi-chip{padding-inline:9px}}
+  @media(max-width:880px){.fcly-kpi-strip{grid-template-columns:repeat(3,minmax(0,1fr))}.fcly-filterbar{grid-template-columns:repeat(3,minmax(0,1fr))}}
+  @media(max-width:520px){.fcly-kpi-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.fcly-filterbar{grid-template-columns:repeat(2,minmax(0,1fr))}}
   /* Integrations & Settings panel (OAuth connect/disconnect) */
   .amp-connect-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;max-width:1100px}
   .amp-shop-input{background:var(--ink);border:1px solid var(--line-2);border-radius:8px;
@@ -562,14 +577,13 @@
     <!-- Forecasts panel -->
     <div class="dbody" id="forecastsPanel" style="display:none">
       <h1 class="dgreet">Forecasts</h1>
-      <p class="dsubtle">Shipped-units forecast accuracy — <b>2025 weekly backtest</b>, trained on 2023–2024, plus a 52-week forward forecast.</p>
 
       <div class="theme-pill fc-tabbar" id="fcTabBar">
-        <button class="active" data-tab="fcTab1" onclick="fcPickTab(this)">Forecast</button>
-        <button data-tab="fcTab2" onclick="fcPickTab(this)">Period-over-period</button>
+        <button data-tab="fcTab1" onclick="fcPickTab(this)">Forecast</button>
+        <button class="active" data-tab="fcTab2" onclick="fcPickTab(this)">Period-over-period</button>
       </div>
 
-      <div id="fcTab1" class="fc-tab-panel">
+      <div id="fcTab1" class="fc-tab-panel" style="display:none">
       <div class="dgrid">
         <div class="dcard">
           <div class="ch" style="flex-wrap:wrap;gap:12px">
@@ -667,37 +681,34 @@
       </div>
       </div>
 
-      <div id="fcTab2" class="fc-tab-panel" style="display:none">
-        <p class="dsubtle">Compare projected units with actual shipments from the same weekdays 52 weeks earlier.</p>
-
-        <div class="ov-header-controls" style="margin:4px 0 0">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--muted)"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4" stroke-linecap="round"/></svg>
-          <span class="dsubtle" style="margin:0;font-size:.78rem">Time Horizon</span>
-          <div class="theme-pill" id="fclyHorizonSeg">
-            <button class="active" data-h="4" onclick="fclyPickHorizon(this)">4W</button>
-            <button data-h="12" onclick="fclyPickHorizon(this)">12W</button>
-            <button data-h="52" onclick="fclyPickHorizon(this)">52W</button>
+      <div id="fcTab2" class="fc-tab-panel">
+        <div class="fcly-horizon">
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" aria-hidden="true"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4" stroke-linecap="round"/></svg>
+          <span>Time horizon</span>
+          <div id="fclyHorizonSeg" role="group" aria-label="Forecast horizon">
+            <button class="active" data-h="4" aria-pressed="true" onclick="fclyPickHorizon(this)">Net 4 Weeks</button>
+            <button data-h="12" aria-pressed="false" onclick="fclyPickHorizon(this)">Net 12 Weeks</button>
+            <button data-h="52" aria-pressed="false" onclick="fclyPickHorizon(this)">Net 52 Weeks</button>
           </div>
         </div>
 
         <div class="fcly-kpi-strip">
-          <div class="fcly-kpi-chip"><span>Units</span><b id="fclyKpiUnits">—</b></div>
-          <div class="fcly-kpi-chip"><span>Last year</span><b id="fclyPriorUnits">—</b></div>
-          <div class="fcly-kpi-chip"><span>Change</span><b id="fclyYoY">—</b></div>
-          <div class="fcly-kpi-chip"><span>Revenue</span><b class="ov-dim">—</b></div>
-          <div class="fcly-kpi-chip"><span>Avg Discount/Unit</span><b class="ov-dim">—</b></div>
-          <div class="fcly-kpi-chip"><span>Marketing Spend/Units Sold</span><b class="ov-dim">—</b></div>
-          <div class="fcly-kpi-chip"><span>WAPE (<span id="fclyKpiWapeLabel">4W</span>)</span><b id="fclyKpiWape">—</b></div>
+          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg>Units</span><b class="fcly-kpi-value" id="fclyYoY">—</b><span class="fcly-kpi-foot"><b id="fclyKpiUnits">—</b> vs. <span id="fclyPriorUnits">—</span> LY</span></div>
+          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20v-5m5 5v-8m5 8V8m5 12V4"/></svg>Revenue</span><b class="fcly-kpi-value">—</b><span class="fcly-kpi-foot">vs. — LY</span></div>
+          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 11 3h9v9l-8 8-9-9Z"/><circle cx="16" cy="7" r="1"/></svg>Average Discount / Unit</span><b class="fcly-kpi-value">—</b><span class="fcly-kpi-foot">vs. — LY</span></div>
+          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9v6h5l8 4V5l-8 4H3Zm5 6 2 5m9-11 2-2m-2 6h3m-3 3 2 2"/></svg>Marketing Spend / Units Sold</span><b class="fcly-kpi-value">—</b><span class="fcly-kpi-foot">vs. — LY</span></div>
+          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="m12 12 8-8"/></svg>WAPE</span><b class="fcly-kpi-value" id="fclyKpiWape">—</b><span class="fcly-kpi-foot"><span id="fclyKpiWapeLabel">4W</span> backtest</span></div>
         </div>
 
-        <div class="dcard">
-          <div class="ch"><h4>Performance Trend</h4>
-            <div class="chart-legend" style="margin-top:0">
-              <span class="lgd-item"><i style="background:#54E6C4"></i>Last year actual</span>
-              <span class="lgd-item"><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>Current forecast</span>
+        <div class="fcly-frame fcly-chart">
+          <div class="fcly-chart-head">
+            <h4 class="fcly-chart-title"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 18 6-6 4 3 7-9m-5 0h5v5"/></svg>Performance Trend</h4>
+            <div class="chart-legend">
+              <span class="lgd-item"><i style="background:var(--fc-blue)"></i>Current Period</span>
+              <span class="lgd-item"><i style="background:transparent;border-radius:0;height:0;border-top:2px dashed #8d9fbd"></i>Last Year</span>
             </div>
           </div>
-          <div class="dchart" style="height:220px">
+          <div class="dchart">
             <canvas id="fclyTrendCanvas"></canvas>
             <p id="fclyPriorStatus" class="dsubtle" style="position:absolute;top:8px;right:12px"></p>
             <div class="chart-skel" id="fclyTrendSkel">
@@ -707,35 +718,35 @@
           </div>
         </div>
 
-        <div class="fcly-filterbar">
+        <div class="fcly-filterbar fcly-frame">
           <div class="fcly-filter"><label for="fclySkuFilter">SKU</label><select id="fclySkuFilter"><option value="ALL">All SKUs</option></select></div>
-          <div class="fcly-filter fcly-filter-disabled" title="No real data available for this dimension"><label>Region</label><select disabled><option>All Regions</option></select></div>
-          <div class="fcly-filter fcly-filter-disabled" title="No real data available for this dimension"><label>Store</label><select disabled><option>All Stores</option></select></div>
-          <div class="fcly-filter fcly-filter-disabled" title="No real data available for this dimension"><label>Category</label><select disabled><option>All Categories</option></select></div>
-          <div class="fcly-filter fcly-filter-disabled" title="No real data available for this dimension"><label>Brand</label><select disabled><option>All Brands</option></select></div>
-          <div class="fcly-filter fcly-filter-disabled" title="No real data available for this dimension"><label>Channel</label><select disabled><option>All Channels</option></select></div>
+          <div class="fcly-filter fcly-filter-disabled" title="Data unavailable"><label for="fcly-region">Region</label><select id="fcly-region" disabled><option>All Regions</option></select></div>
+          <div class="fcly-filter fcly-filter-disabled" title="Data unavailable"><label for="fcly-store">Store</label><select id="fcly-store" disabled><option>All Stores</option></select></div>
+          <div class="fcly-filter fcly-filter-disabled" title="Data unavailable"><label for="fcly-category">Category</label><select id="fcly-category" disabled><option>All Categories</option></select></div>
+          <div class="fcly-filter fcly-filter-disabled" title="Data unavailable"><label for="fcly-brand">Brand</label><select id="fcly-brand" disabled><option>All Brands</option></select></div>
+          <div class="fcly-filter fcly-filter-disabled" title="Data unavailable"><label for="fcly-channel">Channel</label><select id="fcly-channel" disabled><option>All Channels</option></select></div>
         </div>
 
-        <div class="dcard" style="padding:0;overflow:hidden">
-          <div class="ch" style="padding:18px 20px 0;margin-bottom:12px">
-            <h4 style="font-size:1rem">Showing <span id="fclyResultsCount">—</span> SKUs</h4>
-            <span class="dsubtle" style="margin:0;font-size:.78rem">click a column to sort</span>
+        <div class="fcly-frame fcly-results">
+          <div class="fcly-table-head">
+            <span id="fclyResultsCount" aria-live="polite">Loading results…</span>
+            <span class="dsubtle">Select a column header to sort</span>
           </div>
           <div class="table-wrap">
             <table class="dtable" id="fclyResultsTable">
               <thead>
                 <tr>
-                  <th class="amp-sortable" data-sort-key="sku">SKU <span class="ov-sort-ic">⇅</span></th>
-                  <th>Region</th>
-                  <th>Store</th>
-                  <th>Category</th>
-                  <th>Brand</th>
-                  <th>Channel</th>
-                  <th class="amp-sortable" data-sort-key="units">Units <span class="ov-sort-ic">⇅</span></th>
-                  <th class="amp-sortable" data-sort-key="prior">Last year <span class="ov-sort-ic">⇅</span></th><th class="amp-sortable" data-sort-key="change">Change <span class="ov-sort-ic">⇅</span></th><th>Revenue</th>
-                  <th>Avg Discount/Unit</th>
-                  <th>Marketing Spend/Unit</th>
-                  <th class="amp-sortable" data-sort-key="wape">WAPE <span class="ov-sort-ic">⇅</span></th>
+                  <th scope="col" class="amp-sortable" data-sort-key="sku"><button type="button">SKU <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                  <th scope="col">Region</th>
+                  <th scope="col">Store</th>
+                  <th scope="col">Category</th>
+                  <th scope="col">Brand</th>
+                  <th scope="col">Channel</th>
+                  <th scope="col" class="amp-sortable" data-sort-key="units"><button type="button">Units <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                  <th scope="col">Revenue</th>
+                  <th scope="col">Avg Discount / Unit</th>
+                  <th scope="col">Marketing Spend / Unit</th>
+                  <th scope="col" class="amp-sortable" data-sort-key="wape"><button type="button">WAPE <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
                 </tr>
               </thead>
               <tbody id="fclyResultsBody">
@@ -745,7 +756,6 @@
               </tbody>
             </table>
           </div>
-          <p style="font-size:11px;color:var(--muted);margin:0;padding:10px 20px 16px">Region / Store / Category / Brand / Channel / Revenue / Avg Discount per Unit / Marketing Spend per Unit have no real data source in this app and always show "—". Last-year totals require all weeks in the selected period. WAPE uses historical backtest weeks.</p>
         </div>
       </div>
     </div>
