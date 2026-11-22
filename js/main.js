@@ -300,7 +300,7 @@
   function initDashboard(){
     renderDashboardData();
     drawOverviewTrend();
-    if(dashReady){drawChart();fclyRender();drawFclyTrend();return;}
+    if(dashReady){drawChart();fclyRender();return;}
     dashReady=true;
 
     document.getElementById('ovTrendCard')?.addEventListener('click',()=>goToPanel('Forecasts'));
@@ -406,8 +406,10 @@
     document.querySelectorAll('#forecastsPanel .fc-tab-panel').forEach(p=>{
       p.style.display=(p.id===target)?'':'none';
     });
-    if(target==='fcTab2')drawFclyTrend();
-    else if(window.DATA)drawChart();
+    const graph=document.getElementById('sharedForecastCard');
+    document.getElementById(target+'ForecastHost').appendChild(graph);
+    document.getElementById('fcTip').style.opacity=0;
+    if(dashReady && window.DATA)drawChart();
   };
 
   // Update the forward window and trailing backtest accuracy for the chosen horizon.
@@ -422,7 +424,7 @@
     const lblEl=document.getElementById('fclyKpiWapeLabel');
     if(lblEl)lblEl.textContent=fclyHorizon+'W';
     fclyRender();
-    drawFclyTrend();
+    drawChart();
   };
 
   // Per-SKU WAPE over the trailing fclyHorizon actual weeks (mirrors
@@ -526,102 +528,13 @@
     ).join('');
   }
 
-  function drawFclyTrend(){
-    const cv=document.getElementById('fclyTrendCanvas');
-    if(!cv||!window.DATA)return;
-    const skel=document.getElementById('fclyTrendSkel');
-    if(skel)skel.style.display='none';
-    const start=DATA.backtestWeeks??DATA.weeks.length;
-    const end=start+fclyHorizon;
-    const series=fclySkuFilter==='ALL'?DATA.all:DATA.skus[fclySkuFilter]||DATA.all;
-    const weeks=DATA.weeks.slice(start,end), N=weeks.length;
-    const a=(series.lastYear||[]).slice(start,end), f=series.f.slice(start,end);
-    const message=document.getElementById('fclyPriorStatus');
-    if(message)message.textContent=!N?'Forward forecast unavailable.':a.some(Number.isFinite)?'':'Last-year shipment history unavailable.';
-    const box=cv.parentElement;
-    const cw=box.clientWidth||600, ch=box.clientHeight||220, dpr=window.devicePixelRatio||1;
-    cv.width=cw*dpr; cv.height=ch*dpr; const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
-    ctx.clearRect(0,0,cw,ch);
-    if(!f.some(Number.isFinite)&&!a.some(Number.isFinite))return;
-
-    const blue='#397fff', mutedBlue='#8d9fbd';
-    const theme=getComputedStyle(box);
-    const padL=44,padR=58,padT=12,padB=24;
-    const bottom=ch-padB;
-    const maximum=Math.max(1,...a.filter(Number.isFinite),...f.filter(Number.isFinite));
-    const magnitude=10**Math.floor(Math.log10(maximum/3));
-    const tick=Math.ceil(maximum/3.4/magnitude)*magnitude;
-    const uMax=tick*4;
-    const X=i=>padL+10+i*Math.max(1,cw-padL-padR-20)/(N-1||1);
-    const Y=v=>bottom-(bottom-padT)*v/uMax;
-    ctx.font='11px '+(theme.fontFamily||'sans-serif');
-    ctx.lineWidth=1;
-    for(let g=0;g<=4;g++){
-      const value=tick*g, y=Y(value);
-      ctx.strokeStyle=theme.getPropertyValue('--line').trim()||'#253041';
-      ctx.beginPath();ctx.moveTo(padL,y);ctx.lineTo(cw-6,y);ctx.stroke();
-      ctx.fillStyle=theme.getPropertyValue('--muted').trim()||mutedBlue;
-      ctx.textAlign='right';ctx.fillText(nf(value),padL-7,y+3);
-    }
-    ctx.textAlign='center';
-    const step=Math.max(1,Math.round((N-1)/5));
-    for(let i=0;i<N;i++){
-      if(i%step&&i!==N-1)continue;
-      const x=X(i);
-      ctx.beginPath();ctx.moveTo(x,padT);ctx.lineTo(x,bottom);ctx.stroke();
-      ctx.fillText('W'+(i+1),x,ch-7);
-    }
-
-    function plot(values,color,dashed){
-      const segments=[];
-      let segment=[];
-      values.forEach((value,i)=>{
-        if(Number.isFinite(value))segment.push({x:X(i),y:Y(value),value});
-        else if(segment.length){segments.push(segment);segment=[];}
-      });
-      if(segment.length)segments.push(segment);
-      segments.forEach(points=>{
-        const first=points[0], last=points.at(-1);
-        const trace=()=>points.forEach(({x,y},i)=>i?ctx.lineTo(x,y):ctx.moveTo(x,y));
-        if(!dashed&&points.length>1){
-          const wash=ctx.createLinearGradient(0,padT,0,bottom);
-          wash.addColorStop(0,'rgba(57,127,255,.23)');wash.addColorStop(1,'rgba(57,127,255,.02)');
-          ctx.fillStyle=wash;ctx.beginPath();trace();
-          ctx.lineTo(last.x,bottom);ctx.lineTo(first.x,bottom);ctx.closePath();ctx.fill();
-        }
-        ctx.strokeStyle=color;ctx.lineWidth=dashed?1.7:2.8;ctx.setLineDash(dashed?[5,5]:[]);
-        ctx.beginPath();trace();ctx.stroke();ctx.setLineDash([]);
-        if(N<=12)points.forEach(({x,y})=>{
-          ctx.fillStyle=color;ctx.beginPath();ctx.arc(x,y,dashed?2.7:3.5,0,Math.PI*2);ctx.fill();
-        });
-      });
-      return segments.at(-1)?.at(-1);
-    }
-    const current=plot(f,blue,false);
-    const previous=plot(a,mutedBlue,true);
-    const marks=[[current,blue,'#fff'],[previous,mutedBlue,'#101728']].filter(([point])=>point);
-    marks.sort(([left],[right])=>left.y-right.y);
-    let nextY=padT+8;
-    marks.forEach(([point,bg,fg],i)=>{
-      const y=Math.min(bottom-8-(marks.length-i-1)*21,Math.max(nextY,point.y));
-      nextY=y+21;
-      const label=nf(point.value), width=Math.max(37,ctx.measureText(label).width+12);
-      const x=cw-8-width;
-      ctx.fillStyle=bg;ctx.beginPath();ctx.roundRect(x,y-8,width,17,4);ctx.fill();
-      ctx.fillStyle=fg;ctx.textAlign='center';ctx.fillText(label,x+width/2,y+4);
-    });
-  }
-
   function initFcly(){
     const skuSel=document.getElementById('fclySkuFilter');
     if(!skuSel)return; // this tab's markup isn't on the current page
     skuSel.innerHTML='<option value="ALL">All SKUs</option>'+
       Object.keys(DATA.skus).sort().map(id=>`<option value="${id}">${id}</option>`).join('');
     skuSel.addEventListener('change',e=>{
-      fclySkuFilter=e.target.value;
-      fclyPage=1;
-      fclyRender();
-      drawFclyTrend();
+      selectSku(e.target.value);
     });
     document.getElementById('fclyPrevPage').addEventListener('click',()=>{fclyPage=Math.max(1,fclyPage-1);fclyRender();});
     document.getElementById('fclyNextPage').addEventListener('click',()=>{fclyPage++;fclyRender();});
@@ -645,10 +558,8 @@
         fclyRender();
       });
     });
-    const fclyChartBox=document.querySelector('#fcTab2 .dchart');
-    if(fclyChartBox)new ResizeObserver(()=>{if(document.getElementById('fcTab2').style.display!=='none')drawFclyTrend();}).observe(fclyChartBox);
+    skuSel.value=fclySkuFilter;
     fclyRender();
-    drawFclyTrend();
   }
 
   function selectSku(sel){
@@ -659,7 +570,14 @@
     document.getElementById('selName').textContent=s.name;
     document.getElementById('selWape').textContent=s.overall==null?'—':s.overall.toFixed(2)+'%';
     drawChart();
-    const [baseSkuId,zip]=(sel||'').split('|');
+    const [baseSkuId,zip]=curSel.split('|');
+    document.getElementById('skuInput').value=baseSkuId==='ALL'?'':baseSkuId;
+    if (fclySkuFilter!==baseSkuId) {
+      fclySkuFilter=baseSkuId;
+      fclyPage=1;
+      document.getElementById('fclySkuFilter').value=baseSkuId;
+      fclyRender();
+    }
     renderSkuZipTable(baseSkuId);
     renderZipFilter(baseSkuId,zip||'');
   }
@@ -738,28 +656,26 @@
     const s=getSeries(curSel); if(!s)return;
     const fcSkel=document.getElementById('fcChartSkel');
     if(fcSkel)fcSkel.style.display='none';
-    let N=Math.min(curWeeks,s.a.length), st=s.a.length-N;
-    if(DATA.backtestWeeks!=null){
-      if(hideBacktest){
-        st=Math.max(st,DATA.backtestWeeks); N=s.a.length-st;
-      } else {
-        // Showing backtest: always widen to the full series, ignoring
-        // curWeeks — otherwise a small period filter (e.g. 12W) computes a
-        // trailing window that lands entirely inside the forward-only
-        // range, and clicking "Show Backtest" reveals nothing new. curWeeks
-        // itself is left untouched, so toggling back to "Hide Backtest"
-        // correctly restores whatever period was selected before.
-        st=0; N=s.a.length;
-      }
+    const comparison=document.getElementById('sharedForecastCard').parentElement.id==='fcTab2ForecastHost';
+    const length=DATA.weeks.length;
+    const boundaryIndex=DATA.backtestWeeks ?? length;
+    const hasForward=boundaryIndex<length;
+    let end=length, start=Math.max(0,length-(comparison?fclyHorizon:curWeeks));
+    if(hasForward && comparison){
+      end=Math.min(length,boundaryIndex+fclyHorizon);
+      start=hideBacktest?boundaryIndex:0;
+    } else if(hasForward){
+      start=hideBacktest?Math.max(start,boundaryIndex):0;
     }
-    const weeks=DATA.weeks.slice(st), a=s.a.slice(st), f=s.f.slice(st), w=s.w.slice(st);
+    const N=end-start, st=start;
+    const weeks=DATA.weeks.slice(st,end), a=s.a.slice(st,end), f=s.f.slice(st,end), w=s.w.slice(st,end);
     const box=document.getElementById('forecastChart'), cv=document.getElementById('fcCanvas');
     const cw=box.clientWidth||720, ch=box.clientHeight||260, dpr=window.devicePixelRatio||1;
     cv.width=cw*dpr; cv.height=ch*dpr; const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.clearRect(0,0,cw,ch);
     const padL=52,padR=46,padT=16,padB=26;
-    const uMax=Math.max(...a.filter(x=>x!=null),...f.filter(x=>x!=null))*1.12||1;
-    const wVals=w.filter(x=>x!=null); const wMax=(wVals.length?Math.max(...wVals):100)*1.15;
+    const uMax=Math.max(1,...a.filter(Number.isFinite),...f.filter(Number.isFinite))*1.12;
+    const wVals=w.filter(x=>x!=null); const wMax=(wVals.length?Math.max(1,...wVals):100)*1.15;
     const X=i=>padL+i*(cw-padL-padR)/(N-1||1);
     const Yu=v=>padT+(ch-padT-padB)*(1-v/uMax);
     const Yw=v=>padT+(ch-padT-padB)*(1-v/wMax);
@@ -801,7 +717,7 @@
   }
 
   function onHover(e){
-    if(!fcGeom)return; const g=fcGeom;
+    if(!fcGeom?.N)return; const g=fcGeom;
     const rect=e.currentTarget.getBoundingClientRect();
     const mx=(e.clientX-rect.left); 
     let i=Math.round((mx-g.padL)/((g.cw-g.padL-g.padR)/(g.N-1||1)));

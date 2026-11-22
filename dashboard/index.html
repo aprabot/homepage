@@ -332,14 +332,9 @@
   #fclyKpiUnits{color:var(--text)}
   .fcly-kpi-chip:has(#fclyYoY[data-direction="up"]) #fclyKpiUnits{color:#8bdba2}
   .fcly-frame{background:var(--fc-chart-bg);border:1px solid var(--fc-edge);border-radius:11px}
-  .fcly-chart{padding:12px 14px 5px}
-  .fcly-chart-head,.fcly-table-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
-  .fcly-chart-title{display:flex;align-items:center;gap:9px;font-size:16px;color:var(--text)}
-  .fcly-chart-title svg{color:#55c4fc;flex:none}
-  .fcly-chart .dchart{height:clamp(168px,14vw,212px);margin-top:7px}
-  .fcly-chart .chart-legend{margin:0}
-  .fcly-chart .chart-legend .lgd-item{font:500 11px var(--body);color:var(--muted)}
-  .fcly-chart .chart-legend .lgd-item:first-child i{width:10px;height:10px;border-radius:50%}
+  .fcly-table-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
+  #fcTab1ForecastHost,#fcTab2ForecastHost{min-width:0}
+  #fcTab2ForecastHost #periodSeg,#fcTab2ForecastHost #periodCustomWrap{display:none}
   .fcly-filterbar{display:grid;grid-template-columns:1.1fr 1.16fr 1fr 1fr 1fr .95fr;margin:14px 0 11px;overflow:hidden}
   .fcly-filter{min-width:0;padding:8px 11px 10px;border-right:1px solid var(--fc-grid)}
   .fcly-filter:last-child{border-right:0}
@@ -685,56 +680,7 @@
 
       <div id="fcTab1" class="fc-tab-panel" style="display:none">
       <div class="dgrid">
-        <div class="dcard">
-          <div class="ch" style="flex-wrap:wrap;gap:12px">
-            <h4>Forecast vs actuals — shipped units</h4>
-            <div class="fc-filter-row" style="display:flex;gap:10px;align-items:center;flex-wrap:nowrap;overflow-x:auto">
-              <div class="sku-search" style="flex:0 0 auto">
-                <input id="skuInput" list="skuList" placeholder="Search SKU… (blank = all)">
-                <datalist id="skuList"></datalist>
-              </div>
-              <div class="sku-search" style="flex:0 0 auto">
-                <select id="zipInput" disabled title="Pick a SKU first to filter by its postal codes">
-                  <option value="">All postal codes</option>
-                </select>
-              </div>
-              <div class="seg" id="periodSeg" style="flex:0 0 auto">
-                <button data-w="12">12W</button><button data-w="26">26W</button><button class="on" data-w="52">52W</button>
-                <button data-w="custom" id="periodCustomBtn">Custom</button>
-              </div>
-              <div class="qty-wrap" id="periodCustomWrap" style="display:none;flex:0 0 auto">
-                <input type="number" id="periodCustomInput" min="1" max="1000" placeholder="Weeks">
-                <div class="qty-steppers">
-                  <button type="button" class="qty-step" id="periodCustomUp" aria-label="Increase weeks" tabindex="-1">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 15l6-6 6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </button>
-                  <button type="button" class="qty-step" id="periodCustomDown" aria-label="Decrease weeks" tabindex="-1">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
-                  </button>
-                </div>
-              </div>
-              <button class="dbtn on" id="hideBacktestBtn" style="display:none;flex:0 0 auto;padding:5px 9px;font-size:11px;white-space:nowrap;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Show Backtest</button>
-            </div>
-          </div>
-          <div class="selbar">
-            <span id="selName">All SKUs</span>
-            <span class="selwape">selection WAPE&nbsp;<b id="selWape">—</b></span>
-          </div>
-          <div class="dchart" id="forecastChart">
-            <canvas id="fcCanvas"></canvas>
-            <div class="fc-tip" id="fcTip"></div>
-            <div class="chart-skel" id="fcChartSkel">
-              <i style="height:45%"></i><i style="height:62%"></i><i style="height:38%"></i><i style="height:70%"></i>
-              <i style="height:55%"></i><i style="height:80%"></i><i style="height:50%"></i><i style="height:65%"></i>
-              <i style="height:42%"></i><i style="height:75%"></i>
-            </div>
-          </div>
-          <div class="chart-legend" id="fcLegend">
-            <span class="lgd-item" data-k="a"><i style="background:#54E6C4"></i>Actual</span>
-            <span class="lgd-item" data-k="f"><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>Forecast</span>
-            <span class="lgd-item" data-k="w"><i style="background:#7AA2FF"></i>WAPE %</span>
-          </div>
-        </div>
+        <div id="fcTab1ForecastHost"></div>
         <div class="dcard">
           <div class="ch"><h4>Highest-volume SKUs</h4></div>
           <ul class="movers" id="moversList">
@@ -800,22 +746,57 @@
           <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="m12 12 8-8"/></svg>WAPE / Forecast Accuracy</span><b class="fcly-kpi-value" id="fclyKpiWape" title="Weighted absolute percentage error. Lower is better.">—</b><span class="fcly-kpi-foot"><span id="fclyKpiWapeLabel">4W</span> backtest</span></div>
         </div>
 
-        <div class="fcly-frame fcly-chart">
-          <div class="fcly-chart-head">
-            <h4 class="fcly-chart-title"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 18 6-6 4 3 7-9m-5 0h5v5"/></svg>Performance Trend</h4>
-            <div class="chart-legend">
-              <span class="lgd-item"><i style="background:var(--fc-blue)"></i>Current Period</span>
-              <span class="lgd-item"><i style="background:transparent;border-radius:0;height:0;border-top:2px dashed #8d9fbd"></i>Last Year</span>
+        <div id="fcTab2ForecastHost">
+        <div class="dcard" id="sharedForecastCard">
+          <div class="ch" style="flex-wrap:wrap;gap:12px">
+            <h4>Forecast vs actuals — shipped units</h4>
+            <div class="fc-filter-row" style="display:flex;gap:10px;align-items:center;flex-wrap:nowrap;overflow-x:auto">
+              <div class="sku-search" style="flex:0 0 auto">
+                <input id="skuInput" list="skuList" placeholder="Search SKU… (blank = all)">
+                <datalist id="skuList"></datalist>
+              </div>
+              <div class="sku-search" style="flex:0 0 auto">
+                <select id="zipInput" disabled title="Pick a SKU first to filter by its postal codes">
+                  <option value="">All postal codes</option>
+                </select>
+              </div>
+              <div class="seg" id="periodSeg" style="flex:0 0 auto">
+                <button data-w="12">12W</button><button data-w="26">26W</button><button class="on" data-w="52">52W</button>
+                <button data-w="custom" id="periodCustomBtn">Custom</button>
+              </div>
+              <div class="qty-wrap" id="periodCustomWrap" style="display:none;flex:0 0 auto">
+                <input type="number" id="periodCustomInput" min="1" max="1000" placeholder="Weeks">
+                <div class="qty-steppers">
+                  <button type="button" class="qty-step" id="periodCustomUp" aria-label="Increase weeks" tabindex="-1">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 15l6-6 6 6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                  <button type="button" class="qty-step" id="periodCustomDown" aria-label="Decrease weeks" tabindex="-1">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M6 9l6 6 6-6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                  </button>
+                </div>
+              </div>
+              <button class="dbtn on" id="hideBacktestBtn" style="display:none;flex:0 0 auto;padding:5px 9px;font-size:11px;white-space:nowrap;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Show Backtest</button>
             </div>
           </div>
-          <div class="dchart">
-            <canvas id="fclyTrendCanvas"></canvas>
-            <p id="fclyPriorStatus" class="dsubtle" style="position:absolute;top:8px;right:12px"></p>
-            <div class="chart-skel" id="fclyTrendSkel">
-              <i style="height:52%"></i><i style="height:68%"></i><i style="height:40%"></i><i style="height:74%"></i>
-              <i style="height:58%"></i><i style="height:85%"></i><i style="height:48%"></i><i style="height:70%"></i>
+          <div class="selbar">
+            <span id="selName">All SKUs</span>
+            <span class="selwape">selection WAPE&nbsp;<b id="selWape">—</b></span>
+          </div>
+          <div class="dchart" id="forecastChart">
+            <canvas id="fcCanvas"></canvas>
+            <div class="fc-tip" id="fcTip"></div>
+            <div class="chart-skel" id="fcChartSkel">
+              <i style="height:45%"></i><i style="height:62%"></i><i style="height:38%"></i><i style="height:70%"></i>
+              <i style="height:55%"></i><i style="height:80%"></i><i style="height:50%"></i><i style="height:65%"></i>
+              <i style="height:42%"></i><i style="height:75%"></i>
             </div>
           </div>
+          <div class="chart-legend" id="fcLegend">
+            <span class="lgd-item" data-k="a"><i style="background:#54E6C4"></i>Actual</span>
+            <span class="lgd-item" data-k="f"><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>Forecast</span>
+            <span class="lgd-item" data-k="w"><i style="background:#7AA2FF"></i>WAPE %</span>
+          </div>
+        </div>
         </div>
 
         <div class="fcly-filterbar fcly-frame">
