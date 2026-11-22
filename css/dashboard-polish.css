@@ -296,3 +296,11 @@
 [data-theme="light"] #dashboard .stest-msg.err{color:#B3261E}
 [data-theme="light"] #dashboard .stest-msg.warn{color:#8B6000}
 [data-theme="light"] #dashboard .ob-stepper-step.done + .ob-stepper-seg{background:rgba(90,146,0,.5)}
+
+/* ---------- Light mode: Inventory ----------
+   The table's dividers, zebra rows and totals row use white tints that
+   vanish on white — dark tints instead. */
+[data-theme="light"] #dashboard #inventoryReqTable tbody td{border-bottom-color:rgba(17,19,24,.06)}
+[data-theme="light"] #dashboard #inventoryReqTable tbody tr:nth-child(even){background:rgba(17,19,24,.018)}
+[data-theme="light"] #dashboard #inventoryReqTable tbody tr:hover td{background:rgba(17,19,24,.03)}
+[data-theme="light"] #dashboard #inventoryReqTfoot tr{background:rgba(17,19,24,.035)}
