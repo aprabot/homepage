@@ -159,3 +159,29 @@
 #dashboard .inv-locked-badge{margin:16px 0 14px;font-size:12.5px}
 #dashboard .inv-kpi-tab{border-radius:14px}
 #dashboard .inv-kpi-tab .inv-kpi-label{font-size:12.5px;font-weight:600}
+
+/* ============================================================
+   AI Insights
+============================================================ */
+/* Tagline in the text colour — lime stays for actions and highlights. */
+#dashboard #insightsTagline{color:var(--text)!important;font-size:1rem!important}
+#dashboard #insightsSummary{font-size:.98rem;line-height:1.65;color:var(--text);opacity:.88}
+
+/* Key findings: label column + readable detail, instead of a small mono
+   line pushed to the far right. (The inline right-align/width come from
+   js/insights.js, hence !important.) */
+#dashboard #insightsFindings li{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr);gap:18px;
+  align-items:baseline;padding:14px 0;cursor:default}
+#dashboard #insightsFindings li .nmx{font-weight:600;font-size:13.5px;color:var(--text)}
+#dashboard #insightsFindings li:hover .nmx{color:var(--text)}
+#dashboard #insightsFindings li .sku{font-family:var(--body)!important;font-size:13.5px;line-height:1.55;
+  color:var(--text);opacity:.82;text-align:left!important;max-width:none!important}
+
+/* Watch areas and opportunities: bulleted, comfortable line length. */
+#dashboard #insightsWatch li,#dashboard #insightsOpportunities li{display:block;position:relative;padding:12px 0 12px 18px;
+  font-size:13.5px;line-height:1.55;color:var(--text);cursor:default}
+#dashboard #insightsWatch li::before,#dashboard #insightsOpportunities li::before{content:'';position:absolute;left:2px;top:20px;
+  width:6px;height:6px;border-radius:50%}
+#dashboard #insightsWatch li::before{background:#ffcf5c}
+#dashboard #insightsOpportunities li::before{background:#54E6C4}
+@media(max-width:640px){#dashboard #insightsFindings li{grid-template-columns:1fr;gap:4px}}
