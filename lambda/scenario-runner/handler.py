@@ -418,21 +418,25 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None, l
     # raw_history_path specifically because tsv_path (the backtest output)
     # only ever has actual_units/forecast_units — price never survives
     # forecast.py's own pipeline that far, only the raw input has it.
-    avg_price_by_asin = {}
+    historical_amounts = {}
     if raw_history_path and os.path.exists(raw_history_path):
+        fields = {'avgPrice': 'avg_our_price', 'avgDiscount': 'avg_discount_amt'}
+        columns = {'asin', 'shipped_units', *fields.values()}
         try:
-            price_df = pd.read_csv(raw_history_path, sep='\t',
-                                    usecols=['asin', 'shipped_units', 'avg_our_price'], dtype={'asin': str})
-            price_df = price_df.dropna(subset=['avg_our_price'])
-            if not price_df.empty:
-                price_df['weighted'] = price_df['avg_our_price'] * price_df['shipped_units']
-                grp = price_df.groupby('asin').agg(weighted=('weighted', 'sum'),
-                                                     units=('shipped_units', 'sum'))
-                avg_price_by_asin = (grp['weighted'] / grp['units']).to_dict()
+            history = pd.read_csv(raw_history_path, sep='\t',
+                                  usecols=lambda name: name in columns, dtype={'asin': str})
+            if {'asin', 'shipped_units'}.issubset(history.columns):
+                units = pd.to_numeric(history['shipped_units'], errors='coerce')
+                for field, column in fields.items():
+                    if column not in history:
+                        continue
+                    amounts = pd.to_numeric(history[column], errors='coerce')
+                    valid = (units > 0) & (units < float('inf')) & (amounts >= 0) & (amounts < float('inf'))
+                    weighted = (amounts[valid] * units[valid]).groupby(history.loc[valid, 'asin']).sum()
+                    totals = units[valid].groupby(history.loc[valid, 'asin']).sum()
+                    historical_amounts[field] = (weighted / totals).to_dict()
         except Exception as exc:
-            # Price is an annotation on top of the real forecast output,
-            # never worth failing an otherwise-successful run over.
-            print(f"AVG_PRICE_CALC_FAILED: {exc} — SKUs will have no avgPrice this run")
+            print(f"HISTORICAL_PRICE_CALC_FAILED: {exc}")
 
     capped_units = None
     future_wk_asin = None
@@ -527,9 +531,10 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None, l
             by_zip[str(zip_code)] = {'a': za, 'f': zf}
 
         sku_entry = {'a': a, 'f': f, 'byZip': by_zip}
-        avg_price = avg_price_by_asin.get(asin)
-        if avg_price is not None:
-            sku_entry['avgPrice'] = round(float(avg_price), 2)
+        for field, values in historical_amounts.items():
+            value = values.get(asin)
+            if value is not None and 0 <= value < float('inf'):
+                sku_entry[field] = round(float(value), 2)
         skus[anon[asin]] = sku_entry
 
     all_a = [None] * n

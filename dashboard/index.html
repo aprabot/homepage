@@ -328,8 +328,6 @@
   .fcly-kpi-foot{display:block;margin-top:6px;font-size:11.5px;color:var(--muted);min-height:15px}
   #fclyYoY[data-direction="up"]{color:var(--text)}
   #fclyYoY[data-direction="down"]{color:#ff968f}
-  #fclyKpiUnits{color:var(--text)}
-  .fcly-kpi-chip:has(#fclyYoY[data-direction="up"]) #fclyKpiUnits{color:#8bdba2}
   .fcly-frame{background:var(--fc-chart-bg);border:1px solid var(--fc-edge);border-radius:11px}
   .fcly-table-head{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px}
   .fcly-filterbar{display:grid;grid-template-columns:1.1fr 1.16fr 1fr 1fr 1fr .95fr;margin:14px 0 11px;overflow:hidden}
@@ -722,9 +720,9 @@
         </div>
 
         <div class="fcly-kpi-strip">
-          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg>Units</span><b class="fcly-kpi-value" id="fclyYoY">—</b><span class="fcly-kpi-foot"><b id="fclyKpiUnits">—</b> vs. <span id="fclyPriorUnits">—</span> LY</span></div>
-          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20v-5m5 5v-8m5 8V8m5 12V4"/></svg>Revenue</span><b class="fcly-kpi-value">—</b><span class="fcly-kpi-foot">vs. — LY</span></div>
-          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 11 3h9v9l-8 8-9-9Z"/><circle cx="16" cy="7" r="1"/></svg>Average Discount / Unit</span><b class="fcly-kpi-value">—</b><span class="fcly-kpi-foot">vs. — LY</span></div>
+          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m12 3 8 4.5v9L12 21l-8-4.5v-9L12 3Z"/><path d="m4 7.5 8 4.5 8-4.5M12 12v9"/></svg>Units</span><b class="fcly-kpi-value" id="fclyYoY">—</b><span class="fcly-kpi-foot" id="fclyUnitsDetail"></span></div>
+          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 20v-5m5 5v-8m5 8V8m5 12V4"/></svg>Revenue</span><b class="fcly-kpi-value" id="fclyKpiRevenue">—</b><span class="fcly-kpi-foot" id="fclyRevenueDetail"></span></div>
+          <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 11 3h9v9l-8 8-9-9Z"/><circle cx="16" cy="7" r="1"/></svg>Average Discount / Unit</span><b class="fcly-kpi-value" id="fclyKpiDiscount">—</b><span class="fcly-kpi-foot" id="fclyDiscountDetail"></span></div>
           <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 9v6h5l8 4V5l-8 4H3Zm5 6 2 5m9-11 2-2m-2 6h3m-3 3 2 2"/></svg>Marketing Spend / Units Sold</span><b class="fcly-kpi-value">—</b><span class="fcly-kpi-foot">vs. — LY</span></div>
           <div class="fcly-kpi-chip"><span class="fcly-kpi-label"><svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="8"/><circle cx="12" cy="12" r="4"/><path d="m12 12 8-8"/></svg>WAPE / Forecast Accuracy</span><b class="fcly-kpi-value" id="fclyKpiWape" title="Weighted absolute percentage error. Lower is better.">—</b><span class="fcly-kpi-foot"><span id="fclyKpiWapeLabel">4W</span> backtest</span></div>
         </div>

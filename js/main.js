@@ -358,43 +358,67 @@
     return seriesWape(o.a.slice(st,bt),o.f.slice(st,bt)).overall;
   }
 
-  function fclyPeriod(series){
+  function fclyPeriod(series, weekCount){
     const start=DATA.backtestWeeks??DATA.weeks.length;
-    const end=start+fclyHorizon;
     const sumComplete=values=>{
-      const window=values?.slice(start,end);
-      return window?.length===fclyHorizon&&window.every(Number.isFinite)
+      const window=values?.slice(start,start+weekCount);
+      return weekCount>0&&window?.length===weekCount&&window.every(Number.isFinite)
         ?window.reduce((sum,value)=>sum+value,0):null;
     };
     const units=sumComplete(series.f), prior=sumComplete(series.lastYear);
     return {units,prior,change:units!=null&&prior>0?100*(units-prior)/prior:null};
   }
 
+  function fclyPricing(rows,field){
+    if(!rows.length||rows.some(row=>row.units==null))return null;
+    const selling=rows.filter(row=>row.units>0);
+    if(selling.some(row=>!Number.isFinite(DATA.skus[row.sku][field])))return null;
+    const amount=selling.reduce((sum,row)=>sum+row.units*DATA.skus[row.sku][field],0);
+    return field==='avgPrice'?amount:selling.length
+      ?amount/selling.reduce((sum,row)=>sum+row.units,0):null;
+  }
+
   function fclyChange(value){
     return value==null?'—':(value>0?'+':'')+value.toFixed(1)+'%';
   }
 
-  function fclyBuildRows(){
+  function fclyBuildRows(weekCount){
     return Object.keys(DATA.skus).map(id=>{
       const series=DATA.skus[id];
-      return {sku:id,...fclyPeriod(series),wape:fclySkuTrailingWape(series,fclyHorizon)};
+      return {sku:id,...fclyPeriod(series,weekCount),wape:fclySkuTrailingWape(series,fclyHorizon)};
     });
   }
 
   function fclyRender(){
     if(!window.DATA)return;
     const series=fclySkuFilter==='ALL'?DATA.all:DATA.skus[fclySkuFilter]||DATA.all;
-    const period=fclyPeriod(series);
+    const forecastStart=DATA.backtestWeeks??DATA.weeks.length;
+    const future=DATA.all.f.slice(forecastStart,forecastStart+fclyHorizon);
+    const gap=future.findIndex(value=>!Number.isFinite(value));
+    const weekCount=gap<0?future.length:gap;
+    const period=fclyPeriod(series,weekCount);
     const setTxt=(id,v)=>{const el=document.getElementById(id); if(el)el.textContent=v;};
-    setTxt('fclyKpiUnits',period.units==null?'—':nf(period.units));
-    setTxt('fclyPriorUnits',period.prior==null?'—':nf(period.prior));
-    setTxt('fclyYoY',fclyChange(period.change));
+    const units=period.units==null?'—':nf(period.units);
+    const comparison=period.change!=null;
+    setTxt('fclyYoY',comparison?fclyChange(period.change):period.units==null?'—':nfFull(period.units));
+    const horizon=weekCount<fclyHorizon?weekCount+' of '+fclyHorizon+' weeks':'';
+    setTxt('fclyUnitsDetail',period.units==null?'Forecast units unavailable':
+      (comparison?units+' vs. '+nf(period.prior)+' LY':'Forecast units')+(horizon?' · '+horizon:''));
     document.getElementById('fclyYoY').dataset.direction=period.change>0?'up':period.change<0?'down':'';
     const w=series===DATA.all?trailingWape(fclyHorizon):fclySkuTrailingWape(series,fclyHorizon);
     setTxt('fclyKpiWape',w==null?'—':w.toFixed(2)+'%');
 
-    let rows=fclyBuildRows();
+    let rows=fclyBuildRows(weekCount);
     if(fclySkuFilter!=='ALL')rows=rows.filter(r=>r.sku===fclySkuFilter);
+    const revenue=fclyPricing(rows,'avgPrice');
+    const discount=fclyPricing(rows,'avgDiscount');
+    const amount=value=>value==null?'—':value.toLocaleString(undefined,{maximumFractionDigits:2});
+    setTxt('fclyKpiRevenue',amount(revenue));
+    setTxt('fclyRevenueDetail',revenue==null?'Price data unavailable':
+      'Estimated from historical prices'+(horizon?' · '+horizon:''));
+    setTxt('fclyKpiDiscount',amount(discount));
+    setTxt('fclyDiscountDetail',discount==null?'Discount data unavailable':
+      'Historical average, weighted by forecast units');
     rows.sort((a,b)=>{
       const av=a[fclySort.key],bv=b[fclySort.key];
       const dir=fclySort.dir==='asc'?1:-1;
