@@ -180,7 +180,8 @@ def list_scenarios(org, caller_email):
     scenarios = sorted(idx['scenarios'], key=lambda s: s.get('created_at', ''), reverse=True)
     # Lets the frontend hide/disable the Approve button for a viewer without
     # a separate request — this list is already fetched on every page load.
-    return _resp(200, {'scenarios': scenarios, 'you_are_admin': _is_admin(org, caller_email)})
+    return _resp(200, {'scenarios': scenarios, 'you_are_admin': _is_admin(org, caller_email),
+                       'scenario_levers': True})
 
 
 ALLOWED_UPLOAD_EXT = {'.xlsx', '.tsv', '.csv', '.txt'}

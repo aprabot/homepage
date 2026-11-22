@@ -200,6 +200,7 @@
     return APRA_SESSION.fetch(SCENARIOS_API)
       .then(function (r) { return r.json(); })
       .then(function (d) {
+        syncScenarioCapabilities(d.scenario_levers === true);
         isAdmin = d.you_are_admin !== false; // absent (old cache/error shape) -> stay permissive
         render(d.scenarios || []);
       })
@@ -418,43 +419,189 @@
     renderNotifications(scenarios);
     checkApprovalChange(scenarios);
     checkRunCompletion(prevScenarios, scenarios);
+    syncScenarioWorkspace(scenarios);
   };
 
-  /* ── Run new forecast modal ── */
-  window.openRunForecastModal = function () {
-    var m = document.getElementById('runForecastModal');
-    if (m) m.classList.add('open');
-    document.getElementById('rf-label').value = '';
-    document.getElementById('rf-error').textContent = '';
-    document.getElementById('rf-upload-row').style.display = 'none';
-    document.getElementById('rf-upload-status').textContent = '';
-    var fileInput = document.getElementById('rf-file');
-    if (fileInput) fileInput.value = '';
-    ['rf-spend', 'rf-campaign', 'rf-price', 'rf-cap', 'rf-postal', 'rf-exclude', 'rf-holiday-postal'].forEach(function (id) {
-      document.getElementById(id).value = '';
+  var scenarioLeverSupport = false;
+  var workspaceRunId = '';
+  var workspaceComparisonKey = '';
+
+  function scenarioElement(id) { return document.getElementById(id); }
+
+  function syncScenarioCapabilities(supported) {
+    var source = scenarioElement('rf-source');
+    if (!source) return;
+    var wasSupported = scenarioLeverSupport;
+    scenarioLeverSupport = supported;
+    source.options[0].disabled = !supported;
+    if (supported && !wasSupported && source.value === 'default' && !source.dataset.edited) source.value = 'approved';
+    if (!supported && source.value === 'approved') source.value = 'default';
+    scenarioElement('scenarioAdvancedLevers').disabled = !supported;
+    scenarioElement('scenarioLeverAvailability').textContent = supported
+      ? '' : 'Advanced levers require the updated Forecast backend.';
+  }
+
+  window.openScenarioWorkspace = function () {
+    if (window.getComputedStyle(scenarioElement('scenariosPanel')).display === 'none') {
+      var nav = document.querySelector('.dnav li[title="Scenarios"]');
+      if (nav) nav.click();
+    }
+    scenarioElement('scenarioWorkspace').scrollIntoView({block:'start'});
+    scenarioElement('rf-label').focus({preventScroll:true});
+  };
+
+  var scenarioDraftFields = [
+    'rf-label', 'rf-source', 'rf-exclude', 'rf-spend', 'rf-campaign',
+    'rf-holiday-off', 'rf-holiday-postal', 'rf-cap', 'rf-price', 'rf-postal',
+    'rf-known-prices', 'rf-weather', 'rf-calibrate', 'rf-refresh',
+  ];
+
+  function draftKey() {
+    var email = currentUserEmail();
+    return email ? 'apra_scenario_draft:' + email : '';
+  }
+
+  function syncScenarioInput() {
+    var source = scenarioElement('rf-source');
+    var upload = scenarioElement('rf-upload-row');
+    upload.hidden = source.value !== 'custom';
+  }
+
+  function restoreScenarioDraft() {
+    try {
+      var saved = JSON.parse(localStorage.getItem(draftKey()) || '{}');
+      scenarioDraftFields.forEach(function (id) {
+        var field = scenarioElement(id);
+        if (saved[id] == null) return;
+        if (field.type === 'checkbox') field.checked = saved[id] === true;
+        else field.value = saved[id];
+      });
+      if (saved['rf-source']) scenarioElement('rf-source').dataset.edited = 'true';
+      syncScenarioInput();
+    } catch (error) { /* Nothing to restore. */ }
+  }
+
+  function saveScenarioDraft() {
+    var key = draftKey();
+    var message = scenarioElement('scenarioDraftStatus');
+    if (!key) { message.textContent = 'Sign in to save a draft.'; return; }
+    var draft = Object.fromEntries(scenarioDraftFields.map(function (id) {
+      var field = scenarioElement(id);
+      return [id, field.type === 'checkbox' ? field.checked : field.value];
+    }));
+    try {
+      localStorage.setItem(key, JSON.stringify(draft));
+      message.textContent = 'Draft saved in this browser.' +
+        (draft['rf-source'] === 'custom' ? ' Select the sales file again when you reopen it.' : '');
+    } catch (error) {
+      message.textContent = 'Could not save the draft in this browser.';
+    }
+  }
+
+  function formatScenarioChange(base, variant) {
+    if (base == null || variant == null || base <= 0) return '—';
+    var change = (variant - base) / base * 100;
+    return (change > 0 ? '+' : '') + change.toFixed(1) + '%';
+  }
+
+  function alignedScenarioUnits(base, variant) {
+    if (!base || !variant) return null;
+    var baseStart = base.backtestWeeks ?? base.weeks.length;
+    var candidateStart = variant.backtestWeeks ?? variant.weeks.length;
+    var baseWeeks = new Map(base.weeks.slice(baseStart).map(function (week, index) {
+      return [week, base.all.f[baseStart + index]];
+    }));
+    var result = {base: 0, scenario: 0, weeks: 0};
+    for (var i=candidateStart; i<variant.weeks.length; i++) {
+      var a = baseWeeks.get(variant.weeks[i]);
+      var b = variant.all.f[i];
+      if (Number.isFinite(a) && Number.isFinite(b)) {
+        result.base += a;
+        result.scenario += b;
+        result.weeks++;
+      }
+    }
+    return result.weeks ? result : null;
+  }
+
+  async function renderWorkspaceComparison(id, key) {
+    var status = scenarioElement('scenarioComparisonStatus');
+    var rows = scenarioElement('scenarioWorkspaceRows');
+    status.textContent = 'Loading comparison…';
+
+    async function request(url) {
+      var response = await APRA_SESSION.fetch(url);
+      if (!response.ok) throw new Error('Forecast comparison unavailable.');
+      return response.json();
+    }
+    try {
+      var query = new URLSearchParams({view:'baseline', scenario:id});
+      var results = await Promise.allSettled([
+        request(SCENARIOS_API + '?' + query),
+        request(SCENARIOS_API + '/' + encodeURIComponent(id) + '/result'),
+      ]);
+      if (workspaceComparisonKey !== key) return;
+      var comparison = results[0].status === 'fulfilled' ? results[0].value : {};
+      if (results[1].status !== 'fulfilled') throw new Error('Could not load the scenario result.');
+      var result = results[1].value;
+      var approved = lastScenarios.find(function (item) { return item.approved; });
+      var base = comparison.base || (approved && window.DATA && window.DATA.id === approved.id ? window.DATA : null);
+      var totals = alignedScenarioUnits(base, result);
+      scenarioElement('scenarioCappedUnits').textContent = result.cappedUnits == null ? '—' : result.cappedUnits.toLocaleString();
+      scenarioElement('scenarioUnitsChange').textContent = totals ? formatScenarioChange(totals.base, totals.scenario) : '—';
+      scenarioElement('scenarioUnitsTotals').textContent = totals
+        ? totals.scenario.toLocaleString() + ' vs. ' + totals.base.toLocaleString() + ' · ' + totals.weeks + ' wk' : '';
+      (comparison.rows || []).forEach(function (row) {
+        var tr = rows.insertRow();
+        [row.sku, row.postal_code, row.base.toLocaleString(), row.scenario.toLocaleString(),
+          formatScenarioChange(row.base, row.scenario)].forEach(function (value) { tr.insertCell().textContent = value; });
+      });
+      status.textContent = rows.rows.length ? '' : totals
+        ? 'SKU and postal-code detail is unavailable for these revisions.'
+        : 'No overlapping forward weeks are available for this comparison.';
+    } catch (error) {
+      if (workspaceComparisonKey === key) status.textContent = error.message || 'Could not load the comparison.';
+    }
+  }
+
+  function syncScenarioWorkspace(scenarios) {
+    var select = scenarioElement('scenarioRunSelection');
+    if (!select) return;
+    var options = scenarios.filter(function (item) { return item.status === 'completed' || item.id === workspaceRunId; });
+    select.replaceChildren(new Option('Select a scenario', ''));
+    options.forEach(function (item) {
+      var suffix = item.status !== 'completed' ? ' · ' + item.status : item.approved ? ' · approved' : '';
+      select.add(new Option((item.label || 'Untitled') + suffix, item.id));
     });
-    document.getElementById('rf-holiday-off').checked = false;
-    var sourcePill = document.getElementById('rf-source');
-    if (sourcePill) {
-      sourcePill.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b.dataset.v === 'approved'); });
+    if (workspaceRunId && !options.some(function (item) { return item.id === workspaceRunId; })) {
+      select.add(new Option('Starting forecast…',workspaceRunId));
     }
-  };
-  window.closeRunForecastModal = function () {
-    var m = document.getElementById('runForecastModal');
-    if (m) m.classList.remove('open');
-  };
+    select.value = workspaceRunId;
+    var item = options.find(function (row) { return row.id === workspaceRunId; });
+    var apply = scenarioElement('scenarioApplyPlan');
+    apply.disabled = !isAdmin || !item || item.status !== 'completed' || item.approved;
+    var approved = scenarios.find(function (row) { return row.approved; });
+    var key = [workspaceRunId, item?.status, approved?.id].join('|');
+    if (key === workspaceComparisonKey) return;
+    workspaceComparisonKey = key;
+    scenarioElement('scenarioUnitsChange').textContent = '—';
+    scenarioElement('scenarioCappedUnits').textContent = '—';
+    scenarioElement('scenarioUnitsTotals').textContent = '';
+    scenarioElement('scenarioWorkspaceRows').replaceChildren();
+    var status = scenarioElement('scenarioComparisonStatus');
+    if (!workspaceRunId) status.textContent = 'Select a completed scenario to compare forecast results.';
+    else if (item?.status === 'completed') renderWorkspaceComparison(item.id, key);
+    else if (item?.status === 'failed') status.textContent = item.error || 'The scenario run failed.';
+    else status.textContent = 'Forecast running. Results will appear when it finishes.';
+  }
 
-  // Generic pill toggle for the run-forecast modal's On/Off/7d/14d/28d groups.
-  document.addEventListener('click', function (e) {
-    var btn = e.target.closest('#runForecastModal .theme-pill button');
-    if (!btn) return;
-    var group = btn.parentElement;
-    group.querySelectorAll('button').forEach(function (b) { b.classList.remove('active'); });
-    btn.classList.add('active');
-    if (group.id === 'rf-source') {
-      document.getElementById('rf-upload-row').style.display = btn.dataset.v === 'custom' ? '' : 'none';
-    }
-  });
+  window.compareWithApproved = function (id) {
+    workspaceRunId = id;
+    workspaceComparisonKey = '';
+    syncScenarioWorkspace(lastScenarios);
+    scenarioElement('scenarioWorkspace').scrollIntoView({block:'start'});
+    scenarioElement('scenarioRunSelection').focus({preventScroll:true});
+  };
 
   // Revision history filters — status seg (All/Approved/Completed/Running/
   // Failed) and free-text search (label + requester), both applied client-
@@ -481,12 +628,6 @@
       });
     }
   });
-
-  function pillValue(groupId) {
-    var el = document.getElementById(groupId);
-    var active = el && el.querySelector('.active');
-    return active ? active.dataset.v : null;
-  }
 
   function uploadCustomInput(file) {
     var statusEl = document.getElementById('rf-upload-status');
@@ -517,7 +658,8 @@
     var label = document.getElementById('rf-label').value.trim() || 'Untitled scenario';
     var errEl = document.getElementById('rf-error');
     var btn = e.target.querySelector('button[type=submit]');
-    var useCustom = pillValue('rf-source') === 'custom';
+    var source = scenarioElement('rf-source').value;
+    var useCustom = source === 'custom';
     var fileInput = document.getElementById('rf-file');
     var file = fileInput && fileInput.files && fileInput.files[0];
 
@@ -540,14 +682,18 @@
     var exclude = document.getElementById('rf-exclude').value.split(',').map(function (value) { return value.trim(); }).filter(Boolean);
     if (exclude.length) levers.excluded_schemes = exclude;
 
+    if (!scenarioLeverSupport && (source === 'approved' || Object.keys(levers).length)) {
+      errEl.textContent = 'The saved levers require the updated Forecast backend. Choose a standard run or try again after deployment.';
+      return;
+    }
     var payload = {
       label: label,
-      source: pillValue('rf-source'),
+      source: source,
       levers: levers,
-      known_prices: pillValue('rf-known-prices') === '1',
-      weather: pillValue('rf-weather') === '1',
-      calibrate: pillValue('rf-calibrate') === '1',
-      refresh_days: parseInt(pillValue('rf-refresh') || '28', 10),
+      known_prices: scenarioElement('rf-known-prices').checked,
+      weather: scenarioElement('rf-weather').checked,
+      calibrate: scenarioElement('rf-calibrate').checked,
+      refresh_days: Number(scenarioElement('rf-refresh').value),
     };
 
     btn.disabled = true;
@@ -566,18 +712,20 @@
       .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, d: d }; }); })
       .then(function (res) {
         btn.disabled = false;
-        btn.textContent = 'Start run →';
+        btn.textContent = 'Run';
         if (!res.ok) {
           errEl.textContent = res.d.error || 'Failed to start run.';
           return;
         }
-        window.closeRunForecastModal();
+        workspaceRunId = res.d.scenario_id || '';
+        workspaceComparisonKey = '';
+        syncScenarioWorkspace(lastScenarios);
         scenariosPage = 1; // jump back to the top page so the just-started run is visible right away
         loadScenarios();
       })
       .catch(function (err) {
         btn.disabled = false;
-        btn.textContent = 'Start run →';
+        btn.textContent = 'Run';
         errEl.textContent = err.message || 'Connection error — please try again.';
       });
   };
@@ -756,27 +904,6 @@
       panel.textContent = 'SKU and postal-code comparison is unavailable for these revisions.';
     }
   }
-
-  window.compareWithApproved = async function (id) {
-    var body = document.getElementById('compareBody');
-    body.textContent = 'Loading comparison…';
-    document.getElementById('compareModal').classList.add('open');
-    try {
-      var query = new URLSearchParams({ view: 'baseline', scenario: id });
-      var responses = await Promise.all([
-        APRA_SESSION.fetch(SCENARIOS_API + '?' + query),
-        APRA_SESSION.fetch(SCENARIOS_API + '/' + encodeURIComponent(id) + '/result'),
-      ]);
-      if (!responses.every(function (response) { return response.ok; })) throw new Error();
-      var results = await Promise.all(responses.map(function (response) { return response.json(); }));
-      var approved = lastScenarios.find(function (scenario) { return scenario.id === results[0].base.id; });
-      var candidate = lastScenarios.find(function (scenario) { return scenario.id === id; });
-      renderCompare([approved || {label: 'Approved forecast', refresh_days: 28}, candidate], [results[0].base, results[1]]);
-      loadCompareBreakdown(id, results[0].base.id);
-    } catch (error) {
-      body.textContent = 'Could not load the scenario and its approved baseline.';
-    }
-  };
 
   window.closeCompareModal = function () {
     document.getElementById('compareModal').classList.remove('open');
@@ -1652,7 +1779,29 @@
     // lastScenarios, which loadScenarios() is what populates — firing both
     // at once risks a detail view opened right after load showing a raw id
     // instead of a label the first time.
-    loadScenarios().then(loadApprovals);
+    if (scenarioElement('scenarioWorkspace')) {
+      var source = scenarioElement('rf-source');
+      source.addEventListener('change', function () { source.dataset.edited='true'; syncScenarioInput(); });
+      scenarioElement('scenarioSaveDraft').addEventListener('click', saveScenarioDraft);
+      scenarioElement('scenarioRunSelection').addEventListener('change', function (event) {
+        workspaceRunId = event.target.value;
+        syncScenarioWorkspace(lastScenarios);
+      });
+      scenarioElement('scenarioApplyPlan').addEventListener('click', function (event) {
+        var id = workspaceRunId;
+        var button = event.currentTarget;
+        if (!id || !confirm('Apply this scenario as the approved forecast?')) return;
+        approveScenario(id, button).then(function () {
+          button.textContent = 'Apply to plan';
+          if (workspaceRunId === id) scenarioElement('scenarioComparisonStatus').textContent = 'Scenario applied to the plan.';
+        }).catch(function (error) {
+          scenarioElement('scenarioComparisonStatus').textContent = error.message || 'Could not apply this scenario.';
+        });
+      });
+      Promise.resolve(window.dashboardSessionReady).then(restoreScenarioDraft).then(loadScenarios).then(loadApprovals);
+    } else {
+      loadScenarios().then(loadApprovals);
+    }
 
     var bell = document.getElementById('notifBell');
     var drop = document.getElementById('notifDrop');
