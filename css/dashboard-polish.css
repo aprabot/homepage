@@ -310,3 +310,63 @@
 [data-theme="light"] #dashboard #insightsWatch li::before{background:#C98A00}
 [data-theme="light"] #dashboard #insightsOpportunities li::before{background:#0E9384}
 [data-theme="light"] #dashboard #insightsFindings li .sku{opacity:.78}
+
+/* ============================================================
+   Dark mode — refined surfaces, contrast and depth
+   Based on established dark-UI guidance:
+   - Elevation is shown with lighter surfaces, not shadows (Material
+     Design dark theme): base → sidebar/header → cards → inputs step up.
+   - Avoid near-pure black: a soft #0D1219 base instead of #0A0E15, with
+     slightly softened off-white text, reduces halation (light text
+     "glowing" against black) while body text stays ~15:1.
+   - Every text tone meets WCAG AA 4.5:1 on its surface — the secondary
+     grey (--muted-2) was 3.4:1 and is lifted to ~4.9:1.
+   - Hairline translucent borders and a faint top-edge highlight make
+     cards read as raised surfaces lit from above, without heavy shadows.
+   - Accent glows are toned down: saturated colour "vibrates" on dark.
+   Scoped to the dashboard in dark mode only.
+============================================================ */
+[data-theme="dark"] #dashboard{
+  --ink:#0D1219;                    /* base canvas */
+  --ink-2:#111720;                  /* sidebar, top bar, sticky headers */
+  --ink-3:#1A212C;                  /* inputs, inset controls, secondary buttons */
+  --panel:rgba(255,255,255,.035);   /* cards: one step up from the base */
+  --line:rgba(255,255,255,.075);
+  --line-2:rgba(255,255,255,.13);
+  --text:#E6ECF3;
+  --muted:#95A2B4;                  /* ~6.8:1 on cards */
+  --muted-2:#75839A;                /* ~4.6:1 on cards (was 3.3:1) */
+  background:var(--ink)}
+
+/* Cards: faint top-edge highlight (light from above) on the raised surfaces. */
+[data-theme="dark"] #dashboard .dcard,
+[data-theme="dark"] #dashboard .scard,
+[data-theme="dark"] #dashboard .ov-header-card,
+[data-theme="dark"] #dashboard .ov-kpi-chip,
+[data-theme="dark"] #dashboard .fcly-kpi-chip,
+[data-theme="dark"] #dashboard .amp-catalog-kpi,
+[data-theme="dark"] #dashboard .amp-connect-card,
+[data-theme="dark"] #dashboard .scenario-result-kpis .kpi{
+  box-shadow:inset 0 1px 0 rgba(255,255,255,.045)}
+[data-theme="dark"] #dashboard .scard{background:var(--panel)}
+
+/* Sidebar and top bar sit on the next surface step, separated by hairlines. */
+[data-theme="dark"] #dashboard .dside{background:var(--ink-2);border-right-color:var(--line)}
+[data-theme="dark"] #dashboard .dnav li{color:var(--muted)}
+[data-theme="dark"] #dashboard .dnav li:hover{background:rgba(255,255,255,.04);color:var(--text)}
+
+/* Reading comfort: a little more line height for descriptive text. */
+[data-theme="dark"] #dashboard .dsubtle{line-height:1.55}
+
+/* Accent glows: the large lime hover glow vibrates on dark — keep it subtle. */
+[data-theme="dark"] #dashboard .dbtn:hover{box-shadow:0 6px 18px -10px rgba(200,242,78,.32)}
+
+/* Visible keyboard focus everywhere (accessibility). */
+[data-theme="dark"] #dashboard :is(button,a,select,input,textarea,[tabindex]):focus-visible{
+  outline:2px solid rgba(200,242,78,.7);outline-offset:2px}
+
+/* Quiet, thin scrollbars that match the surfaces. */
+[data-theme="dark"] #dashboard,
+[data-theme="dark"] #dashboard *{scrollbar-width:thin;scrollbar-color:rgba(255,255,255,.14) transparent}
+/* Top bar: same surface step as the sidebar (it was hard-coded to the old base). */
+[data-theme="dark"] #dashboard .dtop{background:rgba(17,23,32,.86);border-bottom-color:var(--line)}
