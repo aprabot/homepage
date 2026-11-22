@@ -212,6 +212,159 @@ def create_upload_url(org, event):
     return _resp(200, {'upload_url': url, 'key': key, 'content_type': content_type})
 
 
+def _scheme_key(org):
+    return f'orgs/{org}/scenarios/discount-schemes.json'
+
+
+def _scheme_id(value):
+    value = str(value or '').strip().upper()
+    if not value or len(value) > 80 or any(ord(ch) < 32 for ch in value):
+        raise ValueError('Enter a scheme ID of up to 80 characters.')
+    return value
+
+
+def _scenario_levers(body):
+    levers = body.get('levers') or {}
+    if not isinstance(levers, dict):
+        raise ValueError('Invalid scenario controls.')
+    result = {}
+    for name, low, high in [('spend_pct', -100, 1000), ('unit_cap', 0, 100000000),
+                            ('price_pct', -99, 1000)]:
+        value = levers.get(name)
+        if value is not None:
+            if type(value) is not int or not low <= value <= high:
+                raise ValueError(f'Invalid {name}.')
+            result[name] = value
+    for name in ('postal_code', 'holiday_postal_code'):
+        if name in levers:
+            value = str(levers[name]).strip()
+            if not re.fullmatch(r'[A-Za-z0-9 -]{2,12}', value):
+                raise ValueError('Enter a valid postal code.')
+            result[name] = value
+    if levers.get('campaign_code'):
+        result['campaign_code'] = _scheme_id(levers['campaign_code'])
+    if levers.get('holiday_off') is True:
+        result['holiday_off'] = True
+    excluded = levers.get('excluded_schemes') or []
+    if not isinstance(excluded, list) or len(excluded) > 100:
+        raise ValueError('Select up to 100 schemes to exclude.')
+    if excluded:
+        result['excluded_schemes'] = list(dict.fromkeys(map(_scheme_id, excluded)))
+    return result
+
+
+def _discount_schemes(org, email, method, event):
+    if method == 'POST':
+        try:
+            request = json.loads(event.get('body') or '{}')
+        except json.JSONDecodeError:
+            return _resp(400, {'error': 'Invalid JSON.'})
+        if not isinstance(request, dict):
+            return _resp(400, {'error': 'Expected a scheme request.'})
+        if request.get('action') == 'scan':
+            input_key = request.get('custom_input_key')
+            if not isinstance(input_key, str) or not input_key.startswith(f'orgs/{org}/uploads/'):
+                return _resp(400, {'error': 'Choose an uploaded sales file.'})
+            lam.invoke(FunctionName=RUNNER, InvocationType='Event',
+                       Payload=json.dumps({'job': 'scan_schemes', 'org_id': org,
+                                           'custom_input_key': input_key}).encode())
+            return _resp(202, {'status': 'scanning'})
+    key = _scheme_key(org)
+    try:
+        existing = s3.get_object(Bucket=BUCKET, Key=key)
+        registry = json.loads(existing['Body'].read())
+        condition = {'IfMatch': existing['ETag']}
+    except s3.exceptions.ClientError as exc:
+        if exc.response['Error']['Code'] not in ('403', 'AccessDenied', '404', 'NoSuchKey'):
+            raise
+        registry = {}
+        condition = {'IfNoneMatch': '*'}
+    detected = _read_json(f'orgs/{org}/scenarios/detected-schemes.json', default={}) or {}
+    can_edit = _is_admin(org, email)
+    if method == 'GET':
+        rows = [{**detected.get(code, {}), **registry.get(code, {}), 'code': code,
+                 'detected': code in detected}
+                for code in sorted(registry.keys() | detected.keys())]
+        return _resp(200, {'schemes': rows, 'can_edit': can_edit})
+    if not can_edit:
+        return _resp(403, {'error': 'Only an admin can update discount schemes.'})
+    try:
+        body = request
+        code = _scheme_id(body.get('code'))
+        previous = registry.get(code, {})
+        if body.get('version', 0) != previous.get('version', 0):
+            return _resp(409, {'error': 'The scheme changed. Refresh and try again.'})
+        action = body.get('action')
+        if action == 'withdraw':
+            if previous.get('status') != 'committed':
+                raise ValueError('Only a committed scheme can be withdrawn.')
+            row = {**previous, 'status': 'withdrawn'}
+        elif action in ('draft', 'commit'):
+            if previous.get('status') == 'committed':
+                raise ValueError('Withdraw the committed version before changing it.')
+            name = str(body.get('name') or '').strip()
+            mechanic = body.get('mechanic')
+            if not name or len(name) > 120 or mechanic not in ('Percent off', 'Flat amount off', 'Buy X get Y', 'Bundle', 'Free gift', 'Cashback', 'Tiered'):
+                raise ValueError('Enter a name and choose a supported discount mechanic.')
+            scope = body.get('scope')
+            if not isinstance(scope, list) or not 1 <= len(scope) <= 30:
+                raise ValueError('Include between 1 and 30 scope lines.')
+            latest = _read_json(f'orgs/{org}/forecast/latest.json', default={})
+            for line in scope:
+                sku, postal = line.get('sku', ''), line.get('postal_code', '')
+                if not isinstance(sku, str) or not re.fullmatch(r'SKU-\d{3,}', sku):
+                    raise ValueError('Use a forecast SKU for each scope line.')
+                if not isinstance(postal, str) or not re.fullmatch(r'[A-Za-z0-9 -]{2,12}', postal):
+                    raise ValueError('Enter a postal code for each scope line.')
+                start = datetime.strptime(line.get('start_date', ''), '%Y-%m-%d').date()
+                end = datetime.strptime(line.get('end_date', ''), '%Y-%m-%d').date()
+                if not 0 <= (end - start).days < 364:
+                    raise ValueError('Each scope line must span 1–364 days.')
+                value = line.get('discount')
+                if type(value) not in (int, float) or not 0 < value <= (1000000 if mechanic == 'Flat amount off' else 99):
+                    raise ValueError('Enter a positive discount. Percent discounts must be below 100.')
+                if action == 'commit' and sku not in latest.get('skus', {}):
+                    raise ValueError('Each SKU must exist in the approved forecast.')
+                line.update(start_date=start.isoformat(), end_date=end.isoformat())
+            if action == 'commit' and not latest.get('campaignPlanningReady'):
+                raise ValueError('Run and approve a fresh forecast before committing schemes.')
+            row = {'name': name, 'mechanic': mechanic, 'scope': scope,
+                   'status': 'committed' if action == 'commit' else 'draft',
+                   'forecast_id': latest.get('id') if action == 'commit' else None}
+        else:
+            raise ValueError('Unknown scheme action.')
+        history = previous.get('history', [])
+        if previous.get('status') == 'withdrawn' and action != 'withdraw':
+            history = [*history, {k: v for k, v in previous.items() if k != 'history'}][-20:]
+        registry[code] = {**row, 'history': history, 'version': previous.get('version', 0) + 1,
+                          'updated_at': _now()}
+        s3.put_object(Bucket=BUCKET, Key=key, Body=json.dumps(registry).encode(),
+                      ContentType='application/json', **condition)
+    except (ValueError, TypeError, AttributeError) as exc:
+        return _resp(400, {'error': str(exc)})
+    except s3.exceptions.ClientError as exc:
+        if exc.response['Error']['Code'] in ('PreconditionFailed', 'ConditionalRequestConflict', '412', '409'):
+            return _resp(409, {'error': 'The registry changed. Refresh and try again.'})
+        raise
+    if action == 'commit':
+        # Use the approved revision's source so onboarding-derived tenants can rerun.
+        config = _read_json(f'orgs/{org}/scenarios/{row["forecast_id"]}/config.json', default={})
+        if config is None:
+            config = {}
+        run = {**event, 'body': json.dumps({'label': f'Discount scheme {code}', 'source': 'approved',
+                                            'weather': config.get('weather', True),
+                                            'calibrate': config.get('calibrate', True),
+                                            'refresh_days': config.get('refresh_days', 28)})}
+        try:
+            result = create_scenario(org, run)
+            if result['statusCode'] == 202:
+                return _resp(200, {'scheme': registry[code], **json.loads(result['body'])})
+        except Exception as exc:
+            print(f'Scheme rerun dispatch failed: {exc}')
+        return _resp(200, {'scheme': registry[code], 'warning': 'Scheme committed. Start a scenario to run the updated forecast.'})
+    return _resp(200, {'scheme': registry[code]})
+
+
 def create_scenario(org, event):
     try:
         body = json.loads(event.get('body') or '{}')
@@ -230,6 +383,20 @@ def create_scenario(org, event):
     if custom_input_key and not custom_input_key.startswith(f'orgs/{org}/uploads/'):
         return _resp(400, {'error': 'invalid custom_input_key'})
 
+    try:
+        levers = _scenario_levers(body)
+    except ValueError as exc:
+        return _resp(400, {'error': str(exc)})
+    if body.get('source') == 'approved' and not custom_input_key:
+        latest = _read_json(f'orgs/{org}/forecast/latest.json', default={})
+        if latest and latest.get('id'):
+            base = _read_json(f'orgs/{org}/scenarios/{latest["id"]}/config.json', default={})
+            custom_input_key = (base or {}).get('custom_input_key') or ''
+    schemes = _read_json(_scheme_key(org), default={}) or {}
+    active_schemes = [dict(name=row['name'], mechanic=row['mechanic'], scope=row['scope'],
+                           forecast_id=row['forecast_id'], code=code) for code, row in schemes.items()
+                      if row['status'] == 'committed' and code not in levers.get('excluded_schemes', [])]
+
     scenario_id = f"scn-{int(time.time())}-{uuid.uuid4().hex[:6]}"
     email = _claims(event).get('email', 'planner')
 
@@ -237,7 +404,7 @@ def create_scenario(org, event):
         'id': scenario_id, 'label': label, 'status': 'running',
         'known_prices': known_prices, 'calibrate': calibrate,
         'weather': weather, 'refresh_days': refresh_days,
-        'custom_input': bool(custom_input_key),
+        'custom_input': bool(custom_input_key), 'levers': levers, 'discount_schemes': active_schemes,
         'requested_by': email, 'created_at': _now(), 'approved': False,
     }
     if custom_input_key:
@@ -248,14 +415,14 @@ def create_scenario(org, event):
     idx['scenarios'].append({k: config[k] for k in
                               ('id', 'label', 'status', 'known_prices', 'calibrate',
                                'weather', 'refresh_days', 'custom_input',
-                               'requested_by', 'created_at', 'approved')})
+                               'requested_by', 'created_at', 'approved', 'levers')})
     _write_json(f'orgs/{org}/scenarios/index.json', idx)
 
     runner_payload = {
         'org_id': org,
         'scenario_id': scenario_id, 'label': label,
         'known_prices': known_prices, 'calibrate': calibrate,
-        'weather': weather, 'refresh_days': refresh_days,
+        'weather': weather, 'refresh_days': refresh_days, 'levers': levers,
     }
     if custom_input_key:
         runner_payload['custom_input_key'] = custom_input_key
@@ -583,6 +750,42 @@ def set_ticket_status(org, caller_email, ticket_id, event):
     return _resp(200, {'ok': True})
 
 
+def _baseline_comparison(org, scenario_id, base_id=None):
+    valid_id = r'scn-\d+-[a-f0-9]+'
+    if not re.fullmatch(valid_id, scenario_id or '') or (base_id and not re.fullmatch(valid_id, base_id)):
+        return _resp(400, {'error': 'Choose a valid scenario.'})
+    prefix = f'orgs/{org}'
+    base = _read_json(f'{prefix}/scenarios/{base_id}/result.json') if base_id else _read_json(f'{prefix}/forecast/latest.json')
+    variant = _read_json(f'{prefix}/scenarios/{scenario_id}/result.json')
+    if not base or not base.get('id') or not variant:
+        return _resp(404, {'error': 'Forecast comparison is unavailable for these revisions.'})
+    base_map = _read_json(f'{prefix}/scenarios/{base["id"]}/anon.json') or {}
+    variant_map = _read_json(f'{prefix}/scenarios/{scenario_id}/anon.json') or {}
+    if not base_map or not variant_map:
+        return _resp(200, {'base': base, 'rows': [], 'detail_available': False})
+    weeks = {week: i for i, week in enumerate(base['weeks']) if i >= base.get('backtestWeeks', len(base['weeks']))}
+    periods = [(weeks[week], i) for i, week in enumerate(variant['weeks'])
+               if i >= variant.get('backtestWeeks', len(variant['weeks'])) and week in weeks]
+    if not periods:
+        return _resp(200, {'base': base, 'rows': [], 'detail_available': False})
+
+    def total(series, side):
+        values = series.get('f', [])
+        selected = [values[p[side]] if p[side] < len(values) else None for p in periods]
+        return sum(selected) if all(value is not None for value in selected) else None
+
+    rows = []
+    for product, sku in base_map.items():
+        left = base['skus'].get(sku, {}).get('byZip', {})
+        right = variant['skus'].get(variant_map.get(product), {}).get('byZip', {})
+        for postal in left.keys() & right.keys():
+            a, b = total(left[postal], 0), total(right[postal], 1)
+            if a is not None and b is not None:
+                rows.append({'sku': sku, 'postal_code': postal, 'base': a, 'scenario': b, 'change': b - a})
+    rows.sort(key=lambda row: (-abs(row['change']), row['sku'], row['postal_code']))
+    return _resp(200, {'base': base, 'rows': rows[:100], 'detail_available': True})
+
+
 def handler(event, context):
     method = event.get('requestContext', {}).get('http', {}).get('method', 'GET')
     path   = event.get('requestContext', {}).get('http', {}).get('path', '')
@@ -609,6 +812,13 @@ def handler(event, context):
 
         if method == 'POST' and path == '/scenarios/members/role':
             return set_member_role(org, caller_email, event)
+
+        if path == '/scenarios' and (event.get('queryStringParameters') or {}).get('view') == 'schemes' and method in ('GET', 'POST'):
+            return _discount_schemes(org, caller_email, method, event)
+
+        query = event.get('queryStringParameters') or {}
+        if method == 'GET' and path == '/scenarios' and query.get('view') == 'baseline':
+            return _baseline_comparison(org, query.get('scenario'), query.get('base'))
 
         if method == 'GET' and path == '/scenarios':
             return list_scenarios(org, caller_email)

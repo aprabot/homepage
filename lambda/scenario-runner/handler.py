@@ -18,6 +18,7 @@ RAW_INPUT   = '/tmp/With_Price.tsv'
 RAW_WEATHER = '/tmp/weather.tsv'
 RAW_FUTURE_PRICES = '/tmp/future_prices.tsv'
 RAW_AD_SPEND = '/tmp/ad_spend.tsv'
+RAW_SCENARIO_PRICES = '/tmp/scenario_prices.tsv'
 CUSTOM_RAW  = '/tmp/custom_upload'
 OUTDIR      = '/tmp/out'
 FORECAST_PY = '/var/task/forecast.py'
@@ -367,7 +368,7 @@ def _apply_level_correction(future_wk_asin, wk_asin, trail_win):
     return out
 
 
-def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
+def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None, levers=None):
     """Aggregate the daily SKU x ZIP backtest to weekly per-SKU totals, with
     ASINs replaced by rank-ordered SKU-### ids and postal codes dropped —
     matches the anonymization policy used for forecast/latest.json.
@@ -384,7 +385,7 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
     """
     import pandas as pd
 
-    df = pd.read_csv(tsv_path, sep='\t', parse_dates=['ship_day'])
+    df = pd.read_csv(tsv_path, sep='\t', parse_dates=['ship_day'], dtype={'postal_code':str})
     df['week'] = df['ship_day'].dt.to_period('W-SUN').dt.start_time
 
     wk_asin = (df.groupby(['ASIN', 'week'], as_index=False)
@@ -426,11 +427,12 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
             # never worth failing an otherwise-successful run over.
             print(f"AVG_PRICE_CALC_FAILED: {exc} — SKUs will have no avgPrice this run")
 
+    capped_units = None
     future_wk_asin = None
     future_wk_asin_zip = None
     future_weeks = []
     if future_tsv_path and os.path.exists(future_tsv_path):
-        fdf = pd.read_csv(future_tsv_path, sep='\t', parse_dates=['ship_day'])
+        fdf = pd.read_csv(future_tsv_path, sep='\t', parse_dates=['ship_day'], dtype={'postal_code':str})
         fdf['week'] = fdf['ship_day'].dt.to_period('W-SUN').dt.start_time
         future_wk_asin = (fdf.groupby(['ASIN', 'week'], as_index=False)
                               .agg(f=('forecast_units', 'sum')))
@@ -466,6 +468,18 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
             future_wk_asin_zip['ratio'] = future_wk_asin_zip['ratio'].fillna(1.0)
             future_wk_asin_zip['f'] = future_wk_asin_zip['f'] * future_wk_asin_zip['ratio']
             future_wk_asin_zip = future_wk_asin_zip.drop(columns=['ratio'])
+
+    if levers and 'unit_cap' in levers and future_wk_asin_zip is not None:
+        postal = levers.get('postal_code')
+        frame = future_wk_asin_zip
+        selected = frame['postal_code'].astype(str).str.upper().eq(postal.upper()) if postal else frame['f'].notna()
+        if not selected.any():
+            raise ValueError('No forecast rows match the postal code for the cap.')
+        totals = frame.loc[selected].groupby('week')['f'].transform('sum')
+        ratios = (levers['unit_cap'] / totals.where(totals > 0)).clip(upper=1).fillna(1)
+        capped_units = float((frame.loc[selected, 'f'] * (1 - ratios)).sum())
+        frame.loc[selected, 'f'] *= ratios
+        future_wk_asin = frame.groupby(['ASIN', 'week'], as_index=False)['f'].sum()
 
     all_weeks = weeks + future_weeks
     week_strs = [w.strftime('%Y-%m-%d') for w in all_weeks]
@@ -537,6 +551,7 @@ def transform_to_weekly(tsv_path, future_tsv_path=None, raw_history_path=None):
         'weeks': week_strs,
         'overallWape': overall_wape,
         'backtestWeeks': backtest_week_count,
+        'cappedUnits': round(capped_units) if capped_units is not None else None,
         'all': {
             'a': [round(x) if x is not None else None for x in all_a],
             'f': [round(x) if x is not None else None for x in all_f],
@@ -751,9 +766,10 @@ def _shipment_scope_history(raw_path, asins):
     return shares, last_actual
 
 
-def _build_ad_spend_tsv(org_id, raw_path, out_path):
+def _build_ad_spend_tsv(org_id, raw_path, out_path, levers=None):
     import pandas as pd
 
+    levers = levers or {}
     mappings = {}
     scoped = []
     for plan in _committed_campaign_plans(org_id):
@@ -791,7 +807,12 @@ def _build_ad_spend_tsv(org_id, raw_path, out_path):
             for postal, weight in weights.items():
                 if weight:
                     key = (line['asin'], postal, day.strftime('%Y-%m-%d'))
-                    rows[key] = rows.get(key, 0) + amount * weight / total
+                    multiplier = 1
+                    campaign = levers.get('campaign_code')
+                    location = levers.get('postal_code')
+                    if (not campaign or campaign == plan['code']) and (not location or location.upper() == postal.upper()):
+                        multiplier += levers.get('spend_pct', 0) / 100
+                    rows[key] = rows.get(key, 0) + amount * weight * multiplier / total
     if not rows:
         return False
     pd.DataFrame([(*key, spend) for key, spend in rows.items()],
@@ -799,7 +820,154 @@ def _build_ad_spend_tsv(org_id, raw_path, out_path):
     return True
 
 
+def _comparison_history(raw_path, weeks, anon):
+    import pandas as pd
+
+    source = pd.read_csv(raw_path, sep='\t', dtype=str)
+    source.columns = source.columns.str.strip().str.lower()
+    units = 'shipped_units' if 'shipped_units' in source else 'shipment_units'
+    source['date'] = pd.to_datetime(source['ship_day'], errors='coerce')
+    source['units'] = pd.to_numeric(source[units], errors='coerce')
+    source['asin'] = source['asin'].str.strip()
+    source = source.dropna(subset=['date', 'units'])
+    source['week'] = source['date'].dt.to_period('W-SUN').dt.start_time
+    covered = source.groupby('week')['units'].sum()
+    by_product = source.groupby(['asin', 'week'])['units'].sum()
+    start = source['date'].min().normalize()
+    end = source['date'].max().normalize()
+    priors = [pd.Timestamp(week) - pd.Timedelta(days=364) for week in weeks]
+    present = [week >= start and week + pd.Timedelta(days=6) <= end and week in covered for week in priors]
+    totals = [round(float(covered[week])) if known else None for week, known in zip(priors, present)]
+    skus = {sku: [round(float(by_product[str(asin), week])) if (known and (str(asin), week) in by_product) else None
+                  for week, known in zip(priors, present)] for asin, sku in anon.items()}
+    return totals, skus
+
+
+def _record_detected_schemes(org, raw_path):
+    import pandas as pd
+
+    sales = pd.read_csv(raw_path, sep='\t', dtype=str)
+    sales.columns = sales.columns.str.strip().str.lower()
+    code_column = next((name for name in ('scheme_id', 'scheme') if name in sales), None)
+    if not code_column:
+        return
+    sales['code'] = sales[code_column].str.strip().str.upper()
+    sales['day'] = pd.to_datetime(sales['ship_day'], errors='coerce')
+    units = 'shipped_units' if 'shipped_units' in sales else 'shipment_units'
+    sales['units'] = pd.to_numeric(sales[units], errors='coerce')
+    detected = {}
+    for code, rows in sales.dropna(subset=['code', 'day']).groupby('code'):
+        if not code or len(code) > 80 or any(ord(ch) < 32 for ch in code):
+            continue
+        detected[code] = {'first_seen': rows['day'].min().date().isoformat(),
+                          'last_seen': rows['day'].max().date().isoformat(),
+                          'observed_units': float(rows['units'].sum(min_count=1)) if rows['units'].notna().any() else None}
+    if not detected:
+        return
+    key = f'orgs/{org}/scenarios/detected-schemes.json'
+    for attempt in range(3):
+        try:
+            existing = s3.get_object(Bucket=BUCKET, Key=key)
+            registry = json.loads(existing['Body'].read())
+            condition = {'IfMatch': existing['ETag']}
+        except s3.exceptions.ClientError as exc:
+            if exc.response['Error']['Code'] not in ('NoSuchKey', '404', '403', 'AccessDenied'):
+                raise
+            registry, condition = {}, {'IfNoneMatch': '*'}
+        try:
+            s3.put_object(Bucket=BUCKET, Key=key, Body=json.dumps({**registry, **detected}).encode(),
+                          ContentType='application/json', **condition)
+            return
+        except s3.exceptions.ClientError as exc:
+            if exc.response['Error']['Code'] not in ('PreconditionFailed', 'ConditionalRequestConflict', '409', '412') or attempt == 2:
+                raise
+
+
+def _build_scenario_prices(org, config, raw_path, output, workbook_prices=None):
+    import pandas as pd
+
+    levers = config.get('levers', {})
+    plans = config.get('discount_schemes', [])
+    price_pct = levers.get('price_pct')
+    if not plans and price_pct is None:
+        return False
+    raw = pd.read_csv(raw_path, sep='\t', dtype=str)
+    raw.columns = raw.columns.str.strip().str.lower()
+    if 'avg_our_price' not in raw:
+        if price_pct is not None:
+            raise ValueError('Price overrides require selling prices in shipment history.')
+        return False
+    raw['ship_day'] = pd.to_datetime(raw['ship_day'], errors='coerce')
+    first = raw['ship_day'].dt.normalize().max() + pd.Timedelta(days=1)
+    last = first + pd.Timedelta(days=FUTURE_HORIZON_DAYS - 1)
+    cols = ['asin', 'postal_code', 'ship_day', 'avg_our_price', 'avg_discount_amt']
+    for column in cols[3:]:
+        if column not in raw:
+            raw[column] = 0
+        raw[column] = pd.to_numeric(raw[column], errors='coerce')
+    raw[['asin', 'postal_code']] = raw[['asin', 'postal_code']].apply(lambda col: col.str.strip())
+    price = raw.dropna(subset=['ship_day', 'avg_our_price']).loc[lambda row: row['avg_our_price'] > 0].sort_values('ship_day').drop_duplicates(
+        ['asin', 'postal_code'], keep='last').set_index(['asin', 'postal_code'])
+    postal_lookup = {(product, postal.upper()): postal for product, postal in price.index
+                     if isinstance(postal, str)}
+    changes = {}
+    mappings = {}
+    for plan in plans:
+        revision = plan['forecast_id']
+        if revision not in mappings:
+            anon = _read_json(f'orgs/{org}/scenarios/{revision}/anon.json') or {}
+            mappings[revision] = {sku: str(product) for product, sku in anon.items()}
+        for line in plan['scope']:
+            product = mappings[revision].get(line['sku'])
+            postal = postal_lookup.get((product, line['postal_code'].upper()))
+            key = (product, postal)
+            if postal is None:
+                continue
+            prev = price.loc[key]
+            list_price = prev['avg_our_price'] + (0 if pd.isna(prev['avg_discount_amt']) else prev['avg_discount_amt'])
+            discount = line['discount'] if plan['mechanic'] == 'Flat amount off' else list_price * line['discount'] / 100
+            if discount >= list_price:
+                raise ValueError(f'Scheme {plan["code"]} exceeds the known list price for its scope.')
+            for day in pd.date_range(max(first, pd.Timestamp(line['start_date'])),
+                                     min(last, pd.Timestamp(line['end_date']))):
+                target = (*key, day)
+                if target not in changes or changes[target][1] < discount:
+                    changes[target] = (list_price - discount, discount)
+
+    update = pd.DataFrame([(*key, *values) for key, values in changes.items()], columns=cols)
+    if workbook_prices:
+        workbook = pd.read_csv(workbook_prices, sep='\t', dtype={'asin':str, 'postal_code':str})
+        workbook.columns = workbook.columns.str.strip().str.lower()
+        workbook['ship_day'] = pd.to_datetime(workbook['ship_day'], errors='coerce')
+        update = pd.concat([workbook, update], ignore_index=True).drop_duplicates(cols[:3], keep='last')
+    if price_pct is not None:
+        postal = levers.get('postal_code')
+        relevant = [key for key in price.index if not postal or key[1].upper() == postal.upper()]
+        if not relevant:
+            raise ValueError('No matching selling price was found for the scenario scope.')
+        keys = pd.DataFrame(relevant, columns=cols[:2])
+        keys = keys.merge(pd.DataFrame({'ship_day': pd.date_range(first, last)}), how='cross')
+        keys = keys.merge(price.reset_index()[cols[:2] + cols[3:]], on=cols[:2])
+        if not update.empty:
+            keys = keys.merge(update[cols], on=cols[:3], how='left', suffixes=('', '_planned'))
+            for column in cols[3:]:
+                keys[column] = keys[column + '_planned'].fillna(keys[column])
+        keys['avg_our_price'] *= 1 + price_pct / 100
+        update = keys[cols] if update.empty else pd.concat([update, keys[cols]], ignore_index=True)
+        update = update.drop_duplicates(cols[:3], keep='last')
+    if update.empty:
+        return False
+    update.to_csv(output, sep='\t', index=False)
+    return True
+
+
 def handler(event, context):
+    if event.get('job') == 'scan_schemes':
+        org = event['org_id']
+        _download_custom_input(event['custom_input_key'])
+        _record_detected_schemes(org, RAW_INPUT)
+        return {'status': 'scanned'}
+
     org_id      = event['org_id']
     scenario_id = event['scenario_id']
     label       = event.get('label', 'Untitled scenario')
@@ -808,6 +976,7 @@ def handler(event, context):
     weather      = bool(event.get('weather', True))
     refresh_days = int(event.get('refresh_days', 28))
     custom_input_key = event.get('custom_input_key')
+    levers = event.get('levers', {})
 
     try:
         os.makedirs(OUTDIR, exist_ok=True)
@@ -825,6 +994,12 @@ def handler(event, context):
             s3.download_file(BUCKET, f'orgs/{org_id}/raw/With_Price.tsv', RAW_INPUT)
             _trim_partial_trailing_week(RAW_INPUT)
             train_end = TRAIN_END
+        config = _read_json(f'orgs/{org_id}/scenarios/{scenario_id}/config.json') or {}
+        if custom_input_key:
+            try:
+                _record_detected_schemes(org_id, RAW_INPUT)
+            except Exception as exc:
+                print(f'Scheme detection could not be saved for {scenario_id}: {exc}')
         if weather and not has_custom_weather:
             s3.download_file(BUCKET, 'raw/weather.tsv', RAW_WEATHER)
 
@@ -847,7 +1022,8 @@ def handler(event, context):
         # further down.
         inline_explain = _count_series(RAW_INPUT) <= INLINE_EXPLAIN_MAX_SERIES
 
-        args = [sys.executable, '-u', FORECAST_PY,
+        forecast_entry = os.path.join(os.path.dirname(FORECAST_PY), 'forecast_entry.py') if levers.get('holiday_off') else FORECAST_PY
+        args = [sys.executable, '-u', forecast_entry,
                 '--input', RAW_INPUT,
                 '--outdir', OUTDIR,
                 '--train-end', train_end,
@@ -862,11 +1038,14 @@ def handler(event, context):
             args.append('--calibrate')
         if weather:
             args += ['--weather', RAW_WEATHER]
-        if known_prices and has_custom_future_prices:
-            args += ['--future-prices', RAW_FUTURE_PRICES]
+        workbook_prices = RAW_FUTURE_PRICES if has_custom_future_prices else None
+        if _build_scenario_prices(org_id, config, RAW_INPUT, RAW_SCENARIO_PRICES, workbook_prices if known_prices else None):
+            args += ['--future-prices', RAW_SCENARIO_PRICES]
+        elif known_prices and workbook_prices:
+            args += ['--future-prices', workbook_prices]
 
         # Resolve committed plans against their original approved forecast.
-        has_ad_spend = _build_ad_spend_tsv(org_id, RAW_INPUT, RAW_AD_SPEND)
+        has_ad_spend = _build_ad_spend_tsv(org_id, RAW_INPUT, RAW_AD_SPEND, levers)
         if has_ad_spend:
             args += ['--ad-spend', RAW_AD_SPEND]
 
@@ -879,7 +1058,13 @@ def handler(event, context):
         # timeout — genuinely couldn't tell whether forecast.py was stuck at
         # startup or nearly done). Inheriting stdout/stderr streams forecast.py's
         # own prints straight into this Lambda's live log output instead.
-        proc = subprocess.run(args, timeout=860)
+        env = os.environ.copy()
+        if levers.get('holiday_off'):
+            import pandas as pd
+            dates = pd.read_csv(RAW_INPUT, sep='\t', usecols=lambda c: c.strip().lower() == 'ship_day')
+            env['APRA_HOLIDAY_LAST_ACTUAL'] = str(pd.to_datetime(dates.iloc[:, 0], errors='coerce').max().date())
+            env['APRA_HOLIDAY_POSTAL'] = levers.get('holiday_postal_code', '')
+        proc = subprocess.run(args, timeout=860, env=env)
         if proc.returncode != 0:
             raise RuntimeError(f"forecast.py exited {proc.returncode} — see the "
                                 f"forecast.py output above in this same log stream for the traceback.")
@@ -887,11 +1072,15 @@ def handler(event, context):
         result_json, volume_error, anon = transform_to_weekly(
             os.path.join(OUTDIR, 'backtest_2025.tsv'),
             os.path.join(OUTDIR, 'forecast_output.tsv'),
-            raw_history_path=RAW_INPUT)
+            raw_history_path=RAW_INPUT, levers=levers)
 
         # Lets chat-api trace the currently-live forecast/latest.json (a
         # verbatim copy of a completed scenario's result.json, written by
         # approve_scenario()) back to the scenario_id whose explain/ data to read.
+        previous, previous_skus = _comparison_history(RAW_INPUT, result_json['weeks'], anon)
+        result_json['all']['lastYear'] = previous
+        for sku, history in previous_skus.items():
+            result_json['skus'][sku]['lastYear'] = history
         result_json['id'] = scenario_id
         _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/anon.json', anon)
         result_json['campaignPlanningReady'] = True
@@ -918,7 +1107,7 @@ def handler(event, context):
             explain_by_sku = build_explain_by_sku(os.path.join(OUTDIR, 'forecast_explain.json'), anon)
             for sku, days in explain_by_sku.items():
                 _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/explain/{sku}.json', days)
-        elif not custom_input_key:
+        elif not custom_input_key and not levers and not config.get('discount_schemes'):
             # Full catalog run (the platform default) — --explain doesn't fit
             # inline at this scale (confirmed 2026-09-03: backtest ~240s + a
             # measured ~2.5s/explain-day meant the forward+explain phase alone

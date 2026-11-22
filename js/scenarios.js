@@ -77,6 +77,12 @@
       s.refresh_days + '-day refresh',
     ];
     if (s.custom_input) parts.push('custom input file');
+    var levers = s.levers || {};
+    if (Number.isFinite(levers.spend_pct)) parts.push('spend ' + levers.spend_pct + '%');
+    if (Number.isFinite(levers.price_pct)) parts.push('price ' + levers.price_pct + '%');
+    if (Number.isFinite(levers.unit_cap)) parts.push('weekly cap ' + levers.unit_cap.toLocaleString());
+    if (levers.holiday_off) parts.push('forward holiday effects off');
+    if (levers.excluded_schemes && levers.excluded_schemes.length) parts.push(levers.excluded_schemes.length + ' schemes excluded');
     return parts.join(', ');
   }
 
@@ -146,6 +152,9 @@
         : (s.status === 'completed' && !s.approved
             ? '<span class="dsubtle" style="margin:0;font-size:11.5px" title="Only an admin for your organization can approve a forecast">Viewer</span>'
             : '');
+      var baselineBtn = canCompare && !s.approved
+        ? '<button type="button" class="dbtn" style="padding:6px 12px;font-size:12px" onclick="event.stopPropagation();compareWithApproved(this.dataset.id)" data-id="' + s.id + '">Compare with approved</button>'
+        : '';
       return '<tr onclick="viewScenario(\'' + s.id + '\')" style="cursor:pointer">' +
         '<td>' + (canCompare ? '<input type="checkbox" ' + checked + ' onclick="event.stopPropagation()" onchange="toggleCompareSelect(\'' + s.id + '\',this.checked)">' : '') + '</td>' +
         '<td style="font-weight:600">' + escapeHtml(s.label || 'Untitled') + '</td>' +
@@ -155,7 +164,7 @@
         '<td>' + (s.volume_error != null ? (s.volume_error > 0 ? '+' : '') + s.volume_error.toFixed(2) + '%' : '—') + '</td>' +
         '<td>' + statusPill(s) + '</td>' +
         '<td class="dsubtle" style="margin:0">' + fmtRelative(s.created_at) + '</td>' +
-        '<td>' + approveBtn + '</td>' +
+        '<td>' + approveBtn + baselineBtn + '</td>' +
         '</tr>';
     }).join('');
 
@@ -438,9 +447,13 @@
     document.getElementById('rf-upload-status').textContent = '';
     var fileInput = document.getElementById('rf-file');
     if (fileInput) fileInput.value = '';
+    ['rf-spend', 'rf-campaign', 'rf-price', 'rf-cap', 'rf-postal', 'rf-exclude', 'rf-holiday-postal'].forEach(function (id) {
+      document.getElementById(id).value = '';
+    });
+    document.getElementById('rf-holiday-off').checked = false;
     var sourcePill = document.getElementById('rf-source');
     if (sourcePill) {
-      sourcePill.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b.dataset.v === 'default'); });
+      sourcePill.querySelectorAll('button').forEach(function (b) { b.classList.toggle('active', b.dataset.v === 'approved'); });
     }
   };
   window.closeRunForecastModal = function () {
@@ -532,8 +545,23 @@
       return;
     }
 
+    var levers = {};
+    [['rf-spend', 'spend_pct'], ['rf-price', 'price_pct'], ['rf-cap', 'unit_cap']].forEach(function (entry) {
+      var value = document.getElementById(entry[0]).value;
+      if (value !== '') levers[entry[1]] = Number(value);
+    });
+    [['rf-campaign', 'campaign_code'], ['rf-postal', 'postal_code'], ['rf-holiday-postal', 'holiday_postal_code']].forEach(function (entry) {
+      var value = document.getElementById(entry[0]).value.trim();
+      if (value) levers[entry[1]] = value;
+    });
+    if (document.getElementById('rf-holiday-off').checked) levers.holiday_off = true;
+    var exclude = document.getElementById('rf-exclude').value.split(',').map(function (value) { return value.trim(); }).filter(Boolean);
+    if (exclude.length) levers.excluded_schemes = exclude;
+
     var payload = {
       label: label,
+      source: pillValue('rf-source'),
+      levers: levers,
       known_prices: pillValue('rf-known-prices') === '1',
       weather: pillValue('rf-weather') === '1',
       calibrate: pillValue('rf-calibrate') === '1',
@@ -712,17 +740,63 @@
     body.innerHTML = '<p class="dsubtle">Loading comparison…</p>';
     document.getElementById('compareModal').classList.add('open');
 
-    Promise.all(selectedForCompare.map(function (id) {
+    var ids = selectedForCompare.slice();
+    Promise.all(ids.map(function (id) {
       return fetch(SCENARIOS_API + '/' + id + '/result', { headers: authHeaders() }).then(function (r) { return r.json(); });
     })).then(function (results) {
-      var metas = selectedForCompare.map(function (id) {
+      var metas = ids.map(function (id) {
         return lastScenarios.find(function (s) { return s.id === id; });
       });
       renderCompare(metas, results);
+      loadCompareBreakdown(ids[1], ids[0]);
     }).catch(function () {
       body.innerHTML = '<p class="auth-error">Could not load one or both results.</p>';
     });
   };
+  async function loadCompareBreakdown(id, baseId) {
+    var panel = document.getElementById('scenario-compare-detail');
+    if (!panel) return;
+    panel.textContent = 'Loading SKU and postal-code comparison…';
+    try {
+      var query = new URLSearchParams({ view: 'baseline', scenario: id });
+      if (baseId) query.set('base', baseId);
+      var response = await fetch(SCENARIOS_API + '?' + query, { headers: authHeaders() });
+      var data = await response.json();
+      if (!response.ok || !data.detail_available || !data.rows.length) throw new Error();
+      panel.innerHTML = '<div class="table-wrap"><table class="dtable"><thead><tr><th>Base SKU</th><th>Postal code</th><th>Base units</th><th>Scenario units</th><th>Change</th></tr></thead><tbody></tbody></table></div>';
+      var body = panel.querySelector('tbody');
+      data.rows.forEach(function (row) {
+        var tr = body.insertRow();
+        [row.sku, row.postal_code, row.base, row.scenario, row.change].forEach(function (value) {
+          tr.insertCell().textContent = value.toLocaleString();
+        });
+      });
+    } catch (error) {
+      panel.textContent = 'SKU and postal-code comparison is unavailable for these revisions.';
+    }
+  }
+
+  window.compareWithApproved = async function (id) {
+    var body = document.getElementById('compareBody');
+    body.textContent = 'Loading comparison…';
+    document.getElementById('compareModal').classList.add('open');
+    try {
+      var query = new URLSearchParams({ view: 'baseline', scenario: id });
+      var responses = await Promise.all([
+        fetch(SCENARIOS_API + '?' + query, { headers: authHeaders() }),
+        fetch(SCENARIOS_API + '/' + encodeURIComponent(id) + '/result', { headers: authHeaders() }),
+      ]);
+      if (!responses.every(function (response) { return response.ok; })) throw new Error();
+      var results = await Promise.all(responses.map(function (response) { return response.json(); }));
+      var approved = lastScenarios.find(function (scenario) { return scenario.id === results[0].base.id; });
+      var candidate = lastScenarios.find(function (scenario) { return scenario.id === id; });
+      renderCompare([approved || {label: 'Approved forecast', refresh_days: 28}, candidate], [results[0].base, results[1]]);
+      loadCompareBreakdown(id, results[0].base.id);
+    } catch (error) {
+      body.textContent = 'Could not load the scenario and its approved baseline.';
+    }
+  };
+
   window.closeCompareModal = function () {
     document.getElementById('compareModal').classList.remove('open');
   };
@@ -748,6 +822,9 @@
       var f = r.all.f.slice(0, bw).reduce(function (s, x) { return s + x; }, 0);
       return { a: a, f: f, err: a ? (100 * (f - a) / a) : 0 };
     });
+    if (results.some(function (r) { return r.cappedUnits != null; })) {
+      rows.push(['Capped units', results.map(function (r) { return r.cappedUnits == null ? '—' : r.cappedUnits.toLocaleString(); })]);
+    }
     rows.push(['Actual units', totals.map(function (t) { return t.a.toLocaleString(); })]);
     rows.push(['Forecast units (backtest period)', totals.map(function (t) { return t.f.toLocaleString(); })]);
     rows.push(['Volume error', totals.map(function (t) { return (t.err > 0 ? '+' : '') + t.err.toFixed(2) + '%'; })]);
@@ -803,6 +880,8 @@
           }).join('');
       }).join('') +
       '</div>';
+
+    html += '<div class="dcard" style="margin-top:20px"><h4>SKU and postal-code comparison</h4><div id="scenario-compare-detail"></div></div>';
 
     html += '<div class="dcard" style="margin-top:20px;padding:16px">' +
       '<div class="ch" style="display:flex;align-items:center;justify-content:space-between;gap:12px">' +

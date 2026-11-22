@@ -361,12 +361,12 @@
 
 
   .dnav .ads-nav-heading{padding:0;margin-top:9px;cursor:default}
-  #ads-nav-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;padding:8px 14px;background:none;border:0;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
-  #ads-nav-toggle svg{width:14px;height:14px}
-  #ads-nav-toggle[aria-expanded="false"] svg{transform:rotate(-90deg)}
-  .dnav [data-ads-nav][hidden],.ads-plan-form[hidden],.ads-plan-form button[hidden]{display:none}
-  .dside-collapsed #ads-nav-toggle span{display:none}
-  .dside-collapsed #ads-nav-toggle{justify-content:center}
+  .dnav-group-toggle{display:flex;align-items:center;justify-content:space-between;width:100%;padding:8px 14px;background:none;border:0;color:var(--muted);font:inherit;font-size:12px;cursor:pointer}
+  .dnav-group-toggle svg{width:14px;height:14px}
+  .dnav-group-toggle[aria-expanded="false"] svg{transform:rotate(-90deg)}
+  .dnav [data-ads-nav][hidden],.dnav [data-forecast-nav][hidden],.ads-plan-form[hidden],.ads-plan-form button[hidden]{display:none}
+  .dside-collapsed .dnav-group-toggle span{display:none}
+  .dside-collapsed .dnav-group-toggle{justify-content:center}
   .ads-heading,.ads-plan-actions{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
   .ads-heading{justify-content:space-between}
   .ads-table-card,.ads-plan-form{margin-top:18px;overflow:auto}
@@ -377,6 +377,7 @@
   .ads-scope-line{min-width:0;border:1px solid var(--line);border-radius:8px;padding:12px;margin:12px 0}
   .ads-scope-line legend{color:var(--muted);font-size:12px}
   .ads-plan-actions{margin:12px 0}
+  #runForecastModal .login-card{width:min(94vw,640px);max-height:calc(100vh - 32px);overflow:auto;overscroll-behavior:contain}
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
@@ -394,11 +395,13 @@
     <ul class="dnav">
       <li title="Getting Started"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 3v18" stroke-linecap="round"/><path d="M5 4h11l-2 4 2 4H5" stroke-linejoin="round"/></svg><span class="lbl">Getting Started</span></li>
       <li class="active" title="Overview"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg><span class="lbl">Overview</span></li>
-      <li title="Forecasts"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Forecasts</span></li>
-      <li title="Scenarios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Scenarios</span></li>
-      <li title="AI Insights"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" stroke-linejoin="round"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" stroke-linejoin="round"/></svg><span class="lbl">AI Insights</span></li>
-      <li title="Inventory"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Inventory</span></li>
-      <li class="ads-nav-heading"><button type="button" id="ads-nav-toggle" aria-expanded="false"><span>Ads</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></li>
+      <li class="ads-nav-heading"><button type="button" class="dnav-group-toggle" id="forecast-nav-toggle" aria-expanded="true"><span>Forecast</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></li>
+      <li title="Discount Schemes" data-forecast-nav><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="7.5" cy="7.5" r="2.5"/><circle cx="16.5" cy="16.5" r="2.5"/><path d="M19 5 5 19" stroke-linecap="round"/></svg><span class="lbl">Discount Schemes</span></li>
+      <li title="Forecasts" data-forecast-nav><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M3 12h3l2-7 4 14 2-7h7" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Forecasts</span></li>
+      <li title="Scenarios" data-forecast-nav><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Scenarios</span></li>
+      <li title="AI Insights" data-forecast-nav><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" stroke-linejoin="round"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" stroke-linejoin="round"/></svg><span class="lbl">AI Insights</span></li>
+      <li title="Inventory" data-forecast-nav><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Inventory</span></li>
+      <li class="ads-nav-heading"><button type="button" class="dnav-group-toggle" id="ads-nav-toggle" aria-expanded="false"><span>Ads</span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg></button></li>
       <li title="Campaigns" data-ads-nav hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m22 2-7 20-4-9-9-4Z" stroke-linecap="round" stroke-linejoin="round"/><path d="M22 2 11 13" stroke-linecap="round" stroke-linejoin="round"/></svg><span class="lbl">Campaigns</span></li>
       <li title="Products" data-ads-nav hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82Z" stroke-linecap="round" stroke-linejoin="round"/><circle cx="7" cy="7" r="1.5"/></svg><span class="lbl">Products</span></li>
       <li title="Performance" data-ads-nav hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="m12 14 4-4" stroke-linecap="round"/><path d="M3.34 19a10 10 0 1 1 17.32 0" stroke-linecap="round"/></svg><span class="lbl">Performance</span></li>
@@ -665,35 +668,38 @@
       </div>
 
       <div id="fcTab2" class="fc-tab-panel" style="display:none">
-        <p class="dsubtle">Forecast performance at a chosen horizon, drillable down to SKU level — same underlying forecast as the Forecast tab.</p>
+        <p class="dsubtle">Compare projected units with actual shipments from the same weekdays 52 weeks earlier.</p>
 
         <div class="ov-header-controls" style="margin:4px 0 0">
           <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--muted)"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4" stroke-linecap="round"/></svg>
           <span class="dsubtle" style="margin:0;font-size:.78rem">Time Horizon</span>
           <div class="theme-pill" id="fclyHorizonSeg">
+            <button class="active" data-h="4" onclick="fclyPickHorizon(this)">4W</button>
             <button data-h="12" onclick="fclyPickHorizon(this)">12W</button>
-            <button data-h="26" onclick="fclyPickHorizon(this)">26W</button>
-            <button class="active" data-h="52" onclick="fclyPickHorizon(this)">52W</button>
+            <button data-h="52" onclick="fclyPickHorizon(this)">52W</button>
           </div>
         </div>
 
         <div class="fcly-kpi-strip">
           <div class="fcly-kpi-chip"><span>Units</span><b id="fclyKpiUnits">—</b></div>
+          <div class="fcly-kpi-chip"><span>Last year</span><b id="fclyPriorUnits">—</b></div>
+          <div class="fcly-kpi-chip"><span>Change</span><b id="fclyYoY">—</b></div>
           <div class="fcly-kpi-chip"><span>Revenue</span><b class="ov-dim">—</b></div>
           <div class="fcly-kpi-chip"><span>Avg Discount/Unit</span><b class="ov-dim">—</b></div>
           <div class="fcly-kpi-chip"><span>Marketing Spend/Units Sold</span><b class="ov-dim">—</b></div>
-          <div class="fcly-kpi-chip"><span>WAPE (<span id="fclyKpiWapeLabel">52W</span>)</span><b id="fclyKpiWape">—</b></div>
+          <div class="fcly-kpi-chip"><span>WAPE (<span id="fclyKpiWapeLabel">4W</span>)</span><b id="fclyKpiWape">—</b></div>
         </div>
 
         <div class="dcard">
           <div class="ch"><h4>Performance Trend</h4>
             <div class="chart-legend" style="margin-top:0">
-              <span class="lgd-item"><i style="background:#54E6C4"></i>Actual</span>
-              <span class="lgd-item"><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>Forecast</span>
+              <span class="lgd-item"><i style="background:#54E6C4"></i>Last year actual</span>
+              <span class="lgd-item"><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>Current forecast</span>
             </div>
           </div>
           <div class="dchart" style="height:220px">
             <canvas id="fclyTrendCanvas"></canvas>
+            <p id="fclyPriorStatus" class="dsubtle" style="position:absolute;top:8px;right:12px"></p>
             <div class="chart-skel" id="fclyTrendSkel">
               <i style="height:52%"></i><i style="height:68%"></i><i style="height:40%"></i><i style="height:74%"></i>
               <i style="height:58%"></i><i style="height:85%"></i><i style="height:48%"></i><i style="height:70%"></i>
@@ -726,7 +732,7 @@
                   <th>Brand</th>
                   <th>Channel</th>
                   <th class="amp-sortable" data-sort-key="units">Units <span class="ov-sort-ic">⇅</span></th>
-                  <th>Revenue</th>
+                  <th class="amp-sortable" data-sort-key="prior">Last year <span class="ov-sort-ic">⇅</span></th><th class="amp-sortable" data-sort-key="change">Change <span class="ov-sort-ic">⇅</span></th><th>Revenue</th>
                   <th>Avg Discount/Unit</th>
                   <th>Marketing Spend/Unit</th>
                   <th class="amp-sortable" data-sort-key="wape">WAPE <span class="ov-sort-ic">⇅</span></th>
@@ -739,9 +745,59 @@
               </tbody>
             </table>
           </div>
-          <p style="font-size:11px;color:var(--muted);margin:0;padding:10px 20px 16px">Region / Store / Category / Brand / Channel / Revenue / Avg Discount per Unit / Marketing Spend per Unit have no real data source in this app and always show "—". Units and WAPE are real, computed from the same forecast backing the Forecast tab.</p>
+          <p style="font-size:11px;color:var(--muted);margin:0;padding:10px 20px 16px">Region / Store / Category / Brand / Channel / Revenue / Avg Discount per Unit / Marketing Spend per Unit have no real data source in this app and always show "—". Last-year totals require all weeks in the selected period. WAPE uses historical backtest weeks.</p>
         </div>
       </div>
+    </div>
+
+    <div class="dbody" id="discountSchemesPanel" style="display:none">
+      <div class="ads-heading">
+        <div><h1 class="dgreet">Discount Schemes</h1><p class="dsubtle">Manage promotions and apply committed discounts to future forecasts.</p></div>
+        <button type="button" class="dbtn" id="scheme-new" disabled>+ Create scheme</button>
+      </div>
+      <div class="dcard ads-table-card">
+        <div class="ads-fields">
+          <label>Search schemes<input type="search" id="scheme-search" placeholder="ID or name"></label>
+          <label>Status<select id="scheme-filter"><option value="">All statuses</option><option value="draft">Draft</option><option value="committed">Committed</option><option value="withdrawn">Withdrawn</option></select></label>
+          <label>Source<select id="scheme-source"><option value="">All sources</option><option value="created">Created</option><option value="detected">Detected from sales</option></select></label>
+        </div>
+        <table class="amp-table">
+          <thead><tr><th>Scheme ID</th><th>Name</th><th>Mechanic</th><th>Dates</th><th>Source</th><th>Status</th><th>Observed units</th><th>Effectiveness</th><th>Actions</th></tr></thead>
+          <tbody id="scheme-list"></tbody>
+        </table>
+        <p class="dsubtle" id="scheme-status" role="status"></p>
+      </div>
+      <form class="dcard ads-plan-form" id="scheme-form" hidden>
+        <h2 id="scheme-title">Create scheme</h2>
+        <div class="ads-fields">
+          <label>Scheme ID<input name="code" maxlength="80" required></label>
+          <label>Name<input name="name" maxlength="120" required></label>
+          <label>Mechanic<select name="mechanic"><option>Percent off</option><option>Flat amount off</option><option>Buy X get Y</option><option>Bundle</option><option>Free gift</option><option>Cashback</option><option>Tiered</option></select></label>
+        </div>
+        <h3>Scope</h3>
+        <p class="dsubtle">For Flat amount off, enter a value in the selling price currency. For other mechanics, enter the effective discount percentage.</p>
+        <div id="scheme-scope"></div>
+        <button type="button" class="dbtn" id="scheme-add">+ Add scope line</button>
+        <p class="stest-msg" id="scheme-error" role="status"></p>
+        <div class="ads-plan-actions">
+          <button type="button" class="dbtn" id="scheme-close">Close</button>
+          <button type="submit" class="dbtn" id="scheme-draft" value="draft">Save draft</button>
+          <button type="submit" class="dbtn" id="scheme-commit" value="commit">Commit and run</button>
+        </div>
+      </form>
+      <template id="scheme-line">
+        <fieldset class="ads-scope-line">
+          <legend>Scope line</legend>
+          <div class="ads-fields">
+            <label>Forecast SKU<input name="sku" required placeholder="SKU-001"></label>
+            <label>Postal code<input name="postal_code" required maxlength="12"></label>
+            <label>Start date<input name="start_date" type="date" required></label>
+            <label>End date<input name="end_date" type="date" required></label>
+            <label>Discount<input name="discount" required type="number" min="0.01" step="any"></label>
+          </div>
+          <button type="button" class="dbtn">Remove line</button>
+        </fieldset>
+      </template>
     </div>
 
     <!-- Scenarios panel -->
@@ -1794,7 +1850,7 @@
 
   <!-- Run new forecast modal -->
   <div class="modal" id="runForecastModal" onclick="if(event.target===this)closeRunForecastModal()">
-    <div class="login-card" style="max-width:440px;text-align:left">
+    <div class="login-card" style="max-width:640px;text-align:left">
       <button class="x" onclick="closeRunForecastModal()" aria-label="Close">×</button>
       <h3>Run new forecast</h3>
       <p class="sub">Configure the run — these map to the real <code>forecast.py</code> pipeline flags.</p>
@@ -1806,7 +1862,7 @@
         <div class="field">
           <label>Input data</label>
           <div class="theme-pill" id="rf-source">
-            <button type="button" data-v="default" class="active">Default dataset</button>
+            <button type="button" data-v="approved" class="active">Approved dataset</button><button type="button" data-v="default">Default dataset</button>
             <button type="button" data-v="custom">Upload file</button>
           </div>
         </div>
@@ -1822,6 +1878,19 @@
           </p>
           <p id="rf-upload-status" class="stest-msg" style="margin-top:4px"></p>
         </div>
+        <details style="margin-bottom:14px">
+          <summary>Scenario levers</summary>
+          <div class="ads-fields">
+            <label>Marketing spend change (%)<input id="rf-spend" type="number" min="-100" max="1000"></label>
+            <label>Campaign code<input id="rf-campaign" maxlength="80" placeholder="All campaigns"></label>
+            <label>Price change (%)<input id="rf-price" type="number" min="-99" max="1000"></label>
+            <label>Weekly unit cap<input id="rf-cap" type="number" min="0" max="100000000"></label>
+            <label>Postal code for spend, price and cap<input id="rf-postal" maxlength="12" placeholder="All postal codes"></label>
+            <label>Discount schemes to exclude<input id="rf-exclude" placeholder="Comma-separated scheme IDs"></label>
+          </div>
+          <label><input type="checkbox" id="rf-holiday-off"> Disable holiday effects in the forward forecast</label>
+          <div class="ads-fields"><label>Holiday postal code<input id="rf-holiday-postal" maxlength="12" placeholder="All postal codes"></label></div>
+        </details>
         <div class="srow">
           <div><div class="srow-label">Known prices</div><div class="srow-desc">Feed actual test-period prices as a known promo calendar</div></div>
           <div class="theme-pill" id="rf-known-prices"><button type="button" data-v="1" class="active">On</button><button type="button" data-v="0">Off</button></div>
@@ -2097,6 +2166,7 @@
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
 <script src="../js/ads.js"></script>
+<script src="../js/discount-schemes.js"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/onboarding.js"></script>
 <script src="../js/tour.js"></script>
@@ -2136,6 +2206,7 @@
   (function(){
     var panels = {
       'Overview':        document.querySelector('.dbody'),
+      'Discount Schemes': document.getElementById('discountSchemesPanel'),
       'Forecasts':       document.getElementById('forecastsPanel'),
       'Scenarios':       document.getElementById('scenariosPanel'),
       'AI Insights':     document.getElementById('insightsPanel'),
@@ -2151,16 +2222,21 @@
     };
     var report = document.querySelector('.dtop .report-menu');
     var navItems = document.querySelectorAll('.dnav li[title]');
-    var adsToggle = document.getElementById('ads-nav-toggle');
-    var adsItems = document.querySelectorAll('[data-ads-nav]');
-    function setAdsExpanded(expanded) {
-      adsToggle.setAttribute('aria-expanded', String(expanded));
-      adsItems.forEach(function(item){ item.hidden = !expanded; });
+    function navGroup(toggleId, selector) {
+      var toggle = document.getElementById(toggleId);
+      var items = document.querySelectorAll(selector);
+      function setExpanded(expanded) {
+        toggle.setAttribute('aria-expanded', String(expanded));
+        items.forEach(function(item){ item.hidden = !expanded; });
+      }
+      toggle.addEventListener('click', function(event){
+        event.stopPropagation();
+        setExpanded(toggle.getAttribute('aria-expanded') !== 'true');
+      });
+      return setExpanded;
     }
-    adsToggle.addEventListener('click', function(event){
-      event.stopPropagation();
-      setAdsExpanded(adsToggle.getAttribute('aria-expanded') !== 'true');
-    });
+    var setAdsExpanded = navGroup('ads-nav-toggle', '[data-ads-nav]');
+    var setForecastExpanded = navGroup('forecast-nav-toggle', '[data-forecast-nav]');
 
     navItems.forEach(function(li){
       li.addEventListener('click', function(){
@@ -2173,14 +2249,16 @@
         var isSettings = name === 'Settings';
         var isAds = li.hasAttribute('data-ads-nav');
         if (isAds) setAdsExpanded(true);
+        if (li.hasAttribute('data-forecast-nav')) setForecastExpanded(true);
 
         Object.keys(panels).forEach(function(k){
           if(panels[k]) panels[k].style.display = (k === name) ? '' : 'none';
         });
 
-        report.style.display = (isSettings || isAds || name === 'Getting Started' || name === 'Knowledge Base' || name === 'Support') ? 'none' : '';
+        report.style.display = (isSettings || isAds || name === 'Discount Schemes' || name === 'Getting Started' || name === 'Knowledge Base' || name === 'Support') ? 'none' : '';
 
         if(isSettings) syncSettingsPanel();
+        if(name === 'Discount Schemes') window.loadDiscountSchemes();
         if(name === 'Campaigns') window.loadAdsCampaigns();
         if(name === 'Products') window.loadAdsProducts();
         if(name === 'Integrations') window.loadAdsIntegrations();

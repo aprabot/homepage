@@ -389,20 +389,8 @@
     initFcly();
   }
 
-  /* ===== Forecasts — "Period-over-period" tab (fcTab2) =====
-     Ported from redesign-mockup/dashboard/index.html's fcTab2 (Time
-     Horizon toggle, 5-chip KPI strip, Performance Trend chart, 6-dimension
-     filter row, sortable results table) onto real data only. Real: total/
-     per-SKU forecast Units, WAPE at any horizon (trailingWape()/
-     seriesWape() — already defined above, not duplicated here), SKU
-     identity. Always "—", never fabricated: Revenue, Avg Discount/Unit,
-     Marketing Spend, Region, Store, Category, Brand, Channel — none of
-     these dimensions exist anywhere in DATA. The mockup's "Last Year"
-     comparison is dropped too: only one year of real actuals exists in
-     this app, so there's no real last-year baseline to diff against —
-     the trend chart instead reuses the real actual-vs-forecast series
-     (same colors as the Forecast tab's own chart). */
-  let fclyHorizon=52, fclySkuFilter='ALL';
+  // Period-over-period compares the forward window with weekday-aligned historical shipments.
+  let fclyHorizon=4, fclySkuFilter='ALL';
   const fclySort={key:'units',dir:'desc'};
 
   // fcPickTab is exposed on window since it's invoked from an inline
@@ -420,11 +408,7 @@
     if(target==='fcTab2')drawFclyTrend();
   };
 
-  // Time Horizon toggle (12W/26W/52W) — genuinely recomputes the WAPE KPI
-  // chip via trailingWape() on the real trailing-N-actual-week slice (same
-  // approach as ovPickHorizon above), redraws the trend chart's window to
-  // match, and re-sorts/re-renders the results table's per-SKU WAPE column
-  // (also horizon-scoped, via seriesWape() over each SKU's trailing slice).
+  // Update the forward window and trailing backtest accuracy for the chosen horizon.
   window.fclyPickHorizon=function(btn){
     if(!btn||!window.DATA)return;
     fclyHorizon=+btn.dataset.h;
@@ -446,21 +430,38 @@
     return seriesWape(o.a.slice(st,bt),o.f.slice(st,bt)).overall;
   }
 
+  function fclyPeriod(series){
+    const start=DATA.backtestWeeks??DATA.weeks.length;
+    const end=start+fclyHorizon;
+    const sumComplete=values=>{
+      const window=values?.slice(start,end);
+      return window?.length===fclyHorizon&&window.every(Number.isFinite)
+        ?window.reduce((sum,value)=>sum+value,0):null;
+    };
+    const units=sumComplete(series.f), prior=sumComplete(series.lastYear);
+    return {units,prior,change:units!=null&&prior>0?100*(units-prior)/prior:null};
+  }
+
+  function fclyChange(value){
+    return value==null?'—':(value>0?'+':'')+value.toFixed(1)+'%';
+  }
+
   function fclyBuildRows(){
     return Object.keys(DATA.skus).map(id=>{
-      const o=DATA.skus[id];
-      const units=o.f.reduce((s,x)=>s+(x||0),0);
-      const wape=fclySkuTrailingWape(o,fclyHorizon);
-      return {sku:id,units,wape};
+      const series=DATA.skus[id];
+      return {sku:id,...fclyPeriod(series),wape:fclySkuTrailingWape(series,fclyHorizon)};
     });
   }
 
   function fclyRender(){
     if(!window.DATA)return;
-    const totalForecastUnits=DATA.all.f.reduce((s,x)=>s+(x||0),0);
+    const series=fclySkuFilter==='ALL'?DATA.all:DATA.skus[fclySkuFilter]||DATA.all;
+    const period=fclyPeriod(series);
     const setTxt=(id,v)=>{const el=document.getElementById(id); if(el)el.textContent=v;};
-    setTxt('fclyKpiUnits',nf(totalForecastUnits));
-    const w=trailingWape(fclyHorizon);
+    setTxt('fclyKpiUnits',period.units==null?'—':nf(period.units));
+    setTxt('fclyPriorUnits',period.prior==null?'—':nf(period.prior));
+    setTxt('fclyYoY',fclyChange(period.change));
+    const w=series===DATA.all?trailingWape(fclyHorizon):fclySkuTrailingWape(series,fclyHorizon);
     setTxt('fclyKpiWape',w==null?'—':w.toFixed(2)+'%');
 
     let rows=fclyBuildRows();
@@ -489,39 +490,36 @@
     const body=document.getElementById('fclyResultsBody');
     if(!body)return;
     if(!rows.length){
-      body.innerHTML='<tr><td colspan="11" style="text-align:center;padding:40px 20px;color:var(--muted)">No SKUs match your current filter.</td></tr>';
+      body.innerHTML='<tr><td colspan="13" style="text-align:center;padding:40px 20px;color:var(--muted)">No SKUs match your current filter.</td></tr>';
       return;
     }
     body.innerHTML=rows.map(r=>
       `<tr data-sku="${r.sku}"><td class="skucell">${r.sku}</td>`+
       `<td class="ov-dim">—</td><td class="ov-dim">—</td><td class="ov-dim">—</td><td class="ov-dim">—</td><td class="ov-dim">—</td>`+
-      `<td>${nfFull(r.units)}</td>`+
+      `<td>${r.units==null?'—':nfFull(r.units)}</td><td>${r.prior==null?'—':nfFull(r.prior)}</td><td>${fclyChange(r.change)}</td>`+
       `<td class="ov-dim">—</td><td class="ov-dim">—</td><td class="ov-dim">—</td>`+
       `<td>${r.wape==null?'—':r.wape.toFixed(1)+'%'}</td></tr>`
     ).join('');
   }
 
-  // Performance Trend chart — real actual-vs-forecast, all SKUs, windowed
-  // to fclyHorizon. Same drawing approach as drawOverviewTrend() above
-  // (centered on the backtest/forecast boundary so the actual line doesn't
-  // vanish at long horizons), restyled onto this tab's own canvas id.
   function drawFclyTrend(){
     const cv=document.getElementById('fclyTrendCanvas');
     if(!cv||!window.DATA)return;
-    const fclySkel=document.getElementById('fclyTrendSkel');
-    if(fclySkel)fclySkel.style.display='none';
-    const winW=Math.min(DATA.weeks.length,Math.max(26,fclyHorizon));
-    const backtestTotal0=DATA.backtestWeeks||DATA.weeks.length;
-    const halfTrail=Math.min(backtestTotal0,Math.round(winW/2));
-    const st=Math.max(0,Math.min(backtestTotal0-halfTrail,DATA.weeks.length-winW));
-    const N=Math.min(winW,DATA.weeks.length-st);
-    const weeks=DATA.weeks.slice(st), a=DATA.all.a.slice(st), f=DATA.all.f.slice(st);
+    const skel=document.getElementById('fclyTrendSkel');
+    if(skel)skel.style.display='none';
+    const start=DATA.backtestWeeks??DATA.weeks.length;
+    const end=start+fclyHorizon;
+    const series=fclySkuFilter==='ALL'?DATA.all:DATA.skus[fclySkuFilter]||DATA.all;
+    const weeks=DATA.weeks.slice(start,end), N=weeks.length;
+    const a=(series.lastYear||[]).slice(start,end), f=series.f.slice(start,end);
+    const message=document.getElementById('fclyPriorStatus');
+    if(message)message.textContent=!N?'Forward forecast unavailable.':a.some(Number.isFinite)?'':'Last-year shipment history unavailable.';
     const box=cv.parentElement;
     const cw=box.clientWidth||600, ch=box.clientHeight||220, dpr=window.devicePixelRatio||1;
     cv.width=cw*dpr; cv.height=ch*dpr; const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.clearRect(0,0,cw,ch);
     const padL=48,padR=12,padT=14,padB=24;
-    const uMax=Math.max(...a.filter(x=>x!=null),...f.filter(x=>x!=null))*1.12||1;
+    const uMax=Math.max(1,...a.filter(Number.isFinite),...f.filter(Number.isFinite))*1.12;
     const X=i=>padL+i*(cw-padL-padR)/(N-1||1);
     const Y=v=>padT+(ch-padT-padB)*(1-v/uMax);
     ctx.font='10px JetBrains Mono';
@@ -533,19 +531,9 @@
     for(let i=0;i<N;i+=step){ctx.fillText(weeks[i].slice(5),X(i),ch-6);}
     const line=(arr,color,dash)=>{ctx.strokeStyle=color;ctx.lineWidth=2.2;ctx.setLineDash(dash||[]);
       ctx.beginPath();let started=false;
-      arr.forEach((v,i)=>{if(v==null)return;const x=X(i),y=Y(v);if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);});
+      arr.forEach((v,i)=>{if(v==null){started=false;return;}const x=X(i),y=Y(v);if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);});
       ctx.stroke();ctx.setLineDash([]);};
-    const grad=ctx.createLinearGradient(0,padT,0,ch-padB);
-    grad.addColorStop(0,'rgba(84,230,196,.2)');grad.addColorStop(1,'rgba(84,230,196,0)');
-    ctx.beginPath();let sx=null;a.forEach((v,i)=>{if(v==null)return;const x=X(i),y=Y(v);if(sx===null){ctx.moveTo(x,y);sx=x;}else ctx.lineTo(x,y);});
-    if(sx!==null){ctx.lineTo(X(N-1),Y(0));ctx.lineTo(sx,Y(0));ctx.closePath();ctx.fillStyle=grad;ctx.fill();}
-    line(a,'#54E6C4'); line(f,'#C8F24E',[7,5]);
-    const backtestTotal=DATA.backtestWeeks||DATA.weeks.length, boundary=backtestTotal-st;
-    if(boundary>0&&boundary<N){
-      const bx=X(boundary-0.5);
-      ctx.strokeStyle='rgba(255,255,255,.18)';ctx.setLineDash([3,3]);
-      ctx.beginPath();ctx.moveTo(bx,padT);ctx.lineTo(bx,ch-padB);ctx.stroke();ctx.setLineDash([]);
-    }
+    line(a,'#54E6C4',[5,4]); line(f,'#C8F24E');
   }
 
   function initFcly(){
@@ -553,7 +541,7 @@
     if(!skuSel)return; // this tab's markup isn't on the current page
     skuSel.innerHTML='<option value="ALL">All SKUs</option>'+
       Object.keys(DATA.skus).sort().map(id=>`<option value="${id}">${id}</option>`).join('');
-    skuSel.addEventListener('change',e=>{fclySkuFilter=e.target.value;fclyRender();});
+    skuSel.addEventListener('change',e=>{fclySkuFilter=e.target.value;fclyRender();drawFclyTrend();});
     document.querySelectorAll('#fclyResultsTable .amp-sortable').forEach(th=>{
       th.addEventListener('click',()=>{
         const key=th.dataset.sortKey;

@@ -20,6 +20,20 @@ and simulated platform campaigns contribute no spend.
 Historical ad actuals are unavailable. Passing scheduled spend through this
 interface does not establish a learned lift or guarantee a change in units.
 
+## Forecast scenarios and discount schemes
+
+Deploy this runner with the scenarios API. The API snapshots active discount schemes
+in each new scenario config. The runner uses the approved SKU mapping pinned at
+commit, applies discounts only to matching product/postal-code/date rows with a
+known selling price, and selects the largest discount when plans overlap.
+Scenario price overrides apply after the scheduled discounts. A weekly cap scales
+the selected forward quantities proportionally and reports the units removed.
+
+The holiday entry point suppresses the bundled holiday features for the requested
+forward scope. Past features and shipment history are retained. The last-year
+series uses actual shipments 364 days earlier for weekday alignment and uses
+null where the selected week lacks coverage.
+
 ## Deploy dependencies (not committed — rebuild before deploying)
 
 LightGBM's Linux wheel needs `libgomp.so.1` at runtime, which Amazon Linux 2023's
@@ -58,6 +72,7 @@ mkdir -p ./pkg/lib
 cp /tmp/sklearn-dl/scikit_learn.libs/libgomp-*.so.1.0.0 ./pkg/lib/libgomp.so.1
 
 cp handler.py ./pkg/handler.py
+cp forecast_entry.py ./pkg/forecast_entry.py
 cp ../../../forecast/forecast.py ./pkg/forecast.py   # keep in sync with the forecast repo
 cd pkg && zip -rq ../scenario-runner.zip .
 

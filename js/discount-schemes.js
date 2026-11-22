@@ -1,0 +1,148 @@
+(function () {
+  'use strict';
+  const api = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/scenarios?view=schemes';
+  const get = id => document.getElementById(id);
+  const form = get('scheme-form');
+  const scopes = get('scheme-scope');
+  const status = get('scheme-status');
+  let schemes = [], canEdit = false, editing = null;
+
+  async function request(payload) {
+    const response = await fetch(api, {
+      method: payload ? 'POST' : 'GET',
+      headers: { Authorization: 'Bearer ' + localStorage.getItem('apra_id'), 'Content-Type': 'application/json' },
+      body: payload ? JSON.stringify(payload) : undefined,
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || 'Could not load discount schemes.');
+    return data;
+  }
+
+  async function load() {
+    status.textContent = 'Loading schemes…';
+    try {
+      const data = await request();
+      if (!Array.isArray(data.schemes)) throw new Error('The discount schemes service is unavailable.');
+      schemes = data.schemes;
+      canEdit = data.can_edit;
+      get('scheme-new').disabled = !canEdit;
+      render();
+    } catch (error) {
+      status.textContent = error.message;
+    }
+  }
+
+  function button(label, action) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'dbtn';
+    button.textContent = label;
+    button.onclick = action;
+    return button;
+  }
+
+  function render() {
+    const search = get('scheme-search').value.trim().toLowerCase();
+    const filter = get('scheme-filter').value;
+    const source = get('scheme-source').value;
+    const visible = schemes.filter(scheme =>
+      (!filter || (scheme.status || 'draft') === filter) &&
+      (!source || (source === 'detected' ? scheme.detected : scheme.version)) &&
+      (scheme.code + ' ' + (scheme.name || '')).toLowerCase().includes(search));
+    const list = get('scheme-list');
+    list.replaceChildren();
+    status.textContent = visible.length ? '' : 'No matching discount schemes.';
+    visible.forEach(scheme => {
+      const line = list.insertRow();
+      const starts = (scheme.scope || []).map(item => item.start_date).sort();
+      const ends = (scheme.scope || []).map(item => item.end_date).sort();
+      const dates = starts.length ? starts[0] + ' to ' + ends.at(-1)
+        : scheme.first_seen ? scheme.first_seen + ' to ' + scheme.last_seen : '—';
+      const today = new Date().toISOString().slice(0, 10);
+      const stage = scheme.status === 'committed' && starts.length
+        ? 'Committed · ' + (today < starts[0] ? 'Planned' : today > ends.at(-1) ? 'Past' : 'Active')
+        : scheme.status || 'Draft · Needs details';
+      [scheme.code, scheme.name || '—', scheme.mechanic || '—', dates,
+        scheme.detected ? (scheme.version ? 'Created and detected' : 'Detected from sales') : 'Created',
+        stage, scheme.observed_units?.toLocaleString() ?? '—', '—']
+        .forEach(value => { line.insertCell().textContent = value; });
+      const actions = line.insertCell();
+      const editable = canEdit && scheme.status !== 'committed';
+      actions.append(button(editable ? 'Edit' : 'View', () => open(scheme, !editable)));
+      if (canEdit && scheme.status === 'committed') actions.append(button('Withdraw', async event => {
+        if (!confirm('Withdraw this scheme from future runs?')) return;
+        event.target.disabled = true;
+        try {
+          await request({code: scheme.code, version: scheme.version, action: 'withdraw'});
+          form.hidden = true;
+          await load();
+        } catch (error) {
+          status.textContent = error.message;
+          event.target.disabled = false;
+        }
+      }));
+    });
+  }
+
+  function addLine(values = {}) {
+    const row = get('scheme-line').content.firstElementChild.cloneNode(true);
+    row.querySelectorAll('input').forEach(input => { input.value = values[input.name] ?? ''; });
+    row.querySelector('button').onclick = () => { if (scopes.children.length > 1) row.remove(); };
+    scopes.append(row);
+  }
+
+  function open(scheme, readOnly = false) {
+    editing = scheme;
+    form.reset();
+    scopes.replaceChildren();
+    get('scheme-error').textContent = '';
+    get('scheme-title').textContent = scheme ? scheme.code : 'Create scheme';
+    ['code', 'name', 'mechanic'].forEach(name => {
+      if (scheme?.[name]) form.elements[name].value = scheme[name];
+    });
+    form.elements.code.readOnly = Boolean(scheme);
+    if (scheme?.scope?.length) scheme.scope.forEach(addLine);
+    else addLine({ start_date: scheme?.first_seen, end_date: scheme?.last_seen });
+    form.querySelectorAll('input, select, button').forEach(control => {
+      control.disabled = readOnly && control.id !== 'scheme-close';
+    });
+    ['scheme-add', 'scheme-draft', 'scheme-commit'].forEach(id => { get(id).hidden = readOnly; });
+    form.hidden = false;
+    form.scrollIntoView({block: 'nearest'});
+  }
+
+  form.addEventListener('submit', async event => {
+    event.preventDefault();
+    const action = event.submitter?.value || 'draft';
+    const fields = form.elements;
+    const scope = Array.from(scopes.children, row => {
+      const entries = Object.fromEntries(Array.from(row.querySelectorAll('input'), input => [input.name, input.value.trim()]));
+      return {...entries, sku: entries.sku.toUpperCase(), discount: Number(entries.discount)};
+    });
+    if (action === 'commit' && !confirm('Commit this scheme and start a new forecast run?')) return;
+    const controls = Array.from(form.querySelectorAll('button'));
+    controls.forEach(button => { button.disabled = true; });
+    const message = get('scheme-error');
+    message.textContent = 'Saving…';
+    try {
+      const result = await request({action, code: fields.code.value, name: fields.name.value,
+        mechanic: fields.mechanic.value, scope, version: editing?.version || 0});
+      form.hidden = true;
+      await load();
+      if (result.warning) status.textContent = result.warning;
+      if (result.scenario_id) status.textContent = 'Scheme committed. A forecast run has started in Scenarios.';
+    } catch (error) {
+      message.textContent = error.message;
+    } finally {
+      controls.forEach(button => { button.disabled = false; });
+    }
+  });
+
+  get('scheme-new').onclick = () => open(null);
+  get('scheme-close').onclick = () => { form.hidden = true; };
+  get('scheme-add').onclick = () => { if (scopes.children.length < 30) addLine(); };
+  get('scheme-search').oninput = render;
+  get('scheme-filter').onchange = render;
+  get('scheme-source').onchange = render;
+  window.loadDiscountSchemes = load;
+})();

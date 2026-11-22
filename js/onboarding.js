@@ -592,7 +592,7 @@
       callout.style.display = schemeCol ? '' : 'none';
       callout.textContent = !schemeCol ? ''
         : schemeIds.length
-          ? schemeIds.length.toLocaleString() + ' scheme ID' + (schemeIds.length === 1 ? '' : 's') + ' found in your sales file — saved with your setup.'
+          ? schemeIds.length.toLocaleString() + ' scheme ID' + (schemeIds.length === 1 ? '' : 's') + ' found in your sales file. View detected schemes under Forecast → Discount Schemes.'
           : 'A scheme_id column was found, but every value in it is empty.';
     }
   }
@@ -1565,6 +1565,11 @@
       var statusEl = document.getElementById('obHistStatus');
       uploadFile(file, statusEl).then(function (key) {
         histKey = key;
+        fetch(SCENARIOS_API + '?view=schemes', {
+          method: 'POST',
+          headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
+          body: JSON.stringify({ action: 'scan', custom_input_key: key }),
+        }).catch(function () {});
         lockCountry();
         updateSubmitState();
       }).catch(function () {});
