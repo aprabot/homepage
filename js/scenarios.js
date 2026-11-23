@@ -70,6 +70,7 @@
     if (levers.holiday_off) parts.push('forward holiday effects off');
     if (levers.excluded_holiday_dates?.length) parts.push(levers.excluded_holiday_dates.length + ' holidays excluded');
     if (levers.excluded_schemes && levers.excluded_schemes.length) parts.push(levers.excluded_schemes.length + ' schemes excluded');
+    if (levers.included_schemes && levers.included_schemes.length) parts.push('draft scheme' + (levers.included_schemes.length === 1 ? ' ' : 's ') + levers.included_schemes.join(', '));
     return parts.join(', ');
   }
 
@@ -146,7 +147,7 @@
         '<td>' + (canCompare ? '<input type="checkbox" ' + checked + ' onclick="event.stopPropagation()" onchange="toggleCompareSelect(\'' + s.id + '\',this.checked)">' : '') + '</td>' +
         '<td style="font-weight:600">' + escapeHtml(s.label || 'Untitled') + '</td>' +
         '<td class="dsubtle" style="margin:0">' + escapeHtml((s.requested_by || '').split('@')[0]) + '</td>' +
-        '<td class="dsubtle" style="margin:0">' + configDescription(s) + '</td>' +
+        '<td class="dsubtle" style="margin:0">' + escapeHtml(configDescription(s)) + '</td>' +
         '<td>' + (s.wape != null ? s.wape.toFixed(2) + '%' : '—') + '</td>' +
         '<td>' + (s.volume_error != null ? (s.volume_error > 0 ? '+' : '') + s.volume_error.toFixed(2) + '%' : '—') + '</td>' +
         '<td>' + statusPill(s) + '</td>' +
@@ -500,6 +501,10 @@
   var scenarioLeverSupport = false;
   var pendingScenarioChoices = {};
   var excludedHolidayDates = new Set();
+  var excludedSchemes = new Set();  // committed schemes left out of the next run
+  var includedSchemes = new Set();  // drafts applied to the next run only
+  var committedSchemes = null;      // null until the registry has loaded
+  var draftSchemes = [];
   var workspaceRunId = '';
   var workspaceComparisonKey = '';
 
@@ -518,7 +523,7 @@
   }
 
   var scenarioDraftFields = [
-    'rf-label', 'rf-source', 'rf-exclude', 'rf-spend', 'rf-campaign',
+    'rf-label', 'rf-source', 'rf-spend', 'rf-campaign',
     'rf-cap', 'rf-price', 'rf-price-postal', 'rf-price-sku', 'rf-postal', 'rf-weather', 'rf-refresh',
   ];
 
@@ -621,6 +626,86 @@
     }
   }
 
+  // Choices are the schemes created in Discount Schemes: committed ones
+  // apply unless unticked; drafts apply only when ticked, to this run alone.
+  // Schemes only detected in sales have no discount or future dates to apply.
+  async function loadScenarioSchemes() {
+    var status = scenarioElement('scenarioSchemeStatus');
+    if (!committedSchemes) status.textContent = 'Loading schemes…';
+    try {
+      var response = await APRA_SESSION.fetch(SCENARIOS_API + '?view=schemes');
+      if (!response.ok) throw new Error();
+      var data = await response.json();
+      if (!Array.isArray(data.schemes)) throw new Error();
+      committedSchemes = data.schemes.filter(function (scheme) { return scheme.status === 'committed'; });
+      // An older backend would silently ignore drafts, so it isn't offered them.
+      draftSchemes = data.draft_runs ? data.schemes.filter(function (scheme) { return scheme.version && scheme.status === 'draft'; }) : [];
+      var detected = data.schemes.filter(function (scheme) { return scheme.detected && !scheme.version; }).length;
+      keepKnownSchemes(excludedSchemes, committedSchemes);
+      keepKnownSchemes(includedSchemes, draftSchemes);
+      var any = committedSchemes.length + draftSchemes.length;
+      status.textContent = (any ? 'Ticked schemes apply to this run.' + (draftSchemes.length ? ' Drafts stay drafts.' : '') : 'No schemes created yet.') +
+        (detected ? ' ' + detected + ' detected in your sales need a discount and dates first: open Discount Schemes and save ' +
+          (detected === 1 ? 'it' : 'them') + ' as a draft.' : '');
+      scenarioElement('scenarioSchemesOpen').hidden = any > 0 && !detected;
+      renderScenarioSchemes();
+    } catch (error) {
+      status.textContent = 'Could not load discount schemes. Reopen this section to retry.';
+    }
+  }
+
+  function keepKnownSchemes(chosen, schemes) {
+    var codes = new Set(schemes.map(function (scheme) { return scheme.code; }));
+    chosen.forEach(function (code) { if (!codes.has(code)) chosen.delete(code); });
+  }
+
+  function renderScenarioSchemes() {
+    var all = committedSchemes.concat(draftSchemes);
+    var firstForecastDay = window.DATA?.id ? window.DATA.weeks?.[window.DATA.backtestWeeks || 0] : null;
+    scenarioElement('scenarioSchemeActions').hidden = all.length < 2;
+    scenarioElement('scenarioSchemeOptions').replaceChildren(...all.map(function (scheme) {
+      var isDraft = scheme.status === 'draft';
+      var label = document.createElement('label');
+      label.className = 'scenario-check';
+      var input = document.createElement('input');
+      input.type = 'checkbox';
+      input.value = scheme.code;
+      input.dataset.kind = isDraft ? 'draft' : 'committed';
+      input.checked = isDraft ? includedSchemes.has(scheme.code) : !excludedSchemes.has(scheme.code);
+      var starts = (scheme.scope || []).map(function (line) { return line.start_date; }).filter(Boolean).sort();
+      var ends = (scheme.scope || []).map(function (line) { return line.end_date; }).filter(Boolean).sort();
+      var text = document.createElement('span');
+      text.textContent = (scheme.name && scheme.name !== scheme.code ? scheme.name + ' · ' : '') + scheme.code;
+      if (isDraft) {
+        var tag = document.createElement('em');
+        tag.textContent = 'Draft';
+        text.append(tag);
+      }
+      if (starts.length && ends.length) {
+        var small = document.createElement('small');
+        var last = ends[ends.length - 1];
+        small.textContent = starts[0] + ' to ' + last + (firstForecastDay && last < firstForecastDay ? ' · ended, no effect on the forecast' : '');
+        text.append(small);
+      }
+      label.append(input, text);
+      return label;
+    }));
+    updateScenarioSchemeSummary();
+  }
+
+  function updateScenarioSchemeSummary() {
+    var total = committedSchemes ? committedSchemes.length + draftSchemes.length : 0;
+    var on = total ? committedSchemes.length - excludedSchemes.size + includedSchemes.size : 0;
+    scenarioElement('scenarioSchemeSummary').textContent = 'Discount schemes' + (total ? ' · ' + on + ' of ' + total + ' included' : '');
+  }
+
+  function changeScenarioSchemes(included) {
+    var codes = function (schemes) { return schemes.map(function (scheme) { return scheme.code; }); };
+    excludedSchemes = new Set(included ? [] : codes(committedSchemes));
+    includedSchemes = new Set(included ? codes(draftSchemes) : []);
+    renderScenarioSchemes();
+  }
+
   function renderScenarioHolidays() {
     var data = window.DATA;
     var lastActual = data?.id && data.weeks?.[(data.backtestWeeks || 0) - 1];
@@ -693,6 +778,11 @@
         pendingScenarioChoices[saved['rf-price-scope'] === 'sku' ? 'rf-price-sku' : 'rf-price-postal'] = saved['rf-price-target'];
       }
       excludedHolidayDates = new Set(saved.excludedHolidayDates || []);
+      // Older drafts kept typed, comma-separated IDs.
+      excludedSchemes = new Set(saved.excludedSchemes || String(saved['rf-exclude'] || '').split(',')
+        .map(function (code) { return code.trim().toUpperCase(); }).filter(Boolean));
+      includedSchemes = new Set(saved.includedSchemes || []);
+      if (excludedSchemes.size || includedSchemes.size) loadScenarioSchemes();
       if (saved['rf-source']) scenarioElement('rf-source').dataset.edited = 'true';
       syncScenarioInput();
     } catch (error) { /* Nothing to restore. */ }
@@ -707,6 +797,8 @@
       return [id, field.type === 'checkbox' ? field.checked : field.value];
     }));
     draft.excludedHolidayDates = Array.from(excludedHolidayDates);
+    draft.excludedSchemes = Array.from(excludedSchemes);
+    draft.includedSchemes = Array.from(includedSchemes);
     try {
       localStorage.setItem(key, JSON.stringify(draft));
       message.textContent = 'Draft saved in this browser.' +
@@ -1005,8 +1097,12 @@
       levers.price_postal_code = scenarioElement('rf-price-postal').value;
     }
     if (excludedHolidayDates.size) levers.excluded_holiday_dates = Array.from(excludedHolidayDates);
-    var exclude = document.getElementById('rf-exclude').value.split(',').map(function (value) { return value.trim(); }).filter(Boolean);
-    if (exclude.length) levers.excluded_schemes = exclude;
+    if ((excludedSchemes.size || includedSchemes.size) && !committedSchemes) {
+      errEl.textContent = 'Your discount schemes haven’t loaded, so the saved selection can’t be checked. Open Discount schemes above and try again.';
+      return;
+    }
+    if (excludedSchemes.size) levers.excluded_schemes = Array.from(excludedSchemes);
+    if (includedSchemes.size) levers.included_schemes = Array.from(includedSchemes);
 
     if (!scenarioLeverSupport && (source === 'approved' || Object.keys(levers).length)) {
       errEl.textContent = 'The saved levers require the updated Forecast backend. Choose a standard run or try again after deployment.';
@@ -1732,7 +1828,7 @@
       'Requested by ' + escapeHtml((meta.requested_by || '').split('@')[0]) +
       ' · Created ' + fmtRelative(meta.created_at) +
       (meta.completed_at ? ' · Completed ' + fmtRelative(meta.completed_at) : '') +
-      ' · Config: ' + configDescription(meta) +
+      ' · Config: ' + escapeHtml(configDescription(meta)) +
       '</div>';
 
     if (meta.approved) {
@@ -2108,6 +2204,22 @@
       new ResizeObserver(drawWorkspaceChart).observe(scenarioElement('scenarioForecastGraph'));
       source.addEventListener('change', function () { source.dataset.edited='true'; syncScenarioInput(); });
       scenarioElement('rf-price-sku').addEventListener('change', syncScenarioPriceOptions);
+      scenarioElement('scenarioSchemes').addEventListener('toggle', function (event) {
+        if (event.target.open) loadScenarioSchemes();
+      });
+      scenarioElement('scenarioSchemeOptions').addEventListener('change', function (event) {
+        var draft = event.target.dataset.kind === 'draft';
+        var chosen = draft ? includedSchemes : excludedSchemes;
+        if (event.target.checked === draft) chosen.add(event.target.value);
+        else chosen.delete(event.target.value);
+        updateScenarioSchemeSummary();
+      });
+      scenarioElement('scenarioSchemesAll').addEventListener('click', function () { changeScenarioSchemes(true); });
+      scenarioElement('scenarioSchemesNone').addEventListener('click', function () { changeScenarioSchemes(false); });
+      scenarioElement('scenarioSchemesOpen').addEventListener('click', function () {
+        var nav = Array.from(document.querySelectorAll('.dnav li')).find(function (li) { return li.title === 'Discount Schemes'; });
+        if (nav) nav.click();
+      });
       scenarioElement('scenarioMarketingSpend').addEventListener('toggle', function (event) {
         if (event.currentTarget.open) loadScenarioCampaigns();
       });

@@ -60,6 +60,7 @@
     lastData = null;
     invReqRows = null;
     inbound = null;
+    stock = null;
   };
 
   function escapeHtml(s) {
@@ -413,16 +414,20 @@
       });
   };
 
-  // Latest monthly requirement, plus what the uploaded inbound receipts
-  // really contain. Receipts say what arrived, not what is left, so on-hand,
-  // in-transit, open PO and delta stay empty rather than being estimated.
+  // Latest monthly requirement, plus what the uploaded files really contain.
+  // Receipts say what arrived, not what is left, so on-hand, in-transit, open
+  // PO, delta and status come only from a stock file and are never estimated.
   var SCENARIOS_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/scenarios';
   var invReqRows = null;
   var invReqMonthIdx = null;
   var inbound = null; // {status: 'loading' | 'none' | 'error' | 'unavailable' | 'ok', by_sku, ...}
+  var stock = null;   // the uploaded stock file: {status, by_sku, as_of, ...}; null until the backend answers
+  var stockCanEdit = false;
   var invOpenSkus = {};
   var invReqState = { sku: 'ALL', search: '', activeKpiTab: null, sortKey: 'sku', sortDir: 'asc' };
-  var inventoryKpis = {required: 'Recommended Inventory', received: 'Received (30 days)'};
+  var STOCK_KEYS = ['present', 'intransit', 'openpo'];
+  var inventoryKpis = {present: 'Present inventory', required: 'Recommended Inventory', received: 'Received (30 days)',
+                       intransit: 'In-transit', openpo: 'Open PO units'};
 
   function loadInbound() {
     if (!document.getElementById('inventoryReqBody')) return;
@@ -431,14 +436,93 @@
     APRA_SESSION.fetch(SCENARIOS_API + '?view=inbound')
       .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
       // A backend without this view answers with the scenario list instead.
-      .then(function (d) { return d.inbound || { status: 'unavailable' }; })
-      .catch(function () { return { status: 'unavailable' }; })
-      .then(function (result) {
+      .catch(function () { return {}; })
+      .then(function (d) {
         if (inbound !== request) return; // invalidated meanwhile
-        inbound = result;
-        invReqUpdateKpiTabUI();
-        invReqRender();
+        inbound = d.inbound || { status: 'unavailable' };
+        setStock(d.stock || null, d.can_edit === true);
       });
+  }
+
+  function setStock(next, canEdit) {
+    stock = next;
+    stockCanEdit = canEdit;
+    renderStockBar();
+    invReqUpdateKpiTabUI();
+    invReqRender();
+  }
+
+  function stockFor(sku) {
+    return stock && stock.status === 'ok' ? stock.by_sku[sku] : null;
+  }
+
+  function plural(n, word) { return n.toLocaleString() + ' ' + word + (n === 1 ? '' : 's'); }
+
+  // Hidden unless the backend supports stock files: posting to one that
+  // doesn't would start a forecast run instead.
+  function renderStockBar(message, kind) {
+    var bar = document.getElementById('invStockBar');
+    bar.hidden = !stock;
+    if (!stock) return;
+    var ok = stock.status === 'ok';
+    document.getElementById('invStockTitle').textContent = ok ? 'Stock file' : 'Add your stock';
+    var text = message;
+    if (!text && ok) {
+      var left = [];
+      if (stock.skus_unmatched) left.push(plural(stock.skus_unmatched, 'SKU') + ' not in the forecast');
+      if (stock.rows_skipped) left.push(plural(stock.rows_skipped, 'unreadable row'));
+      text = (stock.as_of ? 'As of ' + fmtDay(stock.as_of) + ' · ' : '') + plural(stock.rows_used, 'row') +
+        ' · uploaded ' + localDay(stock.uploaded_at) + (left.length ? ' · left out: ' + left.join(', ') : '');
+    } else if (!text && stock.status === 'error') {
+      text = 'Your stock file couldn’t be read: ' + stock.error; kind = 'err';
+    } else if (!text) {
+      text = 'Upload on-hand, in-transit and open PO units to fill these KPIs, Delta and Status.';
+    }
+    var el = document.getElementById('invStockStatus');
+    el.textContent = text;
+    el.className = kind || '';
+    ['invStockLabel', 'invStockTpl'].forEach(function (id) { document.getElementById(id).style.display = stockCanEdit ? '' : 'none'; });
+    document.getElementById('invStockFile').disabled = !stockCanEdit;
+    document.getElementById('invStockLabel').textContent = ok ? 'Replace file' : 'Upload stock file';
+    if (!stockCanEdit && !ok && !message) el.textContent = 'An admin can upload on-hand, in-transit and open PO units.';
+  }
+
+  function uploadStock(file) {
+    var input = document.getElementById('invStockFile');
+    input.disabled = true;
+    renderStockBar('Uploading ' + file.name + '…');
+    input.disabled = true;
+    var json = function (r) { return r.json().catch(function () { return {}; }).then(function (d) {
+      if (!r.ok) throw new Error(d.error || 'HTTP ' + r.status); return d; }); };
+    var post = function (url, body) {
+      return APRA_SESSION.fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) }).then(json);
+    };
+    post(SCENARIOS_API + '/upload-url', { filename: file.name })
+      .then(function (d) {
+        return fetch(d.upload_url, { method: 'PUT', headers: { 'Content-Type': d.content_type }, body: file }).then(function (r) {
+          if (!r.ok) throw new Error('Upload failed (' + r.status + ').');
+          return post(SCENARIOS_API + '?view=stock', { key: d.key });
+        });
+      })
+      .then(function (d) { setStock(d.stock, true); })
+      .catch(function (err) { renderStockBar('Not updated: ' + err.message, 'err'); })
+      .then(function () { input.disabled = !stockCanEdit; input.value = ''; });
+  }
+
+  function downloadStockTemplate() {
+    var sites = {};
+    (invReqRows || []).forEach(function (row) { ((inboundFor(row.sku) || {}).sites || []).forEach(function (x) { sites[x.code] = x.name; }); });
+    var codes = Object.keys(sites).sort();
+    var q = function (v) { v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
+    var lines = ['as_of,site_code,site_name,sku,on_hand,in_transit,open_po'];
+    (invReqRows || []).forEach(function (row) {
+      (codes.length ? codes : ['']).forEach(function (code) { lines.push(['', q(code), q(sites[code] || ''), row.sku, '', '', ''].join(',')); });
+    });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([lines.join('\n') + '\n'], { type: 'text/csv' }));
+    a.download = 'apra_stock_template.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
   }
 
   function inboundFor(sku) {
@@ -465,7 +549,8 @@
 
   function inboundNote() {
     var base = 'Required uses this month’s cycle stock and safety stock. ';
-    var missing = ' Stock on hand, in-transit and open POs aren’t in this file.';
+    var missing = '';
+    if (stock && stock.status === 'ok') missing = ' Delta = on hand + in transit + open PO − required.';
     if (!inbound || inbound.status === 'loading') return base + 'Loading inbound receipts…';
     if (inbound.status === 'none') return base + 'No inbound receipts uploaded yet — add them in Getting Started.';
     if (inbound.status === 'error') return 'Inbound receipts couldn’t be read: ' + inbound.error;
@@ -510,10 +595,14 @@
     document.querySelectorAll('.inv-kpi-tab').forEach(function (tab) {
       var key = tab.dataset.kpiTab;
       tab.classList.toggle('active', invReqState.activeKpiTab === key);
-      if (key !== 'received') return;
-      tab.disabled = !hasInbound;
-      tab.title = hasInbound ? 'Sort by units received' : 'No inbound receipts';
-      tab.querySelector('.inv-kpi-hint').textContent = hasInbound ? 'Sort desc' : 'No data';
+      if (key === 'required') return;
+      var fromStock = STOCK_KEYS.includes(key);
+      var has = fromStock ? invReqRows && invReqRows.some(function (r) { var v = stockFor(r.sku); return v && v[key] != null; }) : hasInbound;
+      tab.disabled = !has;
+      tab.title = has ? 'Sort by ' + inventoryKpis[key] : fromStock ? 'Not in your stock file' : 'No inbound receipts';
+      tab.querySelector('.inv-kpi-hint').textContent = has ? 'Sort desc' : 'No data';
+      if (fromStock) tab.querySelector('.inv-kpi-src').textContent = has ? 'From your stock file'
+        : stock && stock.status === 'ok' ? 'Not in your stock file' : 'Needs a stock file';
     });
     var pill = document.getElementById('invActiveTabPill');
     if (invReqState.activeKpiTab) {
@@ -530,8 +619,13 @@
     if (!invReqRows) return;
     var rows = invReqRows.map(function (row) {
       var stats = inboundFor(row.sku);
-      return Object.assign({}, row, { inbound: stats, received: stats ? stats.received_30d : null,
-                                      every: stats ? stats.every_days : null });
+      var held = stockFor(row.sku) || {};
+      var out = Object.assign({}, row, { inbound: stats, received: stats ? stats.received_30d : null, stock: held,
+                                         every: stats ? stats.every_days : null });
+      STOCK_KEYS.forEach(function (key) { out[key] = held[key] == null ? null : held[key]; });
+      // Needs on-hand; a missing in-transit or open PO adds nothing to supply.
+      out.delta = out.present == null ? null : out.present + (out.intransit || 0) + (out.openpo || 0) - row.required;
+      return out;
     });
     var filtered = rows.filter(function (row) {
       if (invReqState.sku !== 'ALL' && row.sku !== invReqState.sku) return false;
@@ -555,6 +649,15 @@
     var hasInbound = !!inbound && inbound.status === 'ok';
     document.getElementById('inv-foot-received').textContent = hasInbound && filtered.length ? invFmt(sumReceived(filtered)) : '—';
     document.getElementById('kpi-received-total').textContent = hasInbound ? invFmt(sumReceived(rows)) : '—';
+    var sumKnown = function (items, key) {
+      var known = items.filter(function (r) { return r[key] != null; });
+      return known.length ? known.reduce(function (sum, r) { return sum + r[key]; }, 0) : null;
+    };
+    STOCK_KEYS.concat('delta').forEach(function (key) {
+      document.getElementById('inv-foot-' + key).textContent = invFmt(sumKnown(filtered, key));
+      var card = document.querySelector('.inv-kpi-tab[data-kpi-tab="' + key + '"] .inv-kpi-val');
+      if (card) card.textContent = invFmt(sumKnown(rows, key));
+    });
     var siteCodes = {};
     rows.forEach(function (r) { (r.inbound ? r.inbound.sites : []).forEach(function (site) { siteCodes[site.code] = true; }); });
     var siteCount = Object.keys(siteCodes).length;
@@ -595,20 +698,36 @@
     }
     var dim = '<td><span class="inv-dim">—</span></td>';
     var units = function (n) { return n == null ? dim : '<td class="inv-num">' + invFmt(n) + '</td>'; };
+    var deltaCell = function (n) {
+      return n == null ? dim : '<td class="inv-num inv-delta" data-dir="' + (n < 0 ? 'down' : n > 0 ? 'up' : 'flat') + '">' + (n > 0 ? '+' : n < 0 ? '−' : '') + invFmt(Math.abs(n)) + '</td>';
+    };
+    var statusCell = function (n) {
+      if (n == null) return dim;
+      n = Math.round(n);
+      return '<td><span class="pill ' + (n < 0 ? 'risk' : 'ok') + '">' + (n < 0 ? 'Shortfall' : n === 0 ? 'Matched' : 'Surplus') + '</span></td>';
+    };
     body.innerHTML = filtered.map(function (row) {
-      var sites = row.inbound ? row.inbound.sites : [];
+      // One line per site, from either file.
+      var bySite = {};
+      (row.inbound ? row.inbound.sites : []).forEach(function (x) { bySite[x.code] = { code: x.code, name: x.name, inbound: x, stock: {} }; });
+      (row.stock.sites || []).forEach(function (x) {
+        var site = bySite[x.code] || (bySite[x.code] = { code: x.code, name: x.name, inbound: null });
+        site.stock = x; site.name = site.name || x.name;
+      });
+      var sites = Object.keys(bySite).sort().map(function (code) { return bySite[code]; });
       var open = sites.length > 1 && invOpenSkus[row.sku];
       var siteCell = !sites.length ? dim
         : sites.length === 1 ? '<td>' + escapeHtml(sites[0].name || sites[0].code) + '</td>'
         : '<td><button type="button" class="inv-sites-btn" data-inv-sku="' + escapeHtml(row.sku) + '" aria-expanded="' + !!open + '">' + sites.length + ' sites</button></td>';
       var main = '<tr>' +
-        '<td><b style="font-family:var(--mono);color:var(--text)">' + escapeHtml(row.sku) + '</b></td>' + siteCell + dim +
+        '<td><b style="font-family:var(--mono);color:var(--text)">' + escapeHtml(row.sku) + '</b></td>' + siteCell + units(row.present) +
         '<td style="color:var(--text);font-weight:600">' + invFmt(row.required) + '</td>' + units(row.received) +
-        dim + dim + dim + '<td>' + fmtEvery(row.inbound) + '</td>' + dim + '</tr>';
+        units(row.intransit) + units(row.openpo) + deltaCell(row.delta) + '<td>' + fmtEvery(row.inbound) + '</td>' + statusCell(row.delta) + '</tr>';
       return main + (!open ? '' : sites.map(function (site) {
         return '<tr class="inv-site-row"><td></td><td>' + escapeHtml(site.name || site.code) +
-          (site.name ? '<small>' + escapeHtml(site.code) + '</small>' : '') + '</td>' + dim + dim + units(site.received_30d) +
-          dim + dim + dim + '<td>' + fmtEvery(site) + '</td>' + dim + '</tr>';
+          (site.name ? '<small>' + escapeHtml(site.code) + '</small>' : '') + '</td>' + units(site.stock.present) + dim +
+          units(site.inbound ? site.inbound.received_30d : null) + units(site.stock.intransit) + units(site.stock.openpo) +
+          dim + '<td>' + fmtEvery(site.inbound) + '</td>' + dim + '</tr>';
       }).join(''));
     }).join('');
   }
@@ -631,6 +750,8 @@
     var resetBtn = document.getElementById('invReqResetBtn');
     var clearTabBtn = document.getElementById('invClearTabBtn');
     if (!skuSel) return; // this section's markup isn't on the current page
+    document.getElementById('invStockTpl').addEventListener('click', downloadStockTemplate);
+    document.getElementById('invStockFile').addEventListener('change', function () { if (this.files[0]) uploadStock(this.files[0]); });
     document.getElementById('inventoryReqBody').addEventListener('click', function (e) {
       var btn = e.target.closest('.inv-sites-btn');
       if (!btn) return;

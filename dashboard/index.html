@@ -517,7 +517,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261122h">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261123a">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -924,9 +924,15 @@
             <h3 class="scenario-levers-title">Levers</h3>
             <p class="dsubtle" id="scenarioLeverAvailability" role="status"></p>
             <fieldset id="scenarioAdvancedLevers">
-              <details>
-                <summary>Discount schemes</summary>
-                <label>Exclude schemes<input id="rf-exclude" placeholder="Comma-separated scheme IDs"></label>
+              <details id="scenarioSchemes">
+                <summary id="scenarioSchemeSummary">Discount schemes</summary>
+                <p id="scenarioSchemeStatus" class="scenario-holiday-note" role="status"></p>
+                <div class="scenario-holiday-actions" id="scenarioSchemeActions" hidden>
+                  <button type="button" class="dbtn" id="scenarioSchemesAll">Select all</button>
+                  <button type="button" class="dbtn" id="scenarioSchemesNone">Deselect all</button>
+                </div>
+                <div id="scenarioSchemeOptions" role="group" aria-labelledby="scenarioSchemeSummary"></div>
+                <button type="button" class="link-btn" id="scenarioSchemesOpen" hidden>Open Discount Schemes →</button>
               </details>
               <details id="scenarioMarketingSpend">
                 <summary>Marketing spend</summary>
@@ -1101,7 +1107,7 @@
          Bedrock-generated AI Insights content). -->
     <div class="dbody" id="inventoryPanel" style="display:none">
       <h1 class="dgreet">Inventory</h1>
-      <p class="dsubtle">Required inventory per SKU combines cycle stock and safety stock from shipment history. Sites, units received and delivery frequency come from the inbound receipts you uploaded.</p>
+      <p class="dsubtle">Required inventory per SKU combines cycle stock and safety stock from shipment history. Sites, units received and delivery frequency come from the inbound receipts you uploaded; stock on hand, in transit and on order come from your stock file.</p>
 
       <div id="invLoading" style="margin-top:18px">
         <span class="skel-line wide"></span>
@@ -1111,6 +1117,12 @@
       <p class="dsubtle" id="invError" style="margin:20px 0 4px;display:none"></p>
 
       <div id="invContent" style="display:none;margin-top:18px">
+        <div class="inv-stock-bar" id="invStockBar" hidden>
+          <div class="inv-stock-text"><b id="invStockTitle"></b><span id="invStockStatus" role="status"></span></div>
+          <button type="button" class="dbtn inv-stock-ghost" id="invStockTpl">Download template</button>
+          <label class="dbtn" for="invStockFile" id="invStockLabel">Upload stock file</label>
+          <input type="file" id="invStockFile" class="inv-stock-input" accept=".xlsx,.csv,.tsv,.txt">
+        </div>
         <div class="inv-locked-badge">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span style="font-size:12px">Required inventory — <b style="color:var(--text)" id="invReqMonthLabel">—</b></span>
@@ -1118,13 +1130,13 @@
         </div>
 
         <div class="inv-kpi-grid">
-          <button type="button" class="inv-kpi-tab" data-kpi-tab="present" onclick="window.invReqPickKpiTab(this)" disabled title="No data available yet — there is no present/on-hand inventory feed in this app">
+          <button type="button" class="inv-kpi-tab" data-kpi-tab="present" onclick="window.invReqPickKpiTab(this)" disabled>
             <div class="inv-kpi-top">
               <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Total Inventory Units</span>
               <span class="inv-kpi-hint">No data</span>
             </div>
-            <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub">Present On-Hand</span></div>
-            <div class="inv-kpi-foot"><span>Needs a stock-on-hand file</span><span></span></div>
+            <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub">On hand</span></div>
+            <div class="inv-kpi-foot"><span class="inv-kpi-src">Needs a stock file</span><span></span></div>
           </button>
           <button type="button" class="inv-kpi-tab" data-kpi-tab="required" onclick="window.invReqPickKpiTab(this)">
             <div class="inv-kpi-top">
@@ -1142,21 +1154,21 @@
             <div class="inv-kpi-val-row"><span class="inv-kpi-val" id="kpi-received-total">—</span><span class="inv-kpi-sub">Last 30 days</span></div>
             <div class="inv-kpi-foot"><span id="kpi-received-foot">From inbound receipts</span><span id="kpi-received-sub">—</span></div>
           </button>
-          <button type="button" class="inv-kpi-tab" data-kpi-tab="intransit" onclick="window.invReqPickKpiTab(this)" disabled title="No data available yet — there is no inbound-shipment tracking in this app">
+          <button type="button" class="inv-kpi-tab" data-kpi-tab="intransit" onclick="window.invReqPickKpiTab(this)" disabled>
             <div class="inv-kpi-top">
               <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 16V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1m8-1a1 1 0 0 1-1 1H9m4-1V8a1 1 0 0 1 1-1h2.586a1 1 0 0 1 .707.293l3.414 3.414a1 1 0 0 1 .293.707V16a1 1 0 0 1-1 1h-1m-6-1a1 1 0 0 0 1 1h1M5 17a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0m6 0a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0"/></svg></span>In-Transit Inventory</span>
               <span class="inv-kpi-hint">No data</span>
             </div>
-            <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub">—</span></div>
-            <div class="inv-kpi-foot"><span>Not in inbound receipts</span><span></span></div>
+            <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub"></span></div>
+            <div class="inv-kpi-foot"><span class="inv-kpi-src">Needs a stock file</span><span></span></div>
           </button>
-          <button type="button" class="inv-kpi-tab" data-kpi-tab="openpo" onclick="window.invReqPickKpiTab(this)" disabled title="No data available yet — there is no purchase-order data in this app">
+          <button type="button" class="inv-kpi-tab" data-kpi-tab="openpo" onclick="window.invReqPickKpiTab(this)" disabled>
             <div class="inv-kpi-top">
               <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Open PO Units</span>
               <span class="inv-kpi-hint">No data</span>
             </div>
-            <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub">—</span></div>
-            <div class="inv-kpi-foot"><span>Not in inbound receipts</span><span></span></div>
+            <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub"></span></div>
+            <div class="inv-kpi-foot"><span class="inv-kpi-src">Needs a stock file</span><span></span></div>
           </button>
         </div>
 
@@ -1177,12 +1189,12 @@
                 <tr>
                   <th class="amp-sortable" data-sort-key="sku">SKU <span class="ov-sort-ic">⇅</span></th>
                   <th>Site</th>
-                  <th>Present inventory</th>
+                  <th class="amp-sortable" data-sort-key="present">Present inventory <span class="ov-sort-ic">⇅</span></th>
                   <th class="amp-sortable" data-sort-key="required">Required <span class="ov-sort-ic">⇅</span></th>
                   <th class="amp-sortable" data-sort-key="received">Received (30 days) <span class="ov-sort-ic">⇅</span></th>
-                  <th>In-transit</th>
-                  <th>Open PO units</th>
-                  <th>Delta</th>
+                  <th class="amp-sortable" data-sort-key="intransit">In-transit <span class="ov-sort-ic">⇅</span></th>
+                  <th class="amp-sortable" data-sort-key="openpo">Open PO units <span class="ov-sort-ic">⇅</span></th>
+                  <th class="amp-sortable" data-sort-key="delta">Delta <span class="ov-sort-ic">⇅</span></th>
                   <th class="amp-sortable" data-sort-key="every">Inbound frequency <span class="ov-sort-ic">⇅</span></th>
                   <th>Status</th>
                 </tr>
@@ -2293,9 +2305,9 @@
 <script src="../js/data.js"></script>
 <script src="../js/main.js?v=20261122f"></script>
 <script src="../js/theme.js"></script>
-<script src="../js/scenarios.js?v=20261122h"></script>
+<script src="../js/scenarios.js?v=20261123a"></script>
 <script src="../js/insights.js"></script>
-<script src="../js/inventory.js?v=20261122g"></script>
+<script src="../js/inventory.js?v=20261123a"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
 <script src="../js/ads.js?v=shopify-check"></script>

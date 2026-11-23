@@ -285,6 +285,11 @@ def _scenario_levers(body):
         raise ValueError('Select up to 100 schemes to exclude.')
     if excluded:
         result['excluded_schemes'] = list(dict.fromkeys(map(_scheme_id, excluded)))
+    included = levers.get('included_schemes') or []
+    if not isinstance(included, list) or len(included) > 100:
+        raise ValueError('Select up to 100 draft schemes to include.')
+    if included:
+        result['included_schemes'] = list(dict.fromkeys(map(_scheme_id, included)))
     return result
 
 
@@ -320,7 +325,8 @@ def _discount_schemes(org, email, method, event):
         rows = [{**detected.get(code, {}), **registry.get(code, {}), 'code': code,
                  'detected': code in detected}
                 for code in sorted(registry.keys() | detected.keys())]
-        return _resp(200, {'schemes': rows, 'can_edit': can_edit})
+        # draft_runs: this backend can apply drafts to one run (included_schemes).
+        return _resp(200, {'schemes': rows, 'can_edit': can_edit, 'draft_runs': True})
     if not can_edit:
         return _resp(403, {'error': 'Only an admin can update discount schemes.'})
     try:
@@ -400,10 +406,67 @@ def _discount_schemes(org, email, method, event):
     return _resp(200, {'scheme': registry[code]})
 
 
+def _live_sku_map(org):
+    """{SKU in uploaded files: forecast SKU}, from the live forecast."""
+    latest = _read_json(f'orgs/{org}/forecast/latest.json', default={}) or {}
+    return _read_json(f'orgs/{org}/scenarios/{latest.get("id")}/anon.json', default={}) or {}
+
+
+def _read_upload(org, key):
+    """A file this org uploaded. Never follows a key outside its own prefix."""
+    if not isinstance(key, str) or not key.startswith(f'orgs/{org}/uploads/') or '..' in key:
+        raise inbound.InboundError('Choose a file you uploaded.')
+    try:
+        obj = s3.get_object(Bucket=BUCKET, Key=key)
+    except s3.exceptions.ClientError:
+        raise inbound.InboundError('The uploaded file could not be found.')
+    if obj['ContentLength'] > inbound.MAX_BYTES:
+        raise inbound.InboundError('The file is too large.')
+    return obj['Body'].read()
+
+
+def _stock_key(org):
+    return f'orgs/{org}/scenarios/stock.json'
+
+
+def stock_summary(org):
+    saved = _read_json(_stock_key(org), default=None)
+    if not saved:
+        return {'status': 'none'}
+    meta = {'uploaded_at': saved.get('uploaded_at'), 'filename': saved.get('filename')}
+    try:
+        data = _read_upload(org, saved.get('key'))
+        return {'status': 'ok', **meta, **inbound.summarize_stock(
+            data, saved['key'], _live_sku_map(org), datetime.now(timezone.utc).date())}
+    except inbound.InboundError as exc:
+        return {'status': 'error', 'error': str(exc), **meta}
+
+
+def save_stock(org, email, event):
+    """POST /scenarios?view=stock {key}: use this uploaded stock file."""
+    if not _is_admin(org, email):
+        return _resp(403, {'error': 'Only an admin can update stock.'})
+    try:
+        key = json.loads(event.get('body') or '{}').get('key')
+        result = inbound.summarize_stock(_read_upload(org, key), key, _live_sku_map(org), datetime.now(timezone.utc).date())
+    except inbound.InboundError as exc:
+        return _resp(400, {'error': str(exc)})
+    except (ValueError, AttributeError):
+        return _resp(400, {'error': 'Invalid JSON.'})
+    if not result['by_sku']:
+        return _resp(400, {'error': 'No SKUs in this file match the approved forecast, so it was not used.'})
+    _write_json(_stock_key(org), {'key': key, 'filename': key.rsplit('/', 1)[-1], 'uploaded_by': email, 'uploaded_at': _now()})
+    return _resp(200, {'stock': stock_summary(org)})
+
+
+def inbound_view(org, email):
+    """GET /scenarios?view=inbound: everything Inventory knows from uploads."""
+    return _resp(200, {'inbound': inbound_summary(org), 'stock': stock_summary(org), 'can_edit': _is_admin(org, email)})
+
+
 def inbound_summary(org):
     """What the latest inbound receipts uploaded in Getting Started contain,
-    per forecast SKU (GET /scenarios?view=inbound). The onboarding profile
-    names the file; the live forecast's anon.json names the SKUs."""
+    per forecast SKU. The onboarding profile names the file."""
     prefix = f'orgs/{org}/uploads/'
     profiles, token = [], None
     while True:
@@ -413,7 +476,6 @@ def inbound_summary(org):
         token = page.get('NextContinuationToken')
         if not token:
             break
-    none = {'inbound': {'status': 'none'}}
     for uploaded, profile_key in sorted(profiles, reverse=True)[:20]:
         profile = _read_json(profile_key, default=None)
         key = profile.get('inbound_receipts_key') if isinstance(profile, dict) else None
@@ -421,19 +483,12 @@ def inbound_summary(org):
         if isinstance(key, str) and key.startswith(prefix) and '..' not in key:
             break
     else:
-        return _resp(200, none)
-    latest = _read_json(f'orgs/{org}/forecast/latest.json', default={}) or {}
-    sku_map = _read_json(f'orgs/{org}/scenarios/{latest.get("id")}/anon.json', default={}) or {}
+        return {'status': 'none'}
     try:
-        obj = s3.get_object(Bucket=BUCKET, Key=key)
-        if obj['ContentLength'] > inbound.MAX_BYTES:
-            raise inbound.InboundError('The inbound file is too large.')
-        result = inbound.summarize(obj['Body'].read(), key, sku_map, datetime.now(timezone.utc).date())
+        result = inbound.summarize(_read_upload(org, key), key, _live_sku_map(org), datetime.now(timezone.utc).date())
     except inbound.InboundError as exc:
-        return _resp(200, {'inbound': {'status': 'error', 'error': str(exc), 'uploaded_at': uploaded.isoformat()}})
-    except s3.exceptions.ClientError:
-        return _resp(200, none)
-    return _resp(200, {'inbound': {'status': 'ok', 'uploaded_at': uploaded.isoformat(), **result}})
+        return {'status': 'error', 'error': str(exc), 'uploaded_at': uploaded.isoformat()}
+    return {'status': 'ok', 'uploaded_at': uploaded.isoformat(), **result}
 
 
 def create_scenario(org, event):
@@ -467,6 +522,22 @@ def create_scenario(org, event):
     active_schemes = [dict(name=row['name'], mechanic=row['mechanic'], scope=row['scope'],
                            forecast_id=row['forecast_id'], code=code) for code, row in schemes.items()
                       if row['status'] == 'committed' and code not in levers.get('excluded_schemes', [])]
+    # Drafts picked for this run only: they apply here without being committed.
+    if levers.get('included_schemes'):
+        latest = _read_json(f'orgs/{org}/forecast/latest.json', default={}) or {}
+        for code in levers['included_schemes']:
+            row = schemes.get(code) or {}
+            if row.get('status') == 'committed':  # committed since it was picked
+                if code in levers.get('excluded_schemes', []):
+                    return _resp(400, {'error': f'{code} is both included and excluded.'})
+                continue
+            if row.get('status') != 'draft':
+                return _resp(400, {'error': f'{code} is not a draft scheme. Reopen Discount schemes and choose again.'})
+            unknown = sorted({line['sku'] for line in row['scope']} - set(latest.get('skus') or {}))
+            if unknown:
+                return _resp(400, {'error': f'{code} uses {", ".join(unknown[:3])}, which is not in the approved forecast.'})
+            active_schemes.append(dict(name=row['name'], mechanic=row['mechanic'], scope=row['scope'],
+                                       forecast_id=latest['id'], code=code, draft=True))
 
     scenario_id = f"scn-{int(time.time())}-{uuid.uuid4().hex[:6]}"
     email = _claims(event).get('email', 'planner')
@@ -889,7 +960,13 @@ def handler(event, context):
 
         query = event.get('queryStringParameters') or {}
         if method == 'GET' and path == '/scenarios' and query.get('view') == 'inbound':
-            return inbound_summary(org)
+            return inbound_view(org, caller_email)
+
+        # Before the plain POST below, which starts a forecast run.
+        if path == '/scenarios' and method == 'POST' and query.get('view'):
+            if query['view'] == 'stock':
+                return save_stock(org, caller_email, event)
+            return _resp(404, {'error': f'no view {query["view"]}'})
 
         if method == 'GET' and path == '/scenarios' and query.get('view') == 'baseline':
             return _baseline_comparison(org, query.get('scenario'), query.get('base'))
