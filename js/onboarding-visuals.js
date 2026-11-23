@@ -61,88 +61,64 @@
     },
   };
 
-  /* One flow per step, matched to the stepper's own labels so a reordered
-     or renamed step can't get the wrong diagram. `soon` marks data that is
-     saved but not used by the forecast yet (stated on the step itself). */
+  /* One slim flow per step, matched to the stepper's own labels so a
+     reordered or renamed step can't get the wrong diagram. Each node is a
+     short label; the longer explanation is its tooltip. `soon` marks data
+     that is saved but not used by the forecast yet (the step says so too).
+     Connect with Shopify and Review & train have no strip: Shopify's card
+     already explains it, and Review & train has its own Queued → Done
+     pipeline, which is animated in place instead (animateTrainPipeline). */
   var FLOWS = [
     { match: /country/i, title: 'How your country is used', nodes: [
-      { icon: 'globe', t: 'Your country', s: 'Picked once, locked after the first upload' },
-      { icon: 'sliders', t: 'Sets the defaults', s: 'Postal-code pattern, currency, date format, festival calendar' },
+      { icon: 'globe', t: 'Country', s: 'Picked once, locked after the first upload' },
+      { icon: 'sliders', t: 'Defaults', s: 'Postal-code pattern, currency, date format, festival calendar' },
       { icon: 'steps', t: 'Every later step', s: 'Uploads are checked against these defaults', accent: true },
     ] },
-    { match: /shopify/i, title: 'What connecting Shopify does', nodes: [
-      { icon: 'store', t: 'Your Shopify store', s: 'Optional' },
-      { icon: 'sync', t: 'Syncs catalog & inventory', s: 'Products and stock levels' },
-      { icon: 'box', t: 'Products in APRABot', s: 'Training still uses your sales file, next step', accent: true },
-    ] },
     { match: /sales/i, title: 'How your sales file becomes a forecast', nodes: [
-      { icon: 'file', t: 'Sales file', s: 'ship_day · sku · postal_code · shipped_units' },
-      { art: 'bars', t: 'Weekly demand history', s: 'Per SKU and postal code' },
-      { art: 'line', t: 'Your forecast', s: 'Learned from that history', accent: true },
+      { icon: 'file', t: 'Sales file', s: 'ship_day, sku, postal_code, shipped_units' },
+      { art: 'bars', t: 'Weekly history', s: 'Demand per SKU and postal code' },
+      { art: 'line', t: 'Forecast', s: 'Learned from that history', accent: true },
     ] },
     { match: /spend|marketing/i, title: 'Where marketing spend fits', nodes: [
-      { icon: 'megaphone', t: 'Campaign spend', s: 'date · campaign · channel · spend' },
+      { icon: 'megaphone', t: 'Spend file', s: 'date, campaign, channel, spend' },
       { icon: 'archive', t: 'Kept on file', s: 'Saved with your setup' },
-      { art: 'line', t: 'Spend → demand', s: 'Not used in the forecast yet', soon: true },
+      { art: 'line', t: 'Forecast', s: 'Spend is not used in the forecast yet', soon: true },
     ] },
     { match: /sku/i, title: 'How the SKU master is checked', nodes: [
       { icon: 'list', t: 'SKU master', s: 'One row per SKU' },
-      { art: 'venn', t: 'Matched to sales', s: 'Missing on either side is flagged' },
-      { icon: 'rocket', t: 'New launches', s: 'Confirm launch dates for new SKUs', accent: true },
+      { art: 'venn', t: 'Matched to sales', s: 'SKUs missing on either side are flagged' },
+      { icon: 'rocket', t: 'Launch dates', s: 'Confirm launch dates for new SKUs', accent: true },
     ] },
-    { match: /inbound/i, title: 'Where inbound receipts fit', truck: true, nodes: [
+    { match: /inbound/i, title: 'Where inbound receipts fit', nodes: [
       { icon: 'factory', t: 'Receipts', s: 'Stock arriving at each site' },
-      { icon: 'warehouse', t: 'Your sites', s: 'Matched to the sites in your sales file' },
-      { icon: 'box', t: 'Inventory projections', s: 'Not used yet — kept for when it is', soon: true },
+      { icon: 'warehouse', t: 'Sites', s: 'Matched to the sites in your sales file' },
+      { icon: 'box', t: 'Inventory', s: 'Not used yet — kept for when it is', soon: true },
     ] },
     { match: /weather|festival/i, title: 'Signals around your demand', nodes: [
-      { art: 'weather', t: 'Weather', s: 'From the Weather sheet in your sales file' },
-      { icon: 'calendar', t: 'Festivals & holidays', s: 'Built-in calendar plus state holidays — saved, not used in training yet' },
-      { icon: 'model', t: 'Model training', s: 'Weather is used as a signal', accent: true },
-    ] },
-    { match: /review|train/i, title: 'What happens after you click Train', pipeline: true, nodes: [
-      { icon: 'clock', t: 'Queued' },
-      { icon: 'file', t: 'Preparing data' },
-      { icon: 'model', t: 'Training' },
-      { icon: 'shield', t: 'Validating' },
-      { icon: 'check', t: 'Done' },
+      { art: 'weather', t: 'Weather', s: 'From the Weather sheet in your sales file — used in training' },
+      { icon: 'calendar', t: 'Festivals', s: 'Built-in calendar plus state holidays — saved, not used in training yet', soon: true },
+      { icon: 'model', t: 'Training', s: 'Weather is used as a signal', accent: true },
     ] },
   ];
 
   function nodeHtml(n, i) {
     var visual = n.art ? ART[n.art]() : icon(n.icon);
-    return '<div class="obv-node' + (n.accent ? ' accent' : '') + (n.soon ? ' soon' : '') + '" style="--i:' + i + '">' +
-      '<span class="obv-ic">' + visual + '</span>' +
-      '<span class="obv-txt"><b>' + n.t + '</b>' + (n.s ? '<small>' + n.s + '</small>' : '') +
-      (n.soon ? '<em class="obv-tag">Coming later</em>' : '') + '</span></div>';
+    return '<span class="obv-node' + (n.accent ? ' accent' : '') + (n.soon ? ' soon' : '') + '" style="--i:' + i + '" title="' + n.s + '">' +
+      '<span class="obv-ic">' + visual + '</span><b>' + n.t + '</b>' +
+      (n.soon ? '<em class="obv-tag">later</em>' : '') + '</span>';
   }
 
   function flowHtml(flow) {
     var parts = [];
     flow.nodes.forEach(function (n, i) {
       if (i) {
-        var dashed = flow.nodes[i].soon ? ' dashed' : '';
-        parts.push('<span class="obv-link' + dashed + (flow.truck && i === 1 ? ' truck' : '') + '" style="--i:' + i + '" aria-hidden="true">' +
-          (flow.truck && i === 1 ? '<span class="obv-truck">' + truckSvg() + '</span>' : '<span class="obv-dot"></span>') + '</span>');
+        parts.push('<span class="obv-link' + (n.soon ? ' dashed' : '') + '" style="--i:' + i + '" aria-hidden="true">' +
+          '<span class="obv-dot"></span></span>');
       }
       parts.push(nodeHtml(n, i));
     });
-    return '<div class="obv' + (flow.pipeline ? ' obv-pipeline' : '') + '" role="img" aria-label="' +
-      flow.title + ': ' + flow.nodes.map(function (n) { return n.t; }).join(', then ') + '">' +
-      '<div class="obv-kicker">' + flow.title + '</div>' +
-      '<div class="obv-flow" style="--cols:' + columns(flow) + '">' + parts.join('') + '</div></div>';
-  }
-
-  // Node, link, node, link, … — links narrower in the 5-stage pipeline.
-  function columns(flow) {
-    var link = flow.pipeline ? '28px' : '56px';
-    return flow.nodes.map(function () { return 'minmax(0,1fr)'; }).join(' ' + link + ' ');
-  }
-
-  function truckSvg() {
-    return '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.7" ' +
-      'stroke-linecap="round" stroke-linejoin="round"><path d="M2 7h11v9H2zM13 10h4l3 3v3h-7"/>' +
-      '<circle cx="6" cy="17.5" r="1.5"/><circle cx="17" cy="17.5" r="1.5"/></svg>';
+    return '<div class="obv" role="img" aria-label="' + flow.title + ': ' +
+      flow.nodes.map(function (n) { return n.t + ' (' + n.s + ')'; }).join(', then ') + '">' + parts.join('') + '</div>';
   }
 
   function addStepDiagrams() {
@@ -161,6 +137,14 @@
       if (intro) intro.insertAdjacentElement('afterend', wrap.firstChild);
       else step.insertAdjacentElement('afterbegin', wrap.firstChild);
     }
+  }
+
+  // Review & train's own pipeline: its stages light up one after another.
+  function animateTrainPipeline() {
+    var flow = document.querySelector('#onboardingPanel .flowd');
+    if (!flow) return;
+    flow.classList.add('obv-flowd');
+    flow.querySelectorAll('.flowd-box').forEach(function (box, i) { box.style.setProperty('--i', i); });
   }
 
   // Training: data → model → forecast, with pulses travelling along the
@@ -184,6 +168,7 @@
     if (!document.getElementById('onboardingPanel')) return;
     addStepDiagrams();
     addTrainingVisual();
+    animateTrainPipeline();
     var ready = document.getElementById('obReady');
     if (ready) ready.classList.add('obv-ready');
   }

@@ -404,110 +404,88 @@
 
 /* ============================================================
    Onboarding visuals (built by js/onboarding-visuals.js)
-   A "how this step is used" diagram per step, the training animation
-   and the ready-state reveal. Animations replay each time a step is
-   shown; all motion is off under prefers-reduced-motion.
+   One slim animated strip per step (pills joined by thin arrows with a
+   travelling dot), Review & train's pipeline lighting up in turn, the
+   training animation and the ready-state reveal. All motion is off under
+   prefers-reduced-motion.
 ============================================================ */
-#dashboard{--obv-accent:var(--signal);--obv-accent-soft:rgba(200,242,78,.12);--obv-accent-line:rgba(200,242,78,.55)}
-[data-theme="light"] #dashboard{--obv-accent:#5A8A00;--obv-accent-soft:rgba(90,138,0,.1);--obv-accent-line:rgba(90,138,0,.5)}
+#dashboard{--obv-accent:var(--signal);--obv-accent-soft:rgba(200,242,78,.12);--obv-accent-line:rgba(200,242,78,.5)}
+[data-theme="light"] #dashboard{--obv-accent:#5A8A00;--obv-accent-soft:rgba(90,138,0,.1);--obv-accent-line:rgba(90,138,0,.45)}
 
-/* Step change: a short fade-and-rise. */
-#onboardingPanel .ob-step{animation:obvIn .38s cubic-bezier(.2,.7,.2,1) both}
-@keyframes obvIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
-
-/* Stepper: the current step breathes; finished links fill in. */
+/* Step change: a short fade-and-rise. Current stepper step breathes. */
+#onboardingPanel .ob-step{animation:obvIn .35s cubic-bezier(.2,.7,.2,1) both}
+@keyframes obvIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
 #onboardingPanel .ob-stepper-step.current .n{animation:obvPulse 2.4s ease-in-out infinite}
 @keyframes obvPulse{0%,100%{box-shadow:0 0 0 3px var(--obv-accent-soft)}50%{box-shadow:0 0 0 7px transparent}}
-#onboardingPanel .ob-stepper-step.done + .ob-stepper-seg{animation:obvSeg .5s ease-out both;transform-origin:left}
-@keyframes obvSeg{from{transform:scaleX(0)}to{transform:scaleX(1)}}
 
-/* The diagram card. */
-#dashboard .obv{margin:0 0 16px;padding:14px 16px 16px;border:1px solid var(--line);border-radius:14px;
-  background:linear-gradient(180deg,rgba(255,255,255,.025),transparent 70%),var(--panel)}
-[data-theme="light"] #dashboard .obv{background:linear-gradient(180deg,rgba(17,19,24,.015),transparent 70%),#fff}
-#dashboard .obv-kicker{font-size:11.5px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:12px}
-#dashboard .obv-flow{display:grid;align-items:stretch;gap:0;grid-template-columns:var(--cols)}
-#dashboard .obv-node{display:flex;align-items:center;gap:11px;min-width:0;padding:11px 12px;border:1px solid var(--line);
-  border-radius:12px;background:var(--ink-3);opacity:0;animation:obvNode .45s cubic-bezier(.2,.7,.2,1) both;
-  animation-delay:calc(var(--i) * .22s + .1s)}
-[data-theme="light"] #dashboard .obv-node{background:#FAFAF7}
-@keyframes obvNode{from{opacity:0;transform:translateY(6px) scale(.98)}to{opacity:1;transform:none}}
-#dashboard .obv-node.accent{border-color:var(--obv-accent-line);box-shadow:0 0 0 0 var(--obv-accent-soft);
-  animation:obvNode .45s cubic-bezier(.2,.7,.2,1) both,obvGlow 1.6s ease-out both;
-  animation-delay:calc(var(--i) * .22s + .1s),calc(var(--i) * .22s + .45s)}
-@keyframes obvGlow{0%{box-shadow:0 0 0 0 var(--obv-accent-soft)}40%{box-shadow:0 0 0 6px var(--obv-accent-soft)}100%{box-shadow:0 0 0 0 transparent}}
-#dashboard .obv-node.soon{border-style:dashed}
-#dashboard .obv-ic{flex:0 0 40px;width:40px;height:40px;border-radius:10px;display:grid;place-items:center;
-  background:rgba(255,255,255,.04);color:var(--text)}
-[data-theme="light"] #dashboard .obv-ic{background:rgba(17,19,24,.04)}
+/* The strip. */
+#dashboard .obv{display:flex;align-items:center;flex-wrap:wrap;row-gap:8px;margin:0 0 18px}
+#dashboard .obv-node{display:inline-flex;align-items:center;gap:8px;height:34px;padding:0 12px 0 4px;border:1px solid var(--line);
+  border-radius:999px;background:var(--panel);white-space:nowrap;cursor:default;
+  animation:obvNode .4s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i) * .18s + .08s)}
+@keyframes obvNode{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:none}}
+#dashboard .obv-node b{font-size:12.5px;font-weight:600;color:var(--text)}
+#dashboard .obv-ic{width:26px;height:26px;border-radius:50%;display:grid;place-items:center;background:rgba(255,255,255,.05);color:var(--muted)}
+[data-theme="light"] #dashboard .obv-ic{background:rgba(17,19,24,.05)}
+#dashboard .obv-ic > svg{width:15px;height:15px}
+#dashboard .obv-node.accent{border-color:var(--obv-accent-line)}
 #dashboard .obv-node.accent .obv-ic{background:var(--obv-accent-soft);color:var(--obv-accent)}
-#dashboard .obv-txt{display:flex;flex-direction:column;gap:2px;min-width:0}
-#dashboard .obv-txt b{font-size:13px;font-weight:600;color:var(--text);line-height:1.3}
-#dashboard .obv-txt small{font-size:11.5px;color:var(--muted);line-height:1.4}
-#dashboard .obv-tag{align-self:flex-start;margin-top:4px;font-style:normal;font-size:10.5px;font-weight:600;
-  padding:1px 7px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted)}
+#dashboard .obv-node.soon{border-style:dashed;background:transparent}
+#dashboard .obv-node.soon b{color:var(--muted)}
+#dashboard .obv-tag{font-style:normal;font-size:10.5px;font-weight:600;color:var(--muted-2);text-transform:uppercase;letter-spacing:.04em}
 
-/* Links between nodes: a line drawing in, then a pulse travelling along it. */
-#dashboard .obv-link{position:relative;align-self:center;height:2px;margin:0 8px;background:var(--line-2);
-  transform-origin:left;animation:obvSeg .35s ease-out both;animation-delay:calc(var(--i) * .22s)}
-#dashboard .obv-link::after{content:"";position:absolute;right:-1px;top:50%;width:7px;height:7px;
-  border-top:2px solid var(--line-2);border-right:2px solid var(--line-2);transform:translateY(-50%) rotate(45deg)}
-#dashboard .obv-link.dashed{background:repeating-linear-gradient(90deg,var(--line-2) 0 5px,transparent 5px 10px)}
-#dashboard .obv-dot{position:absolute;top:50%;left:0;width:8px;height:8px;margin-top:-4px;border-radius:50%;
-  background:var(--obv-accent);box-shadow:0 0 10px var(--obv-accent-line);opacity:0;
-  animation:obvTravel 2.6s cubic-bezier(.45,0,.55,1) infinite;animation-delay:calc(var(--i) * .22s + .9s)}
-#dashboard .obv-link.dashed .obv-dot{background:var(--muted);box-shadow:none}
-@keyframes obvTravel{0%{left:0;opacity:0}12%{opacity:1}80%{opacity:1}100%{left:calc(100% - 8px);opacity:0}}
-#dashboard .obv-truck{position:absolute;top:-19px;left:0;color:var(--muted);animation:obvTruck 3.2s ease-in-out infinite;animation-delay:.8s}
-@keyframes obvTruck{0%{left:-4px;opacity:0}15%{opacity:1}85%{opacity:1}100%{left:calc(100% - 16px);opacity:0}}
+/* Arrows: a thin line drawing in, then a dot travelling along it. */
+#dashboard .obv-link{position:relative;flex:0 0 34px;height:1px;margin:0 6px;background:var(--line-2);transform-origin:left;
+  animation:obvSeg .3s ease-out both;animation-delay:calc(var(--i) * .18s)}
+@keyframes obvSeg{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+#dashboard .obv-link::after{content:"";position:absolute;right:0;top:50%;width:5px;height:5px;
+  border-top:1px solid var(--muted-2);border-right:1px solid var(--muted-2);transform:translateY(-50%) rotate(45deg)}
+#dashboard .obv-link.dashed{background:repeating-linear-gradient(90deg,var(--line-2) 0 4px,transparent 4px 8px)}
+#dashboard .obv-dot{position:absolute;top:50%;left:0;width:5px;height:5px;margin-top:-2.5px;border-radius:50%;
+  background:var(--obv-accent);opacity:0;animation:obvTravel 2.8s cubic-bezier(.45,0,.55,1) infinite;
+  animation-delay:calc(var(--i) * .18s + .8s)}
+#dashboard .obv-link.dashed .obv-dot{background:var(--muted)}
+@keyframes obvTravel{0%{left:0;opacity:0}15%{opacity:1}80%{opacity:1}100%{left:calc(100% - 6px);opacity:0}}
 
-/* Pipeline (Review & train): the stages light up in turn, on a loop. */
-#dashboard .obv-pipeline .obv-node{flex-direction:column;text-align:center;gap:7px;padding:12px 6px}
-#dashboard .obv-pipeline .obv-ic{flex:0 0 auto;width:34px;height:34px;border-radius:50%;
-  animation:obvStage 6s ease-in-out infinite;animation-delay:calc(var(--i) * 1.1s + 1.2s)}
-#dashboard .obv-pipeline .obv-link{margin:0 3px}
-#dashboard .obv-pipeline .obv-link .obv-dot{animation-duration:1.1s;animation-delay:calc(var(--i) * 1.1s + .65s);animation-iteration-count:infinite}
-@keyframes obvStage{0%,100%{background:rgba(255,255,255,.04);color:var(--text);box-shadow:none}
-  8%,18%{background:var(--obv-accent-soft);color:var(--obv-accent);box-shadow:0 0 0 4px var(--obv-accent-soft)}
-  30%{background:rgba(255,255,255,.04);color:var(--text);box-shadow:none}}
-
-/* Mini illustrations inside nodes. */
-#dashboard .obv-bars{display:flex;align-items:flex-end;gap:2px;width:28px;height:22px}
-#dashboard .obv-bars i{flex:1;border-radius:1.5px 1.5px 0 0;background:var(--mint);opacity:.85;transform-origin:bottom;
-  animation:obvBar .5s cubic-bezier(.2,.7,.2,1) both}
+/* Mini illustrations inside the icon circles. */
+#dashboard .obv-bars{display:flex;align-items:flex-end;gap:1.5px;width:14px;height:12px}
+#dashboard .obv-bars i{flex:1;border-radius:1px 1px 0 0;background:var(--mint);transform-origin:bottom;animation:obvBar .5s cubic-bezier(.2,.7,.2,1) both}
 [data-theme="light"] #dashboard .obv-bars i{background:#0E9384}
 @keyframes obvBar{from{transform:scaleY(0)}to{transform:scaleY(1)}}
-#dashboard .obv-line{width:32px;height:22px;fill:none;stroke-width:2.2;stroke-linecap:round;stroke-linejoin:round}
-#dashboard .obv-line-hist{stroke:var(--mint);stroke-dasharray:30;stroke-dashoffset:30;animation:obvDraw .6s ease-out .55s forwards}
-#dashboard .obv-line-fc{stroke:var(--obv-accent);stroke-dasharray:3 3;opacity:0;animation:obvFade .5s ease-out 1.1s forwards}
+#dashboard .obv-line{width:16px;height:12px;fill:none;stroke-width:3;stroke-linecap:round;stroke-linejoin:round}
+#dashboard .obv-line-hist{stroke:var(--mint);stroke-dasharray:30;stroke-dashoffset:30;animation:obvDraw .6s ease-out .5s forwards}
+#dashboard .obv-line-fc{stroke:var(--obv-accent);stroke-dasharray:4 4;opacity:0;animation:obvFade .5s ease-out 1s forwards}
 [data-theme="light"] #dashboard .obv-line-hist{stroke:#0E9384}
+#dashboard .obv-node.soon .obv-line-hist,#dashboard .obv-node.soon .obv-line-fc{stroke:var(--muted)}
 @keyframes obvDraw{to{stroke-dashoffset:0}}
 @keyframes obvFade{to{opacity:1}}
-#dashboard .obv-venn{width:34px;height:24px;fill:none;stroke-width:1.8}
-#dashboard .obv-venn .a{stroke:var(--mint);fill:rgba(84,230,196,.12);animation:obvVennA .8s cubic-bezier(.2,.7,.2,1) .4s both}
-#dashboard .obv-venn .b{stroke:var(--obv-accent);fill:var(--obv-accent-soft);animation:obvVennB .8s cubic-bezier(.2,.7,.2,1) .4s both}
-[data-theme="light"] #dashboard .obv-venn .a{stroke:#0E9384;fill:rgba(14,147,132,.1)}
-@keyframes obvVennA{from{transform:translateX(-6px)}to{transform:none}}
-@keyframes obvVennB{from{transform:translateX(6px)}to{transform:none}}
-#dashboard .obv-weather svg{color:#F2B84B;animation:obvSpin 12s linear infinite}
+#dashboard .obv-venn{width:18px;height:12px;fill:none;stroke-width:2.4}
+#dashboard .obv-venn .a{stroke:var(--mint);animation:obvVennA .7s cubic-bezier(.2,.7,.2,1) .35s both}
+#dashboard .obv-venn .b{stroke:var(--obv-accent);animation:obvVennB .7s cubic-bezier(.2,.7,.2,1) .35s both}
+[data-theme="light"] #dashboard .obv-venn .a{stroke:#0E9384}
+@keyframes obvVennA{from{transform:translateX(-5px)}to{transform:none}}
+@keyframes obvVennB{from{transform:translateX(5px)}to{transform:none}}
+#dashboard .obv-weather{display:grid;place-items:center}
+#dashboard .obv-weather svg{width:15px;height:15px;color:#F2B84B;animation:obvSpin 14s linear infinite}
 [data-theme="light"] #dashboard .obv-weather svg{color:#C98A00}
 @keyframes obvSpin{to{transform:rotate(360deg)}}
 
+/* Review & train: its own Queued → Done pipeline lights up stage by stage. */
+#dashboard .obv-flowd .flowd-box{animation:obvStage 6s ease-in-out infinite;animation-delay:calc(var(--i) * 1.1s + .6s)}
+@keyframes obvStage{0%,100%{box-shadow:none}6%,16%{box-shadow:0 0 0 3px var(--obv-accent-soft);border-color:var(--obv-accent-line)}26%{box-shadow:none}}
+
 /* Training state: data → model → forecast, pulses flowing through. */
 #dashboard #obPreparing > svg.ins-load-spark{display:none!important}
-#dashboard .obv-train{display:flex;align-items:center;justify-content:center;gap:0;margin:0 auto 22px;max-width:420px}
+#dashboard .obv-train{display:flex;align-items:center;justify-content:center;margin:0 auto 22px;max-width:400px}
 #dashboard .obv-train-node{display:flex;flex-direction:column;align-items:center;gap:6px;flex:0 0 auto}
-#dashboard .obv-train-node > :first-child{width:52px;height:52px;padding:13px;box-sizing:border-box;border-radius:14px;
-  border:1px solid var(--line);background:var(--ink-3)}
-#dashboard .obv-train-node .obv-bars{height:52px;width:52px;padding:14px 12px}
-#dashboard .obv-train-node .obv-line{width:52px;height:52px;padding:14px 10px}
-#dashboard .obv-train-node.core > svg{color:var(--obv-accent);border-color:var(--obv-accent-line);background:var(--obv-accent-soft);
-  animation:obvCore 1.8s ease-in-out infinite}
+#dashboard .obv-train-node > :first-child{width:48px;height:48px;padding:13px;box-sizing:border-box;border-radius:14px;border:1px solid var(--line);background:var(--ink-3)}
+#dashboard .obv-train-node .obv-bars{width:48px;height:48px;padding:14px 12px;gap:2px}
+#dashboard .obv-train-node .obv-line{width:48px;height:48px;padding:14px 10px;stroke-width:2.2}
+#dashboard .obv-train-node.core > svg{color:var(--obv-accent);border-color:var(--obv-accent-line);background:var(--obv-accent-soft);animation:obvCore 1.8s ease-in-out infinite}
 @keyframes obvCore{0%,100%{box-shadow:0 0 0 0 var(--obv-accent-soft)}50%{box-shadow:0 0 0 8px transparent}}
 #dashboard .obv-train-node small{font-size:11.5px;color:var(--muted)}
-#dashboard .obv-train-link{position:relative;flex:1 1 60px;height:2px;margin:0 10px 22px;background:var(--line-2);overflow:visible}
-#dashboard .obv-train-link i{position:absolute;top:-3px;left:0;width:8px;height:8px;border-radius:50%;background:var(--obv-accent);
-  opacity:0;animation:obvTravel 1.8s linear infinite}
+#dashboard .obv-train-link{position:relative;flex:1 1 56px;height:1px;margin:0 10px 22px;background:var(--line-2)}
+#dashboard .obv-train-link i{position:absolute;top:-2.5px;left:0;width:6px;height:6px;border-radius:50%;background:var(--obv-accent);opacity:0;animation:obvTravel 1.8s linear infinite}
 #dashboard .obv-train-link i:nth-child(2){animation-delay:.6s}
 #dashboard .obv-train-link i:nth-child(3){animation-delay:1.2s}
 #dashboard .obv-train .obv-line-hist,#dashboard .obv-train .obv-line-fc{animation-iteration-count:infinite;animation-duration:2.4s}
@@ -524,23 +502,78 @@
 #dashboard .obv-ready .ob-stat:nth-child(4){animation-delay:.75s}
 #dashboard .obv-ready #obReadyChartWrap{animation:obvIn .5s ease-out .85s both}
 
-/* Narrow screens: the flow stacks vertically. */
-@media (max-width:760px){
-  #dashboard .obv-flow,#dashboard .obv-pipeline .obv-flow{display:flex;flex-direction:column;align-items:stretch}
-  #dashboard .obv-link{align-self:center;width:2px;height:22px;margin:4px 0;transform-origin:top;animation-name:obvSegV}
-  #dashboard .obv-link::after{right:auto;top:auto;bottom:-1px;left:50%;transform:translateX(-50%) rotate(135deg)}
-  #dashboard .obv-link.dashed{background:repeating-linear-gradient(180deg,var(--line-2) 0 5px,transparent 5px 10px)}
-  #dashboard .obv-dot{left:50%;top:0;margin:0 0 0 -4px;animation-name:obvTravelV}
-  #dashboard .obv-truck{display:none}
-  #dashboard .obv-pipeline .obv-node{flex-direction:row;text-align:left;padding:9px 12px}
+/* Narrow screens: arrows shorten so the strip fits a phone. */
+@media (max-width:520px){
+  #dashboard .obv{gap:6px}
+  #dashboard .obv-link{display:none}
+  #dashboard .obv-node{padding-right:10px}
 }
-@keyframes obvSegV{from{transform:scaleY(0)}to{transform:scaleY(1)}}
-@keyframes obvTravelV{0%{top:0;opacity:0}12%{opacity:1}80%{opacity:1}100%{top:calc(100% - 8px);opacity:0}}
+
+/* ============================================================
+   Onboarding steps — calmer layout
+   Less boxing-in, consistent spacing, quieter secondary actions, and
+   nothing shown when it has nothing to say yet.
+============================================================ */
+/* Step intro: one readable line length, a touch smaller. */
+#onboardingPanel .ob-step > p.dsubtle:first-child{font-size:14px;line-height:1.6;max-width:78ch;margin-bottom:14px!important}
+/* Empty status lines and placeholders take no space until they have content. */
+#onboardingPanel .stest-msg:empty,#onboardingPanel #obWillUse:empty,#onboardingPanel #obReviewTiles:empty,
+#onboardingPanel #obWeatherPill:empty,#onboardingPanel #obHolidayPill:empty,
+#onboardingPanel #obWeatherIntro:empty,#onboardingPanel #obHolidayIntro:empty{display:none}
+/* Secondary actions (templates, "I have no…") are quieter and smaller than the primary upload. */
+#onboardingPanel :is(#obSalesTplCsv,#obSkuMasterTpl,#obInboundTpl,a.dbtn[download]){
+  height:34px;padding:0 12px;font-size:12.5px;display:inline-flex;align-items:center;gap:6px;
+  background:transparent!important;border:1px solid var(--line-2)!important;color:var(--muted)!important;box-shadow:none}
+#onboardingPanel :is(#obSalesTplCsv,#obSkuMasterTpl,#obInboundTpl,a.dbtn[download]):hover{color:var(--text)!important;border-color:var(--muted-2)!important}
+#onboardingPanel :is(#obSalesTplCsv,#obSkuMasterTpl,#obInboundTpl,a.dbtn[download])::before{
+  content:"";width:13px;height:13px;flex:0 0 13px;background:currentColor;
+  -webkit-mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12M7 10l5 5 5-5M5 21h14'/%3E%3C/svg%3E") center/contain no-repeat;
+          mask:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 3v12M7 10l5 5 5-5M5 21h14'/%3E%3C/svg%3E") center/contain no-repeat}
+/* Stat tiles: lighter, so values read before boxes. */
+#onboardingPanel .ob-stat-grid{margin-top:18px}
+#onboardingPanel .ob-stat{background:transparent;border-color:var(--line)}
+
+/* Step 2 — Shopify: full width like every other step, compact link. */
+#onboardingPanel .ob-shopify-card{max-width:none;border:1px solid var(--line);padding:20px 22px}
+#onboardingPanel .ob-shopify-card > p.dsubtle{max-width:72ch}
+#onboardingPanel .ob-shopify-controls{max-width:640px}
+#onboardingPanel #obShopifyRefresh{font-size:12.5px;text-decoration:none;margin-top:2px}
+#onboardingPanel #obShopifyRefresh:hover{text-decoration:underline}
+
+/* Step 3 — Sales: templates sit as a quiet row above the upload. */
+#obStep3 > .dcard > div:first-child{margin-bottom:16px!important;gap:8px!important}
+
+/* Step 4 — Spend: no box inside the box. */
+#obStep4 .ob-panel{background:transparent;border:0;padding:0}
+#obStep4 .ob-panel .ob-stat-grid{margin-top:4px}
+
+/* Step 5 — SKU master: template and upload aligned on one baseline; new-SKU table neutral. */
+#obStep5 > .dcard > div:first-child{align-items:flex-end;gap:12px!important}
+#obStep5 > .dcard > div:first-child .field{flex:1 1 280px;max-width:480px}
+#obStep5 > .dcard > div:first-child label.field{order:-1;font-size:12.5px;font-weight:600;color:var(--muted)}
+#obStep5 > .dcard > div:first-child label.field input{margin-top:6px;font-weight:400;color:var(--text)}
+#obStep5 .ob-callout,[data-theme="light"] #obStep5 .ob-callout{margin-top:18px;background:transparent;border:1px solid var(--line);color:var(--text)}
+#obStep5 .ob-callout > b{font-size:13px;color:var(--text)}
+
+/* Step 6 — Inbound: actions only, no trailing gap. */
+#obStep6 > .dcard > div:first-child{margin-bottom:0!important}
+#obStep6 #obInboundStatus:not(:empty){margin:12px 0 0!important}
+#obStep6 #obInboundSitesWrap{margin-top:14px}
+
+/* Step 7 — Weather & festivals: card headers breathe evenly. */
+#obStep7 .dcard .ch{margin-bottom:10px}
+#obStep7 .dcard .ch h4{font-size:15px}
+
+/* Step 8 — Review & train: the pipeline card reads as one unit. */
+#obStep8 .flowd{margin:6px 0 0}
+#obStep8 .flowd-box{font-size:13px}
+#obStep8 .dcard:has(> #obReviewTiles:empty):has(> #obWillUse:empty){display:none}
+#obStep8 .dcard + .dcard{margin-top:16px}
 
 /* Reduced motion: everything shown in its final state, nothing moving. */
 @media (prefers-reduced-motion:reduce){
   #onboardingPanel *,#onboardingPanel *::before,#onboardingPanel *::after{animation:none!important;transition:none!important}
-  #dashboard .obv-node,#dashboard .obv-line-fc{opacity:1}
+  #dashboard .obv-line-fc{opacity:1}
   #dashboard .obv-line-hist,#dashboard .obv-ready > div:first-child svg path{stroke-dashoffset:0}
-  #dashboard .obv-dot,#dashboard .obv-truck,#dashboard .obv-train-link i{display:none}
+  #dashboard .obv-dot,#dashboard .obv-train-link i{display:none}
 }
