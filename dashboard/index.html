@@ -285,10 +285,6 @@
   #inventoryReqTable tbody tr:nth-child(even){background:rgba(255,255,255,.012)}
   #inventoryReqTable tbody td{border-bottom-color:rgba(255,255,255,.05)}
   .inv-dim{opacity:.3}
-  .inv-sample-toolbar{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin:0 0 10px}
-  .inv-sample-toolbar .dbtn{background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)}
-  #invSampleNotice[hidden]{display:none}
-  .inv-sample-cell{color:var(--muted)}
   #inventoryReqTfoot tr{background:rgba(255,255,255,.025);border-top:1px solid var(--line-2)}
   #inventoryReqTfoot td{font-weight:600;font-size:14px;color:var(--text)}
   #inventoryReqTfoot td.inv-foot-muted{font-weight:400;color:var(--muted)}
@@ -521,7 +517,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261122f">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261122g">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -1105,7 +1101,7 @@
          Bedrock-generated AI Insights content). -->
     <div class="dbody" id="inventoryPanel" style="display:none">
       <h1 class="dgreet">Inventory</h1>
-      <p class="dsubtle">Required inventory per SKU combines cycle stock and safety stock from shipment history.</p>
+      <p class="dsubtle">Required inventory per SKU combines cycle stock and safety stock from shipment history. Sites, units received and delivery frequency come from the inbound receipts you uploaded.</p>
 
       <div id="invLoading" style="margin-top:18px">
         <span class="skel-line wide"></span>
@@ -1115,10 +1111,6 @@
       <p class="dsubtle" id="invError" style="margin:20px 0 4px;display:none"></p>
 
       <div id="invContent" style="display:none;margin-top:18px">
-        <div class="inv-sample-toolbar">
-          <button type="button" class="dbtn" id="invSampleToggle" aria-pressed="false" aria-controls="inventoryReqTable">Preview sample data</button>
-          <span id="invSampleNotice" class="pill warn" role="status" hidden>Sample inventory · Required uses forecast data</span>
-        </div>
         <div class="inv-locked-badge">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <span style="font-size:12px">Required inventory — <b style="color:var(--text)" id="invReqMonthLabel">—</b></span>
@@ -1132,7 +1124,7 @@
               <span class="inv-kpi-hint">No data</span>
             </div>
             <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub">Present On-Hand</span></div>
-            <div class="inv-kpi-foot"><span>System-wide physical stock</span><span>—</span></div>
+            <div class="inv-kpi-foot"><span>Needs a stock-on-hand file</span><span></span></div>
           </button>
           <button type="button" class="inv-kpi-tab" data-kpi-tab="required" onclick="window.invReqPickKpiTab(this)">
             <div class="inv-kpi-top">
@@ -1142,13 +1134,21 @@
             <div class="inv-kpi-val-row"><span class="inv-kpi-val" id="kpi-required-total">—</span><span class="inv-kpi-sub">Cycle + safety stock</span></div>
             <div class="inv-kpi-foot"><span>Required this month</span><span id="kpi-required-sub">—</span></div>
           </button>
+          <button type="button" class="inv-kpi-tab" data-kpi-tab="received" onclick="window.invReqPickKpiTab(this)" disabled>
+            <div class="inv-kpi-top">
+              <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M4 21h16" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Received</span>
+              <span class="inv-kpi-hint">No data</span>
+            </div>
+            <div class="inv-kpi-val-row"><span class="inv-kpi-val" id="kpi-received-total">—</span><span class="inv-kpi-sub">Last 30 days</span></div>
+            <div class="inv-kpi-foot"><span id="kpi-received-foot">From inbound receipts</span><span id="kpi-received-sub">—</span></div>
+          </button>
           <button type="button" class="inv-kpi-tab" data-kpi-tab="intransit" onclick="window.invReqPickKpiTab(this)" disabled title="No data available yet — there is no inbound-shipment tracking in this app">
             <div class="inv-kpi-top">
               <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 16V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1m8-1a1 1 0 0 1-1 1H9m4-1V8a1 1 0 0 1 1-1h2.586a1 1 0 0 1 .707.293l3.414 3.414a1 1 0 0 1 .293.707V16a1 1 0 0 1-1 1h-1m-6-1a1 1 0 0 0 1 1h1M5 17a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0m6 0a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0"/></svg></span>In-Transit Inventory</span>
               <span class="inv-kpi-hint">No data</span>
             </div>
             <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub">—</span></div>
-            <div class="inv-kpi-foot"><span>En-route to destination sites</span><span>—</span></div>
+            <div class="inv-kpi-foot"><span>Not in inbound receipts</span><span></span></div>
           </button>
           <button type="button" class="inv-kpi-tab" data-kpi-tab="openpo" onclick="window.invReqPickKpiTab(this)" disabled title="No data available yet — there is no purchase-order data in this app">
             <div class="inv-kpi-top">
@@ -1156,7 +1156,7 @@
               <span class="inv-kpi-hint">No data</span>
             </div>
             <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub">—</span></div>
-            <div class="inv-kpi-foot"><span>Confirmed vendor orders</span><span>—</span></div>
+            <div class="inv-kpi-foot"><span>Not in inbound receipts</span><span></span></div>
           </button>
         </div>
 
@@ -1169,7 +1169,7 @@
               <span id="invReqCounter" style="font-size:12px;font-weight:600;color:var(--text)">—</span>
               <span class="inv-active-pill" id="invActiveTabPill" style="display:none"><span id="invActiveTabText"></span><button type="button" id="invClearTabBtn" aria-label="Clear">×</button></span>
             </div>
-            <div class="inv-note" id="invSampleTableNote">Required uses this month’s cycle stock and safety stock. Other inventory fields are unavailable.</div>
+            <div class="inv-note" id="invTableNote" role="status">Required uses this month’s cycle stock and safety stock.</div>
           </div>
           <div class="table-wrap">
             <table class="dtable" id="inventoryReqTable">
@@ -1179,10 +1179,11 @@
                   <th>Site</th>
                   <th>Present inventory</th>
                   <th class="amp-sortable" data-sort-key="required">Required <span class="ov-sort-ic">⇅</span></th>
+                  <th class="amp-sortable" data-sort-key="received">Received (30 days) <span class="ov-sort-ic">⇅</span></th>
                   <th>In-transit</th>
                   <th>Open PO units</th>
                   <th>Delta</th>
-                  <th>Inbound frequency</th>
+                  <th class="amp-sortable" data-sort-key="every">Inbound frequency <span class="ov-sort-ic">⇅</span></th>
                   <th>Status</th>
                 </tr>
               </thead>
@@ -1193,6 +1194,7 @@
                   <td id="inv-foot-count" class="inv-foot-muted">—</td>
                   <td id="inv-foot-present">—</td>
                   <td id="inv-foot-required">—</td>
+                  <td id="inv-foot-received">—</td>
                   <td id="inv-foot-intransit">—</td>
                   <td id="inv-foot-openpo">—</td>
                   <td id="inv-foot-delta">—</td>
@@ -1772,7 +1774,7 @@
           </div>
 
           <div class="ob-step" id="obStep6" style="display:none">
-          <p class="dsubtle" style="margin-bottom:16px">Receipts record stock arriving at each warehouse or site. Together with your sales data, this is what will let Inventory project stock and flag what to reorder. It isn't used yet — anything you upload is kept on file for when it is.</p>
+          <p class="dsubtle" style="margin-bottom:16px">Receipts record stock arriving at each warehouse or site. Inventory uses them to show your sites, units received and how often deliveries arrive. They aren't used to project stock or in the forecast yet.</p>
           <div class="dcard" style="margin:0">
             <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
               <button type="button" class="dbtn" id="obInboundTpl" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)">Download template</button>
@@ -2293,14 +2295,14 @@
 <script src="../js/theme.js"></script>
 <script src="../js/scenarios.js"></script>
 <script src="../js/insights.js"></script>
-<script src="../js/inventory.js"></script>
+<script src="../js/inventory.js?v=20261122g"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
 <script src="../js/ads.js?v=shopify-check"></script>
 <script src="../js/discount-schemes.js"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
-<script src="../js/onboarding.js?v=20261122d"></script>
-<script src="../js/onboarding-visuals.js?v=20261122d"></script>
+<script src="../js/onboarding.js?v=20261122g"></script>
+<script src="../js/onboarding-visuals.js?v=20261122g"></script>
 <script src="../js/tour.js"></script>
 <script src="../js/qrcode-lib.js"></script>
 <script src="../js/mfa.js"></script>

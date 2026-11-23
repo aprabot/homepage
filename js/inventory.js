@@ -59,6 +59,7 @@
     loaded = false;
     lastData = null;
     invReqRows = null;
+    inbound = null;
   };
 
   function escapeHtml(s) {
@@ -402,6 +403,7 @@
         initCatalogSummary();
         detailView.initForData();
         initInvReq();
+        loadInbound();
       })
       .catch(function (err) {
         loaded = true;
@@ -411,26 +413,69 @@
       });
   };
 
-  // Latest monthly requirement plus an optional client-side sample preview.
+  // Latest monthly requirement, plus what the uploaded inbound receipts
+  // really contain. Receipts say what arrived, not what is left, so on-hand,
+  // in-transit, open PO and delta stay empty rather than being estimated.
+  var SCENARIOS_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/scenarios';
   var invReqRows = null;
   var invReqMonthIdx = null;
-  var invSampleEnabled = false;
+  var inbound = null; // {status: 'loading' | 'none' | 'error' | 'unavailable' | 'ok', by_sku, ...}
+  var invOpenSkus = {};
   var invReqState = { sku: 'ALL', search: '', activeKpiTab: null, sortKey: 'sku', sortDir: 'asc' };
-  var inventoryKpis = {present: 'Present inventory', required: 'Recommended Inventory',
-                       intransit: 'In-transit inventory', openpo: 'Open PO units'};
+  var inventoryKpis = {required: 'Recommended Inventory', received: 'Received (30 days)'};
 
-  function sampleInventory(required) {
-    var scale = Math.max(12, required);
-    var quantity = function (low, high) { return Math.round(scale * (low + Math.random() * (high - low))); };
-    var present = quantity(0.25, 1.05);
-    var intransit = quantity(0.02, 0.35);
-    var openpo = quantity(0.08, 0.45);
-    return {
-      site: 'Sample site ' + (1 + Math.floor(Math.random() * 3)),
-      present: present, intransit: intransit, openpo: openpo,
-      delta: present + intransit + openpo - required,
-      frequency: 'Every ' + (3 + Math.floor(Math.random() * 12)) + ' days',
-    };
+  function loadInbound() {
+    if (!document.getElementById('inventoryReqBody')) return;
+    inbound = { status: 'loading' };
+    var request = inbound;
+    APRA_SESSION.fetch(SCENARIOS_API + '?view=inbound')
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      // A backend without this view answers with the scenario list instead.
+      .then(function (d) { return d.inbound || { status: 'unavailable' }; })
+      .catch(function () { return { status: 'unavailable' }; })
+      .then(function (result) {
+        if (inbound !== request) return; // invalidated meanwhile
+        inbound = result;
+        invReqUpdateKpiTabUI();
+        invReqRender();
+      });
+  }
+
+  function inboundFor(sku) {
+    return inbound && inbound.status === 'ok' ? inbound.by_sku[sku] : null;
+  }
+
+  function fmtDay(iso) {
+    var p = String(iso || '').split('-');
+    var names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return p.length === 3 ? parseInt(p[2], 10) + ' ' + names[parseInt(p[1], 10) - 1] + ' ' + p[0] : '—';
+  }
+
+  function localDay(iso) { // the viewer's own calendar day, not UTC's
+    var d = new Date(iso);
+    return isNaN(d) ? '—' : fmtDay([d.getFullYear(), d.getMonth() + 1, d.getDate()].join('-'));
+  }
+
+  function fmtEvery(stats) {
+    if (!stats) return '<span class="inv-dim">—</span>';
+    var every = stats.every_days;
+    return '<span class="inv-freq">' + (every == null ? 'One receipt' : every === 1 ? 'Every day' : 'Every ' + every + ' days') +
+      '<small>Last ' + escapeHtml(fmtDay(stats.last_receipt)) + '</small></span>';
+  }
+
+  function inboundNote() {
+    var base = 'Required uses this month’s cycle stock and safety stock. ';
+    var missing = ' Stock on hand, in-transit and open POs aren’t in this file.';
+    if (!inbound || inbound.status === 'loading') return base + 'Loading inbound receipts…';
+    if (inbound.status === 'none') return base + 'No inbound receipts uploaded yet — add them in Getting Started.';
+    if (inbound.status === 'error') return 'Inbound receipts couldn’t be read: ' + inbound.error;
+    if (inbound.status !== 'ok') return base + 'Inbound receipts couldn’t be loaded right now.';
+    var extra = [];
+    if (inbound.skus_unmatched) extra.push(inbound.skus_unmatched + ' SKU' + (inbound.skus_unmatched === 1 ? '' : 's') + ' not in the forecast');
+    if (inbound.rows_skipped) extra.push(inbound.rows_skipped + ' unreadable row' + (inbound.rows_skipped === 1 ? '' : 's'));
+    if (inbound.rows_future) extra.push(inbound.rows_future + ' future-dated row' + (inbound.rows_future === 1 ? '' : 's'));
+    return 'Inbound receipts: ' + inbound.rows_used.toLocaleString() + ' rows, uploaded ' + localDay(inbound.uploaded_at) + '.' +
+      (extra.length ? ' Left out: ' + extra.join(', ') + '.' : '') + missing;
   }
 
   function invFmt(n) {
@@ -460,21 +505,15 @@
   }
 
   function invReqUpdateKpiTabUI() {
-    var toggle = document.getElementById('invSampleToggle');
-    toggle.setAttribute('aria-pressed', String(invSampleEnabled));
-    toggle.textContent = invSampleEnabled ? 'Hide sample data' : 'Preview sample data';
-    document.getElementById('invSampleNotice').hidden = !invSampleEnabled;
-    document.getElementById('invSampleTableNote').textContent = invSampleEnabled
-      ? 'Site, on-hand, in-transit, PO units, and inbound frequency are samples. Delta compares sample supply with Required.'
-      : 'Required uses this month’s cycle stock and safety stock. Other inventory fields are unavailable.';
-
+    document.getElementById('invTableNote').textContent = inboundNote();
+    var hasInbound = !!inbound && inbound.status === 'ok';
     document.querySelectorAll('.inv-kpi-tab').forEach(function (tab) {
       var key = tab.dataset.kpiTab;
       tab.classList.toggle('active', invReqState.activeKpiTab === key);
-      if (key === 'required') return;
-      tab.disabled = !invSampleEnabled;
-      tab.title = invSampleEnabled ? 'Sort by sample ' + inventoryKpis[key] : 'Data unavailable';
-      tab.querySelector('.inv-kpi-hint').textContent = invSampleEnabled ? 'Sample' : 'No data';
+      if (key !== 'received') return;
+      tab.disabled = !hasInbound;
+      tab.title = hasInbound ? 'Sort by units received' : 'No inbound receipts';
+      tab.querySelector('.inv-kpi-hint').textContent = hasInbound ? 'Sort desc' : 'No data';
     });
     var pill = document.getElementById('invActiveTabPill');
     if (invReqState.activeKpiTab) {
@@ -489,10 +528,11 @@
 
   function invReqRender() {
     if (!invReqRows) return;
-    var rows = invSampleEnabled ? invReqRows.map(function (row) {
-      if (!row.sample) row.sample = sampleInventory(row.required);
-      return Object.assign({}, row, row.sample);
-    }) : invReqRows;
+    var rows = invReqRows.map(function (row) {
+      var stats = inboundFor(row.sku);
+      return Object.assign({}, row, { inbound: stats, received: stats ? stats.received_30d : null,
+                                      every: stats ? stats.every_days : null });
+    });
     var filtered = rows.filter(function (row) {
       if (invReqState.sku !== 'ALL' && row.sku !== invReqState.sku) return false;
       if (invReqState.search.trim() !== '') {
@@ -505,17 +545,20 @@
     filtered.sort(function (a, b) {
       var av = a[invReqState.sortKey], bv = b[invReqState.sortKey];
       if (typeof av === 'string') return invReqState.sortDir === 'asc' ? av.localeCompare(bv) : bv.localeCompare(av);
+      if (av == null || bv == null) return (av == null) - (bv == null); // no data last
       return invReqState.sortDir === 'asc' ? av - bv : bv - av;
     });
 
     var totalRequired = filtered.reduce(function (sum, r) { return sum + r.required; }, 0);
 
-    ['present', 'intransit', 'openpo', 'delta'].forEach(function (key) {
-      var total = function (items) { return items.reduce(function (sum, row) { return sum + row[key]; }, 0); };
-      document.getElementById('inv-foot-' + key).textContent = invSampleEnabled && filtered.length ? invFmt(total(filtered)) : '—';
-      var card = document.querySelector('.inv-kpi-tab[data-kpi-tab="' + key + '"] .inv-kpi-val');
-      if (card) card.textContent = invSampleEnabled ? invFmt(total(rows)) : '—';
-    });
+    var sumReceived = function (items) { return items.reduce(function (sum, r) { return sum + (r.received || 0); }, 0); };
+    var hasInbound = !!inbound && inbound.status === 'ok';
+    document.getElementById('inv-foot-received').textContent = hasInbound && filtered.length ? invFmt(sumReceived(filtered)) : '—';
+    document.getElementById('kpi-received-total').textContent = hasInbound ? invFmt(sumReceived(rows)) : '—';
+    var siteCodes = {};
+    rows.forEach(function (r) { (r.inbound ? r.inbound.sites : []).forEach(function (site) { siteCodes[site.code] = true; }); });
+    var siteCount = Object.keys(siteCodes).length;
+    document.getElementById('kpi-received-sub').textContent = hasInbound && siteCount ? siteCount + ' site' + (siteCount === 1 ? '' : 's') : '—';
 
     var kpiTotal = document.getElementById('kpi-required-total');
     if (kpiTotal) kpiTotal.textContent = invFmt(invReqRows.reduce(function (s, r) { return s + r.required; }, 0));
@@ -547,32 +590,36 @@
     var body = document.getElementById('inventoryReqBody');
     if (!body) return;
     if (!filtered.length) {
-      body.innerHTML = '<tr><td colspan="9" style="text-align:center;padding:40px 20px;color:var(--muted)">No SKUs match your current filters.</td></tr>';
+      body.innerHTML = '<tr><td colspan="10" style="text-align:center;padding:40px 20px;color:var(--muted)">No SKUs match your current filters.</td></tr>';
       return;
     }
     var dim = '<td><span class="inv-dim">—</span></td>';
-    function sampleCell(value) {
-      return invSampleEnabled ? '<td class="inv-sample-cell">' + escapeHtml(value) + '</td>' : dim;
-    }
+    var units = function (n) { return n == null ? dim : '<td class="inv-num">' + invFmt(n) + '</td>'; };
     body.innerHTML = filtered.map(function (row) {
-      var status = row.delta < 0 ? 'Shortfall' : row.delta === 0 ? 'Matched' : 'Surplus';
-      return '<tr>' +
-        '<td><b style="font-family:var(--mono);color:var(--text)">' + escapeHtml(row.sku) + '</b></td>' +
-        sampleCell(row.site) + sampleCell(invFmt(row.present)) +
-        '<td style="color:var(--text);font-weight:600">' + invFmt(row.required) + '</td>' +
-        sampleCell(invFmt(row.intransit)) + sampleCell(invFmt(row.openpo)) +
-        sampleCell(invFmt(row.delta)) + sampleCell(row.frequency) + sampleCell(status) +
-      '</tr>';
+      var sites = row.inbound ? row.inbound.sites : [];
+      var open = sites.length > 1 && invOpenSkus[row.sku];
+      var siteCell = !sites.length ? dim
+        : sites.length === 1 ? '<td>' + escapeHtml(sites[0].name || sites[0].code) + '</td>'
+        : '<td><button type="button" class="inv-sites-btn" data-inv-sku="' + escapeHtml(row.sku) + '" aria-expanded="' + !!open + '">' + sites.length + ' sites</button></td>';
+      var main = '<tr>' +
+        '<td><b style="font-family:var(--mono);color:var(--text)">' + escapeHtml(row.sku) + '</b></td>' + siteCell + dim +
+        '<td style="color:var(--text);font-weight:600">' + invFmt(row.required) + '</td>' + units(row.received) +
+        dim + dim + dim + '<td>' + fmtEvery(row.inbound) + '</td>' + dim + '</tr>';
+      return main + (!open ? '' : sites.map(function (site) {
+        return '<tr class="inv-site-row"><td></td><td>' + escapeHtml(site.name || site.code) +
+          (site.name ? '<small>' + escapeHtml(site.code) + '</small>' : '') + '</td>' + dim + dim + units(site.received_30d) +
+          dim + dim + dim + '<td>' + fmtEvery(site) + '</td>' + dim + '</tr>';
+      }).join(''));
     }).join('');
   }
 
   window.invReqPickKpiTab = function (btn) {
     var tab = btn.dataset.kpiTab;
-    if (tab !== 'required' && !invSampleEnabled) return;
+    if (!inventoryKpis[tab]) return;
     if (invReqState.activeKpiTab === tab) {
       invReqState.activeKpiTab = null; invReqState.sortKey = 'sku'; invReqState.sortDir = 'asc';
     } else {
-      invReqState.activeKpiTab = tab; invReqState.sortKey = 'required'; invReqState.sortDir = 'desc';
+      invReqState.activeKpiTab = tab; invReqState.sortKey = tab; invReqState.sortDir = 'desc';
     }
     invReqUpdateKpiTabUI();
     invReqRender();
@@ -584,15 +631,14 @@
     var resetBtn = document.getElementById('invReqResetBtn');
     var clearTabBtn = document.getElementById('invClearTabBtn');
     if (!skuSel) return; // this section's markup isn't on the current page
-    document.getElementById('invSampleToggle').addEventListener('click', function () {
-      invSampleEnabled = !invSampleEnabled;
-      if (!invSampleEnabled && !['sku', 'required'].includes(invReqState.sortKey)) {
-        invReqState.activeKpiTab = null;
-        invReqState.sortKey = 'sku';
-        invReqState.sortDir = 'asc';
-      }
-      invReqUpdateKpiTabUI();
+    document.getElementById('inventoryReqBody').addEventListener('click', function (e) {
+      var btn = e.target.closest('.inv-sites-btn');
+      if (!btn) return;
+      var sku = btn.dataset.invSku;
+      invOpenSkus[sku] = !invOpenSkus[sku];
       invReqRender();
+      var again = document.querySelector('.inv-sites-btn[data-inv-sku="' + sku + '"]');
+      if (again) again.focus(); // the row was re-rendered
     });
     skuSel.addEventListener('change', function (e) { invReqState.sku = e.target.value; invReqRender(); });
     if (search) search.addEventListener('input', function (e) { invReqState.search = e.target.value; invReqRender(); });

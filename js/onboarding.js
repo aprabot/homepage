@@ -1587,10 +1587,10 @@
     if (schemeIds.length) kept.push('scheme IDs');
     if (skuMasterKey) kept.push('SKU master');
     if (spendKey) kept.push('marketing spend');
-    if (inboundKey) kept.push('inbound data');
     if (fileWeather) kept.push('your separate weather file');
     note.innerHTML = '<b>Will use:</b> ' + escapeHtml(used) + '. ' +
-      '<b>Saved for later, not used in training yet:</b> ' + escapeHtml(joinList(kept)) + '.';
+      '<b>Saved for later, not used in training yet:</b> ' + escapeHtml(joinList(kept)) + '.' +
+      (inboundKey ? ' <b>Shown on Inventory:</b> inbound receipts.' : '');
   }
 
   var POLL_MS = 8000;
@@ -2036,7 +2036,7 @@
       uploadFile(file, statusEl).then(function (key) {
         inboundKey = key;
         lockCountry();
-        setStatus(statusEl, file.name + ' received — saved with your setup; receipts aren’t used yet.', 'ok');
+        setStatus(statusEl, file.name + ' received — Inventory will show its sites, units received and delivery frequency.', 'ok');
       }).catch(function () {});
       analyzeInboundFile(file);
     });

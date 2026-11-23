@@ -8,6 +8,8 @@ from datetime import datetime, timezone
 
 import boto3
 
+import inbound
+
 s3      = boto3.client('s3')
 lam     = boto3.client('lambda')
 cognito = boto3.client('cognito-idp')
@@ -396,6 +398,42 @@ def _discount_schemes(org, email, method, event):
             print(f'Scheme rerun dispatch failed: {exc}')
         return _resp(200, {'scheme': registry[code], 'warning': 'Scheme committed. Start a scenario to run the updated forecast.'})
     return _resp(200, {'scheme': registry[code]})
+
+
+def inbound_summary(org):
+    """What the latest inbound receipts uploaded in Getting Started contain,
+    per forecast SKU (GET /scenarios?view=inbound). The onboarding profile
+    names the file; the live forecast's anon.json names the SKUs."""
+    prefix = f'orgs/{org}/uploads/'
+    profiles, token = [], None
+    while True:
+        page = s3.list_objects_v2(Bucket=BUCKET, Prefix=prefix, **({'ContinuationToken': token} if token else {}))
+        profiles += [(o['LastModified'], o['Key']) for o in page.get('Contents', [])
+                     if o['Key'].endswith('/onboarding-profile.txt')]
+        token = page.get('NextContinuationToken')
+        if not token:
+            break
+    none = {'inbound': {'status': 'none'}}
+    for uploaded, profile_key in sorted(profiles, reverse=True)[:20]:
+        profile = _read_json(profile_key, default=None)
+        key = profile.get('inbound_receipts_key') if isinstance(profile, dict) else None
+        # The profile is uploaded content: never follow it outside this org.
+        if isinstance(key, str) and key.startswith(prefix) and '..' not in key:
+            break
+    else:
+        return _resp(200, none)
+    latest = _read_json(f'orgs/{org}/forecast/latest.json', default={}) or {}
+    sku_map = _read_json(f'orgs/{org}/scenarios/{latest.get("id")}/anon.json', default={}) or {}
+    try:
+        obj = s3.get_object(Bucket=BUCKET, Key=key)
+        if obj['ContentLength'] > inbound.MAX_BYTES:
+            raise inbound.InboundError('The inbound file is too large.')
+        result = inbound.summarize(obj['Body'].read(), key, sku_map, datetime.now(timezone.utc).date())
+    except inbound.InboundError as exc:
+        return _resp(200, {'inbound': {'status': 'error', 'error': str(exc), 'uploaded_at': uploaded.isoformat()}})
+    except s3.exceptions.ClientError:
+        return _resp(200, none)
+    return _resp(200, {'inbound': {'status': 'ok', 'uploaded_at': uploaded.isoformat(), **result}})
 
 
 def create_scenario(org, event):
@@ -850,6 +888,9 @@ def handler(event, context):
             return _discount_schemes(org, caller_email, method, event)
 
         query = event.get('queryStringParameters') or {}
+        if method == 'GET' and path == '/scenarios' and query.get('view') == 'inbound':
+            return inbound_summary(org)
+
         if method == 'GET' and path == '/scenarios' and query.get('view') == 'baseline':
             return _baseline_comparison(org, query.get('scenario'), query.get('base'))
 

@@ -91,8 +91,8 @@
     ] },
     { match: /inbound/i, title: 'Where inbound receipts fit', nodes: [
       { icon: 'factory', t: 'Receipts', s: 'Stock arriving at each site' },
-      { icon: 'warehouse', t: 'Sites', s: 'Matched to the sites in your sales file' },
-      { icon: 'box', t: 'Inventory', s: 'Not used yet — kept for when it is', soon: true },
+      { icon: 'warehouse', t: 'Sites & frequency', s: 'Units received and how often deliveries arrive' },
+      { icon: 'box', t: 'Inventory', s: 'Shown on the Inventory page', accent: true },
     ] },
     { match: /weather|festival/i, title: 'Signals around your demand', nodes: [
       { art: 'weather', t: 'Weather', s: 'From the Weather sheet in your sales file — used in training' },

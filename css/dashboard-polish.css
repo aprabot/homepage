@@ -743,3 +743,30 @@
   /* Phones: one line per metric; the table scrolls sideways as before. */
   #dashboard .ov-matrix-table{min-width:620px}
   #dashboard .ov-matrix-table td,#dashboard .ov-matrix-table th{white-space:nowrap}}
+
+/* ============================================================
+   Inventory — real inbound receipts
+============================================================ */
+#dashboard .inv-kpi-grid{grid-template-columns:repeat(5,minmax(0,1fr))}
+#dashboard .inv-kpi-tab .inv-kpi-val-row{flex-wrap:wrap}
+@media(max-width:1280px){#dashboard .inv-kpi-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:780px){#dashboard .inv-kpi-grid{grid-template-columns:1fr 1fr}}
+#dashboard #inventoryReqTable .inv-num{color:var(--text)}
+#dashboard #inventoryReqTable td small{display:block;font-size:11.5px;color:var(--muted);margin-top:1px}
+#dashboard .inv-freq{white-space:nowrap}
+#dashboard .inv-sites-btn{display:inline-flex;align-items:center;gap:6px;padding:4px 0;border:0;background:none;color:var(--text);font:inherit;cursor:pointer}
+#dashboard .inv-sites-btn::after{content:"";width:6px;height:6px;border-right:1.5px solid var(--muted);border-bottom:1.5px solid var(--muted);transform:translateY(-2px) rotate(45deg)}
+#dashboard .inv-sites-btn[aria-expanded="true"]::after{transform:translateY(1px) rotate(225deg)}
+#dashboard .inv-sites-btn:hover{text-decoration:underline;text-underline-offset:3px}
+#dashboard #inventoryReqTable .inv-site-row td{background:rgba(255,255,255,.015);padding-top:8px;padding-bottom:8px}
+[data-theme="light"] #dashboard #inventoryReqTable .inv-site-row td{background:rgba(17,19,24,.02)}
+/* Ten columns: size to content (scrolls sideways when narrow), numbers right. */
+#dashboard #inventoryReqTable{table-layout:auto;min-width:1080px}
+#dashboard #inventoryReqTable th{padding:10px 14px;vertical-align:middle}
+#dashboard #inventoryReqTable td{padding-top:10px;padding-bottom:10px}
+#dashboard #inventoryReqTable :is(th,td):nth-child(8){text-align:right}
+#dashboard #inventoryReqTable :is(td):nth-child(2){white-space:nowrap}
+#dashboard #inventoryReqTable tbody td:nth-child(n+9){font-family:var(--body)}
+#dashboard #inventoryReqTable .inv-freq{font-size:13px}
+#dashboard .inv-kpi-tab{display:flex;flex-direction:column}
+#dashboard .inv-kpi-tab .inv-kpi-val-row{margin-top:auto;padding-top:14px}
