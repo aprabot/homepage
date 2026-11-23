@@ -94,6 +94,10 @@
   // segmented control toggle (period selector handled in initDashboard)
 
   /* ===== REAL BACKTEST DASHBOARD (data from DATA in data.js) ===== */
+  // data.js's bundled sample: still what window.DATA holds if the real
+  // forecast couldn't be loaded, so the Overview can say so (ovHasForecast).
+  const SAMPLE_DATA=window.DATA;
+  const ovHasForecast=()=>!!window.DATA&&window.DATA!==SAMPLE_DATA;
   let dashReady=false, curSel='ALL', fcGeom=null, hideBacktest=true, ovHorizon=52;
   const fcVisible={a:true,f:true,w:true};
   // Chart colours per theme: the dark-theme lime / light-teal / white grid
@@ -163,6 +167,31 @@
     return seriesWape(a,f).overall;
   }
 
+  // Comparison matrix: rows with no value at all say why once, instead of
+  // repeating a dash per column; stray dashes are dimmed and explained on hover.
+  function ovMatrixStates(has){
+    const reason=has?'Not calculated yet':'No forecast loaded';
+    let othersEmpty=true;
+    document.querySelectorAll('#ovMatrixTable .ov-group-row').forEach(row=>{
+      const cells=[...row.cells].slice(1), plan=row.querySelector('.ov-plan-col');
+      const isEmpty=c=>c.classList.contains('ov-none')||c.textContent.trim()==='—';
+      // A cell that showed a reason before and has a real value now.
+      cells.forEach(c=>{ if(c.classList.contains('ov-none')&&c.textContent.trim()!=='—'&&c.textContent!==c.dataset.reason)c.classList.remove('ov-none'); });
+      const empty=cells.every(isEmpty);
+      row.classList.toggle('ov-row-empty',empty);
+      cells.forEach(c=>{
+        const none=isEmpty(c);
+        if(none&&c!==plan){ c.textContent='—'; c.title='Not connected yet'; }
+        if(!none)c.removeAttribute('title');
+        c.classList.toggle('ov-none',none);
+        if(!none&&c!==plan)othersEmpty=false;
+      });
+      if(plan&&empty){ plan.textContent=reason; plan.dataset.reason=reason; }
+    });
+    const note=document.getElementById('ovMatrixNote');
+    if(note)note.textContent=othersEmpty?' · last-year and scenario values aren’t connected yet':'';
+  }
+
   function renderDashboardData(){
     // Overview KPI strip + Plan & Scenario Matrix (real values only — see
     // ovPickHorizon for the Time-Horizon-driven WAPE chip/chart redraw)
@@ -170,15 +199,23 @@
     const totalForecastUnits=DATA.all.f.reduce((s,x)=>s+(x||0),0);
     const skuCount=Object.keys(DATA.skus).length;
     const setTxt=(id,v)=>{const el=document.getElementById(id); if(el)el.textContent=v;};
-    setTxt('ovKpiUnits',nf(totalUnits));
-    setTxt('ovKpiSkus',skuCount.toLocaleString());
-    setTxt('ovKpiBacktest',(DATA.backtestWeeks||DATA.weeks.length)+' wks');
-    setTxt('ovMxSkus',skuCount.toLocaleString());
-    setTxt('ovMxSalesQty',nf(totalForecastUnits));
+    const has=ovHasForecast();
     const w12=trailingWape(12), w24=trailingWape(24), w52=trailingWape(52);
-    setTxt('ovMxWape12',w12==null?'—':w12.toFixed(0)+'%');
-    setTxt('ovMxWape24',w24==null?'—':w24.toFixed(0)+'%');
-    setTxt('ovMxWape52',w52==null?'—':w52.toFixed(0)+'%');
+    const pct=w=>w==null?'—':w.toFixed(0)+'%';
+    const bt=DATA.backtestWeeks||DATA.weeks.length;
+    setTxt('ovKpiSkus',has?skuCount.toLocaleString():'—');
+    setTxt('ovKpiSold',has?nf(totalUnits):'—');
+    setTxt('ovKpiSoldNote',has?'In the '+bt+' backtest weeks':'');
+    setTxt('ovMxSkus',has?skuCount.toLocaleString():'—');
+    setTxt('ovMxSalesQty',has?nf(totalForecastUnits):'—');
+    setTxt('ovMxWape12',has?pct(w12):'—');
+    setTxt('ovMxWape24',has?pct(w24):'—');
+    setTxt('ovMxWape52',has?pct(w52):'—');
+    ovMatrixStates(has);
+    ['ovKpiStrip','ovMatrixTable'].forEach(id=>{
+      const el=document.getElementById(id); if(!el)return;
+      el.classList.remove('ov-loading'); el.removeAttribute('aria-busy');
+    });
     ovPickHorizon(document.querySelector('#ovHorizonSeg button[data-w="'+ovHorizon+'"]')||document.querySelector('#ovHorizonSeg button.active'));
 
     // Top SKUs by volume for the Overview list and Forecast SKU picker.
@@ -266,13 +303,33 @@
     ovHorizon=n;
     document.querySelectorAll('#ovHorizonSeg button').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
-    const w=trailingWape(n);
+    const has=ovHasForecast();
+    const w=has?trailingWape(n):null;
+    const put=(id,v)=>{const el=document.getElementById(id); if(el)el.textContent=v;};
     const wapeEl=document.getElementById('ovKpiWape');
     if(wapeEl)wapeEl.textContent=w==null?'—':w.toFixed(2)+'%';
+    const noForecast='Your forecast couldn’t be loaded';
+    const used=Math.min(n,DATA.backtestWeeks||DATA.weeks.length);
+    put('ovKpiWapeNote',!has?noForecast:w==null?'No actuals to compare with yet'
+      :'Error on total units over '+used+' weeks of actuals · lower is better');
+    // Forecast units for the weeks ahead (as on Forecasts), not units already sold.
+    const ahead=has?Math.min(n,DATA.weeks.length-(DATA.backtestWeeks??DATA.weeks.length)):0;
+    const period=ahead>0?fclyPeriod(DATA.all,ahead):{units:null,prior:null,change:null};
+    put('ovKpiUnits',period.units==null?'—':nf(period.units));
+    put('ovKpiUnitsNote',!has?noForecast:period.units==null?'No forecast weeks ahead'
+      :'Next '+ahead+' weeks'+(period.prior>0?' · last year '+nf(period.prior):' · no last-year data'));
+    const delta=document.getElementById('ovKpiUnitsDelta');
+    if(delta){
+      const c=period.change, up=c!=null&&c>=0.05, down=c!=null&&c<=-0.05;
+      delta.hidden=c==null;
+      delta.dataset.direction=up?'up':down?'down':'flat';
+      delta.textContent=c==null?'':(up?'▲ ':down?'▼ ':'')+Math.abs(c).toFixed(1)+'% vs last year';
+      delta.setAttribute('aria-label',c==null?'':(up?'Up ':down?'Down ':'Unchanged, ')+Math.abs(c).toFixed(1)+'% versus last year');
+    }
     const lblEl=document.getElementById('ovKpiWapeLabel');
     if(lblEl)lblEl.textContent=n+'W';
     const btEl=document.getElementById('ovKpiBacktest');
-    if(btEl)btEl.textContent=Math.min(n,DATA.backtestWeeks||DATA.weeks.length)+' wks';
+    if(btEl)btEl.textContent=has?used+' wks':'—';
     drawOverviewTrend();
   };
 

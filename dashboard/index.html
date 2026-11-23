@@ -521,7 +521,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261122e">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261122f">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -625,27 +625,35 @@
         </div>
       </div>
 
-      <div class="ov-kpi-strip">
-        <div class="ov-kpi-chip"><span>Units forecasted</span><b id="ovKpiUnits">—</b></div>
+      <div class="ov-kpi-strip ov-loading" id="ovKpiStrip" aria-busy="true">
+        <div class="ov-kpi-chip ov-hero">
+          <span>Units forecasted</span>
+          <div class="ov-hero-row"><b id="ovKpiUnits">—</b><em class="ov-delta" id="ovKpiUnitsDelta" hidden></em></div>
+          <small id="ovKpiUnitsNote">Loading the approved forecast</small>
+        </div>
+        <div class="ov-kpi-chip ov-hero">
+          <span>WAPE (<span id="ovKpiWapeLabel">52W</span>)</span>
+          <div class="ov-hero-row"><b id="ovKpiWape">—</b></div>
+          <small id="ovKpiWapeNote">Loading the approved forecast</small>
+        </div>
         <div class="ov-kpi-chip"><span>SKUs forecasted</span><b id="ovKpiSkus">—</b></div>
-        <div class="ov-kpi-chip"><span>WAPE (<span id="ovKpiWapeLabel">52W</span>)</span><b id="ovKpiWape">—</b></div>
         <div class="ov-kpi-chip"><span>Backtest horizon</span><b id="ovKpiBacktest">—</b></div>
-        <div class="ov-kpi-chip"><span>Revenue</span><b class="ov-dim">—</b></div>
-        <div class="ov-kpi-chip"><span>Avg Discount/Unit</span><b class="ov-dim">—</b></div>
-        <div class="ov-kpi-chip"><span>Marketing Spend</span><b class="ov-dim">—</b></div>
-        <div class="ov-kpi-chip"><span>Units Sold</span><b class="ov-dim">—</b></div>
+        <div class="ov-kpi-chip"><span>Units Sold</span><b id="ovKpiSold">—</b><small id="ovKpiSoldNote"></small></div>
+        <div class="ov-kpi-chip"><span>Revenue</span><b class="ov-dim">—</b><small>Shown on Forecasts</small></div>
+        <div class="ov-kpi-chip"><span>Avg Discount/Unit</span><b class="ov-dim">—</b><small>Shown on Forecasts</small></div>
+        <div class="ov-kpi-chip"><span>Marketing Spend</span><b class="ov-dim">—</b><small>Not connected yet</small></div>
       </div>
 
       <div class="dcard" style="padding:0;overflow:hidden;margin-top:18px">
         <div class="ov-matrix-toolbar">
           <div>
             <h4 style="display:inline-block;margin:0">Plan &amp; Scenario Comparison Matrix</h4>
-            <span class="dsubtle" style="margin:0 0 0 8px;font-size:.78rem;display:inline">Variances benchmarked vs. Committed plan</span>
+            <span class="dsubtle" style="margin:0 0 0 8px;font-size:.78rem;display:inline">Variances benchmarked vs. Committed plan<span id="ovMatrixNote"></span></span>
           </div>
           <button type="button" class="dbtn" id="ovToggleAllGroupsBtn" onclick="ovToggleAllGroups()" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);font-size:11px;padding:6px 11px">Collapse all groups</button>
         </div>
         <div class="table-wrap">
-          <table class="dtable ov-matrix-table" id="ovMatrixTable">
+          <table class="dtable ov-matrix-table ov-loading" id="ovMatrixTable" aria-busy="true">
             <thead>
               <tr>
                 <th>Metric</th>
@@ -2281,7 +2289,7 @@
 </div>
 
 <script src="../js/data.js"></script>
-<script src="../js/main.js"></script>
+<script src="../js/main.js?v=20261122f"></script>
 <script src="../js/theme.js"></script>
 <script src="../js/scenarios.js"></script>
 <script src="../js/insights.js"></script>

@@ -371,6 +371,7 @@
 [data-theme="dark"] #dashboard .dside{background:var(--ink-2);border-right-color:var(--line)}
 [data-theme="dark"] #dashboard .dnav li{color:var(--muted)}
 [data-theme="dark"] #dashboard .dnav li:hover{background:rgba(255,255,255,.04);color:var(--text)}
+[data-theme="dark"] #dashboard .dnav li.active,[data-theme="dark"] #dashboard .dnav li.active:hover{background:var(--signal-soft);color:var(--signal)}
 
 /* Reading comfort: a little more line height for descriptive text. */
 [data-theme="dark"] #dashboard .dsubtle{line-height:1.55}
@@ -663,3 +664,82 @@
   #dashboard .obv-line-hist,#dashboard .obv-ready > div:first-child svg path{stroke-dashoffset:0}
   #dashboard .obv-dot,#dashboard .obv-train-link i{display:none}
 }
+
+/* ============================================================
+   Overview — calmer hierarchy
+   Two large numbers with six supporting ones on a single surface, spacing
+   instead of boxes, tighter matrix rows, lime kept for the plan column,
+   colour only on changes, and placeholders/reasons for missing data.
+============================================================ */
+/* Header: no card; the horizon switch stays on the greeting's line. */
+#dashboard .ov-header-card,[data-theme] #dashboard .ov-header-card{background:none;border:0;border-radius:0;box-shadow:none;padding:0 2px;margin-bottom:20px}
+#dashboard .ov-header-card .dgreet .hl{color:inherit}
+@media(min-width:1100px){
+  #dashboard .ov-header-top{flex-wrap:nowrap}
+  #dashboard .ov-header-top>div:first-child{flex:1 1 auto;min-width:0}
+  #dashboard .ov-header-controls{flex:0 0 auto;flex-wrap:nowrap}
+}
+
+/* KPIs: one surface, two heroes above six supporting figures. */
+#dashboard .ov-kpi-strip{grid-template-columns:repeat(6,minmax(0,1fr));gap:0;margin-bottom:26px;padding:24px 26px 20px;
+  border-radius:16px;background:var(--panel)}
+[data-theme="light"] #dashboard .ov-kpi-strip{background:#fff;box-shadow:0 1px 2px rgba(17,19,24,.04),0 4px 14px -6px rgba(17,19,24,.08)}
+#dashboard .ov-kpi-chip,[data-theme] #dashboard .ov-kpi-chip{background:none;border:0;border-radius:0;box-shadow:none;padding:18px 14px 0 0;gap:4px;min-width:0}
+#dashboard .ov-kpi-chip>span:first-child{white-space:normal}
+#dashboard .ov-kpi-chip b,#dashboard .ov-kpi-chip b.ov-dim{font-size:17px}
+#dashboard .ov-kpi-chip small{font-size:11.5px;line-height:1.4;color:var(--muted)}
+#dashboard .ov-kpi-chip.ov-hero{grid-column:span 3;padding:0 14px 20px 0;border-bottom:1px solid var(--line);gap:6px}
+#dashboard .ov-hero>span:first-child{font-size:13px}
+#dashboard .ov-hero-row{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 12px}
+#dashboard .ov-kpi-chip.ov-hero b{font-size:44px;line-height:1.05;letter-spacing:-.03em}
+#dashboard .ov-hero small{font-size:12.5px}
+
+/* Changes are the only coloured figures. */
+#dashboard .ov-delta{font-style:normal;font-size:13px;font-weight:600;color:var(--muted);white-space:nowrap}
+#dashboard .ov-delta[hidden]{display:none}
+#dashboard .ov-delta[data-direction="up"]{color:#54E6C4}
+#dashboard .ov-delta[data-direction="down"]{color:#FF8585}
+[data-theme="light"] #dashboard .ov-delta[data-direction="up"]{color:#0B7A6D}
+[data-theme="light"] #dashboard .ov-delta[data-direction="down"]{color:#B3261E}
+
+/* Matrix: tighter rows, quiet group headings, centred header text. */
+#dashboard .ov-matrix-table thead th{padding:10px 14px;vertical-align:middle}
+#dashboard .ov-matrix-table td{padding-top:7px;padding-bottom:7px;font-size:13.5px;border-bottom:0}
+#dashboard .ov-group-header,#dashboard .ov-group-header:hover{background:none}
+#dashboard .ov-group-header td{padding:14px 14px 5px!important;border-bottom:0;border-top:1px solid var(--line);color:var(--muted)}
+#dashboard .ov-matrix-table tbody .ov-group-header:first-child td{border-top:0}
+#dashboard .ov-group-header:hover td{color:var(--text)}
+#dashboard .ov-group-header .ov-group-sub{color:var(--muted);font-size:11.5px}
+#dashboard .ov-group-row:hover td{background:rgba(255,255,255,.02)}
+#dashboard .ov-matrix-table .ov-none{color:var(--muted-2)!important;font-weight:400}
+#dashboard .ov-matrix-table .ov-row-empty td:first-child{color:var(--muted)}
+#dashboard .ov-matrix-table .ov-row-empty .ov-plan-col{font-size:12px;color:var(--muted)!important}
+#dashboard .ov-matrix-table tr:last-child td{padding-bottom:14px}
+
+/* Opportunities: no box inside the card, no lime. */
+#dashboard .ov-opp-head{border-bottom:0;padding-bottom:0;margin-bottom:6px}
+#dashboard .ov-opp-head svg{stroke:var(--muted)}
+#dashboard .ov-opp-empty,[data-theme] #dashboard .ov-opp-empty{border:0;background:none;padding:18px 20px 14px}
+#dashboard .ov-opp-empty p.sub{color:var(--muted);max-width:62ch;margin-left:auto;margin-right:auto}
+
+/* Loading: soft placeholders where the numbers will appear. */
+#dashboard .ov-kpi-strip.ov-loading b:not(.ov-dim){color:transparent}
+#dashboard .ov-kpi-strip.ov-loading b:not(.ov-dim){min-width:64px;border-radius:7px;background:rgba(255,255,255,.07);animation:ovPulse 1.4s ease-in-out infinite}
+#dashboard .ov-kpi-strip.ov-loading .ov-hero b{min-width:150px}
+#dashboard .ov-matrix-table.ov-loading .ov-group-row td:not(:first-child){color:transparent!important;position:relative}
+#dashboard .ov-matrix-table.ov-loading .ov-group-row td:not(:first-child)::after{content:"";position:absolute;right:14px;top:50%;width:38px;height:9px;
+  margin-top:-4.5px;border-radius:5px;background:rgba(255,255,255,.07);animation:ovPulse 1.4s ease-in-out infinite}
+[data-theme="light"] #dashboard .ov-kpi-strip.ov-loading b:not(.ov-dim),
+[data-theme="light"] #dashboard .ov-matrix-table.ov-loading .ov-group-row td:not(:first-child)::after{background:rgba(17,19,24,.08)}
+@keyframes ovPulse{0%,100%{opacity:1}50%{opacity:.45}}
+@media(prefers-reduced-motion:reduce){#dashboard .ov-loading *,#dashboard .ov-loading *::after{animation:none!important}}
+
+@media(max-width:1100px){#dashboard .ov-kpi-strip{grid-template-columns:repeat(3,minmax(0,1fr))}
+  #dashboard .ov-kpi-chip.ov-hero:first-child{grid-column:span 2}#dashboard .ov-kpi-chip.ov-hero{grid-column:span 1}}
+@media(max-width:780px){#dashboard .ov-kpi-strip{grid-template-columns:1fr 1fr;padding:18px}
+  #dashboard .ov-kpi-chip.ov-hero,#dashboard .ov-kpi-chip.ov-hero:first-child{grid-column:1/-1;padding:0 0 16px}
+  #dashboard .ov-kpi-chip.ov-hero+.ov-hero{padding-top:16px}
+  #dashboard .ov-kpi-chip.ov-hero b{font-size:36px}
+  /* Phones: one line per metric; the table scrolls sideways as before. */
+  #dashboard .ov-matrix-table{min-width:620px}
+  #dashboard .ov-matrix-table td,#dashboard .ov-matrix-table th{white-space:nowrap}}
