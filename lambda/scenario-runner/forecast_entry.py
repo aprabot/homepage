@@ -1,10 +1,32 @@
-"""Scenario-specific forward holiday features for the bundled forecast model."""
+"""Holiday calendar and scenario-specific holiday features for the bundled forecast model."""
 import os
 
 import forecast
 
 
+def use_calendar(days):
+    """Swap forecast.py's Japanese calendar for these ISO dates, and switch
+    off its two Japan-only seasons (Golden Week and Obon)."""
+    ords = {forecast.pd.Timestamp(day).toordinal() for day in days}
+    cache = {'ords': ords, 'sorted': forecast.np.array(sorted(ords))}
+    forecast._holiday_ordinals = lambda: cache
+    original = forecast._build_holiday_features
+
+    def features(dates):
+        out = original(dates)
+        for column in ('is_golden_week', 'is_obon'):
+            out[column] = 0
+        return out
+
+    forecast._build_holiday_features = features
+
+
 def main():
+    if 'APRA_HOLIDAY_CALENDAR' in os.environ:
+        use_calendar([day for day in os.environ['APRA_HOLIDAY_CALENDAR'].split(',') if day])
+    if 'APRA_HOLIDAY_LAST_ACTUAL' not in os.environ:  # no holiday lever in this run
+        forecast.main()
+        return
     last_actual = forecast.pd.Timestamp(os.environ['APRA_HOLIDAY_LAST_ACTUAL'])
     excluded = {forecast.pd.Timestamp(date).toordinal()
                 for date in os.environ.get('APRA_HOLIDAY_EXCLUDED_DATES', '').split(',') if date}

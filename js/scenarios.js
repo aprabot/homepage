@@ -533,8 +533,9 @@
     upload.hidden = source.value !== 'custom';
   }
 
-  // National holiday dates used by the bundled forecast model (2021–2027).
-  var modelHolidays = [
+  // Holiday dates the model uses (2021–2027), by the forecast's country —
+  // the same calendars as lambda/scenario-runner/calendars.py and forecast.py.
+  var japanHolidays = [
     ["2021-01-01", "元日"], ["2021-01-11", "成人の日"], ["2021-02-11", "建国記念の日"], ["2021-02-23", "天皇誕生日"], ["2021-03-20", "春分の日"], ["2021-04-29", "昭和の日"], ["2021-05-03", "憲法記念日"], ["2021-05-04", "みどりの日"], ["2021-05-05", "こどもの日"], ["2021-07-22", "海の日"], ["2021-07-23", "スポーツの日"], ["2021-08-08", "山の日"], ["2021-08-09", "山の日 振替休日"], ["2021-09-20", "敬老の日"], ["2021-09-23", "秋分の日"], ["2021-11-03", "文化の日"], ["2021-11-23", "勤労感謝の日"],
     ["2022-01-01", "元日"], ["2022-01-10", "成人の日"], ["2022-02-11", "建国記念の日"], ["2022-02-23", "天皇誕生日"], ["2022-03-21", "春分の日"], ["2022-04-29", "昭和の日"], ["2022-05-03", "憲法記念日"], ["2022-05-04", "みどりの日"], ["2022-05-05", "こどもの日"], ["2022-07-18", "海の日"], ["2022-08-11", "山の日"], ["2022-09-19", "敬老の日"], ["2022-09-23", "秋分の日"], ["2022-10-10", "スポーツの日"], ["2022-11-03", "文化の日"], ["2022-11-23", "勤労感謝の日"],
     ["2023-01-01", "元日"], ["2023-01-02", "元日 振替休日"], ["2023-01-09", "成人の日"], ["2023-02-11", "建国記念の日"], ["2023-02-23", "天皇誕生日"], ["2023-03-21", "春分の日"], ["2023-04-29", "昭和の日"], ["2023-05-03", "憲法記念日"], ["2023-05-04", "みどりの日"], ["2023-05-05", "こどもの日"], ["2023-07-17", "海の日"], ["2023-08-11", "山の日"], ["2023-09-18", "敬老の日"], ["2023-09-23", "秋分の日"], ["2023-10-09", "スポーツの日"], ["2023-11-03", "文化の日"], ["2023-11-23", "勤労感謝の日"],
@@ -543,6 +544,42 @@
     ["2026-01-01", "元日"], ["2026-01-12", "成人の日"], ["2026-02-11", "建国記念の日"], ["2026-02-23", "天皇誕生日"], ["2026-03-20", "春分の日"], ["2026-04-29", "昭和の日"], ["2026-05-03", "憲法記念日"], ["2026-05-04", "みどりの日"], ["2026-05-05", "こどもの日"], ["2026-05-06", "憲法記念日 振替休日"], ["2026-07-20", "海の日"], ["2026-08-11", "山の日"], ["2026-09-21", "敬老の日"], ["2026-09-22", "国民の休日"], ["2026-09-23", "秋分の日"], ["2026-10-12", "スポーツの日"], ["2026-11-03", "文化の日"], ["2026-11-23", "勤労感謝の日"],
     ["2027-01-01", "元日"], ["2027-01-11", "成人の日"], ["2027-02-11", "建国記念の日"], ["2027-02-23", "天皇誕生日"], ["2027-03-21", "春分の日"], ["2027-03-22", "春分の日 振替休日"], ["2027-04-29", "昭和の日"], ["2027-05-03", "憲法記念日"], ["2027-05-04", "みどりの日"], ["2027-05-05", "こどもの日"], ["2027-07-19", "海の日"], ["2027-08-11", "山の日"], ["2027-09-20", "敬老の日"], ["2027-09-23", "秋分の日"], ["2027-10-11", "スポーツの日"], ["2027-11-03", "文化の日"], ["2027-11-23", "勤労感謝の日"]
   ];
+
+  var indiaFixedHolidays = [['01-26', 'Republic Day'], ['04-14', 'Ambedkar Jayanti'], ['05-01', 'May Day'],
+    ['08-15', 'Independence Day'], ['10-02', 'Gandhi Jayanti'], ['12-25', 'Christmas']];
+  var indiaMovingHolidays = {
+    Holi: ['2021-03-29', '2022-03-18', '2023-03-08', '2024-03-25', '2025-03-14', '2026-03-04', '2027-03-22'],
+    Diwali: ['2021-11-04', '2022-10-24', '2023-11-12', '2024-10-31', '2025-10-20', '2026-11-08', '2027-10-29'],
+  };
+  var calendarNames = { JP: 'Japan', IN: 'India', US: 'the United States', GB: 'the United Kingdom' };
+
+  // The forecast's country from its own postal codes; null when unclear.
+  function forecastCountry() {
+    var skus = window.DATA?.id ? window.DATA.skus || {} : {};
+    var codes = new Set(Object.values(skus).flatMap(function (item) { return Object.keys(item.byZip || {}); }));
+    var counts = {};
+    codes.forEach(function (code) {
+      var c = String(code).trim().toUpperCase();
+      var country = /^\d{3}-?\d{4}$/.test(c) ? 'JP' : /^[1-9]\d{5}$/.test(c) ? 'IN' : /^\d{5}(-\d{4})?$/.test(c) ? 'US'
+        : /^[A-Z]{1,2}\d[A-Z\d]? ?\d[A-Z]{2}$/.test(c) ? 'GB' : null;
+      if (country) counts[country] = (counts[country] || 0) + 1;
+    });
+    var best = Object.keys(counts).sort(function (a, b) { return counts[b] - counts[a]; })[0];
+    return best && counts[best] * 2 > codes.size ? best : null;
+  }
+
+  function holidaysFor(country) {
+    if (!country || country === 'JP') return japanHolidays;
+    if (country !== 'IN') return [];
+    var rows = [];
+    for (var year = 2021; year <= 2027; year++) {
+      indiaFixedHolidays.forEach(function (entry) { rows.push([year + '-' + entry[0], entry[1]]); });
+    }
+    Object.keys(indiaMovingHolidays).forEach(function (name) {
+      indiaMovingHolidays[name].forEach(function (day) { rows.push([day, name]); });
+    });
+    return rows.sort(function (a, b) { return a[0].localeCompare(b[0]); });
+  }
 
   function fillScenarioSelect(id, label, options) {
     var field = scenarioElement(id);
@@ -592,6 +629,13 @@
     // The weekly forecast labels use the start of the week.
     var end = last && last > first ? new Date(Date.parse(last) + 6 * 86400000).toISOString().slice(0, 10) : '';
     var list = scenarioElement('scenarioHolidayOptions');
+    var country = forecastCountry();
+    var modelHolidays = holidaysFor(country);
+    // A saved draft may still exclude another country's dates.
+    if (data?.id) {
+      var known = new Set(modelHolidays.map(function (entry) { return entry[0]; }));
+      excludedHolidayDates.forEach(function (day) { if (!known.has(day)) excludedHolidayDates.delete(day); });
+    }
     list.replaceChildren(...modelHolidays.filter(function (entry) {
       return (entry[0] >= first && (!end || entry[0] <= end)) || excludedHolidayDates.has(entry[0]);
     }).map(function (entry) {
@@ -604,7 +648,18 @@
       label.append(input, entry[0] + ' · ' + entry[1]);
       return label;
     }));
-    if (!list.childElementCount) list.textContent = 'No holidays in the forecast period.';
+    if (!list.childElementCount) list.textContent = country && country !== 'JP' && country !== 'IN'
+      ? 'No holiday calendar for ' + calendarNames[country] + ' yet.' : 'No holidays in the forecast period.';
+    // Forecasts trained before per-country calendars all used Japan's.
+    var trained = data?.id ? data.holidayCalendar || 'JP' : null;
+    if (country && trained && trained !== country) {
+      var note = document.createElement('p');
+      note.className = 'scenario-holiday-note';
+      note.textContent = 'The approved forecast was trained with ' + (calendarNames[trained] || trained) +
+        '’s holidays. New runs use ' + (modelHolidays.length ? calendarNames[country] + '’s' : 'none') +
+        ', so some change against the plan comes from that.';
+      list.prepend(note);
+    }
     updateScenarioHolidaySummary();
   }
 

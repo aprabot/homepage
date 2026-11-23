@@ -6,6 +6,8 @@ import traceback
 from datetime import datetime, timezone
 
 import boto3
+
+import calendars
 from boto3.dynamodb.conditions import Key
 
 s3  = boto3.client('s3')
@@ -82,6 +84,12 @@ REQUIRED_INPUT_COLS = {
 
 
 INLINE_EXPLAIN_MAX_SERIES = 60  # see _count_series()'s call site for why
+
+
+def _input_country(path):
+    import pandas as pd
+    codes = pd.read_csv(path, sep='\t', dtype=str, usecols=lambda c: c.strip().lower() == 'postal_code')
+    return calendars.country_of(codes.iloc[:, 0].dropna().unique()) if codes.shape[1] else None
 
 
 def _count_series(path):
@@ -1051,8 +1059,14 @@ def handler(event, context):
         # further down.
         inline_explain = _count_series(RAW_INPUT) <= INLINE_EXPLAIN_MAX_SERIES
 
+        # forecast.py knows only Japan's holidays; other countries' data gets
+        # its own calendar (None = leave forecast.py's as it is).
+        country = _input_country(RAW_INPUT)
+        calendar = calendars.holidays(country)
         adjust_holidays = levers.get('holiday_off') or levers.get('excluded_holiday_dates')
-        forecast_entry = os.path.join(os.path.dirname(FORECAST_PY), 'forecast_entry.py') if adjust_holidays else FORECAST_PY
+        forecast_entry = (os.path.join(os.path.dirname(FORECAST_PY), 'forecast_entry.py')
+                          if adjust_holidays or calendar is not None else FORECAST_PY)
+        print(f'HOLIDAY_CALENDAR: {country or "unclear, using JP"}')
         args = [sys.executable, '-u', forecast_entry,
                 '--input', RAW_INPUT,
                 '--outdir', OUTDIR,
@@ -1089,6 +1103,8 @@ def handler(event, context):
         # startup or nearly done). Inheriting stdout/stderr streams forecast.py's
         # own prints straight into this Lambda's live log output instead.
         env = os.environ.copy()
+        if calendar is not None:
+            env['APRA_HOLIDAY_CALENDAR'] = ','.join(day for day, _ in calendar)
         if adjust_holidays:
             import pandas as pd
             dates = pd.read_csv(RAW_INPUT, sep='\t', usecols=lambda c: c.strip().lower() == 'ship_day')
@@ -1114,6 +1130,7 @@ def handler(event, context):
         for sku, history in previous_skus.items():
             result_json['skus'][sku]['lastYear'] = history
         result_json['id'] = scenario_id
+        result_json['holidayCalendar'] = country or 'JP'
         _write_json(f'orgs/{org_id}/scenarios/{scenario_id}/anon.json', anon)
         result_json['campaignPlanningReady'] = True
 

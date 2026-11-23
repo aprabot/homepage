@@ -73,6 +73,7 @@ cp /tmp/sklearn-dl/scikit_learn.libs/libgomp-*.so.1.0.0 ./pkg/lib/libgomp.so.1
 
 cp handler.py ./pkg/handler.py
 cp forecast_entry.py ./pkg/forecast_entry.py
+cp calendars.py ./pkg/calendars.py   # holiday calendar per country; handler.py imports it
 cp ../../../forecast/forecast.py ./pkg/forecast.py   # keep in sync with the forecast repo
 cd pkg && zip -rq ../scenario-runner.zip .
 

@@ -770,3 +770,9 @@
 #dashboard #inventoryReqTable .inv-freq{font-size:13px}
 #dashboard .inv-kpi-tab{display:flex;flex-direction:column}
 #dashboard .inv-kpi-tab .inv-kpi-val-row{margin-top:auto;padding-top:14px}
+
+#dashboard .scenario-holiday-note{margin:2px 0 10px;font-size:12px;line-height:1.5;color:var(--muted)}
+#dashboard .scenario-holiday-actions .dbtn,#dashboard .scenario-holiday-actions .dbtn:hover{height:30px;padding:0 11px;font-size:12px;
+  background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);box-shadow:none;transform:none}
+#dashboard .scenario-holiday-actions{margin-bottom:8px}
+#dashboard #scenarioRunForm input[type="checkbox"]{accent-color:var(--obv-accent)}

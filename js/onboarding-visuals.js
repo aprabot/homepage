@@ -96,7 +96,7 @@
     ] },
     { match: /weather|festival/i, title: 'Signals around your demand', nodes: [
       { art: 'weather', t: 'Weather', s: 'From the Weather sheet in your sales file — used in training' },
-      { icon: 'calendar', t: 'Festivals', s: 'Built-in calendar plus state holidays — saved, not used in training yet', soon: true },
+      { icon: 'calendar', t: 'Holidays', s: 'National holidays for India and Japan are used in training; state and added festivals are saved for later' },
       { icon: 'model', t: 'Training', s: 'Weather is used as a signal', accent: true },
     ] },
   ];

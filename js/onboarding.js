@@ -1134,7 +1134,11 @@
         : 'No built-in calendar for ' + countryName(country) + ' yet';
       text = 'Use Override to add festivals by state or region.';
     }
-    intro.textContent = text + ' Saved with your setup — training doesn’t use festivals yet.';
+    // Training uses each country's own national calendar (the runner's
+    // calendars.py); anything state-level or uploaded is only saved.
+    intro.textContent = text + (country === 'IN' ? ' Training uses India’s national holidays plus Holi and Diwali; state and added festivals are saved for later.'
+      : country === 'JP' ? ' Training uses Japan’s national holidays; added festivals are saved for later.'
+      : ' Saved with your setup — training doesn’t use festivals here yet.');
   }
 
   // Loads default holidays for the currently selected country, replacing
@@ -1582,7 +1586,7 @@
       if (bits.length) used += ' (' + bits.join(' ') + ')';
     }
     used += sheetWeather ? ', including its Weather sheet' : ', with the platform’s default weather';
-    var kept = ['festivals & holidays'];
+    var kept = [/^(IN|JP)$/.test(currentCountry()) ? 'state & added festivals' : 'festivals & holidays'];
     if (Object.keys(newSkuState).length) kept.push('launch dates');
     if (schemeIds.length) kept.push('scheme IDs');
     if (skuMasterKey) kept.push('SKU master');
