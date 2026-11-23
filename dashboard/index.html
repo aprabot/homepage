@@ -517,7 +517,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261123a">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261123c">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -822,13 +822,13 @@
     <div class="dbody" id="discountSchemesPanel" style="display:none">
       <div id="scheme-registry">
       <div class="ads-heading">
-        <div><h1 class="dgreet">Discount Schemes</h1><p class="dsubtle">Manage promotions and apply committed discounts to future forecasts.</p></div>
+        <div><h1 class="dgreet">Discount Schemes</h1><p class="dsubtle">Save discount schemes as templates, then pick them in Scenarios. Commit one only when it should apply to every future forecast.</p></div>
         <button type="button" class="dbtn" id="scheme-new" disabled>+ Create scheme</button>
       </div>
       <div class="dcard ads-table-card">
         <div class="ads-fields">
           <label>Search schemes<input type="search" id="scheme-search" placeholder="ID or name"></label>
-          <label>Status<select id="scheme-filter"><option value="">All statuses</option><option value="draft">Draft</option><option value="committed">Committed</option><option value="withdrawn">Withdrawn</option></select></label>
+          <label>Status<select id="scheme-filter"><option value="">All statuses</option><option value="draft">Saved</option><option value="committed">Committed</option><option value="withdrawn">Withdrawn</option></select></label>
           <label>Source<select id="scheme-source"><option value="">All sources</option><option value="created">Created</option><option value="detected">Detected from sales</option></select></label>
         </div>
         <table class="amp-table">
@@ -869,10 +869,11 @@
           <div id="scheme-scope"></div>
         </section>
         <footer class="scheme-editor-footer">
-          <p class="stest-msg" id="scheme-error" role="status" aria-atomic="true"></p>
+          <div class="scheme-footer-note"><p class="stest-msg" id="scheme-error" role="status" aria-atomic="true"></p>
+          <p class="dsubtle" id="scheme-save-help"><b>Save</b> keeps it as a template for Scenarios. <b>Commit</b> applies it to future forecasts.</p></div>
           <div class="scheme-editor-actions">
-            <button type="submit" class="dbtn" id="scheme-draft" value="draft">Save draft</button>
-            <button type="submit" class="btn btn-pri" id="scheme-commit" value="commit">Commit and run</button>
+            <button type="submit" class="btn btn-pri" id="scheme-draft" value="draft">Save</button>
+            <button type="submit" class="dbtn" id="scheme-commit" value="commit">Commit and run</button>
           </div>
         </footer>
       </form>
@@ -880,7 +881,7 @@
         <fieldset class="scheme-scope-line">
           <legend class="scheme-scope-label">Scope line</legend>
           <div class="scheme-scope-fields">
-            <label>Forecast SKU<input name="sku" required placeholder="SKU-001"></label>
+            <label>Forecast SKU<select data-scheme-sku required></select><input type="hidden" name="sku"></label>
             <label>Postal code<input name="postal_code" required maxlength="12" placeholder="Postal code"></label>
             <label>Start date<input name="start_date" type="date" required></label>
             <label>End date<input name="end_date" type="date" required></label>
@@ -2305,13 +2306,13 @@
 <script src="../js/data.js"></script>
 <script src="../js/main.js?v=20261122f"></script>
 <script src="../js/theme.js"></script>
-<script src="../js/scenarios.js?v=20261123a"></script>
+<script src="../js/scenarios.js?v=20261123b"></script>
 <script src="../js/insights.js"></script>
 <script src="../js/inventory.js?v=20261123a"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
 <script src="../js/ads.js?v=shopify-check"></script>
-<script src="../js/discount-schemes.js"></script>
+<script src="../js/discount-schemes.js?v=20261123c"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/onboarding.js?v=20261122h"></script>
 <script src="../js/onboarding-visuals.js?v=20261122h"></script>

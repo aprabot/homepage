@@ -47,7 +47,7 @@
     const filter = get('scheme-filter').value;
     const source = get('scheme-source').value;
     const visible = schemes.filter(scheme =>
-      (!filter || (scheme.status || 'draft') === filter) &&
+      (!filter || scheme.status === filter) &&
       (!source || (source === 'detected' ? scheme.detected : scheme.version)) &&
       (scheme.code + ' ' + (scheme.name || '')).toLowerCase().includes(search));
     const list = get('scheme-list');
@@ -62,7 +62,7 @@
       const today = new Date().toISOString().slice(0, 10);
       const stage = scheme.status === 'committed' && starts.length
         ? 'Committed · ' + (today < starts[0] ? 'Planned' : today > ends.at(-1) ? 'Past' : 'Active')
-        : scheme.status || 'Draft · Needs details';
+        : scheme.status === 'draft' ? 'Saved' : scheme.status === 'withdrawn' ? 'Withdrawn' : 'Needs details';
       [scheme.code, scheme.name || '—', scheme.mechanic || '—', dates,
         scheme.detected ? (scheme.version ? 'Created and detected' : 'Detected from sales') : 'Created',
         stage, scheme.observed_units?.toLocaleString() ?? '—', '—']
@@ -70,6 +70,9 @@
       const actions = line.insertCell();
       const editable = canEdit && scheme.status !== 'committed';
       actions.append(button(editable ? 'Edit' : 'View', () => open(scheme, !editable)));
+      if (scheme.status === 'draft' && typeof window.useSchemeInScenario === 'function') {
+        actions.append(button('Use in Scenarios', () => window.useSchemeInScenario(scheme.code)));
+      }
       if (canEdit && scheme.status === 'committed') actions.append(button('Withdraw', async event => {
         if (!confirm('Withdraw this scheme from future runs?')) return;
         event.target.disabled = true;
@@ -105,9 +108,23 @@
     get('scheme-add').disabled = count >= 30;
   }
 
+  // All SKUs, or one from the approved forecast. A saved SKU that forecast no
+  // longer has stays selectable so editing can't silently change it.
+  function fillSkus(row) {
+    const select = row.querySelector('[data-scheme-sku]');
+    const value = row.querySelector('input[name="sku"]');
+    const skus = window.DATA?.id ? Object.keys(window.DATA.skus || {}).sort() : [];
+    if (value.value && value.value !== 'ALL' && !skus.includes(value.value)) skus.push(value.value);
+    select.replaceChildren(new Option('Choose SKU', ''), new Option('All SKUs' + (window.DATA?.id ? ' (' + Object.keys(window.DATA.skus || {}).length + ')' : ''), 'ALL'),
+      ...skus.map(sku => new Option(sku, sku)));
+    select.value = value.value;
+    select.addEventListener('change', () => { value.value = select.value; });
+  }
+
   function addLine(values = {}) {
     const row = get('scheme-line').content.firstElementChild.cloneNode(true);
     row.querySelectorAll('input').forEach(input => { input.value = values[input.name] ?? ''; });
+    fillSkus(row);
     const start = row.querySelector('input[name="start_date"]');
     const end = row.querySelector('input[name="end_date"]');
     const syncDates = () => { end.min = start.value; };
@@ -117,7 +134,7 @@
       const neighbor = row.nextElementSibling || row.previousElementSibling;
       row.remove();
       refreshScopeControls();
-      neighbor?.querySelector('input').focus();
+      neighbor?.querySelector('select, input:not([type="hidden"])').focus();
     };
     scopes.append(row);
     return row;
@@ -138,7 +155,7 @@
     if (scheme?.scope?.length) scheme.scope.forEach(addLine);
     else if (!readOnly) addLine({ start_date: scheme?.first_seen, end_date: scheme?.last_seen });
     form.querySelectorAll('input, select').forEach(control => { control.disabled = readOnly; });
-    ['scheme-add', 'scheme-draft', 'scheme-commit'].forEach(id => { get(id).hidden = readOnly; });
+    ['scheme-add', 'scheme-draft', 'scheme-commit', 'scheme-save-help'].forEach(id => { get(id).hidden = readOnly; });
     refreshScopeControls();
     registry.hidden = true;
     form.hidden = false;
@@ -172,6 +189,7 @@
         mechanic: fields.mechanic.value, scope, version: editing?.version || 0});
       await load();
       close();
+      if (action === 'draft') status.textContent = 'Saved. Use it in Scenarios with the button on its row.';
       if (result.warning) status.textContent = result.warning;
       if (result.scenario_id) status.textContent = 'Scheme committed. A forecast run has started in Scenarios.';
     } catch (error) {
@@ -189,7 +207,7 @@
     if (scopes.children.length >= 30) return;
     const row = addLine();
     refreshScopeControls();
-    row.querySelector('input').focus();
+    row.querySelector('select').focus();
   };
   form.elements.mechanic.addEventListener('change', refreshScopeControls);
   form.addEventListener('keydown', event => {

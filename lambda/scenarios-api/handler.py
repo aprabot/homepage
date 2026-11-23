@@ -353,8 +353,8 @@ def _discount_schemes(org, email, method, event):
             latest = _read_json(f'orgs/{org}/forecast/latest.json', default={})
             for line in scope:
                 sku, postal = line.get('sku', ''), line.get('postal_code', '')
-                if not isinstance(sku, str) or not re.fullmatch(r'SKU-\d{3,}', sku):
-                    raise ValueError('Use a forecast SKU for each scope line.')
+                if not isinstance(sku, str) or not re.fullmatch(r'ALL|SKU-\d{3,}', sku):
+                    raise ValueError('Choose a forecast SKU or all SKUs for each scope line.')
                 if not isinstance(postal, str) or not re.fullmatch(r'[A-Za-z0-9 -]{2,12}', postal):
                     raise ValueError('Enter a postal code for each scope line.')
                 start = datetime.strptime(line.get('start_date', ''), '%Y-%m-%d').date()
@@ -364,7 +364,7 @@ def _discount_schemes(org, email, method, event):
                 value = line.get('discount')
                 if type(value) not in (int, float) or not 0 < value <= (1000000 if mechanic == 'Flat amount off' else 99):
                     raise ValueError('Enter a positive discount. Percent discounts must be below 100.')
-                if action == 'commit' and sku not in latest.get('skus', {}):
+                if action == 'commit' and sku != 'ALL' and sku not in latest.get('skus', {}):
                     raise ValueError('Each SKU must exist in the approved forecast.')
                 line.update(start_date=start.isoformat(), end_date=end.isoformat())
             if action == 'commit' and not latest.get('campaignPlanningReady'):
@@ -491,6 +491,18 @@ def inbound_summary(org):
     return {'status': 'ok', 'uploaded_at': uploaded.isoformat(), **result}
 
 
+def _expand_scope(org, scope, forecast_id):
+    """Scope lines with sku 'ALL' become one line per SKU of the forecast the
+    scheme is tied to, which is what the runner understands."""
+    if all(line['sku'] != 'ALL' for line in scope):
+        return scope
+    anon = _read_json(f'orgs/{org}/scenarios/{forecast_id}/anon.json', default={}) or {}
+    skus = sorted(set(anon.values()))
+    if not skus:
+        raise ValueError('The SKUs of the approved forecast could not be read.')
+    return [{**line, 'sku': sku} for line in scope for sku in (skus if line['sku'] == 'ALL' else [line['sku']])]
+
+
 def create_scenario(org, event):
     try:
         body = json.loads(event.get('body') or '{}')
@@ -519,9 +531,13 @@ def create_scenario(org, event):
             base = _read_json(f'orgs/{org}/scenarios/{latest["id"]}/config.json', default={})
             custom_input_key = (base or {}).get('custom_input_key') or ''
     schemes = _read_json(_scheme_key(org), default={}) or {}
-    active_schemes = [dict(name=row['name'], mechanic=row['mechanic'], scope=row['scope'],
-                           forecast_id=row['forecast_id'], code=code) for code, row in schemes.items()
-                      if row['status'] == 'committed' and code not in levers.get('excluded_schemes', [])]
+    try:
+        active_schemes = [dict(name=row['name'], mechanic=row['mechanic'],
+                               scope=_expand_scope(org, row['scope'], row['forecast_id']),
+                               forecast_id=row['forecast_id'], code=code) for code, row in schemes.items()
+                          if row['status'] == 'committed' and code not in levers.get('excluded_schemes', [])]
+    except ValueError as exc:
+        return _resp(400, {'error': str(exc)})
     # Drafts picked for this run only: they apply here without being committed.
     if levers.get('included_schemes'):
         latest = _read_json(f'orgs/{org}/forecast/latest.json', default={}) or {}
@@ -533,10 +549,14 @@ def create_scenario(org, event):
                 continue
             if row.get('status') != 'draft':
                 return _resp(400, {'error': f'{code} is not a draft scheme. Reopen Discount schemes and choose again.'})
-            unknown = sorted({line['sku'] for line in row['scope']} - set(latest.get('skus') or {}))
+            unknown = sorted({line['sku'] for line in row['scope']} - {'ALL'} - set(latest.get('skus') or {}))
             if unknown:
                 return _resp(400, {'error': f'{code} uses {", ".join(unknown[:3])}, which is not in the approved forecast.'})
-            active_schemes.append(dict(name=row['name'], mechanic=row['mechanic'], scope=row['scope'],
+            try:
+                scope = _expand_scope(org, row['scope'], latest['id'])
+            except ValueError as exc:
+                return _resp(400, {'error': str(exc)})
+            active_schemes.append(dict(name=row['name'], mechanic=row['mechanic'], scope=scope,
                                        forecast_id=latest['id'], code=code, draft=True))
 
     scenario_id = f"scn-{int(time.time())}-{uuid.uuid4().hex[:6]}"

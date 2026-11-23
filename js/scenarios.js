@@ -70,7 +70,7 @@
     if (levers.holiday_off) parts.push('forward holiday effects off');
     if (levers.excluded_holiday_dates?.length) parts.push(levers.excluded_holiday_dates.length + ' holidays excluded');
     if (levers.excluded_schemes && levers.excluded_schemes.length) parts.push(levers.excluded_schemes.length + ' schemes excluded');
-    if (levers.included_schemes && levers.included_schemes.length) parts.push('draft scheme' + (levers.included_schemes.length === 1 ? ' ' : 's ') + levers.included_schemes.join(', '));
+    if (levers.included_schemes && levers.included_schemes.length) parts.push('saved scheme' + (levers.included_schemes.length === 1 ? ' ' : 's ') + levers.included_schemes.join(', '));
     return parts.join(', ');
   }
 
@@ -644,15 +644,28 @@
       keepKnownSchemes(excludedSchemes, committedSchemes);
       keepKnownSchemes(includedSchemes, draftSchemes);
       var any = committedSchemes.length + draftSchemes.length;
-      status.textContent = (any ? 'Ticked schemes apply to this run.' + (draftSchemes.length ? ' Drafts stay drafts.' : '') : 'No schemes created yet.') +
-        (detected ? ' ' + detected + ' detected in your sales need a discount and dates first: open Discount Schemes and save ' +
-          (detected === 1 ? 'it' : 'them') + ' as a draft.' : '');
+      status.textContent = (any ? 'Ticked schemes apply to this run.' + (draftSchemes.length ? ' Saved schemes apply to this run only; nothing is committed.' : '') : 'No schemes created yet.') +
+        (detected ? ' ' + detected + ' detected in your sales need' + (detected === 1 ? 's' : '') + ' a discount and dates first: open Discount Schemes, fill ' +
+          (detected === 1 ? 'it' : 'them') + ' in and save.' : '');
       scenarioElement('scenarioSchemesOpen').hidden = any > 0 && !detected;
       renderScenarioSchemes();
     } catch (error) {
       status.textContent = 'Could not load discount schemes. Reopen this section to retry.';
     }
   }
+
+  // "Use in Scenarios" on a saved scheme: tick it here and show it.
+  window.useSchemeInScenario = async function (code) {
+    includedSchemes.add(code);
+    var nav = Array.from(document.querySelectorAll('.dnav li')).find(function (li) { return li.title === 'Scenarios'; });
+    if (nav) nav.click();
+    var details = scenarioElement('scenarioSchemes');
+    details.open = true;
+    await loadScenarioSchemes();
+    details.scrollIntoView({ block: 'center' });
+    var box = scenarioElement('scenarioSchemeOptions').querySelector('input[value="' + CSS.escape(code) + '"]');
+    if (box) box.focus({ preventScroll: true });
+  };
 
   function keepKnownSchemes(chosen, schemes) {
     var codes = new Set(schemes.map(function (scheme) { return scheme.code; }));
@@ -678,7 +691,7 @@
       text.textContent = (scheme.name && scheme.name !== scheme.code ? scheme.name + ' · ' : '') + scheme.code;
       if (isDraft) {
         var tag = document.createElement('em');
-        tag.textContent = 'Draft';
+        tag.textContent = 'Saved';
         text.append(tag);
       }
       if (starts.length && ends.length) {

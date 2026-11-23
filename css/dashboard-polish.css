@@ -806,3 +806,16 @@
 #dashboard #scenarioSchemesOpen{font-size:12.5px;margin:0 0 8px;text-decoration:none}
 #dashboard #scenarioSchemesOpen:hover{text-decoration:underline}
 #dashboard #scenarioSchemeOptions em{font-style:normal;font-size:10.5px;font-weight:600;margin-left:8px;padding:1px 7px;border-radius:999px;border:1px solid var(--line-2);color:var(--muted)}
+
+/* Scheme editor: Save is the main action (last visually, first in the DOM so
+   Enter saves and never commits). */
+#dashboard .scheme-editor-actions{display:flex;gap:10px;align-items:center}
+#dashboard .scheme-editor-actions #scheme-draft{order:2}
+#dashboard .scheme-editor-actions #scheme-commit{background:transparent;color:var(--text);border:1px solid var(--line-2);box-shadow:none;transform:none}
+#dashboard .scheme-footer-note{flex:1 1 260px;min-width:0}
+#dashboard #scheme-save-help{margin:0;font-size:12.5px}
+#dashboard #scheme-save-help[hidden]{display:none}
+#dashboard #scheme-list td:last-child{white-space:nowrap}
+#dashboard #scheme-list td:last-child .dbtn+.dbtn{margin-left:6px}
+[data-theme] #dashboard .scheme-editor #scheme-draft,[data-theme] #dashboard .scheme-editor #scheme-draft:hover:enabled{background:var(--signal);color:#0A0E15;border:1px solid var(--signal);min-height:36px}
+#dashboard .scheme-editor-actions #scheme-commit{min-height:36px;padding:8px 13px;font-size:12px}
