@@ -1077,10 +1077,22 @@
     if(cbPointArrow){ cbPointArrow.remove(); cbPointArrow=null; }
     if(cbPointBackdrop){ cbPointBackdrop.remove(); cbPointBackdrop=null; }
   }
+  // The sidebar page the user is on, so Lyra can resolve "this page".
+  function cbCurrentPage(){
+    var li=document.querySelector('.dnav li.active');
+    return li ? li.textContent.trim() : '';
+  }
   function cbPointTo(name){
     cbClearPoint();
     var li=cbNavLi(name);
     if(!li) return; // no matching nav item on this page — silent no-op
+    // Items in a collapsed sidebar group (Ads, Forecast) are hidden — open
+    // the group first so the highlight and arrow land on a visible item.
+    if(li.offsetParent===null){
+      var groupToggle=li.hasAttribute('data-ads-nav') ? document.getElementById('ads-nav-toggle')
+        : li.hasAttribute('data-forecast-nav') ? document.getElementById('forecast-nav-toggle') : null;
+      if(groupToggle && groupToggle.getAttribute('aria-expanded')!=='true') groupToggle.click();
+    }
     li.classList.add('cb-nav-point');
     cbPointEl=li;
     var r=li.getBoundingClientRect();
@@ -1250,6 +1262,7 @@
         message: q,
         history: askedTab.history.slice(0,-1).slice(-8),
         extra_instructions: extraHint,
+        page: cbCurrentPage(),
         temperature: tp.temperature,
         max_tokens: sp.max_tokens
       })

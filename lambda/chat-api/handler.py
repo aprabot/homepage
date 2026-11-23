@@ -34,7 +34,6 @@ SCENARIOS_API_FUNCTION = os.environ.get('SCENARIOS_API_FUNCTION', 'aprabot-scena
 # now requires every custom_input_key to belong to the calling org, and this
 # fixture is only ever used for APRABot's own team demos anyway. Migrated
 # here (copied, not moved) alongside the rest of the org-scoping rollout.
-DISCOUNT_DEMO_KEY = 'orgs/aprabot-internal/uploads/demo-20pct-discount-all-products/apra_demo_20pct_discount_all_products.xlsx'
 KNOWLEDGE_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'forecasting_knowledge.md')
 KNOWLEDGE_KEY  = os.environ.get('KNOWLEDGE_KEY', 'knowledge/forecasting_knowledge.md')
 # RAG index for the knowledge base — see build_knowledge_index()/retrieve_
@@ -80,23 +79,73 @@ def _translate_holiday(jp_name):
     return JP_HOLIDAY_EN.get(jp_name, jp_name)
 
 
+# Fixed-date national holidays for India — the same list the onboarding
+# Weather & festivals step pre-fills (js/onboarding.js HOLIDAY_RULES.IN).
+# Lunar-calendar festivals (Diwali, Holi, Eid, ...) move every year, so
+# they're deliberately not guessed here.
+IN_FIXED_HOLIDAYS = {(1, 26): 'Republic Day', (4, 14): 'Ambedkar Jayanti', (5, 1): 'May Day',
+                     (8, 15): 'Independence Day', (10, 2): 'Gandhi Jayanti', (12, 25): 'Christmas'}
+COUNTRY_NAMES = {'JP': 'Japan', 'IN': 'India', 'US': 'United States'}
+
+
+def _detect_country():
+    """The forecast's country, inferred from its own postal codes: 7-digit
+    123-4567 = Japan, 6-digit PIN = India, 5-digit ZIP = United States.
+    None when there are no postal codes or they don't match one pattern.
+    Holidays and weather are only quoted for a detected country — an
+    Indian forecast must never be explained with Japan's calendar."""
+    cache_key = f"country:{_CURRENT_ORG['id']}"
+    if cache_key in _cache:
+        return _cache[cache_key]
+    counts = {}
+    try:
+        for d in _get_forecast_data().get('skus', {}).values():
+            for zip_code in (d.get('byZip') or {}):
+                z = str(zip_code).strip()
+                c = ('JP' if re.fullmatch(r'\d{3}-\d{4}', z) else 'IN' if re.fullmatch(r'\d{6}', z)
+                     else 'US' if re.fullmatch(r'\d{5}', z) else None)
+                if c:
+                    counts[c] = counts.get(c, 0) + 1
+    except Exception:
+        counts = {}
+    country = max(counts, key=counts.get) if counts else None
+    _cache[cache_key] = country
+    return country
+
+
+def _holiday_on(day):
+    """The detected country's public holiday on this date, or None."""
+    country = _detect_country()
+    if country == 'JP':
+        name = jpholiday.is_holiday_name(day)
+        return _translate_holiday(name) if name else None
+    if country == 'IN':
+        return IN_FIXED_HOLIDAYS.get((day.month, day.day))
+    return None
+
+
 def _week_holidays(week_start_str):
-    """Japanese public holidays falling within the Mon-Sun week starting on
-    week_start_str — real, computed dates, not guessed (works for both past
-    and future weeks, since Japan's holiday calendar is defined in advance)."""
+    """Public holidays (for the forecast's own country — see _detect_country)
+    falling within the Mon-Sun week starting on week_start_str — real,
+    computed dates, not guessed."""
     start = dt.date.fromisoformat(week_start_str)
     names = []
     for i in range(7):
-        name = jpholiday.is_holiday_name(start + dt.timedelta(days=i))
+        day = start + dt.timedelta(days=i)
+        name = _holiday_on(day)
         if name:
-            names.append(_translate_holiday(name))
+            names.append(f"{name} ({day.isoformat()})")
     return names
 
 
 def _weekly_weather():
     """Aggregates raw/weather.tsv (daily, per postal code) to one row per
     W-SUN week, averaged across all postal codes — only covers real
-    historical dates, not the forward forecast period."""
+    historical dates, not the forward forecast period. Japan only: this
+    file is the Japanese platform dataset's weather, so it would describe
+    the wrong place for any other country's forecast."""
+    if _detect_country() != 'JP':
+        return {}
     try:
         obj = s3.get_object(Bucket=BUCKET, Key=WEATHER_KEY)
         text = obj['Body'].read().decode('utf-8')
@@ -195,9 +244,7 @@ def _day_holiday(date_str):
     """Same real, computed Japanese holiday lookup as _week_holidays(), for a
     single ISO date instead of a Mon-Sun week — works for both past and
     future dates."""
-    d = dt.date.fromisoformat(date_str)
-    name = jpholiday.is_holiday_name(d)
-    return _translate_holiday(name) if name else None
+    return _holiday_on(dt.date.fromisoformat(date_str))
 
 
 def _day_weather(date_str):
@@ -205,7 +252,9 @@ def _day_weather(date_str):
     codes — same source (raw/weather.tsv) as _weekly_weather(), just not
     pre-aggregated to a week. Returns None for a date with no matching rows
     (most commonly: a forward-forecast date, since weather isn't known that
-    far in advance)."""
+    far in advance). Japan only, same as _weekly_weather()."""
+    if _detect_country() != 'JP':
+        return None
     try:
         obj = s3.get_object(Bucket=BUCKET, Key=WEATHER_KEY)
         text = obj['Body'].read().decode('utf-8')
@@ -559,7 +608,11 @@ def _sku_row(sku_id, sku_data, bt, trail_win):
     wape = round(100 * num / vol, 2) if vol else 0
     fwd = sum(x for x in f[bt:] if x is not None)
     trail_actual = sum(x for x in a[max(0, bt - trail_win):bt] if x is not None) if trail_win else 0
-    trend = round(100 * (fwd - trail_actual) / trail_actual, 1) if trail_win and trail_actual else None
+    # The next trail_win forward weeks vs. the last trail_win actual weeks —
+    # equal-length windows. (Using the whole forward horizon here compared
+    # e.g. 52 forecast weeks with 21 actual weeks and reported +150% "growth".)
+    fwd_window = sum(x for x in f[bt:bt + trail_win] if x is not None) if trail_win else 0
+    trend = round(100 * (fwd_window - trail_actual) / trail_actual, 1) if trail_win and trail_actual else None
     avg_price = sku_data.get('avgPrice')
     revenue_est = round(vol * avg_price, 2) if avg_price is not None else None
     return {'sku': sku_id, 'vol': vol, 'wape': wape, 'acc': round(100 - wape, 1), 'fwd': fwd, 'trend': trend,
@@ -611,6 +664,18 @@ def _config_summary(meta):
     ]
     if meta.get('custom_input'):
         parts.append('custom input file')
+    levers = meta.get('levers') or {}
+    if levers.get('spend_pct') is not None:
+        parts.append(f"marketing spend {levers['spend_pct']:+d}%")
+    if levers.get('price_pct') is not None:
+        target = [t for t in (levers.get('price_sku'), levers.get('price_postal_code'), levers.get('price_target')) if t]
+        parts.append(f"price {levers['price_pct']:+d}%" + (f" ({', '.join(target)})" if target else ''))
+    if levers.get('unit_cap') is not None:
+        parts.append(f"weekly cap {levers['unit_cap']:,}")
+    if levers.get('holiday_off'):
+        parts.append('forward holiday effects off')
+    if levers.get('excluded_schemes'):
+        parts.append(f"{len(levers['excluded_schemes'])} schemes excluded")
     return ', '.join(parts)
 
 
@@ -682,8 +747,10 @@ def build_data_summary():
 
     worst_wape = sorted(rows, key=lambda x: -x['wape'])[:5]
     with_trend = [r for r in rows if r['trend'] is not None]
-    declining  = sorted(with_trend, key=lambda x: x['trend'])[:5]
-    growing    = sorted(with_trend, key=lambda x: -x['trend'])[:5]
+    # Only SKUs actually moving that way — with a small catalog the top 5
+    # otherwise listed flat or shrinking SKUs as "fastest-growing".
+    declining  = sorted([r for r in with_trend if r['trend'] < 0], key=lambda x: x['trend'])[:5]
+    growing    = sorted([r for r in with_trend if r['trend'] > 0], key=lambda x: -x['trend'])[:5]
     lines += [
         "",
         "Highest-error SKUs (backtest WAPE, for reasoning about accuracy questions):",
@@ -735,7 +802,17 @@ def build_data_summary():
     # only describing the number. Weather only covers real historical dates;
     # forward weeks show holidays only (weather isn't known in advance).
     weather_by_week = _weekly_weather()
-    lines += ["", "--- WEEKLY CONTEXT (for correlating spikes/drops with an actual cause) ---"]
+    country = _detect_country()
+    if country == 'JP':
+        context_note = "Japan's public holidays (the calendar forecast.py trains on) and historical weather"
+    elif country == 'IN':
+        context_note = ("India's fixed-date national holidays only (Republic Day, Independence Day, Gandhi "
+                        "Jayanti, etc.) — lunar festivals such as Diwali, Holi and Eid move every year and "
+                        "are NOT listed, and no weather data is available to you for India")
+    else:
+        context_note = "no holiday calendar or weather data is available for this forecast's country"
+    lines += ["", f"FORECAST COUNTRY: {COUNTRY_NAMES.get(country, 'unknown')} (detected from its postal codes)",
+              f"--- WEEKLY CONTEXT ({context_note}) ---"]
     for i, w in enumerate(data['weeks']):
         hols = _week_holidays(w)
         hol_str = ', '.join(hols) if hols else 'none'
@@ -747,7 +824,63 @@ def build_data_summary():
             weather_str = 'no weather data (future)' if i >= bt else 'no weather data'
         lines.append(f"  {w}  holiday={hol_str}  {weather_str}")
 
+    lines += _inventory_summary_lines()
     return "\n".join(lines)
+
+
+def _get_inventory_data():
+    """This org's forecast/latest_inventory.json (required inventory per SKU x
+    postal code x month — cycle stock + safety stock — published alongside
+    latest.json when a scenario is approved), or None if there isn't one."""
+    cache_key = f"inventory:{_CURRENT_ORG['id']}"
+    if cache_key not in _cache:
+        try:
+            obj = s3.get_object(Bucket=BUCKET, Key=f"orgs/{_CURRENT_ORG['id']}/forecast/latest_inventory.json")
+            _cache[cache_key] = json.loads(obj['Body'].read().decode('utf-8'))
+        except Exception:
+            _cache[cache_key] = None
+    return _cache[cache_key]
+
+
+def _inventory_totals(inv, month_idx):
+    """{sku: {'total','cycle','safety'}} summed across postal codes for one month."""
+    out = {}
+    for sku, sd in (inv.get('bySku') or {}).items():
+        t = {'total': 0, 'cycle': 0, 'safety': 0}
+        for zd in (sd.get('byZip') or {}).values():
+            for k, src in (('total', 'total'), ('cycle', 'cycleStock'), ('safety', 'safetyStock')):
+                arr = zd.get(src) or []
+                if month_idx < len(arr) and arr[month_idx] is not None:
+                    t[k] += arr[month_idx]
+        out[sku] = t
+    return out
+
+
+def _inventory_summary_lines():
+    inv = _get_inventory_data()
+    if not inv or not inv.get('months'):
+        return ["", "--- REQUIRED INVENTORY --- none available for the current approved forecast "
+                "(it is computed when a scenario runs and published when one is approved)."]
+    months = inv['months']
+    i = len(months) - 1  # the Inventory page also shows the latest month by default
+    totals = _inventory_totals(inv, i)
+    p = inv.get('params') or {}
+    rows = sorted(totals.items(), key=lambda kv: -kv[1]['total'])
+    lines = [
+        "",
+        f"--- REQUIRED INVENTORY (Inventory page; month {months[i]}, summed across postal codes) ---",
+        "Required = cycle stock + safety stock, from shipment history. Safety stock assumes a "
+        f"{p.get('leadTimeDays', 14):g}-day lead time and a {round(100 * p.get('serviceLevel', 0.95))}% service level — "
+        "these lead-time figures are ASSUMED placeholders (the source data has no vendor lead times); say so "
+        "when quoting safety stock. On-hand, in-transit and open-PO stock are NOT available, so never claim a "
+        "shortfall or surplus versus stock on hand. For one postal code or another month, call get_inventory.",
+        f"  catalog total required={sum(t['total'] for t in totals.values()):,.0f}",
+    ]
+    for sku, t in rows[:25]:
+        lines.append(f"  {sku:20s}  required={t['total']:>9,.0f}  cycle={t['cycle']:>8,.0f}  safety={t['safety']:>8,.0f}")
+    if len(rows) > 25:
+        lines.append(f"  … {len(rows) - 25} more SKUs — use get_inventory for any of them.")
+    return lines
 
 
 SYSTEM_TMPL = """\
@@ -773,8 +906,9 @@ Rules:
   whether it's an isolated spike or matches a broader pattern (e.g. that SKU's tier, or other SKUs
   the same week) using the highest-error/fastest-declining/fastest-growing lists below.
 • When reasoning about a spike, drop, or forecast miss for a specific week, always check that week
-  against the WEEKLY CONTEXT section below (real Japanese public holidays and weather, the same
-  calendar/weather signals forecast.py itself trains on) before concluding it's unexplained. If a
+  against the WEEKLY CONTEXT section below (real public holidays for the FORECAST COUNTRY, and
+  weather where available) before concluding it's unexplained. Only ever name holidays of that
+  country; if the section says no calendar is available, say so instead of naming any. If a
   holiday falls in or near that week, or it's tagged hot-week/cold-week/high-precipitation, lead
   with that as the likely driver — actual demand shifting around a holiday, or weather-sensitive
   buying, are genuine causes, not model error. If nothing in that week's context stands out, say so
@@ -833,6 +967,8 @@ Rules:
   instead, quote THAT message's specific reason verbatim-ish (it names the actual cause, e.g. a
   covered-date-range boundary or attribution still computing) — don't substitute or blend in
   weather_note's "future date" reason, that's a separate, unrelated field about a different thing.
+  Check holidays_in_week too: a holiday later in the same week (e.g. a Friday) still shapes that
+  week's numbers, so mention it with its date.
 • Every explain_forecast_day call also does something real and visible on its own: it switches the
   Forecasts chart to the right SKU (or the all-SKU view) and draws a pulsing marker with a callout
   right on the exact point on the line you're discussing — the user can watch you point at it. This
@@ -852,14 +988,11 @@ Rules:
   defaults (known_prices=true, weather=true, calibrate=true,
   refresh_days=28) — don't ask clarifying questions for settings they didn't mention, just use
   the defaults and say so in your reply.
-• If the run they're asking for involves a discount or promo across the catalog (e.g. "generate a
-  forecast with a 20% discount on all products"), set run_scenario's discount_scenario flag instead
-  of trying to describe the discount through the other settings — those don't carry price
-  information at all, only discount_scenario actually changes what data the run uses. It's a single
-  fixed preset (flat 20% off every SKU's own average price, for the whole forward year) — if what
-  they're asking for doesn't match that (a different %, or only some SKUs), say plainly that this
-  preset doesn't cover it rather than running the flat-20%-all-products preset anyway and implying
-  it matches their request.
+• For a discount or price change ("a 20% discount on all products", "cut SKU-002's price 10% in
+  400001"), use run_scenario's price_pct lever (negative for a discount), with price_sku and/or
+  price_postal_code if they named one. A discount_scenario=true call is the same as price_pct=-20 on
+  every product. One SKU and/or one postal code per run is the most it can target — if they ask for
+  more than that, say so rather than running something different from what they asked.
 • When the user asks to see, open, show, pull up, or look at a specific scenario (as opposed to
   asking a question you can just answer in text), use open_scenario — it opens the real detail
   modal (chart, top SKUs, validations, Approve) directly, so hand it to them rather than describing
@@ -917,6 +1050,52 @@ Rules:
   them, which reads as contradictory. Point to Settings only if they ask to CHANGE what's in the
   report (e.g. "only show 10 SKUs") — that's the one thing generate_report can't do, since it
   reuses whatever sections/row-count are already configured there.
+• THE DASHBOARD — what each sidebar page is for (use this to answer "where do I…" / "how do I…"
+  questions, and call point_to_ui with the page's exact name):
+  – Getting Started: the onboarding flow — Country (sets postal pattern, festival calendar, currency;
+    locks after the first upload), Connect Shopify, Sales data (the historical sales file), Marketing
+    spend, SKU master, Inbound receipts, Weather & festivals, then Review & train, which trains a real
+    forecast; for an admin it becomes the live forecast automatically and shows on Forecasts,
+    Overview and Scenarios. Also has a guided product walkthrough.
+  – Overview: headline KPIs and the Plan & Scenario Comparison Matrix (last year vs. committed plan
+    vs. scenarios), with a 12W/26W/52W horizon.
+  – Discount Schemes: create and manage promotions (percent off, flat amount, Buy X get Y, bundle,
+    free gift, cashback, tiered) scoped by SKU, postal code and dates; save as Draft or Commit and run.
+    Committed schemes are applied to future forecasts; schemes can also be detected from sales.
+  – Forecasts: the approved forecast — forecast units, revenue estimate, avg discount/unit and
+    backtest WAPE for a 4/12/52-week horizon, a weekly chart of actuals vs. forecast, and a
+    per-SKU table compared with last year.
+  – Scenarios: the Scenario workspace — a "Last run" card (the most recent run's status, accuracy,
+    Compare with approved / View details), a lever form (discount schemes to exclude, marketing spend
+    %, holiday impact, a weekly unit cap, price % for one SKU and/or PIN code, weather and refresh
+    settings), Run, a comparison against the approved plan (revenue, units vs. plan, capped units,
+    stock needed), Apply to plan, plus revision history and approval history. (Promotions are
+    created on Discount Schemes, not here — Scenarios only chooses which committed schemes to leave out.)
+  – Inventory: required inventory per SKU and site (cycle stock + safety stock) by month. On-hand,
+    in-transit and open PO stock aren't connected yet.
+  – AI Insights: your own written brief on the current approved forecast.
+  – Campaigns, Products, Performance, Integrations (the "Ads" group): plan ad spend by forecast SKU
+    and postal code, view the Shopify catalog or manually maintained products, campaign results
+    (not available until live ad reporting is connected), and connect a Shopify store. Meta and
+    Google campaign launches are not available yet — say so rather than promising them.
+  – Settings (account, 2FA, report settings, preferences), Knowledge Base (your background
+    knowledge, editable), Support (FAQs and support tickets).
+  Never invent a page, button or feature that isn't listed here.
+• For "how much stock/inventory do I need" questions use the REQUIRED INVENTORY section below or the
+  get_inventory tool — not the forecast units, which are demand, not required stock.
+• run_scenario always runs on the organization's approved (live) dataset, like the Scenarios page
+  default, and supports the same levers as the Scenarios page: spend_pct, price_pct (optionally for
+  one price_sku and/or one price_postal_code), unit_cap (optionally for one postal_code),
+  holiday_off, excluded_schemes. Set only the levers the user asked for. If they ask something you
+  can't run (e.g. a lever not listed), say so instead of starting a different run. If the user only
+  asks WHETHER you can do something, answer in words — never start a run for a hypothetical.
+• The user's current page, when given below, is where they are right now — use it to resolve
+  "this page" / "here" (e.g. "what can I do on this page?" → describe that page from THE DASHBOARD
+  list above in 2-3 sentences), and don't point them to the page they're already on.
+• point_to_ui's target must be the page your reply actually names (e.g. marketing spend upload →
+  Getting Started, connecting Shopify → Integrations). Always write the answer in your reply too —
+  a highlight alone is never an answer.
+• Holidays in WEEKLY CONTEXT show their real date in brackets — quote that date, never the week label.
 • The GENERAL FORECASTING KNOWLEDGE section below is background domain knowledge (industry
   concepts, common causes of forecast issues, terminology like WAPE/bias/FVA/bullwhip effect) — use
   it to explain WHY something happens or to name a real phenomenon, never to state a number. The
@@ -935,8 +1114,10 @@ TOOL_CONFIG = {
                 "name": "run_scenario",
                 "description": (
                     "Start a real forecast pipeline run (the actual LightGBM model, not a "
-                    "simulation). Takes about 3-5 minutes. Use when the user asks to run, "
-                    "start, kick off, or try a new forecast/scenario."
+                    "simulation) on the organization's approved dataset. Takes about 3-5 minutes. "
+                    "Use only when the user explicitly asks to run, start, kick off, or try a new "
+                    "forecast/scenario — never for a hypothetical 'can you…' question. Supports the "
+                    "Scenarios page levers below; set only the ones the user asked for."
                 ),
                 "inputSchema": {"json": {
                     "type": "object",
@@ -946,21 +1127,20 @@ TOOL_CONFIG = {
                         "weather":      {"type": "boolean", "description": "Add temperature/precipitation as exogenous features. Default true."},
                         "calibrate":    {"type": "boolean", "description": "Leakage-free rolling bias correction each refresh block. Default true."},
                         "refresh_days": {"type": "integer", "description": "How often lags re-seed with real actuals: 7, 14, or 28. Default 28."},
+                        "spend_pct":    {"type": "integer", "description": "Marketing spend change in percent, e.g. 20 or -10 (-100 to 1000)."},
+                        "price_pct":    {"type": "integer", "description": "Price change in percent, e.g. -10 for a 10% price cut (-99 to 1000)."},
+                        "price_sku":    {"type": "string",  "description": "Limit the price change to one SKU, e.g. SKU-002. Omit for all SKUs."},
+                        "price_postal_code": {"type": "string", "description": "Limit the price change to one postal/PIN code. Omit for all."},
+                        "unit_cap":     {"type": "integer", "description": "Weekly unit cap (supply constraint), e.g. 5000."},
+                        "postal_code":  {"type": "string",  "description": "Limit the spend change and unit cap to one postal code. Omit for all."},
+                        "holiday_off":  {"type": "boolean", "description": "Turn off forward holiday effects."},
+                        "excluded_schemes": {"type": "array", "items": {"type": "string"}, "description": "Committed discount scheme IDs to leave out of this run."},
                         "discount_scenario": {
                             "type": "boolean",
                             "description": (
-                                "Set true ONLY when the user asks to run/generate a scenario with a "
-                                "discount or promo applied across the catalog (e.g. 'a 20% discount on "
-                                "all products'). Runs against a real, pre-staged input file — the actual "
-                                "catalog's Shipments data plus a Future Price sheet applying a flat 20% "
-                                "discount off each SKU's own historical average price, for every real "
-                                "SKU x postal code, across the whole forward year — instead of the "
-                                "platform default dataset. Forces known_prices on regardless of what's "
-                                "passed for it, since the discount sheet is silently ignored otherwise. "
-                                "There is only this one preset (a flat 20% off everything) — if the user "
-                                "asks for a different discount depth or only specific SKUs, say this "
-                                "preset doesn't match that and don't set this flag instead of silently "
-                                "running the wrong scenario."
+                                "Shortcut for 'a 20% discount on all products': same as price_pct=-20 "
+                                "for every SKU and postal code, on the approved dataset. For any other "
+                                "depth or scope, use price_pct (with price_sku/price_postal_code) instead."
                             ),
                         },
                     },
@@ -1218,21 +1398,44 @@ TOOL_CONFIG = {
         },
         {
             "toolSpec": {
+                "name": "get_inventory",
+                "description": (
+                    "Required inventory (cycle stock + safety stock — the Inventory page's numbers) "
+                    "for one SKU, optionally one postal code, for one month (default: the latest "
+                    "month). Use for 'how much stock do I need' questions beyond the catalog-level "
+                    "REQUIRED INVENTORY summary. Omit sku for the catalog total."
+                ),
+                "inputSchema": {"json": {
+                    "type": "object",
+                    "properties": {
+                        "sku":   {"type": "string", "description": "e.g. SKU-003. Omit for all SKUs."},
+                        "zip":   {"type": "string", "description": "Postal code — only valid together with sku."},
+                        "month": {"type": "string", "description": "YYYY-MM. Omit for the latest month."},
+                    },
+                }},
+            }
+        },
+        {
+            "toolSpec": {
                 "name": "point_to_ui",
                 "description": (
                     "Visually points to a section of the dashboard by highlighting its sidebar nav "
                     "item, in addition to your normal text reply. Call this whenever your answer "
                     "tells the user where to go or what to click — e.g. running a forecast "
-                    "(Scenarios), checking accuracy or trends (Forecasts or AI Insights), reviewing "
-                    "SKUs (Overview), changing preferences (Settings), background/domain knowledge "
-                    "(Knowledge Base), or the setup wizard (Getting Started)."
+                    "(Scenarios), creating a promotion (Discount Schemes), checking accuracy or "
+                    "trends (Forecasts or AI Insights), stock needs (Inventory), reviewing KPIs "
+                    "(Overview), ad spend plans (Campaigns), the Shopify catalog (Products), ad "
+                    "results (Performance), connecting Shopify (Integrations), changing preferences "
+                    "(Settings), background/domain knowledge (Knowledge Base), help tickets "
+                    "(Support), or onboarding/uploading data (Getting Started)."
                 ),
                 "inputSchema": {"json": {
                     "type": "object",
                     "properties": {
                         "target": {"type": "string", "enum": [
-                            "Overview", "Forecasts", "Scenarios", "AI Insights",
-                            "Settings", "Knowledge Base", "Getting Started",
+                            "Getting Started", "Overview", "Discount Schemes", "Forecasts", "Scenarios",
+                            "Inventory", "AI Insights", "Campaigns", "Products", "Performance",
+                            "Integrations", "Settings", "Knowledge Base", "Support",
                         ]},
                     },
                     "required": ["target"],
@@ -1263,7 +1466,9 @@ TOOL_CONFIG = {
     ]
 }
 
-NAV_TARGETS = {"Overview", "Forecasts", "Scenarios", "AI Insights", "Settings", "Knowledge Base", "Getting Started"}
+NAV_TARGETS = {"Getting Started", "Overview", "Discount Schemes", "Forecasts", "Scenarios", "Inventory",
+               "AI Insights", "Campaigns", "Products", "Performance", "Integrations", "Settings",
+               "Knowledge Base", "Support"}
 
 
 def _claims(event):
@@ -1547,23 +1752,83 @@ def _detect_anomalies(result):
 
 def execute_tool(name, inputs, claims, request_state):
     if name == 'run_scenario':
+        # The old discount preset ran a pre-staged file built from the
+        # platform's original catalog, which doesn't match an org that has
+        # onboarded its own data. It is now the price lever on the approved
+        # dataset instead: 20% off every product.
         is_discount_demo = bool(inputs.get('discount_scenario'))
+        if is_discount_demo and inputs.get('price_pct') is None:
+            inputs = {**inputs, 'price_pct': -20}
         body = {
             'label':        inputs.get('label') or ('20% discount — all products' if is_discount_demo else 'Started by Lyra'),
-            # Forced on for the discount preset — custom_input_key's Future
-            # Price sheet is silently ignored by scenario-runner whenever
-            # known_prices is false, regardless of what was requested.
-            'known_prices': True if is_discount_demo else inputs.get('known_prices', True),
+            'known_prices': inputs.get('known_prices', True),
             'weather':      inputs.get('weather', True),
             'calibrate':    inputs.get('calibrate', True),
             'refresh_days': inputs.get('refresh_days', 28),
         }
-        if is_discount_demo:
-            body['custom_input_key'] = DISCOUNT_DEMO_KEY
+        # Same default as the Scenarios page: the org's approved (live)
+        # dataset, so a Lyra run is comparable with the live forecast.
+        body['source'] = 'approved'
+        levers = {}
+        for key in ('spend_pct', 'price_pct', 'unit_cap'):
+            if inputs.get(key) is not None:
+                try:
+                    levers[key] = int(inputs[key])
+                except (TypeError, ValueError):
+                    return {'error': f'{key} must be a whole number'}
+        for key in ('price_sku', 'price_postal_code', 'postal_code'):
+            if inputs.get(key):
+                levers[key] = str(inputs[key]).strip().upper()
+        if ('price_sku' in levers or 'price_postal_code' in levers) and 'price_pct' not in levers:
+            return {'error': 'a price SKU or postal code needs a price_pct'}
+        if inputs.get('holiday_off') is True:
+            levers['holiday_off'] = True
+        if inputs.get('excluded_schemes'):
+            levers['excluded_schemes'] = [str(x) for x in inputs['excluded_schemes']]
+        if levers:
+            body['levers'] = levers
         status, result = _invoke_scenarios_api('POST', '/scenarios', claims, body)
         if status != 202:
             return {'error': result.get('error', 'failed to start the scenario run')}
         return {'started': True, 'scenario_id': result['scenario_id'], 'config': body}
+
+    if name == 'get_inventory':
+        inv = _get_inventory_data()
+        if not inv or not inv.get('months'):
+            return {'error': 'no required-inventory data for the current approved forecast'}
+        months = inv['months']
+        month = (inputs.get('month') or '').strip()[:7]
+        i = months.index(month) if month in months else len(months) - 1
+        note = None if not month or month in months else f'{month} not available — showing {months[i]}'
+        sku = (inputs.get('sku') or '').strip().upper()
+        zip_code = (inputs.get('zip') or '').strip()
+        params = inv.get('params') or {}
+        base = {'month': months[i], 'available_months': f'{months[0]} to {months[-1]}',
+                'assumptions': params.get('assumptionsNote'),
+                'unavailable': 'on-hand, in-transit and open PO stock are not connected'}
+        if note:
+            base['note'] = note
+        if not sku:
+            totals = _inventory_totals(inv, i)
+            base['catalog_required'] = round(sum(t['total'] for t in totals.values()))
+            base['by_sku'] = {k: round(v['total']) for k, v in sorted(totals.items(), key=lambda kv: -kv[1]['total'])}
+            return base
+        sd = (inv.get('bySku') or {}).get(sku)
+        if not sd:
+            return {'error': f'{sku} has no inventory data', 'skus': sorted((inv.get('bySku') or {}).keys())}
+        zips = sd.get('byZip') or {}
+        if zip_code:
+            zd = zips.get(zip_code)
+            if not zd:
+                return {'error': f'{sku} has no inventory for postal code {zip_code}', 'postal_codes': sorted(zips)}
+            pick = lambda k: (zd.get(k) or [None] * (i + 1))[i]
+            return {**base, 'sku': sku, 'zip': zip_code, 'required': pick('total'),
+                    'cycle_stock': pick('cycleStock'), 'safety_stock': pick('safetyStock'),
+                    'avg_daily_demand': pick('add')}
+        t = _inventory_totals({'bySku': {sku: sd}}, i)[sku]
+        return {**base, 'sku': sku, 'required': round(t['total']), 'cycle_stock': round(t['cycle']),
+                'safety_stock': round(t['safety']),
+                'by_postal_code': {z: (zd.get('total') or [None] * (i + 1))[i] for z, zd in zips.items()}}
 
     if name == 'check_scenario_status':
         status, result = _invoke_scenarios_api('GET', '/scenarios', claims)
@@ -1837,6 +2102,7 @@ def execute_tool(name, inputs, claims, request_state):
             'day_of_week': day.strftime('%A'),
             'is_weekend': day.weekday() >= 5,
             'holiday': _day_holiday(date_str),
+            'holidays_in_week': _week_holidays(week_start),
         }
         weather = _day_weather(date_str)
         if weather:
@@ -2182,6 +2448,7 @@ def handler(event, context):
         message = (body.get('message') or '').strip()
         history = body.get('history') or []
         extra   = (body.get('extra_instructions') or '').strip()
+        page    = str(body.get('page') or '').strip()[:40]
         temperature = body.get('temperature')
         max_tokens  = body.get('max_tokens')
 
@@ -2196,6 +2463,8 @@ def handler(event, context):
         # RAG retrieval (top KNOWLEDGE_TOP_K relevant sections, not the whole
         # KB file) — see retrieve_knowledge()'s own docstring.
         system = SYSTEM_TMPL.format(knowledge=retrieve_knowledge(message), data=_cache[data_cache_key])
+        if page in NAV_TARGETS:
+            system += f"\n\nUSER'S CURRENT PAGE: {page}"
         if extra:
             system += f"\n\nADDITIONAL INSTRUCTIONS: {extra}"
 
@@ -2296,9 +2565,18 @@ def handler(event, context):
                             'week_of': result.get('week_of'),
                             'label': _annotation_label(result),
                         }
+                    model_result = result
+                    if tu['name'] == 'compare_skus':
+                        # The sparkline feeds the inline chart; the model was
+                        # pasting the raw number array into its reply.
+                        model_result = {k: ({kk: vv for kk, vv in v.items() if kk != 'sparkline'}
+                                            if isinstance(v, dict) else v) for k, v in result.items()}
+                    if tu['name'] == 'point_to_ui' and inputs.get('target') == page:
+                        model_result = {'skipped': 'The user is already on this page. Answer their '
+                                                   'question in plain text instead.'}
                     tool_result_blocks.append({'toolResult': {
                         'toolUseId': tu['toolUseId'],
-                        'content': [{'json': result}],
+                        'content': [{'json': model_result}],
                     }})
             messages.append({'role': 'user', 'content': tool_result_blocks})
 
@@ -2335,6 +2613,28 @@ def handler(event, context):
         # actual guarantee.
         if annotate or trigger_report or open_scenario_id or chart:
             point_to = None
+        if point_to and point_to == page:
+            point_to = None  # they're already on it
+
+        # No text means the user would get a canned "Done!" / "I've
+        # highlighted it" instead of an answer (seen live: a "how do I…"
+        # question answered with only a sidebar highlight). Ask once more
+        # for a plain-text answer before falling back — except after opening
+        # a scenario or the report, where the canned line is the answer.
+        if not reply and not (open_scenario_id or trigger_report):
+            try:
+                messages.append({'role': 'user', 'content': [
+                    {'text': "Please answer my previous message in plain text now, without calling any tools."}]})
+                resp3 = bedrock.converse(
+                    modelId=MODEL, system=[{'text': system}], messages=messages,
+                    inferenceConfig=inference_config, toolConfig=TOOL_CONFIG,
+                )
+                if resp3.get('stopReason') != 'tool_use':
+                    reply = _text_of(resp3['output']['message'])
+            except Exception as exc:
+                print(f"CHAT_RETRY_FAILED: {exc}")
+            if not reply:
+                reply = "Sorry — I couldn't put an answer together for that. Could you rephrase it?"
 
         if not reply:
             reply = ("I've opened it for you." if open_scenario_id
