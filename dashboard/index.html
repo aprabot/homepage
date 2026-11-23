@@ -86,11 +86,10 @@
   .ob-warn-list li::before{content:'⚠';flex:none;color:#ffcf5c;font-size:12px;line-height:1.6}
 
   /* Onboarding stepper — visual replacement for the old plain-text
-     "Question X of 7" label. Purely presentational: it mirrors the real
-     step/1 counter already maintained by js/onboarding.js's showStep(),
-     it doesn't drive navigation itself (no click-to-jump, unlike the
-     redesign mockup this was ported from) so it can't get out of sync
-     with the real per-step gating logic. */
+     "Question X of 7" label. It mirrors the real step/1 counter maintained
+     by js/onboarding.js's showStep(). Steps already reached can be clicked
+     to jump to them; the jump goes through showStep() too, so it can't get
+     out of sync with the real per-step gating logic. */
   .ob-stepper{display:flex;align-items:flex-start;margin:0 0 26px}
   .ob-stepper-step{display:flex;flex-direction:column;align-items:center;gap:7px;flex:1;min-width:0}
   .ob-stepper-step .n{width:26px;height:26px;border-radius:50%;border:1.5px solid var(--line-2);
@@ -522,7 +521,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261122c">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261122d">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -2292,8 +2291,8 @@
 <script src="../js/ads.js?v=shopify-check"></script>
 <script src="../js/discount-schemes.js"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
-<script src="../js/onboarding.js?v=shopify-check"></script>
-<script src="../js/onboarding-visuals.js?v=20261122c"></script>
+<script src="../js/onboarding.js?v=20261122d"></script>
+<script src="../js/onboarding-visuals.js?v=20261122d"></script>
 <script src="../js/tour.js"></script>
 <script src="../js/qrcode-lib.js"></script>
 <script src="../js/mfa.js"></script>

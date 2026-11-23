@@ -1315,21 +1315,51 @@
     if (btn && step === TOTAL_STEPS) btn.disabled = !histKey || skuMasterUploading;
   }
 
-  // Purely visual done/current/upcoming state on the numbered stepper
-  // above the steps — mirrors the same `n` showStep() already received,
-  // doesn't gate or drive navigation itself (unlike the redesign mockup's
-  // version, where clicking a stepper node jumps straight to that step).
-  // Kept that way deliberately: the real wizard's forward progress is tied
-  // to upload/validation state in several places (e.g. the final step's
-  // button staying disabled without histKey), and letting the stepper itself
-  // jump steps would bypass that gating.
+  // Done/current/upcoming state on the numbered stepper. Any step already
+  // reached is a shortcut back to it (and forward again, up to the furthest
+  // step reached); steps not reached yet stay inert. A jump goes through
+  // showStep() exactly like Back/Continue, so the final step's Train button
+  // keeps its own gating (no sales file, no training).
+  var furthestStep = 1;
+
   function updateStepper(n) {
+    furthestStep = Math.max(furthestStep, n);
     for (var i = 1; i <= TOTAL_STEPS; i++) {
       var el = document.getElementById('obStepperStep' + i);
       if (!el) continue;
+      var canJump = i !== n && i <= furthestStep;
       el.classList.toggle('done', i < n);
       el.classList.toggle('current', i === n);
+      el.classList.toggle('visited', i > n && i <= furthestStep);
+      el.classList.toggle('can-jump', canJump);
+      if (i === n) el.setAttribute('aria-current', 'step'); else el.removeAttribute('aria-current');
+      if (canJump) {
+        el.setAttribute('role', 'button');
+        el.setAttribute('tabindex', '0');
+        el.setAttribute('aria-label', 'Go to step ' + i + ': ' + el.querySelector('.lbl').textContent);
+      } else {
+        ['role', 'tabindex', 'aria-label'].forEach(function (name) { el.removeAttribute(name); });
+      }
     }
+  }
+
+  function initStepperJump() {
+    var stepper = document.getElementById('obStepper');
+    if (!stepper) return;
+    function jump(event) {
+      var el = event.target.closest('.ob-stepper-step.can-jump');
+      if (!el) return;
+      event.preventDefault();
+      var target = Number(el.id.replace('obStepperStep', ''));
+      showStep(target);
+      // The clicked node is now the current step (not focusable) — hand
+      // keyboard focus to the step's main action instead of losing it.
+      if (event.type === 'keydown') document.getElementById(target === TOTAL_STEPS ? 'obBack' : 'obNext').focus();
+    }
+    stepper.addEventListener('click', jump);
+    stepper.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter' || event.key === ' ') jump(event);
+    });
   }
 
   var shopifyConnection = null;
@@ -1866,6 +1896,7 @@
     setOverrideOpen('obHolidayOverride', 'obHolidayOverrideBtn', false);
     renderNewSkuList();
     renderHolidayList();
+    furthestStep = 1; // nothing reached yet in the fresh run
     showStep(1);
   }
 
@@ -1948,6 +1979,7 @@
       if (forecasts) forecasts.click();
     });
     initShopifyStep();
+    initStepperJump();
 
     showStep(1);
 

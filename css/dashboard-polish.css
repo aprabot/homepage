@@ -57,6 +57,15 @@
 /* Stepper: readable labels for upcoming steps, softer connectors. */
 #dashboard .ob-stepper-step .lbl{font-size:11.5px;color:var(--muted)}
 #dashboard .ob-stepper-step .n{color:var(--muted)}
+/* Finished numbers are buttons, so they must read clearly on the lime/green fill. */
+#dashboard .ob-stepper-step.done .n{color:#0A0E15;font-weight:700}
+[data-theme="light"] #dashboard .ob-stepper-step.done .n{color:#fff;background:#4A7A00;border-color:#4A7A00}
+#dashboard .ob-stepper-step.visited .n{border-color:var(--signal)}
+#dashboard .ob-stepper-step.can-jump{cursor:pointer;border-radius:10px}
+#dashboard .ob-stepper-step.can-jump .n{transition:transform .15s,box-shadow .15s}
+#dashboard .ob-stepper-step.can-jump:hover .n{transform:scale(1.12);box-shadow:0 0 0 4px var(--obv-accent-soft)}
+#dashboard .ob-stepper-step.can-jump:hover .lbl{color:var(--text);text-decoration:underline;text-underline-offset:3px}
+#dashboard .ob-stepper-step.can-jump:focus-visible{outline:2px solid var(--obv-accent);outline-offset:4px}
 #dashboard .ob-stepper-seg{background:var(--line)}
 #dashboard .ob-stepper-step.done + .ob-stepper-seg{background:rgba(200,242,78,.45)}
 
