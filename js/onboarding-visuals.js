@@ -164,11 +164,59 @@
     prep.insertAdjacentElement('afterbegin', el);
   }
 
+  /* Review & train: a readiness summary (ring + headline) above the status
+     checklist, and the step's icon on each row. Everything is read from the
+     tiles js/onboarding.js renders (their labels and pill classes), and it
+     re-runs whenever those tiles are re-rendered. */
+  var REVIEW_ICONS = [[/country/i, 'globe'], [/shopify/i, 'store'], [/sales/i, 'file'], [/spend|marketing/i, 'megaphone'],
+    [/sku/i, 'list'], [/inbound/i, 'warehouse'], [/weather|festival/i, 'sun']];
+
+  function decorateReview() {
+    var tilesEl = document.getElementById('obReviewTiles');
+    if (!tilesEl) return;
+    var summary = document.createElement('div');
+    summary.className = 'obv-sum';
+    summary.setAttribute('role', 'status');
+    tilesEl.insertAdjacentElement('beforebegin', summary);
+
+    function update() {
+      var tiles = tilesEl.querySelectorAll('.ob-review-tile');
+      tiles.forEach(function (t) {
+        if (t.querySelector('.obv-rt-ic')) return;
+        var label = (t.firstElementChild && t.firstElementChild.textContent) || '';
+        var name = 'check';
+        for (var i = 0; i < REVIEW_ICONS.length; i++) { if (REVIEW_ICONS[i][0].test(label)) { name = REVIEW_ICONS[i][1]; break; } }
+        t.insertAdjacentHTML('afterbegin', '<span class="obv-rt-ic">' + icon(name) + '</span>');
+      });
+      if (!tiles.length) { summary.hidden = true; return; }
+      var total = tiles.length;
+      var ok = tilesEl.querySelectorAll('.pill.ok').length;
+      var risk = tilesEl.querySelectorAll('.pill.risk').length;
+      var warn = tilesEl.querySelectorAll('.pill.warn').length;
+      var r = 22, c = 2 * Math.PI * r, frac = ok / total;
+      var title = risk ? risk + (risk === 1 ? ' item needs' : ' items need') + ' attention' : 'Ready to train';
+      var sub = risk ? 'Fix what’s marked Required, then click Train. Optional steps can stay empty.'
+        : warn ? 'Everything required is in place — a few items will use defaults.'
+        : 'Everything required is in place. Optional steps can stay empty.';
+      summary.hidden = false;
+      summary.dataset.state = risk ? 'risk' : 'ok';
+      summary.innerHTML =
+        '<svg class="obv-ring" viewBox="0 0 56 56" aria-hidden="true">' +
+          '<circle class="track" cx="28" cy="28" r="' + r + '"/>' +
+          '<circle class="val" cx="28" cy="28" r="' + r + '" style="stroke-dasharray:' + c.toFixed(1) + ';--off:' + (c * (1 - frac)).toFixed(1) + ';--full:' + c.toFixed(1) + '"/>' +
+          '<text x="28" y="32" text-anchor="middle">' + ok + '/' + total + '</text></svg>' +
+        '<div><b>' + title + '</b><span>' + sub + '</span></div>';
+    }
+    new MutationObserver(update).observe(tilesEl, { childList: true });
+    update();
+  }
+
   function init() {
     if (!document.getElementById('onboardingPanel')) return;
     addStepDiagrams();
     addTrainingVisual();
     animateTrainPipeline();
+    decorateReview();
     var ready = document.getElementById('obReady');
     if (ready) ready.classList.add('obv-ready');
   }
