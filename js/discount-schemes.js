@@ -118,13 +118,34 @@
     select.replaceChildren(new Option('Choose SKU', ''), new Option('All SKUs' + (window.DATA?.id ? ' (' + Object.keys(window.DATA.skus || {}).length + ')' : ''), 'ALL'),
       ...skus.map(sku => new Option(sku, sku)));
     select.value = value.value;
-    select.addEventListener('change', () => { value.value = select.value; });
+    select.addEventListener('change', () => { value.value = select.value; fillZips(row, true); });
+  }
+
+  // All postal codes, or one the chosen SKU sells in (any, for All SKUs).
+  // After a SKU change a code that SKU doesn't sell in is cleared, since it
+  // would have no effect; a saved scheme's own code is otherwise preserved.
+  function fillZips(row, skuChanged) {
+    const select = row.querySelector('[data-scheme-zip]');
+    const value = row.querySelector('input[name="postal_code"]');
+    const sku = row.querySelector('input[name="sku"]').value;
+    const skus = window.DATA?.id ? window.DATA.skus || {} : {};
+    const items = skus[sku] ? [skus[sku]] : Object.values(skus);
+    const zips = [...new Set(items.flatMap(item => Object.keys(item.byZip || {})))].sort();
+    if (value.value && value.value !== 'ALL' && !zips.includes(value.value)) {
+      if (skuChanged && zips.length) value.value = '';
+      else zips.push(value.value);
+    }
+    select.replaceChildren(new Option('Choose postal code', ''), new Option('All postal codes' + (window.DATA?.id ? ' (' + zips.length + ')' : ''), 'ALL'),
+      ...zips.map(zip => new Option(zip, zip)));
+    select.value = value.value;
+    select.onchange = () => { value.value = select.value; };
   }
 
   function addLine(values = {}) {
     const row = get('scheme-line').content.firstElementChild.cloneNode(true);
     row.querySelectorAll('input').forEach(input => { input.value = values[input.name] ?? ''; });
     fillSkus(row);
+    fillZips(row, false);
     const start = row.querySelector('input[name="start_date"]');
     const end = row.querySelector('input[name="end_date"]');
     const syncDates = () => { end.min = start.value; };

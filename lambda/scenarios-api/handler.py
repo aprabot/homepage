@@ -492,15 +492,32 @@ def inbound_summary(org):
 
 
 def _expand_scope(org, scope, forecast_id):
-    """Scope lines with sku 'ALL' become one line per SKU of the forecast the
-    scheme is tied to, which is what the runner understands."""
-    if all(line['sku'] != 'ALL' for line in scope):
+    """Scope lines with sku or postal_code 'ALL' become one line per SKU and
+    per postal code that SKU sells in, from the forecast the scheme is tied
+    to. The runner only understands single SKUs and postal codes."""
+    every_sku = any(line['sku'] == 'ALL' for line in scope)
+    every_zip = any(line['postal_code'].upper() == 'ALL' for line in scope)
+    if not every_sku and not every_zip:
         return scope
-    anon = _read_json(f'orgs/{org}/scenarios/{forecast_id}/anon.json', default={}) or {}
-    skus = sorted(set(anon.values()))
-    if not skus:
-        raise ValueError('The SKUs of the approved forecast could not be read.')
-    return [{**line, 'sku': sku} for line in scope for sku in (skus if line['sku'] == 'ALL' else [line['sku']])]
+    folder = f'orgs/{org}/scenarios/{forecast_id}'
+    skus, zips = [], {}
+    if every_sku:
+        skus = sorted(set((_read_json(f'{folder}/anon.json', default={}) or {}).values()))
+        if not skus:
+            raise ValueError('The SKUs of the approved forecast could not be read.')
+    if every_zip:
+        result = _read_json(f'{folder}/result.json', default={}) or {}
+        zips = {sku: sorted(row.get('byZip') or {}) for sku, row in (result.get('skus') or {}).items()}
+        if not any(zips.values()):
+            raise ValueError('The postal codes of the approved forecast could not be read.')
+    lines = []
+    for line in scope:
+        for sku in (skus if line['sku'] == 'ALL' else [line['sku']]):
+            codes = zips.get(sku, []) if line['postal_code'].upper() == 'ALL' else [line['postal_code']]
+            if not codes and line['sku'] != 'ALL':
+                raise ValueError(f'{sku} has no postal codes in the approved forecast.')
+            lines += [{**line, 'sku': sku, 'postal_code': code} for code in codes]
+    return lines
 
 
 def create_scenario(org, event):
