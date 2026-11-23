@@ -470,9 +470,9 @@
 [data-theme="light"] #dashboard .obv-weather svg{color:#C98A00}
 @keyframes obvSpin{to{transform:rotate(360deg)}}
 
-/* Review & train: its own Queued → Done pipeline lights up stage by stage. */
+/* Review & train: its Queued → Done line highlights one stage at a time. */
 #dashboard .obv-flowd .flowd-box{animation:obvStage 6s ease-in-out infinite;animation-delay:calc(var(--i) * 1.1s + .6s)}
-@keyframes obvStage{0%,100%{box-shadow:none}6%,16%{box-shadow:0 0 0 3px var(--obv-accent-soft);border-color:var(--obv-accent-line)}26%{box-shadow:none}}
+@keyframes obvStage{0%,100%{color:var(--muted)}6%,16%{color:var(--obv-accent)}26%{color:var(--muted)}}
 
 /* Training state: data → model → forecast, pulses flowing through. */
 #dashboard #obPreparing > svg.ins-load-spark{display:none!important}
@@ -564,11 +564,31 @@
 #obStep7 .dcard .ch{margin-bottom:10px}
 #obStep7 .dcard .ch h4{font-size:15px}
 
-/* Step 8 — Review & train: the pipeline card reads as one unit. */
-#obStep8 .flowd{margin:6px 0 0}
-#obStep8 .flowd-box{font-size:13px}
+/* Step 8 — Review & train: a checklist, the readiness note, and one quiet
+   line about what Train does. */
 #obStep8 .dcard:has(> #obReviewTiles:empty):has(> #obWillUse:empty){display:none}
-#obStep8 .dcard + .dcard{margin-top:16px}
+#obStep8 .ob-review-grid{grid-template-columns:repeat(auto-fit,minmax(250px,1fr));gap:0 32px;margin-bottom:16px}
+#obStep8 .ob-review-tile,[data-theme="light"] #obStep8 .ob-review-tile{display:flex;align-items:center;justify-content:space-between;gap:12px;
+  padding:11px 2px;background:none;border:0;border-bottom:1px solid var(--line);border-radius:0;text-align:left}
+#obStep8 .ob-review-tile > div{margin:0;font-size:13.5px;color:var(--text)}
+#obStep8 .ob-review-tile .pill{display:inline-flex;align-items:center;gap:7px;padding:0;border:0;background:none;
+  font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+#obStep8 .ob-review-tile .pill::before{content:"";width:7px;height:7px;border-radius:50%;background:currentColor;opacity:.9}
+#obStep8 .ob-review-tile .pill.ok{color:var(--mint)}
+#obStep8 .ob-review-tile .pill.warn{color:#F2B84B}
+#obStep8 .ob-review-tile .pill.risk{color:#FF8585}
+[data-theme="light"] #obStep8 .ob-review-tile .pill.ok{color:#0B7A6D}
+[data-theme="light"] #obStep8 .ob-review-tile .pill.warn{color:#8B6000}
+[data-theme="light"] #obStep8 .ob-review-tile .pill.risk{color:#B3261E}
+#obStep8 #obWillUse{font-size:13px;padding:10px 14px;border-left-width:2px}
+#obStep8 .dcard + .dcard{margin-top:18px;padding:0 2px;background:none;border:0;box-shadow:none}
+#obStep8 .dcard + .dcard .ch{margin-bottom:6px!important}
+#obStep8 .dcard + .dcard .ch h4{font-size:11.5px;font-weight:600;letter-spacing:.05em;text-transform:uppercase;color:var(--muted)}
+#obStep8 .flowd{align-items:center;gap:4px 0;margin:0}
+#obStep8 .flowd-box,#obStep8 .flowd-box.signal,#obStep8 .flowd-box.mint{min-width:0;max-width:none;padding:0;border:0;background:none;
+  font-size:13.5px;font-weight:600;color:var(--muted)}
+#obStep8 .flowd-arrow{padding:0 10px;font-size:13px}
+#obStep8 .dcard + .dcard > p.dsubtle{margin-top:8px!important;font-size:13px}
 
 /* Reduced motion: everything shown in its final state, nothing moving. */
 @media (prefers-reduced-motion:reduce){
