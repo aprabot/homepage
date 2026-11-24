@@ -15,7 +15,7 @@ _IN_FIXED = [(1, 26, 'Republic Day'), (4, 14, 'Ambedkar Jayanti'), (5, 1, 'May D
 # The two nationwide festivals that move each year. Other lunar festivals
 # vary by state or sighting and aren't guessed here.
 _IN_MOVING = {
-    'Holi': ['2021-03-29', '2022-03-18', '2023-03-08', '2024-03-25', '2025-03-14', '2026-03-04', '2027-03-22'],
+    'Holi': ['2021-03-29', '2022-03-18', '2023-03-08', '2024-03-25', '2025-03-14', '2026-03-04', '2027-03-23'],
     'Diwali': ['2021-11-04', '2022-10-24', '2023-11-12', '2024-10-31', '2025-10-20', '2026-11-08', '2027-10-29'],
 }
 _POSTAL = {'JP': r'\d{3}-?\d{4}', 'IN': r'[1-9]\d{5}', 'US': r'\d{5}(-\d{4})?',

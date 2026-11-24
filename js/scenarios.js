@@ -555,7 +555,7 @@
   var indiaFixedHolidays = [['01-26', 'Republic Day'], ['04-14', 'Ambedkar Jayanti'], ['05-01', 'May Day'],
     ['08-15', 'Independence Day'], ['10-02', 'Gandhi Jayanti'], ['12-25', 'Christmas']];
   var indiaMovingHolidays = {
-    Holi: ['2021-03-29', '2022-03-18', '2023-03-08', '2024-03-25', '2025-03-14', '2026-03-04', '2027-03-22'],
+    Holi: ['2021-03-29', '2022-03-18', '2023-03-08', '2024-03-25', '2025-03-14', '2026-03-04', '2027-03-23'],
     Diwali: ['2021-11-04', '2022-10-24', '2023-11-12', '2024-10-31', '2025-10-20', '2026-11-08', '2027-10-29'],
   };
   var calendarNames = { JP: 'Japan', IN: 'India', US: 'the United States', GB: 'the United Kingdom' };
