@@ -322,10 +322,10 @@
   .fc-filter-row .sku-search input{width:190px;height:34px;font-family:var(--body)}
   .fc-ghost-btn{height:34px;padding:0 12px;font-size:12px;background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)}
   .fc-ghost-btn:hover{box-shadow:none;border-color:var(--muted-2)}
-  #fcLegend .lgd-item[hidden]{display:none}
-  [data-theme="light"] #fcLegend .lgd-item[data-k="f"] i{border-top-color:#6E9400!important}
-  #forecastsPanel #hideBacktestBtn.on{background:var(--ink-3);color:var(--text);border-color:var(--line-2)}
-  #forecastsPanel #hideBacktestBtn[aria-pressed="true"]{background:var(--signal-soft);color:var(--signal);border-color:var(--signal)}
+  :is(#fcLegend,#scfLegend) .lgd-item[hidden]{display:none}
+  [data-theme="light"] :is(#fcLegend,#scfLegend) .lgd-item[data-k="f"] i{border-top-color:#6E9400!important}
+  :is(#forecastsPanel #hideBacktestBtn,#scenariosPanel #scfHistory).on{background:var(--ink-3);color:var(--text);border-color:var(--line-2)}
+  :is(#forecastsPanel #hideBacktestBtn,#scenariosPanel #scfHistory)[aria-pressed="true"]{background:var(--signal-soft);color:var(--signal);border-color:var(--signal)}
   .fcly-results{padding:0;overflow:hidden;margin-top:16px}
   .fcly-table-head{display:flex;align-items:flex-end;justify-content:space-between;flex-wrap:wrap;gap:12px;
     padding:14px 18px;border-bottom:1px solid var(--line)}
@@ -341,28 +341,28 @@
   .fcly-table-actions button:disabled{color:var(--muted-2);cursor:default}
   .fcly-table-actions [hidden]{display:none}
   .fcly-results .table-wrap{max-height:460px;overflow:auto;scrollbar-width:thin}
-  #fclyResultsTable{margin:0;min-width:620px;border-collapse:separate;border-spacing:0}
-  #fclyResultsTable th,#fclyResultsTable td{padding:11px 18px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
-  #fclyResultsTable thead th{position:sticky;top:0;z-index:2;background:var(--ink-2);font-family:var(--body);
+  :is(#fclyResultsTable,#scfTable){margin:0;min-width:620px;border-collapse:separate;border-spacing:0}
+  :is(#fclyResultsTable,#scfTable) th,:is(#fclyResultsTable,#scfTable) td{padding:11px 18px;border-bottom:1px solid rgba(255,255,255,.05);white-space:nowrap}
+  :is(#fclyResultsTable,#scfTable) thead th{position:sticky;top:0;z-index:2;background:var(--ink-2);font-family:var(--body);
     text-transform:none;letter-spacing:0;font-size:12px;font-weight:600;color:var(--muted)}
-  #fclyResultsTable .fcly-number{text-align:right}
-  #fclyResultsTable th button{display:inline-flex;gap:6px;align-items:center;padding:0;background:none;border:0;color:inherit;font:inherit;cursor:pointer}
-  #fclyResultsTable th.fcly-number button{flex-direction:row-reverse}
-  #fclyResultsTable th button:hover{color:var(--text)}
-  #fclyResultsTable th button:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
-  #fclyResultsTable tbody tr{cursor:default}
-  #fclyResultsTable tbody tr:hover td,#fclyResultsTable tbody tr:hover th{background:rgba(255,255,255,.025)}
-  #fclyResultsTable tbody td{color:var(--text);font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
-  #fclyResultsTable .skucell{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--text);text-align:left;
+  :is(#fclyResultsTable,#scfTable) .fcly-number{text-align:right}
+  :is(#fclyResultsTable,#scfTable) th button{display:inline-flex;gap:6px;align-items:center;padding:0;background:none;border:0;color:inherit;font:inherit;cursor:pointer}
+  :is(#fclyResultsTable,#scfTable) th.fcly-number button{flex-direction:row-reverse}
+  :is(#fclyResultsTable,#scfTable) th button:hover{color:var(--text)}
+  :is(#fclyResultsTable,#scfTable) th button:focus-visible{outline:2px solid var(--signal);outline-offset:2px}
+  :is(#fclyResultsTable,#scfTable) tbody tr{cursor:default}
+  :is(#fclyResultsTable,#scfTable) tbody tr:hover td,:is(#fclyResultsTable,#scfTable) tbody tr:hover th{background:rgba(255,255,255,.025)}
+  :is(#fclyResultsTable,#scfTable) tbody td{color:var(--text);font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+  :is(#fclyResultsTable,#scfTable) .skucell{font-family:var(--mono);font-size:12.5px;font-weight:600;color:var(--text);text-align:left;
     text-transform:none;letter-spacing:0}
-  #fclyResultsTable .ov-dim{color:var(--muted-2)}
-  #fclyResultsTable .fc-up{color:#54E6C4}
-  #fclyResultsTable .fc-down{color:#ff8585}
-  #fclyResultsTable .ov-sort-ic{opacity:0;transition:opacity .15s}
-  #fclyResultsTable th:hover .ov-sort-ic{opacity:.5}
-  #fclyResultsTable th[aria-sort] .ov-sort-ic{opacity:1;color:var(--text)}
-  [data-theme="light"] #fclyResultsTable th,[data-theme="light"] #fclyResultsTable td{border-bottom-color:rgba(0,0,0,.06)}
-  [data-theme="light"] #fclyResultsTable tbody tr:hover td,[data-theme="light"] #fclyResultsTable tbody tr:hover th{background:rgba(0,0,0,.025)}
+  :is(#fclyResultsTable,#scfTable) .ov-dim{color:var(--muted-2)}
+  :is(#fclyResultsTable,#scfTable) .fc-up{color:#54E6C4}
+  :is(#fclyResultsTable,#scfTable) .fc-down{color:#ff8585}
+  :is(#fclyResultsTable,#scfTable) .ov-sort-ic{opacity:0;transition:opacity .15s}
+  :is(#fclyResultsTable,#scfTable) th:hover .ov-sort-ic{opacity:.5}
+  :is(#fclyResultsTable,#scfTable) th[aria-sort] .ov-sort-ic{opacity:1;color:var(--text)}
+  [data-theme="light"] :is(#fclyResultsTable,#scfTable) th,[data-theme="light"] :is(#fclyResultsTable,#scfTable) td{border-bottom-color:rgba(0,0,0,.06)}
+  [data-theme="light"] :is(#fclyResultsTable,#scfTable) tbody tr:hover td,[data-theme="light"] :is(#fclyResultsTable,#scfTable) tbody tr:hover th{background:rgba(0,0,0,.025)}
   @media(max-width:980px){.fcly-kpi-strip{grid-template-columns:repeat(2,minmax(0,1fr))}}
   @media(max-width:520px){.fcly-kpi-strip{grid-template-columns:1fr}.fc-filter-row .sku-search input{width:100%}
     .fcly-filter select{min-width:0;width:100%}.fcly-filters{display:grid;grid-template-columns:1fr 1fr;width:100%}}
@@ -497,27 +497,13 @@
   .scenario-result-kpis .t{white-space:normal}
   .scenario-result-kpis .v{font-size:clamp(15px,2vw,22px)}
   .scenario-result-kpis .d{font-size:10px}
-  .scenario-forecast-chart{--scenario-base:#778cad;--scenario-variant:#397fff;margin:12px 0;padding:11px;
-    background:var(--ink-2);border:1px solid var(--line);border-radius:9px}
-  .scenario-forecast-chart figcaption{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
-  .scenario-forecast-chart figcaption b{font-size:13px}
-  .scenario-forecast-legend{display:flex;gap:13px;flex-wrap:wrap;font-size:10.5px;color:var(--muted)}
-  .scenario-forecast-legend span{display:inline-flex;align-items:center;gap:6px}
-  .scenario-forecast-legend span[hidden]{display:none}
-  .scenario-forecast-legend i{width:15px;border-top:2px solid var(--scenario-variant)}
-  #scenarioBaseLegend i{border-top:2px dashed var(--scenario-base)}
-  #scenarioForecastGraph{height:clamp(175px,19vw,230px);margin-top:7px}
-  #scenarioForecastCanvas{width:100%;height:100%;display:block}
   #scenarioGraphStatus{margin:7px 0 0;font-size:12px}
-  .scenario-comparison .table-wrap{max-height:360px;overflow:auto}
-  .scenario-result-table th,.scenario-result-table td{padding:7px 9px;white-space:nowrap;font-size:12px}
-  .scenario-result-table th:nth-child(n+3),.scenario-result-table td:nth-child(n+3){text-align:right;font-variant-numeric:tabular-nums}
   @media(max-width:850px){.scenario-workspace-grid{grid-template-columns:minmax(0,1fr)}}
   @media(max-width:480px){.scenario-result-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261123i">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261123j">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -926,14 +912,14 @@
             <p class="dsubtle" id="scenarioLeverAvailability" role="status"></p>
             <fieldset id="scenarioAdvancedLevers">
               <details id="scenarioSchemes">
-                <summary id="scenarioSchemeSummary">Discount schemes</summary>
-                <p id="scenarioSchemeStatus" class="scenario-holiday-note" role="status"></p>
+                <summary><span id="scenarioSchemeSummary">Discount schemes</span><span class="sch-count" id="scenarioSchemeCount" hidden></span></summary>
+                <p id="scenarioSchemeStatus" class="sch-help" role="status"></p>
                 <div class="scenario-holiday-actions" id="scenarioSchemeActions" hidden>
                   <button type="button" class="dbtn" id="scenarioSchemesAll">Select all</button>
                   <button type="button" class="dbtn" id="scenarioSchemesNone">Deselect all</button>
                 </div>
                 <div id="scenarioSchemeOptions" role="group" aria-labelledby="scenarioSchemeSummary"></div>
-                <button type="button" class="link-btn" id="scenarioSchemesOpen" hidden>Open Discount Schemes →</button>
+                <div class="sch-foot" id="scenarioSchemeFoot" hidden><span id="scenarioSchemeFootText"></span><button type="button" class="link-btn" id="scenarioSchemesOpen">Set up →</button></div>
               </details>
               <details id="scenarioMarketingSpend">
                 <summary>Marketing spend</summary>
@@ -995,24 +981,74 @@
               <div class="kpi"><div class="t">Capped units</div><div class="v" id="scenarioCappedUnits">—</div></div>
               <div class="kpi"><div class="t">Stock needed</div><div class="v">—</div></div>
             </div>
-            <figure class="scenario-forecast-chart">
-              <figcaption>
-                <b>Weekly forecast units</b>
-                <div class="scenario-forecast-legend">
-                  <span id="scenarioBaseLegend" hidden><i aria-hidden="true"></i>Approved plan</span>
-                  <span id="scenarioVariantLegend" hidden><i aria-hidden="true"></i>Scenario</span>
+            <div class="dcard fc-chart-card scf-card">
+              <div class="ch" style="flex-wrap:wrap;gap:12px">
+                <div>
+                  <h4>Weekly shipped units</h4>
+                  <span class="dsubtle fc-chart-sub" id="scfSub">Recent actuals and the forecast ahead</span>
                 </div>
-              </figcaption>
-              <div id="scenarioForecastGraph" hidden>
-                <canvas id="scenarioForecastCanvas" aria-label="Weekly forecast units for the scenario and approved plan" role="img"></canvas>
+                <div class="fc-filter-row" id="scfControls" hidden>
+                  <div class="theme-pill" id="scfHorizon" role="group" aria-label="Horizon">
+                    <button type="button" data-h="4" aria-pressed="false">4 weeks</button>
+                    <button type="button" data-h="12" aria-pressed="false">12 weeks</button>
+                    <button type="button" class="active" data-h="52" aria-pressed="true">52 weeks</button>
+                  </div>
+                  <div class="sku-search">
+                    <input id="scfSku" list="scfSkuList" placeholder="Search SKU" aria-label="Search SKU in this scenario">
+                    <datalist id="scfSkuList"></datalist>
+                  </div>
+                  <button type="button" class="dbtn fc-ghost-btn on" id="scfHistory" style="display:none" aria-pressed="false">Full history</button>
+                </div>
               </div>
               <p id="scenarioGraphStatus" class="dsubtle">Select a completed scenario to see its forecast.</p>
-            </figure>
-            <div class="table-wrap">
-              <table class="dtable scenario-result-table">
-                <thead><tr><th>SKU</th><th>Postal code</th><th>Base</th><th>Scenario</th><th>Change</th></tr></thead>
-                <tbody id="scenarioWorkspaceRows"></tbody>
-              </table>
+              <div id="scfBody" hidden>
+                <div class="selbar">
+                  <span id="scfName">All SKUs</span>
+                  <span class="selwape">Backtest WAPE, all weeks&nbsp;<b id="scfWape">—</b></span>
+                </div>
+                <div class="dchart" id="scfChart">
+                  <canvas id="scfCanvas" role="img" aria-label="Weekly units: actuals, the scenario’s forecast and the approved plan"></canvas>
+                  <div class="fc-tip" id="scfTip"></div>
+                  <div class="chart-skel" id="scfSkel"><i style="height:45%"></i><i style="height:62%"></i><i style="height:38%"></i><i style="height:70%"></i><i style="height:55%"></i><i style="height:80%"></i><i style="height:50%"></i><i style="height:65%"></i><i style="height:42%"></i><i style="height:75%"></i></div>
+                </div>
+                <div class="chart-legend" id="scfLegend">
+                  <span class="lgd-item" data-k="a"><i style="background:#54E6C4"></i>Actual</span>
+                  <span class="lgd-item" data-k="f"><i style="background:#C8F24E;border-radius:0;height:0;border-top:2px dashed #C8F24E"></i>Forecast</span>
+                  <span class="lgd-item" data-k="p"><i class="scf-plan"></i>Approved plan</span>
+                  <span class="lgd-item" data-k="w"><i style="background:#7AA2FF"></i>WAPE %</span>
+                </div>
+              </div>
+            </div>
+            <div class="dcard fcly-results scf-results" id="scfResults" hidden>
+              <div class="fcly-table-head">
+                <div class="fcly-filters">
+                  <label class="fcly-filter">SKU<select id="scfSkuFilter"><option value="ALL">All SKUs</option></select></label>
+                  <label class="fcly-filter">ZIP code<select id="scfZip" disabled><option value="">All ZIP codes</option></select></label>
+                </div>
+                <div class="fcly-table-actions">
+                  <span id="scfCount" aria-live="polite"></span>
+                  <button type="button" id="scfPrev" aria-controls="scfTable" hidden>Previous</button>
+                  <button type="button" id="scfNext" aria-controls="scfTable" hidden>Next</button>
+                </div>
+              </div>
+              <div class="table-wrap" id="scfScroll" role="region" aria-label="Scenario results by SKU" tabindex="0">
+                <table class="dtable" id="scfTable">
+                  <thead>
+                    <tr>
+                  <th scope="col" class="amp-sortable" data-sort-key="sku"><button type="button">SKU <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                  <th scope="col" class="amp-sortable fcly-number" data-sort-key="units"><button type="button">Units <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                  <th scope="col" class="amp-sortable fcly-number" data-sort-key="plan"><button type="button">Approved plan <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                  <th scope="col" class="amp-sortable fcly-number" data-sort-key="vsPlan" title="Scenario units compared with the approved plan"><button type="button">vs plan <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                  <th scope="col" class="amp-sortable fcly-number" data-sort-key="prior"><button type="button">Last year <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                  <th scope="col" class="amp-sortable fcly-number" data-sort-key="change" title="Compared with last year"><button type="button">Change <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                  <th scope="col" class="amp-sortable fcly-number" data-sort-key="revenue" title="Forecast units × the SKU’s historical average selling price"><button type="button">Revenue <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                  <th scope="col" class="amp-sortable fcly-number" data-sort-key="wape" title="Backtest error over the same number of weeks — lower is better"><button type="button">WAPE <span class="ov-sort-ic" aria-hidden="true">⇅</span></button></th>
+                    </tr>
+                  </thead>
+                  <tbody id="scenarioWorkspaceRows"></tbody>
+                </table>
+              </div>
+              <p class="scf-note" id="scfNote" hidden></p>
             </div>
             <p id="scenarioComparisonStatus" class="dsubtle" role="status">Select a completed scenario to compare forecast results.</p>
           </div>
@@ -2323,9 +2359,10 @@
 </div>
 
 <script src="../js/data.js"></script>
-<script src="../js/main.js?v=20261122f"></script>
+<script src="../js/main.js?v=20261123a"></script>
 <script src="../js/theme.js"></script>
-<script src="../js/scenarios.js?v=20261123b"></script>
+<script src="../js/scenario-forecast.js?v=20261123a"></script>
+<script src="../js/scenarios.js?v=20261123d"></script>
 <script src="../js/insights.js"></script>
 <script src="../js/inventory.js?v=20261123a"></script>
 <script src="../js/knowledge.js"></script>

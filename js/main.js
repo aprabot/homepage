@@ -105,8 +105,8 @@
   function fcPalette(){
     const light=document.documentElement.dataset.theme==='light';
     return light
-      ?{grid:'rgba(17,19,24,.08)',axis:'#52606E',actual:'#0E9384',actualFill:'14,147,132',forecast:'#6E9400',wape:'#3D6FE0',divider:'rgba(17,19,24,.22)'}
-      :{grid:'rgba(255,255,255,.06)',axis:'#8694A6',actual:'#54E6C4',actualFill:'84,230,196',forecast:'#C8F24E',wape:'#7AA2FF',divider:'rgba(255,255,255,.18)'};
+      ?{grid:'rgba(17,19,24,.08)',axis:'#52606E',actual:'#0E9384',actualFill:'14,147,132',forecast:'#6E9400',wape:'#3D6FE0',plan:'#8A97A6',divider:'rgba(17,19,24,.22)'}
+      :{grid:'rgba(255,255,255,.06)',axis:'#8694A6',actual:'#54E6C4',actualFill:'84,230,196',forecast:'#C8F24E',wape:'#7AA2FF',plan:'#93A1B5',divider:'rgba(255,255,255,.18)'};
   }
   // Redraw on theme switch so the chart never keeps the other theme's colours.
   new MutationObserver(()=>{ if(dashReady&&window.DATA)drawChart(); })
@@ -649,14 +649,22 @@
     if(sub)sub.textContent=!hasForward?'Last '+N+' weeks of the backtest'
       :hideBacktest?'Last '+context+' weeks of actuals, then the next '+(end-boundaryIndex)+' weeks of forecast'
       :'Full backtest history, then the next '+(end-boundaryIndex)+' weeks of forecast';
-    const showW=hasW&&fcVisible.w;
     const box=document.getElementById('forecastChart'), cv=document.getElementById('fcCanvas');
+    fcGeom=paintForecast(box,cv,{weeks,a,f,w,boundary:(DATA.backtestWeeks||DATA.weeks.length)-st,visible:fcVisible});
+  }
+
+  // The weekly forecast chart, drawn the same way on Forecasts and in the
+  // Scenario workspace (which adds `plan`, the approved forecast).
+  function paintForecast(box,cv,{weeks,a,f,w,plan=[],boundary,visible}){
+    const N=weeks.length;
+    const showW=w.some(Number.isFinite)&&visible.w;
+    const showPlan=plan.some(Number.isFinite)&&visible.p;
     const cw=box.clientWidth||720, ch=box.clientHeight||260, dpr=window.devicePixelRatio||1;
     cv.width=cw*dpr; cv.height=ch*dpr; const ctx=cv.getContext('2d'); ctx.setTransform(dpr,0,0,dpr,0,0);
     ctx.clearRect(0,0,cw,ch);
     const padL=52,padR=showW?46:18,padT=16,padB=26;
     const P=fcPalette();
-    const uMax=Math.max(1,...a.filter(Number.isFinite),...f.filter(Number.isFinite))*1.12;
+    const uMax=Math.max(1,...a.filter(Number.isFinite),...f.filter(Number.isFinite),...(showPlan?plan.filter(Number.isFinite):[]))*1.12;
     const wVals=w.filter(x=>x!=null); const wMax=(wVals.length?Math.max(1,...wVals):100)*1.15;
     const X=i=>padL+i*(cw-padL-padR)/(N-1||1);
     const Yu=v=>padT+(ch-padT-padB)*(1-v/uMax);
@@ -676,7 +684,7 @@
       arr.forEach((v,i)=>{if(v==null)return;const x=X(i),y=Y(v);if(!started){ctx.moveTo(x,y);started=true;}else ctx.lineTo(x,y);});
       ctx.stroke();ctx.setLineDash([]);};
     // area under actual
-    if(fcVisible.a){
+    if(visible.a){
       const grad=ctx.createLinearGradient(0,padT,0,ch-padB);
       grad.addColorStop(0,'rgba('+P.actualFill+',.22)');grad.addColorStop(1,'rgba('+P.actualFill+',0)');
       ctx.beginPath();let sx=null;a.forEach((v,i)=>{if(v==null)return;const x=X(i),y=Yu(v);if(sx===null){ctx.moveTo(x,y);sx=x;}else ctx.lineTo(x,y);});
@@ -684,18 +692,18 @@
       if(sx!==null){ctx.lineTo(X(lastA),Yu(0));ctx.lineTo(sx,Yu(0));ctx.closePath();ctx.fillStyle=grad;ctx.fill();}
     }
     if(showW) line(w,Yw,P.wape);                          // wape (right axis)
-    if(fcVisible.a) line(a,Yu,P.actual);                  // actual
+    if(showPlan) line(plan,Yu,P.plan,[2,4]);             // approved plan (dotted)
+    if(visible.a) line(a,Yu,P.actual);                  // actual
     const fcLime=P.forecast;
-    if(fcVisible.f) line(f,Yu,fcLime,[7,5]);              // forecast (dashed)
+    if(visible.f) line(f,Yu,fcLime,[7,5]);              // forecast (dashed)
     // Short ranges get point markers so individual weeks are readable.
     if(N<=16){
       const dots=(arr,color)=>{ctx.fillStyle=color;arr.forEach((v,i)=>{if(v==null)return;ctx.beginPath();ctx.arc(X(i),Yu(v),2.6,0,7);ctx.fill();});};
-      if(fcVisible.a)dots(a,P.actual);
-      if(fcVisible.f)dots(f,fcLime);
+      if(visible.a)dots(a,P.actual);
+      if(showPlan)dots(plan,P.plan);
+      if(visible.f)dots(f,fcLime);
     }
     // "today" divider — backtest ends, forward-only forecast begins (skip if data has no forward portion, e.g. older cached format)
-    const backtestTotal=DATA.backtestWeeks||DATA.weeks.length;
-    const boundary=backtestTotal-st;
     if(boundary>0&&boundary<N){
       const bx=X(boundary-0.5);
       ctx.strokeStyle=P.divider;ctx.setLineDash([3,3]);
@@ -703,27 +711,31 @@
       ctx.fillStyle=P.axis;ctx.font='9px JetBrains Mono';ctx.textAlign='left';
       ctx.fillText('FORECAST →',bx+4,padT+10);
     }
-    fcGeom={weeks,a,f,w,X,Yu,Yw,N,padL,padR,cw,ch,padT,padB,showW};
+    return {weeks,a,f,w,plan,X,Yu,Yw,N,padL,padR,cw,ch,padT,padB,showW,showPlan};
   }
 
   function onHover(e){
-    if(!fcGeom?.N)return; const g=fcGeom;
-    const rect=e.currentTarget.getBoundingClientRect();
-    const mx=(e.clientX-rect.left); 
+    forecastHover(e,()=>{drawChart();return fcGeom;},document.getElementById('fcCanvas'),document.getElementById('fcTip'));
+  }
+
+  // Crosshair, dots and tooltip for a paintForecast chart.
+  function forecastHover(e,redraw,cv,tip){
+    const x=e.clientX, rect=e.currentTarget.getBoundingClientRect();
+    const g=redraw(); if(!g?.N)return;
+    const mx=x-rect.left;
     let i=Math.round((mx-g.padL)/((g.cw-g.padL-g.padR)/(g.N-1||1)));
     i=Math.max(0,Math.min(g.N-1,i));
-    drawChart();
-    const ctx=document.getElementById('fcCanvas').getContext('2d');
+    const ctx=cv.getContext('2d');
     ctx.strokeStyle='rgba(200,242,78,.35)';ctx.setLineDash([3,4]);ctx.beginPath();
     ctx.moveTo(g.X(i),g.padT);ctx.lineTo(g.X(i),g.ch-g.padB);ctx.stroke();ctx.setLineDash([]);
     const dot=(v,Y,c)=>{if(v==null)return;ctx.fillStyle=c;ctx.beginPath();ctx.arc(g.X(i),Y(v),3.5,0,7);ctx.fill();};
     const P=fcPalette();
-    dot(g.a[i],g.Yu,P.actual);dot(g.f[i],g.Yu,P.forecast);if(g.showW)dot(g.w[i],g.Yw,P.wape);
-    const tip=document.getElementById('fcTip');
+    dot(g.a[i],g.Yu,P.actual);if(g.showPlan)dot(g.plan[i],g.Yu,P.plan);dot(g.f[i],g.Yu,P.forecast);if(g.showW)dot(g.w[i],g.Yw,P.wape);
     const row=(c,l,val)=>`<div class="rw"><i style="background:${c}"></i>${l}<b>${val}</b></div>`;
     tip.innerHTML=`<div class="wk">${g.weeks[i]}</div>`+
       row(P.actual,'Actual',g.a[i]==null?'—':nfFull(g.a[i]))+
       row(P.forecast,'Forecast',g.f[i]==null?'—':nfFull(g.f[i]))+
+      (g.showPlan?row(P.plan,'Approved plan',g.plan[i]==null?'—':nfFull(g.plan[i])):'')+
       row(P.wape,'WAPE',g.w[i]==null?'—':g.w[i].toFixed(1)+'%');
     tip.style.opacity=1;
     let tx=g.X(i); const half=tip.offsetWidth/2;

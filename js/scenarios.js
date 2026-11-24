@@ -644,10 +644,12 @@
       keepKnownSchemes(excludedSchemes, committedSchemes);
       keepKnownSchemes(includedSchemes, draftSchemes);
       var any = committedSchemes.length + draftSchemes.length;
-      status.textContent = (any ? 'Ticked schemes apply to this run.' + (draftSchemes.length ? ' Saved schemes apply to this run only; nothing is committed.' : '') : 'No schemes created yet.') +
-        (detected ? ' ' + detected + ' detected in your sales need' + (detected === 1 ? 's' : '') + ' a discount and dates first: open Discount Schemes, fill ' +
-          (detected === 1 ? 'it' : 'them') + ' in and save.' : '');
-      scenarioElement('scenarioSchemesOpen').hidden = any > 0 && !detected;
+      status.textContent = any ? 'Ticked schemes apply to this run.' + (draftSchemes.length ? ' Saved ones aren’t committed.' : '') : '';
+      scenarioElement('scenarioSchemeFoot').hidden = any > 0 && !detected;
+      scenarioElement('scenarioSchemeFootText').textContent = detected
+        ? detected + ' found in your sales need' + (detected === 1 ? 's' : '') + ' a discount and dates'
+        : 'No schemes created yet';
+      scenarioElement('scenarioSchemesOpen').textContent = detected ? 'Set up →' : 'Create one →';
       renderScenarioSchemes();
     } catch (error) {
       status.textContent = 'Could not load discount schemes. Reopen this section to retry.';
@@ -678,38 +680,76 @@
     scenarioElement('scenarioSchemeActions').hidden = all.length < 2;
     scenarioElement('scenarioSchemeOptions').replaceChildren(...all.map(function (scheme) {
       var isDraft = scheme.status === 'draft';
-      var label = document.createElement('label');
-      label.className = 'scenario-check';
-      var input = document.createElement('input');
+      var add = function (parent, tag, className, text) {
+        var el = document.createElement(tag);
+        el.className = className;
+        if (text != null) el.textContent = text;
+        parent.append(el);
+        return el;
+      };
+      var card = document.createElement('label');
+      card.className = 'sch-card';
+      var input = add(card, 'input', '');
       input.type = 'checkbox';
       input.value = scheme.code;
       input.dataset.kind = isDraft ? 'draft' : 'committed';
       input.checked = isDraft ? includedSchemes.has(scheme.code) : !excludedSchemes.has(scheme.code);
+      var body = add(card, 'span', 'sch-body');
+      var top = add(body, 'span', 'sch-top');
+      add(top, 'b', 'sch-name', scheme.name || scheme.code);
+      add(top, 'em', 'sch-tag' + (isDraft ? '' : ' on'), isDraft ? 'Saved' : 'Committed');
+      if (scheme.name && scheme.name.toUpperCase() !== scheme.code) add(body, 'span', 'sch-code', scheme.code);
+      var facts = schemeFacts(scheme);
+      if (facts) add(body, 'span', 'sch-facts', facts);
       var starts = (scheme.scope || []).map(function (line) { return line.start_date; }).filter(Boolean).sort();
       var ends = (scheme.scope || []).map(function (line) { return line.end_date; }).filter(Boolean).sort();
-      var text = document.createElement('span');
-      text.textContent = (scheme.name && scheme.name !== scheme.code ? scheme.name + ' · ' : '') + scheme.code;
-      if (isDraft) {
-        var tag = document.createElement('em');
-        tag.textContent = 'Saved';
-        text.append(tag);
-      }
       if (starts.length && ends.length) {
-        var small = document.createElement('small');
         var last = ends[ends.length - 1];
-        small.textContent = starts[0] + ' to ' + last + (firstForecastDay && last < firstForecastDay ? ' · ended, no effect on the forecast' : '');
-        text.append(small);
+        add(body, 'span', 'sch-dates', schemeDates(starts[0], last));
+        if (firstForecastDay && last < firstForecastDay) add(body, 'span', 'sch-ended', 'Ended — no effect on the forecast');
       }
-      label.append(input, text);
-      return label;
+      return card;
     }));
     updateScenarioSchemeSummary();
+  }
+
+  // "15% off · All SKUs · All postal codes", from the scheme's own lines.
+  function schemeFacts(scheme) {
+    var lines = scheme.scope || [];
+    if (!lines.length) return '';
+    var amounts = lines.map(function (line) { return Number(line.discount); }).filter(Number.isFinite).sort(function (a, b) { return a - b; });
+    var fmt = function (n) { return n.toLocaleString(undefined, { maximumFractionDigits: 2 }); };
+    var parts = [];
+    if (amounts.length) {
+      var low = amounts[0], high = amounts[amounts.length - 1];
+      parts.push((low === high ? fmt(low) : fmt(low) + '–' + fmt(high)) + (scheme.mechanic === 'Flat amount off' ? ' off' : '% off'));
+    }
+    if (scheme.mechanic && !['Percent off', 'Flat amount off'].includes(scheme.mechanic)) parts.unshift(scheme.mechanic);
+    var count = function (key, all, many) {
+      var values = Array.from(new Set(lines.map(function (line) { return String(line[key] || '').toUpperCase(); }).filter(Boolean)));
+      if (values.includes('ALL')) return all;
+      return values.length === 1 ? values[0] : values.length ? values.length + ' ' + many : '';
+    };
+    return parts.concat(count('sku', 'All SKUs', 'SKUs'), count('postal_code', 'All postal codes', 'postal codes'))
+      .filter(Boolean).join(' · ');
+  }
+
+  // "23 Nov – 9 Dec 2026"; the year is repeated only when it differs.
+  function schemeDates(start, end) {
+    var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    var a = start.split('-'), b = end.split('-');
+    var day = function (d) { return Number(d[2]) + ' ' + months[Number(d[1]) - 1]; };
+    if (start === end) return day(a) + ' ' + a[0];
+    return day(a) + (a[0] === b[0] ? '' : ' ' + a[0]) + ' – ' + day(b) + ' ' + b[0];
   }
 
   function updateScenarioSchemeSummary() {
     var total = committedSchemes ? committedSchemes.length + draftSchemes.length : 0;
     var on = total ? committedSchemes.length - excludedSchemes.size + includedSchemes.size : 0;
-    scenarioElement('scenarioSchemeSummary').textContent = 'Discount schemes' + (total ? ' · ' + on + ' of ' + total + ' included' : '');
+    var pill = scenarioElement('scenarioSchemeCount');
+    pill.hidden = !total;
+    pill.textContent = on + ' of ' + total + ' included';
+    pill.classList.toggle('on', on > 0);
   }
 
   function changeScenarioSchemes(included) {
@@ -827,123 +867,12 @@
     return (change > 0 ? '+' : '') + change.toFixed(1) + '%';
   }
 
-  var workspaceForecastWeeks = [];
-
-  function workspaceWeeklyForecast(base, variant) {
-    function forwardSeries(result) {
-      if (!result || !Array.isArray(result.weeks) || !Array.isArray(result.all?.f)) return new Map();
-      var start = result.backtestWeeks ?? result.weeks.length;
-      return new Map(result.weeks.slice(start).map(function (week, index) {
-        return [week, result.all.f[start + index]];
-      }).filter(function (entry) { return Number.isFinite(entry[1]); }));
-    }
-    var baseWeeks = forwardSeries(base);
-    var scenarioWeeks = forwardSeries(variant);
-    var weeks = Array.from(new Set([...baseWeeks.keys(), ...scenarioWeeks.keys()])).sort();
-    return weeks.map(function (week) {
-      return {week:week, base:baseWeeks.get(week), scenario:scenarioWeeks.get(week)};
-    });
-  }
-
-  function alignedScenarioUnits(weeks) {
-    var result = {base:0, scenario:0, weeks:0};
-    weeks.forEach(function (row) {
-      if (Number.isFinite(row.base) && Number.isFinite(row.scenario)) {
-        result.base += row.base;
-        result.scenario += row.scenario;
-        result.weeks++;
-      }
-    });
-    return result.weeks ? result : null;
-  }
-
-  function setWorkspaceChart(weeks, message) {
-    workspaceForecastWeeks = weeks;
-    var graph = scenarioElement('scenarioForecastGraph');
-    var status = scenarioElement('scenarioGraphStatus');
-    graph.hidden = !weeks.length;
-    scenarioElement('scenarioBaseLegend').hidden = !weeks.some(function (row) { return Number.isFinite(row.base); });
-    scenarioElement('scenarioVariantLegend').hidden = !weeks.some(function (row) { return Number.isFinite(row.scenario); });
-    status.textContent = weeks.length ? '' : message;
-    status.hidden = !!weeks.length;
-    drawWorkspaceChart();
-  }
-
-  function drawWorkspaceChart() {
-    var chart = scenarioElement('scenarioForecastGraph');
-    var weeks = workspaceForecastWeeks;
-    if (!weeks.length || !chart.clientWidth) return;
-    var canvas = scenarioElement('scenarioForecastCanvas');
-    var width = chart.clientWidth, height = chart.clientHeight;
-    var scale = window.devicePixelRatio || 1;
-    canvas.width = Math.round(width * scale);
-    canvas.height = Math.round(height * scale);
-    var ctx = canvas.getContext('2d');
-    ctx.setTransform(scale,0,0,scale,0,0);
-
-    var theme = getComputedStyle(chart);
-    var border = theme.getPropertyValue('--line-2').trim();
-    var muted = theme.getPropertyValue('--muted').trim();
-    var baseColor = theme.getPropertyValue('--scenario-base').trim();
-    var variantColor = theme.getPropertyValue('--scenario-variant').trim();
-    var plot = {left:48, right:width-19, top:12, bottom:height-27};
-    var peak = Math.max(1,...weeks.flatMap(function (row) { return [row.base, row.scenario].filter(Number.isFinite); }));
-    var magnitude = 10 ** Math.floor(Math.log10(peak / 4));
-    var step = Math.ceil(peak / 4 / magnitude) * magnitude;
-    var x = function (i) {
-      return weeks.length === 1 ? (plot.left+plot.right)/2 : plot.left+i*(plot.right-plot.left)/(weeks.length-1);
-    };
-    var y = function (value) { return plot.bottom-(plot.bottom-plot.top)*value/(step*4); };
-    var numeric = new Intl.NumberFormat(undefined,{notation:'compact',maximumFractionDigits:1});
-    var calendar = new Intl.DateTimeFormat(undefined,{month:'short',day:'numeric',timeZone:'UTC'});
-
-    ctx.font = '11px system-ui';
-    ctx.fillStyle = muted;
-    ctx.strokeStyle = border;
-    ctx.textAlign = 'right';
-    for (var i=0;i<=4;i++) {
-      var py = y(i*step);
-      ctx.beginPath(); ctx.moveTo(plot.left,py); ctx.lineTo(plot.right,py); ctx.stroke();
-      ctx.fillText(numeric.format(i*step),plot.left-8,py+4);
-    }
-    var labels = Math.max(2,Math.floor(width/85));
-    var stride = Math.max(1,Math.ceil((weeks.length-1)/(labels-1)));
-    ctx.textAlign = 'center';
-    weeks.forEach(function (row,index) {
-      var last = weeks.length-1;
-      if (index !== last && (index % stride || (index && last-index < stride/2))) return;
-      var date = new Date(row.week+'T00:00:00Z');
-      if (!isNaN(date.getTime())) ctx.fillText(calendar.format(date),x(index),height-7);
-    });
-
-    function line(key,color,dashed) {
-      ctx.strokeStyle = color; ctx.fillStyle = color; ctx.lineWidth = 2.5;
-      ctx.setLineDash(dashed?[5,4]:[]);
-      ctx.beginPath();
-      var connected = false;
-      weeks.forEach(function (row,i) {
-        if (!Number.isFinite(row[key])) { connected=false; return; }
-        if (connected) ctx.lineTo(x(i),y(row[key]));
-        else ctx.moveTo(x(i),y(row[key]));
-        connected=true;
-      });
-      ctx.stroke();
-      ctx.setLineDash([]);
-      weeks.forEach(function (row,i) {
-        if (!Number.isFinite(row[key])) return;
-        if (weeks.length > 12 && Number.isFinite(weeks[i-1]?.[key]) && Number.isFinite(weeks[i+1]?.[key])) return;
-        ctx.beginPath(); ctx.arc(x(i),y(row[key]),3,0,2*Math.PI); ctx.fill();
-      });
-    }
-    line('base',baseColor,true);
-    line('scenario',variantColor,false);
-  }
+  function setWorkspaceChart(message, loading) { window.scenarioForecast.clear(message, loading); }
 
   async function renderWorkspaceComparison(id, key) {
     var status = scenarioElement('scenarioComparisonStatus');
-    var rows = scenarioElement('scenarioWorkspaceRows');
-    status.textContent = 'Loading comparison…';
-    setWorkspaceChart([], 'Loading weekly forecast…');
+    status.textContent = '';
+    setWorkspaceChart('', true);
 
     async function request(url) {
       var response = await APRA_SESSION.fetch(url);
@@ -962,25 +891,25 @@
       var result = results[1].value;
       var approved = lastScenarios.find(function (item) { return item.approved; });
       var base = comparison.base || (approved && window.DATA && window.DATA.id === approved.id ? window.DATA : null);
-      var weeks = workspaceWeeklyForecast(base, result);
-      var totals = alignedScenarioUnits(weeks);
-      setWorkspaceChart(weeks, 'No weekly forecast is available.');
+      if (!Array.isArray(result.weeks) || !result.all || !result.skus) throw new Error('No weekly forecast is available.');
       scenarioElement('scenarioCappedUnits').textContent = result.cappedUnits == null ? '—' : result.cappedUnits.toLocaleString();
-      scenarioElement('scenarioUnitsChange').textContent = totals ? formatScenarioChange(totals.base, totals.scenario) : '—';
-      scenarioElement('scenarioUnitsTotals').textContent = totals
-        ? totals.scenario.toLocaleString() + ' vs. ' + totals.base.toLocaleString() + ' · ' + totals.weeks + ' wk' : '';
-      (comparison.rows || []).forEach(function (row) {
-        var tr = rows.insertRow();
-        [row.sku, row.postal_code, row.base.toLocaleString(), row.scenario.toLocaleString(),
-          formatScenarioChange(row.base, row.scenario)].forEach(function (value) { tr.insertCell().textContent = value; });
+      var meta = lastScenarios.find(function (item) { return item.id === id; }) || {};
+      var levers = meta.levers || {};
+      var repriced = Number.isFinite(levers.price_pct) || (levers.included_schemes || []).length || (meta.discount_schemes || []).length;
+      window.scenarioForecast.show(result, base, {
+        note: repriced ? 'Revenue uses usual prices, so this scenario’s discounts or price change aren’t in it.' : '',
+        // Same weeks as the chart and table, so every number agrees.
+        onTotals: function (totals) {
+          scenarioElement('scenarioUnitsChange').textContent = totals ? formatScenarioChange(totals.base, totals.scenario) : '—';
+          scenarioElement('scenarioUnitsTotals').textContent = totals
+            ? Math.round(totals.scenario).toLocaleString() + ' vs. ' + Math.round(totals.base).toLocaleString() + ' · ' + totals.weeks + ' wk' : '';
+          status.textContent = totals ? '' : base ? 'This scenario and the approved plan have no forecast weeks in common.' : 'The approved plan isn’t available to compare with.';
+        },
       });
-      status.textContent = rows.rows.length ? '' : totals
-        ? 'SKU and postal-code detail is unavailable for these revisions.'
-        : 'No overlapping forward weeks are available for this comparison.';
     } catch (error) {
       if (workspaceComparisonKey === key) {
-        status.textContent = error.message || 'Could not load the comparison.';
-        setWorkspaceChart([], 'Could not load the weekly forecast.');
+        status.textContent = '';
+        setWorkspaceChart(error.message || 'Could not load the weekly forecast.');
       }
     }
   }
@@ -1008,15 +937,14 @@
     scenarioElement('scenarioUnitsChange').textContent = '—';
     scenarioElement('scenarioCappedUnits').textContent = '—';
     scenarioElement('scenarioUnitsTotals').textContent = '';
-    scenarioElement('scenarioWorkspaceRows').replaceChildren();
-    setWorkspaceChart([], workspaceRunId ? 'The weekly forecast will appear after the run completes.'
+    setWorkspaceChart(workspaceRunId ? 'The weekly forecast will appear after the run completes.'
       : 'Select a completed scenario to see its forecast.');
     var status = scenarioElement('scenarioComparisonStatus');
-    if (!workspaceRunId) status.textContent = 'Select a completed scenario to compare forecast results.';
+    if (!workspaceRunId) status.textContent = '';
     else if (item?.status === 'completed') renderWorkspaceComparison(item.id, key);
     else if (item?.status === 'failed') {
       status.textContent = item.error || 'The scenario run failed.';
-      setWorkspaceChart([], 'No weekly forecast was produced.');
+      setWorkspaceChart('No weekly forecast was produced.');
     }
     else status.textContent = 'Forecast running. Results will appear when it finishes.';
   }
@@ -2214,7 +2142,6 @@
     // instead of a label the first time.
     if (scenarioElement('scenarioWorkspace')) {
       var source = scenarioElement('rf-source');
-      new ResizeObserver(drawWorkspaceChart).observe(scenarioElement('scenarioForecastGraph'));
       source.addEventListener('change', function () { source.dataset.edited='true'; syncScenarioInput(); });
       scenarioElement('rf-price-sku').addEventListener('change', syncScenarioPriceOptions);
       scenarioElement('scenarioSchemes').addEventListener('toggle', function (event) {
