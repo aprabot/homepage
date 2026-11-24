@@ -120,6 +120,36 @@
     });
   });
 
+  // "Hide backtest", shared by the Forecasts and Scenarios charts: drops the
+  // model's past-week forecast and its WAPE. Actuals stay; with Actual also
+  // off there is nothing left in the past, so those weeks go too.
+  const fcBacktest={
+    hidden:(()=>{try{return localStorage.getItem('apraHideBacktest')==='1';}catch(e){return false;}})(),
+    set(on,remember){
+      this.hidden=on;
+      if(remember)try{localStorage.setItem('apraHideBacktest',on?'1':'0');}catch(e){}
+      this.sync();
+      document.dispatchEvent(new Event('apra:backtest'));
+    },
+    sync(){
+      document.querySelectorAll('.fc-backtest-btn').forEach(b=>{
+        b.textContent=this.hidden?'Show backtest':'Hide backtest';
+        b.setAttribute('aria-pressed',String(this.hidden));
+      });
+      document.querySelectorAll('.selbar .selwape').forEach(el=>{el.style.visibility=this.hidden?'hidden':'';});
+    },
+    from(start,edge,showActual){return this.hidden&&!showActual&&edge>start?edge:start;},
+    past(values,boundary){return this.hidden?values.map((v,i)=>i<boundary?null:v):values;},
+    subtitle(full,context,ahead,showActual){
+      const next='the next '+ahead+' weeks of forecast';
+      if(this.hidden&&!showActual)return next.charAt(0).toUpperCase()+next.slice(1);
+      return (full?(this.hidden?'All past weeks of actuals':'Full backtest history'):'Last '+context+' weeks of actuals')+', then '+next;
+    },
+  };
+  document.querySelectorAll('.fc-backtest-btn').forEach(b=>b.addEventListener('click',()=>fcBacktest.set(!fcBacktest.hidden,true)));
+  document.addEventListener('apra:backtest',()=>{ if(dashReady&&window.DATA)drawChart(); });
+  fcBacktest.sync();
+
   const nf=n=>n>=1e6?(n/1e6).toFixed(1)+'M':n>=1e3?(n/1e3).toFixed(0)+'K':String(Math.round(n));
   const nfFull=n=>Math.round(n).toLocaleString();
 
@@ -167,52 +197,32 @@
     return seriesWape(a,f).overall;
   }
 
-  // Comparison matrix: rows with no value at all say why once, instead of
-  // repeating a dash per column; stray dashes are dimmed and explained on hover.
-  function ovMatrixStates(has){
-    const reason=has?'Not calculated yet':'No forecast loaded';
-    let othersEmpty=true;
-    document.querySelectorAll('#ovMatrixTable .ov-group-row').forEach(row=>{
-      const cells=[...row.cells].slice(1), plan=row.querySelector('.ov-plan-col');
-      const isEmpty=c=>c.classList.contains('ov-none')||c.textContent.trim()==='—';
-      // A cell that showed a reason before and has a real value now.
-      cells.forEach(c=>{ if(c.classList.contains('ov-none')&&c.textContent.trim()!=='—'&&c.textContent!==c.dataset.reason)c.classList.remove('ov-none'); });
-      const empty=cells.every(isEmpty);
-      row.classList.toggle('ov-row-empty',empty);
-      cells.forEach(c=>{
-        const none=isEmpty(c);
-        if(none&&c!==plan){ c.textContent='—'; c.title='Not connected yet'; }
-        if(!none)c.removeAttribute('title');
-        c.classList.toggle('ov-none',none);
-        if(!none&&c!==plan)othersEmpty=false;
-      });
-      if(plan&&empty){ plan.textContent=reason; plan.dataset.reason=reason; }
-    });
-    const note=document.getElementById('ovMatrixNote');
-    if(note)note.textContent=othersEmpty?' · last-year and scenario values aren’t connected yet':'';
+  // Error per SKU and week over the last n weeks of actuals, as in "Backtest
+  // WAPE" on Forecasts and Scenarios. (On the all-SKU total, one SKU's
+  // over-forecast hides another's under-forecast.)
+  function skuLevelWape(d,n){
+    const bt=d.backtestWeeks??d.weeks.length, st=Math.max(0,bt-n);
+    if(st===0&&Number.isFinite(d.overallWape))return d.overallWape;
+    let error=0,sold=0;
+    for(let i=st;i<bt;i++){
+      const a=d.all.a[i], w=d.all.w?.[i];
+      if(Number.isFinite(a)&&Number.isFinite(w)){error+=a*w;sold+=a;}
+    }
+    return sold?error/sold:null;
   }
 
   function renderDashboardData(){
-    // Overview KPI strip + Plan & Scenario Matrix (real values only — see
+    // Overview KPI strip (the matrix is overview-matrix.js; real values only — see
     // ovPickHorizon for the Time-Horizon-driven WAPE chip/chart redraw)
     const totalUnits=DATA.all.a.reduce((s,x)=>s+(x||0),0);
-    const totalForecastUnits=DATA.all.f.reduce((s,x)=>s+(x||0),0);
     const skuCount=Object.keys(DATA.skus).length;
     const setTxt=(id,v)=>{const el=document.getElementById(id); if(el)el.textContent=v;};
     const has=ovHasForecast();
-    const w12=trailingWape(12), w24=trailingWape(24), w52=trailingWape(52);
-    const pct=w=>w==null?'—':w.toFixed(0)+'%';
     const bt=DATA.backtestWeeks||DATA.weeks.length;
     setTxt('ovKpiSkus',has?skuCount.toLocaleString():'—');
     setTxt('ovKpiSold',has?nf(totalUnits):'—');
     setTxt('ovKpiSoldNote',has?'In the '+bt+' backtest weeks':'');
-    setTxt('ovMxSkus',has?skuCount.toLocaleString():'—');
-    setTxt('ovMxSalesQty',has?nf(totalForecastUnits):'—');
-    setTxt('ovMxWape12',has?pct(w12):'—');
-    setTxt('ovMxWape24',has?pct(w24):'—');
-    setTxt('ovMxWape52',has?pct(w52):'—');
-    ovMatrixStates(has);
-    ['ovKpiStrip','ovMatrixTable'].forEach(id=>{
+    ['ovKpiStrip'].forEach(id=>{
       const el=document.getElementById(id); if(!el)return;
       el.classList.remove('ov-loading'); el.removeAttribute('aria-busy');
     });
@@ -304,14 +314,14 @@
     document.querySelectorAll('#ovHorizonSeg button').forEach(b=>b.classList.remove('active'));
     btn.classList.add('active');
     const has=ovHasForecast();
-    const w=has?trailingWape(n):null;
+    const w=has?skuLevelWape(DATA,n):null;
     const put=(id,v)=>{const el=document.getElementById(id); if(el)el.textContent=v;};
     const wapeEl=document.getElementById('ovKpiWape');
     if(wapeEl)wapeEl.textContent=w==null?'—':w.toFixed(2)+'%';
     const noForecast='Your forecast couldn’t be loaded';
     const used=Math.min(n,DATA.backtestWeeks||DATA.weeks.length);
     put('ovKpiWapeNote',!has?noForecast:w==null?'No actuals to compare with yet'
-      :'Error on total units over '+used+' weeks of actuals · lower is better');
+      :'Average error per SKU over '+used+' weeks of actuals · lower is better');
     // Forecast units for the weeks ahead (as on Forecasts), not units already sold.
     const ahead=has?Math.min(n,DATA.weeks.length-(DATA.backtestWeeks??DATA.weeks.length)):0;
     const period=ahead>0?fclyPeriod(DATA.all,ahead):{units:null,prior:null,change:null};
@@ -326,11 +336,18 @@
       delta.textContent=c==null?'':(up?'▲ ':down?'▼ ':'')+Math.abs(c).toFixed(1)+'% vs last year';
       delta.setAttribute('aria-label',c==null?'':(up?'Up ':down?'Down ':'Unchanged, ')+Math.abs(c).toFixed(1)+'% versus last year');
     }
+    const rows=ahead>0?fclyBuildRows('ALL','',ahead):[];
+    const revenue=fclyPricing(rows,'avgPrice'), discount=fclyPricing(rows,'avgDiscount');
+    put('ovKpiRevenue',fclyCompact(revenue));
+    put('ovKpiRevenueNote',revenue==null?(has?'No selling prices in your sales data':''):'Next '+ahead+' weeks, at usual prices');
+    put('ovKpiDiscount',discount==null?'—':discount.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}));
+    put('ovKpiDiscountNote',discount==null?(has?'No discounts in your sales data':''):'Historical average');
     const lblEl=document.getElementById('ovKpiWapeLabel');
     if(lblEl)lblEl.textContent=n+'W';
     const btEl=document.getElementById('ovKpiBacktest');
     if(btEl)btEl.textContent=has?used+' wks':'—';
     drawOverviewTrend();
+    document.dispatchEvent(new CustomEvent('apra:overview',{detail:{horizon:n,loaded:has}}));
   };
 
   // Plan & Scenario Comparison Matrix — collapsible group headers. Pure UI
@@ -393,6 +410,7 @@
     const hideBtBtn=document.getElementById('hideBacktestBtn');
     if(hideBtBtn && DATA.backtestWeeks!=null && DATA.backtestWeeks<DATA.weeks.length){
       hideBtBtn.style.display='';
+      document.getElementById('fcBacktestBtn').style.display='';
       hideBtBtn.addEventListener('click',()=>{
         hideBacktest=!hideBacktest;
         hideBtBtn.classList.toggle('on',hideBacktest);
@@ -638,17 +656,18 @@
     // horizon. "Full history" shows the whole backtest as well.
     const context=hasForward?Math.min(boundaryIndex,Math.max(8,Math.min(fclyHorizon,26))):0;
     const end=hasForward?Math.min(length,boundaryIndex+fclyHorizon):length;
-    const start=hasForward?(hideBacktest?boundaryIndex-context:0):Math.max(0,length-fclyHorizon);
+    const start=hasForward?fcBacktest.from(hideBacktest?boundaryIndex-context:0,boundaryIndex,fcVisible.a):Math.max(0,length-fclyHorizon);
     const N=end-start, st=start;
-    const weeks=DATA.weeks.slice(st,end), a=s.a.slice(st,end), f=s.f.slice(st,end), w=s.w.slice(st,end);
-    const hasA=a.some(Number.isFinite), hasW=w.some(Number.isFinite);
+    const weeks=DATA.weeks.slice(st,end), a=s.a.slice(st,end);
+    const shown=v=>hasForward?fcBacktest.past(v.slice(st,end),boundaryIndex-st):v.slice(st,end);
+    const f=shown(s.f), w=shown(s.w);
+    const hasA=s.a.some(Number.isFinite), hasW=w.some(Number.isFinite);
     document.querySelectorAll('#fcLegend .lgd-item').forEach(el=>{
       el.hidden=(el.dataset.k==='a'&&!hasA)||(el.dataset.k==='w'&&!hasW);
     });
     const sub=document.getElementById('fcChartSub');
     if(sub)sub.textContent=!hasForward?'Last '+N+' weeks of the backtest'
-      :hideBacktest?'Last '+context+' weeks of actuals, then the next '+(end-boundaryIndex)+' weeks of forecast'
-      :'Full backtest history, then the next '+(end-boundaryIndex)+' weeks of forecast';
+      :fcBacktest.subtitle(!hideBacktest,context,end-boundaryIndex,fcVisible.a);
     const box=document.getElementById('forecastChart'), cv=document.getElementById('fcCanvas');
     fcGeom=paintForecast(box,cv,{weeks,a,f,w,boundary:(DATA.backtestWeeks||DATA.weeks.length)-st,visible:fcVisible});
   }
@@ -1211,6 +1230,7 @@
 
     // Include the backtest before drawing the annotated selection.
     hideBacktest=false;
+    fcBacktest.set(false,false);
     const hideBtBtn=document.getElementById('hideBacktestBtn');
     if(hideBtBtn){ hideBtBtn.classList.remove('on'); hideBtBtn.textContent='Recent weeks'; hideBtBtn.setAttribute('aria-pressed','true'); }
 

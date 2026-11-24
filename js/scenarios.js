@@ -103,6 +103,7 @@
 
   function render(scenarios) {
     lastScenarios = scenarios; // full, UNFILTERED list — compare/labelFor/notifications/etc. all need every scenario, not just the visible/filtered page
+    document.dispatchEvent(new CustomEvent('apra:scenarios-list', { detail: scenarios })); // Overview's matrix
     var body = document.getElementById('scenariosBody');
     var empty = document.getElementById('scenariosEmpty');
     var noMatch = document.getElementById('scenariosNoMatch');

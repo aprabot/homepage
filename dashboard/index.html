@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261124c">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261124d">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -593,7 +593,7 @@
         <div class="ov-header-top">
           <div>
             <h1 class="dgreet" style="margin-bottom:0">Welcome back, <span class="hl" id="greetName">there</span>.</h1>
-            <p class="dsubtle" style="margin-top:8px;margin-bottom:0">Shipped-units forecast accuracy — <b>2025 weekly backtest</b>, trained on 2023–2024, plus a 52-week forward forecast.</p>
+            <p class="dsubtle" style="margin-top:8px;margin-bottom:0"><span id="ovIntro">Your committed plan and recent scenarios, side by side.</span></p>
           </div>
           <div class="ov-header-controls">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.8" style="color:var(--muted)"><rect x="3" y="4" width="18" height="17" rx="2"/><path d="M3 9h18M8 2v4M16 2v4" stroke-linecap="round"/></svg>
@@ -621,8 +621,8 @@
         <div class="ov-kpi-chip"><span>SKUs forecasted</span><b id="ovKpiSkus">—</b></div>
         <div class="ov-kpi-chip"><span>Backtest horizon</span><b id="ovKpiBacktest">—</b></div>
         <div class="ov-kpi-chip"><span>Units Sold</span><b id="ovKpiSold">—</b><small id="ovKpiSoldNote"></small></div>
-        <div class="ov-kpi-chip"><span>Revenue</span><b class="ov-dim">—</b><small>Shown on Forecasts</small></div>
-        <div class="ov-kpi-chip"><span>Avg Discount/Unit</span><b class="ov-dim">—</b><small>Shown on Forecasts</small></div>
+        <div class="ov-kpi-chip"><span>Revenue</span><b id="ovKpiRevenue">—</b><small id="ovKpiRevenueNote"></small></div>
+        <div class="ov-kpi-chip"><span>Avg Discount/Unit</span><b id="ovKpiDiscount">—</b><small id="ovKpiDiscountNote"></small></div>
         <div class="ov-kpi-chip"><span>Marketing Spend</span><b class="ov-dim">—</b><small>Not connected yet</small></div>
       </div>
 
@@ -630,48 +630,14 @@
         <div class="ov-matrix-toolbar">
           <div>
             <h4 style="display:inline-block;margin:0">Plan &amp; Scenario Comparison Matrix</h4>
-            <span class="dsubtle" style="margin:0 0 0 8px;font-size:.78rem;display:inline">Variances benchmarked vs. Committed plan<span id="ovMatrixNote"></span></span>
+            <span class="dsubtle" style="margin:0 0 0 8px;font-size:.78rem;display:inline"><span id="ovMatrixNote">Compared with the committed plan</span></span>
           </div>
           <button type="button" class="dbtn" id="ovToggleAllGroupsBtn" onclick="ovToggleAllGroups()" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);font-size:11px;padding:6px 11px">Collapse all groups</button>
         </div>
         <div class="table-wrap">
           <table class="dtable ov-matrix-table ov-loading" id="ovMatrixTable" aria-busy="true">
-            <thead>
-              <tr>
-                <th>Metric</th>
-                <th>Last year</th>
-                <th class="ov-plan-col"><span class="ov-plan-dot"></span>Committed plan</th>
-                <th>Scenario 1</th>
-                <th>Scenario 2</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr class="ov-group-header" data-group="coverage" onclick="ovToggleGroup('coverage', this)"><td colspan="5">Coverage<svg class="ov-chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr>
-              <tr class="ov-group-row" data-group-item="coverage"><td># SKUs</td><td>—</td><td class="ov-plan-col" id="ovMxSkus">—</td><td>—</td><td>—</td></tr>
-              <tr class="ov-group-row" data-group-item="coverage"><td># Zip codes</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
-              <tr class="ov-group-row" data-group-item="coverage"><td>Sales quantity (forecast)</td><td>—</td><td class="ov-plan-col" id="ovMxSalesQty">—</td><td>—</td><td>—</td></tr>
-
-              <tr class="ov-group-header" data-group="accuracy" onclick="ovToggleGroup('accuracy', this)"><td colspan="5">Accuracy (WAPE)<span class="ov-group-sub">Lower is better</span><svg class="ov-chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr>
-              <tr class="ov-group-row" data-group-item="accuracy"><td>12 weeks</td><td>—</td><td class="ov-plan-col" id="ovMxWape12">—</td><td>—</td><td>—</td></tr>
-              <tr class="ov-group-row" data-group-item="accuracy"><td>24 weeks</td><td>—</td><td class="ov-plan-col" id="ovMxWape24">—</td><td>—</td><td>—</td></tr>
-              <tr class="ov-group-row" data-group-item="accuracy"><td>Full year</td><td>—</td><td class="ov-plan-col" id="ovMxWape52">—</td><td>—</td><td>—</td></tr>
-
-              <tr class="ov-group-header" data-group="money" onclick="ovToggleGroup('money', this)"><td colspan="5">Money<svg class="ov-chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr>
-              <tr class="ov-group-row" data-group-item="money"><td>Revenue predicted (after discount)</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
-              <tr class="ov-group-row" data-group-item="money"><td>Marketing spend committed</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
-
-              <tr class="ov-group-header" data-group="growth-rev" onclick="ovToggleGroup('growth-rev', this)"><td colspan="5">Growth: Revenue<svg class="ov-chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr>
-              <tr class="ov-group-row" data-group-item="growth-rev"><td>YoY growth predicted</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
-              <tr class="ov-group-row" data-group-item="growth-rev"><td>Channel A/B CAGR</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
-              <tr class="ov-group-row" data-group-item="growth-rev"><td># Zip codes above overall growth</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
-              <tr class="ov-group-row" data-group-item="growth-rev"><td># Zip codes below overall growth</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
-
-              <tr class="ov-group-header" data-group="growth-units" onclick="ovToggleGroup('growth-units', this)"><td colspan="5">Growth: Units<svg class="ov-chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.2"><path d="M19 9l-7 7-7-7" stroke-linecap="round" stroke-linejoin="round"/></svg></td></tr>
-              <tr class="ov-group-row" data-group-item="growth-units"><td>YoY growth predicted</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
-              <tr class="ov-group-row" data-group-item="growth-units"><td>Channel A/B CAGR</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
-              <tr class="ov-group-row" data-group-item="growth-units"><td># Zip codes above overall growth</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
-              <tr class="ov-group-row" data-group-item="growth-units"><td># Zip codes below overall growth</td><td>—</td><td class="ov-plan-col">—</td><td>—</td><td>—</td></tr>
-            </tbody>
+            <thead id="ovMatrixHead"><tr><th>Metric</th><th>Last year</th><th class="ov-plan-col"><span class="ov-plan-dot"></span>Committed plan</th></tr></thead>
+            <tbody id="ovMatrixBody"></tbody>
           </table>
         </div>
       </div>
@@ -748,6 +714,7 @@
                 <datalist id="skuList"></datalist>
               </div>
               <button type="button" class="dbtn fc-ghost-btn on" id="hideBacktestBtn" style="display:none" aria-pressed="false">Full history</button>
+              <button type="button" class="dbtn fc-ghost-btn fc-backtest-btn" id="fcBacktestBtn" style="display:none" aria-pressed="false">Hide backtest</button>
             </div>
           </div>
           <div class="selbar">
@@ -1002,6 +969,7 @@
                     <datalist id="scfSkuList"></datalist>
                   </div>
                   <button type="button" class="dbtn fc-ghost-btn on" id="scfHistory" style="display:none" aria-pressed="false">Full history</button>
+                  <button type="button" class="dbtn fc-ghost-btn fc-backtest-btn" id="scfBacktestBtn" style="display:none" aria-pressed="false">Hide backtest</button>
                 </div>
               </div>
               <p id="scenarioGraphStatus" class="dsubtle">Select a completed scenario to see its forecast.</p>
@@ -2365,10 +2333,11 @@
 </div>
 
 <script src="../js/data.js"></script>
-<script src="../js/main.js?v=20261123a"></script>
+<script src="../js/main.js?v=20261124b"></script>
 <script src="../js/theme.js"></script>
-<script src="../js/scenario-forecast.js?v=20261124b"></script>
-<script src="../js/scenarios.js?v=20261124c"></script>
+<script src="../js/scenario-forecast.js?v=20261124d"></script>
+<script src="../js/overview-matrix.js?v=20261124a"></script>
+<script src="../js/scenarios.js?v=20261124d"></script>
 <script src="../js/insights.js"></script>
 <script src="../js/inventory.js?v=20261123a"></script>
 <script src="../js/knowledge.js"></script>

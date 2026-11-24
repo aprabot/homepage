@@ -21,13 +21,13 @@
   // SKU numbers are assigned per run, so the same number can be a different
   // product in another run. Two SKUs are paired only when their actual sales
   // agree on every week both runs have; otherwise the plan shows as unknown.
-  function pairSkus() {
-    pair = {};
-    if (!base) return;
+  function pairSkus(run, base) {
+    var pair = {};
+    if (!base) return pair;
     var at = new Map(base.weeks.map(function (w, i) { return [w, i]; }));
     var common = [];
     run.weeks.slice(0, start(run)).forEach(function (w, i) { if (at.has(w) && at.get(w) < start(base)) common.push([i, at.get(w)]); });
-    if (!common.length) return;
+    if (!common.length) return pair;
     var agrees = function (mine, theirs) {
       return !!theirs && common.every(function (c) { return (mine.a[c[0]] == null ? null : mine.a[c[0]]) === (theirs.a[c[1]] == null ? null : theirs.a[c[1]]); });
     };
@@ -37,6 +37,7 @@
       if (Array.isArray(match)) match = match.length === 1 ? match[0] : null;
       if (match) pair[id] = match;
     });
+    return pair;
   }
 
   // Sum of one postal code across SKUs; null where no SKU has a value.
@@ -73,7 +74,7 @@
     });
   }
 
-  function weeksAhead() {
+  function weeksAhead(run, horizon) {
     var from = start(run), future = run.all.f.slice(from, from + horizon);
     var gap = future.findIndex(function (v) { return !finite(v); });
     return gap < 0 ? future.length : gap;
@@ -153,8 +154,8 @@
     return out;
   }
 
-  function totals() {
-    var edge = start(run), count = weeksAhead(), mine = [], theirs = [], at = base && new Map(base.weeks.map(function (w, i) { return [w, i]; }));
+  function totals(run, base, pair, prices, horizon) {
+    var edge = start(run), count = weeksAhead(run, horizon), mine = [], theirs = [], at = base && new Map(base.weeks.map(function (w, i) { return [w, i]; }));
     for (var i = edge; i < edge + count; i++) {
       var j = at ? at.get(run.weeks[i]) : null;
       if (!base) mine.push(i);
@@ -196,18 +197,18 @@
     var length = run.weeks.length, edge = start(run), hasForward = edge < length;
     var context = hasForward ? Math.min(edge, Math.max(8, Math.min(horizon, 26))) : 0;
     var end = hasForward ? Math.min(length, edge + horizon) : length;
-    var from = hasForward ? (full ? 0 : edge - context) : Math.max(0, length - horizon);
+    var from = hasForward ? fcBacktest.from(full ? 0 : edge - context, edge, visible.a) : Math.max(0, length - horizon);
+    var shown = function (values) { return hasForward ? fcBacktest.past(values.slice(from, end), edge - from) : values.slice(from, end); };
     var weeks = run.weeks.slice(from, end);
-    var w = (s.w || seriesWape(s.a, s.f).w).slice(from, end);
-    var a = s.a.slice(from, end), f = s.f.slice(from, end);
+    var w = shown(s.w || seriesWape(s.a, s.f).w);
+    var a = s.a.slice(from, end), f = shown(s.f);
     var plan = planOnWeeks(planSeries(sku, zip), weeks, from);
     el('scfLegend').querySelectorAll('.lgd-item').forEach(function (item) {
-      var values = { a: a, w: w, p: plan, f: f }[item.dataset.k];
+      var values = { a: s.a, w: w, p: plan, f: f }[item.dataset.k];
       item.hidden = !values.some(finite);
     });
     el('scfSub').textContent = !hasForward ? 'Last ' + weeks.length + ' weeks of the backtest'
-      : full ? 'Full backtest history, then the next ' + (end - edge) + ' weeks of forecast'
-      : 'Last ' + context + ' weeks of actuals, then the next ' + (end - edge) + ' weeks of forecast';
+      : fcBacktest.subtitle(full, context, end - edge, visible.a);
     geom = paintForecast(el('scfChart'), el('scfCanvas'), { weeks: weeks, a: a, f: f, w: w, plan: plan, boundary: edge - from, visible: visible });
     return geom;
   }
@@ -222,12 +223,12 @@
     el('scfSku').value = sku === 'ALL' ? '' : sku;
     el('scfSkuFilter').value = sku;
     draw();
-    if (onTotals) onTotals(totals());
+    if (onTotals) onTotals(totals(run, base, pair, prices, horizon));
     table();
   }
 
   function table() {
-    var count = weeksAhead();
+    var count = weeksAhead(run, horizon);
     var rows = (sku === 'ALL' ? Object.keys(run.skus) : [sku]).map(function (id) { return figures(id, zip, count); }).filter(Boolean);
     var dir = sort.dir === 'asc' ? 1 : -1;
     rows.sort(function (x, y) {
@@ -320,7 +321,7 @@
     base = plan && Array.isArray(plan.weeks) && plan.skus ? plan : null;
     onTotals = options && options.onTotals;
     prices = { scenario: indexPricing(options && options.pricing && options.pricing.scenario), base: indexPricing(options && options.pricing && options.pricing.base) };
-    pairSkus();
+    pair = pairSkus(run, base);
     page = 1;
     el('scfBody').hidden = el('scfResults').hidden = el('scfControls').hidden = el('scfLegend').hidden = false;
     el('scfSkel').style.display = 'none';
@@ -329,14 +330,19 @@
     var ids = Object.keys(run.skus).sort();
     el('scfSkuList').replaceChildren.apply(el('scfSkuList'), ids.map(function (id) { return new Option(id, id); }));
     el('scfSkuFilter').replaceChildren.apply(el('scfSkuFilter'), [new Option('All SKUs', 'ALL')].concat(ids.map(function (id) { return new Option(id, id); })));
-    el('scfHistory').style.display = start(run) < run.weeks.length ? '' : 'none';
+    el('scfHistory').style.display = el('scfBacktestBtn').style.display = start(run) < run.weeks.length ? '' : 'none';
     var note = el('scfNote');
     note.textContent = options && options.note || '';
     note.hidden = !note.textContent;
     pick(run.skus[sku] ? sku : 'ALL', zip);
   }
 
-  window.scenarioForecast = { show: show, clear: clear, redraw: draw };
+  // The same totals for any run and plan, without showing them (Overview).
+  function compare(result, plan, pricing, weeks) {
+    return totals(result, plan, pairSkus(result, plan), { scenario: indexPricing(pricing && pricing.scenario), base: indexPricing(pricing && pricing.base) }, weeks);
+  }
+
+  window.scenarioForecast = { show: show, clear: clear, redraw: draw, compare: compare };
 
   document.addEventListener('DOMContentLoaded', function () {
     if (!el('scfBody')) return;
@@ -384,6 +390,7 @@
     });
     el('scfCanvas').addEventListener('mousemove', function (event) { if (run) forecastHover(event, draw, el('scfCanvas'), el('scfTip')); });
     el('scfCanvas').addEventListener('mouseleave', function () { el('scfTip').style.opacity = 0; draw(); });
+    document.addEventListener('apra:backtest', draw);
     new ResizeObserver(function () { draw(); }).observe(el('scfChart'));
     new MutationObserver(function () { draw(); }).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   });
