@@ -921,3 +921,6 @@
 #dashboard .scenario-result-kpis .v{min-height:1.2em}
 #dashboard .scenario-result-kpis .v .skel-line{width:70%;height:16px;margin-top:4px}
 #dashboard .scenario-kpi-note{margin:-2px 0 12px;font-size:12px;line-height:1.5;color:var(--muted)}
+
+/* Long festival lists scroll. */
+#dashboard #obHolidayList{max-height:340px;overflow:auto;padding:2px}
