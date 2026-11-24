@@ -14,7 +14,6 @@
   var visible = { a: true, f: true, p: true, w: true };
   var onTotals = null;
   var prices = { scenario: null, base: null }; // what each run did to selling prices; null: not known
-  var supply = null;    // {safety, stock} by plan SKU, for stock needed
 
   function start(d) { return d.backtestWeeks == null ? d.weeks.length : d.backtestWeeks; }
   function finite(v) { return Number.isFinite(v); }
@@ -154,22 +153,6 @@
     return out;
   }
 
-  // Stock still needed for these weeks: each SKU's forecast plus its safety
-  // stock, less what is on hand, in transit and on order. A SKU with more
-  // than enough doesn't reduce another SKU's need.
-  function stockNeeded(d, at, planId) {
-    if (!supply) return null;
-    var sum = 0, ids = Object.keys(d.skus);
-    for (var n = 0; n < ids.length; n++) {
-      var known = planId(ids[n]), safety = known && supply.safety[known], f = d.skus[ids[n]].f;
-      if (!finite(safety) || !at.every(function (i) { return finite(f[i]); })) return null;
-      var held = supply.stock ? supply.stock[known] || {} : {};
-      var have = (held.present || 0) + (held.intransit || 0) + (held.openpo || 0);
-      sum += Math.max(0, at.reduce(function (t, i) { return t + f[i]; }, 0) + safety - have);
-    }
-    return ids.length ? sum : null;
-  }
-
   function totals() {
     var edge = start(run), count = weeksAhead(), mine = [], theirs = [], at = base && new Map(base.weeks.map(function (w, i) { return [w, i]; }));
     for (var i = edge; i < edge + count; i++) {
@@ -187,8 +170,6 @@
       otherProducts: !!base && theirs.length > 0 && !compared,
       weeks: mine.length, scenario: units(run, mine), base: compared ? units(base, theirs) : null,
       revenue: allRevenue(run, mine, prices.scenario), baseRevenue: compared ? allRevenue(base, theirs, prices.base) : null,
-      stock: stockNeeded(run, mine, function (id) { return pair[id]; }),
-      baseStock: compared ? stockNeeded(base, theirs, function (id) { return id; }) : null,
     };
   }
 
@@ -333,13 +314,12 @@
     }
   }
 
-  // note: shown under the table. pricing, supply: see revenue and stock above.
+  // note: shown under the table. pricing: see revenue above.
   function show(result, plan, options) {
     run = result;
     base = plan && Array.isArray(plan.weeks) && plan.skus ? plan : null;
     onTotals = options && options.onTotals;
     prices = { scenario: indexPricing(options && options.pricing && options.pricing.scenario), base: indexPricing(options && options.pricing && options.pricing.base) };
-    supply = options && options.supply || null;
     pairSkus();
     page = 1;
     el('scfBody').hidden = el('scfResults').hidden = el('scfControls').hidden = el('scfLegend').hidden = false;
@@ -356,8 +336,7 @@
     pick(run.skus[sku] ? sku : 'ALL', zip);
   }
 
-  window.scenarioForecast = { show: show, clear: clear, redraw: draw,
-    setSupply: function (next) { supply = next; if (run && onTotals) onTotals(totals()); } };
+  window.scenarioForecast = { show: show, clear: clear, redraw: draw };
 
   document.addEventListener('DOMContentLoaded', function () {
     if (!el('scfBody')) return;

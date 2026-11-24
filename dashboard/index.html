@@ -492,7 +492,7 @@
   .scenario-comparison{min-width:0}
   .scenario-comparison-head>div{flex:1;min-width:160px}
   .scenario-comparison-head select{margin-top:4px}
-  .scenario-result-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px;margin:12px 0}
+  .scenario-result-kpis{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin:12px 0}
   .scenario-result-kpis .kpi{min-width:0;padding:9px}
   .scenario-result-kpis .t{white-space:normal}
   .scenario-result-kpis .v{font-size:clamp(15px,2vw,22px)}
@@ -981,10 +981,8 @@
               <button type="button" class="dbtn" id="scenarioApplyPlan" disabled>Apply to plan</button>
             </div>
             <div class="scenario-result-kpis">
-              <div class="kpi"><div class="t">Revenue</div><div class="v" id="scenarioRevenue">—</div><div class="d" id="scenarioRevenueNote"></div></div>
+              <div class="kpi"><div class="t">Revenue vs. plan</div><div class="v" id="scenarioRevenue">—</div><div class="d" id="scenarioRevenueNote"></div></div>
               <div class="kpi"><div class="t">Units vs. plan</div><div class="v" id="scenarioUnitsChange">—</div><div class="d" id="scenarioUnitsTotals"></div></div>
-              <div class="kpi"><div class="t">Capped units</div><div class="v" id="scenarioCappedUnits">—</div><div class="d" id="scenarioCappedNote"></div></div>
-              <div class="kpi"><div class="t">Stock needed</div><div class="v" id="scenarioStock">—</div><div class="d" id="scenarioStockNote"></div></div>
             </div>
             <p class="scenario-kpi-note" id="scenarioKpiNote" hidden></p>
             <div class="dcard fc-chart-card scf-card">
@@ -2369,8 +2367,8 @@
 <script src="../js/data.js"></script>
 <script src="../js/main.js?v=20261123a"></script>
 <script src="../js/theme.js"></script>
-<script src="../js/scenario-forecast.js?v=20261124a"></script>
-<script src="../js/scenarios.js?v=20261124b"></script>
+<script src="../js/scenario-forecast.js?v=20261124b"></script>
+<script src="../js/scenarios.js?v=20261124c"></script>
 <script src="../js/insights.js"></script>
 <script src="../js/inventory.js?v=20261123a"></script>
 <script src="../js/knowledge.js"></script>

@@ -6,7 +6,6 @@
   'use strict';
 
   var SCENARIOS_API = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/scenarios';
-  var INVENTORY_URL = 'https://ktksptlz75.execute-api.us-east-1.amazonaws.com/forecast?type=inventory';
   var pollTimer = null;
   var lastScenarios = [];
   var lastApprovals = [];
@@ -875,8 +874,8 @@
 
   function setWorkspaceChart(message, loading) { window.scenarioForecast.clear(message, loading); }
 
-  var KPI_FIELDS = ['scenarioRevenue', 'scenarioUnitsChange', 'scenarioCappedUnits', 'scenarioStock'];
-  var KPI_NOTES = ['scenarioRevenueNote', 'scenarioUnitsTotals', 'scenarioCappedNote', 'scenarioStockNote'];
+  var KPI_FIELDS = ['scenarioRevenue', 'scenarioUnitsChange'];
+  var KPI_NOTES = ['scenarioRevenueNote', 'scenarioUnitsTotals'];
   function resetScenarioKpis(loading) {
     KPI_FIELDS.forEach(function (field) {
       var value = scenarioElement(field);
@@ -885,35 +884,6 @@
     });
     KPI_NOTES.forEach(function (field) { scenarioElement(field).textContent = ''; });
     scenarioElement('scenarioKpiNote').hidden = true;
-  }
-
-  // "Cap" is the only lever that limits units; without one nothing is capped.
-  function showCappedUnits(result, levers) {
-    var capped = levers.unit_cap != null;
-    scenarioElement('scenarioCappedUnits').textContent = result.cappedUnits != null ? result.cappedUnits.toLocaleString() : capped ? '—' : '0';
-    scenarioElement('scenarioCappedNote').textContent = capped
-      ? 'Cap ' + Number(levers.unit_cap).toLocaleString() + ' a week' + (levers.postal_code ? ' in ' + levers.postal_code : '') + ' · full forecast'
-      : 'No unit cap in this scenario';
-  }
-
-  // Safety stock and the stock file, as Inventory shows them, by plan SKU.
-  async function loadScenarioSupply() {
-    var get = async function (url) {
-      try {
-        var response = await APRA_SESSION.fetch(url);
-        return response.ok ? await response.json() : null;
-      } catch (error) { return null; }
-    };
-    var both = await Promise.all([get(INVENTORY_URL), get(SCENARIOS_API + '?view=inbound')]);
-    if (!both[0] || !both[0].bySku) return null;
-    var safety = {};
-    Object.keys(both[0].bySku).forEach(function (sku) {
-      var zips = Object.values(both[0].bySku[sku].byZip || {});
-      var last = zips.map(function (zip) { return (zip.safetyStock || []).at(-1); });
-      if (last.length && last.every(Number.isFinite)) safety[sku] = last.reduce(function (a, b) { return a + b; }, 0);
-    });
-    var stock = both[1] && both[1].stock;
-    return { safety: safety, stock: stock && stock.status === 'ok' ? stock.by_sku : null };
   }
 
   function showScenarioTotals(totals, context) {
@@ -926,33 +896,20 @@
     if (!totals) {
       set(['scenarioUnitsChange', 'scenarioUnitsTotals'], '—');
       set(['scenarioRevenue', 'scenarioRevenueNote'], '—');
-      set(['scenarioStock', 'scenarioStockNote'], '—');
       return;
     }
     set(['scenarioUnitsChange', 'scenarioUnitsTotals'], totals.base == null ? '—' : formatScenarioChange(totals.base, totals.scenario),
       totals.base == null ? whole(totals.scenario) + ' units' + weeks : whole(totals.scenario) + ' vs. ' + whole(totals.base) + weeks);
 
     var money = totals.revenue, plan = totals.baseRevenue;
-    if (money.value == null || context.unpriced) {
-      set(['scenarioRevenue', 'scenarioRevenueNote'], '—', money.value == null ? 'No selling prices in your sales data' : 'This run’s prices can’t be read');
-    } else {
-      set(['scenarioRevenue', 'scenarioRevenueNote'], whole(money.value),
-        (plan && plan.value != null && !context.unpricedBase ? formatScenarioChange(plan.value, money.value) + ' vs. plan' : 'No plan to compare') + weeks +
-        (money.missing ? ' · ' + money.missing + ' SKU' + (money.missing === 1 ? '' : 's') + ' without a price left out' : ''));
-    }
-
-    if (!context.supplyReady) set(['scenarioStock', 'scenarioStockNote'], '…', 'Reading inventory');
-    else if (totals.stock == null) {
-      set(['scenarioStock', 'scenarioStockNote'], '—', context.supply ? 'SKUs don’t match your inventory' : 'No inventory data');
-    } else {
-      set(['scenarioStock', 'scenarioStockNote'], whole(totals.stock),
-        (totals.baseStock == null ? '' : 'vs. ' + whole(totals.baseStock) + ' plan') + (totals.baseStock == null ? weeks.slice(3) : weeks));
-    }
+    var known = money.value != null && !context.unpriced;
+    var planKnown = plan && plan.value != null && !context.unpricedBase;
+    set(['scenarioRevenue', 'scenarioRevenueNote'], known && planKnown ? formatScenarioChange(plan.value, money.value) : '—',
+      money.value == null ? 'No selling prices in your sales data' : !known ? 'This run’s prices can’t be read'
+        : whole(money.value) + (planKnown ? ' vs. ' + whole(plan.value) : '') + weeks +
+          (money.missing ? ' · ' + money.missing + ' SKU' + (money.missing === 1 ? '' : 's') + ' without a price left out' : ''));
     var note = scenarioElement('scenarioKpiNote');
-    note.textContent = 'Revenue is forecast units × average selling price, with the run’s price changes and discounts. ' +
-      'Stock needed is the forecast plus safety stock' +
-      (!context.supplyReady || (context.supply && context.supply.stock) ? ', less stock on hand, in transit and on order.'
-        : ', before any stock you hold. Add a stock file on Inventory to subtract it.');
+    note.textContent = 'Revenue is forecast units × average selling price, with the run’s price changes and discounts.';
     note.hidden = false;
   }
 
@@ -982,31 +939,21 @@
       if (!Array.isArray(result.weeks) || !result.all || !result.skus) throw new Error('No weekly forecast is available.');
       var meta = lastScenarios.find(function (item) { return item.id === id; }) || {};
       var levers = meta.levers || {};
-      showCappedUnits(result, levers);
       var repriced = Number.isFinite(levers.price_pct) || (levers.included_schemes || []).length > 0;
       var pricing = comparison.pricing || {};
-      var context = { supply: null, supplyReady: false,
+      var context = {
         // Without the run's price details only an unrepriced run is safe to value.
         unpriced: !pricing.scenario && (!!comparison.pricing || repriced), unpricedBase: !!comparison.pricing && !pricing.base };
-      var current = null;
       window.scenarioForecast.show(result, base, {
         pricing: pricing,
         note: context.unpriced ? 'Revenue uses usual prices, so this scenario’s discounts or price change aren’t in it.' : '',
         // Same weeks as the chart and table, so every number agrees.
         onTotals: function (totals) {
-          current = totals;
           showScenarioTotals(totals, context);
           status.textContent = totals && totals.base != null ? ''
             : totals && totals.otherProducts ? 'This scenario’s products aren’t in the approved plan, so there is nothing to compare.'
             : base ? 'This scenario and the approved plan have no forecast weeks in common.' : 'The approved plan isn’t available to compare with.';
         },
-      });
-      loadScenarioSupply().then(function (supply) {
-        if (workspaceComparisonKey !== key) return;
-        context.supply = supply;
-        context.supplyReady = true;
-        window.scenarioForecast.setSupply(supply);
-        if (!current) showScenarioTotals(null, context);
       });
     } catch (error) {
       if (workspaceComparisonKey === key) {
