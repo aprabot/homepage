@@ -992,12 +992,14 @@ Rules:
   get_scenario_demand_changes for the SKU and postal code changes versus the approved plan,
   and rank_forecast_skus for the top SKUs by forward units. When ranking, report the weeks
   covered and any skipped incomplete series.
-• For a named promotion, use list_discount_schemes and save_discount_scheme. Create as draft
-  unless the user explicitly requests committing it. Ask for missing promotion terms, SKU or
-  all SKUs, PIN code or all PIN codes, and dates. Do not invent scope or dates. Use ALL for
-  an explicitly unrestricted SKU or postal code. Commit or withdraw only on an explicit request.
-  Fetch the current version before changing an existing scheme. A scheme save does not run a
-  forecast. When asked to try a draft in a scenario, pass its ID in included_schemes.
+• For a named promotion, use list_discount_schemes to look and draft_discount_scheme to prepare a
+  draft. Never fill in terms: if the user hasn't said the discount, the SKU (or all SKUs), the PIN
+  code (or all) and the dates, ask for what is missing instead of calling the tool. You cannot
+  commit or withdraw schemes: say it is done on the Discount Schemes page. Answer questions about
+  schemes ("what would happen if…", "should I…") in words. To try a draft in a scenario, pass its
+  ID in run_scenario's included_schemes.
+• draft_discount_scheme, approve_scenario and some run_scenario calls show the user the exact terms
+  and wait for their yes. Never say something was saved, started or approved yourself.
 • For a scenario testing a discount or price change ("a 20% discount on all products", "cut SKU-002's price 10% in
   400001"), use run_scenario's price_pct lever (negative for a discount), with price_sku and/or
   price_postal_code if they named one. A discount_scenario=true call is the same as price_pct=-20 on
@@ -1009,15 +1011,9 @@ Rules:
   where to click. Don't also call point_to_ui at Scenarios for this — the modal already shows it,
   same as generate_report. Use check_scenario_status instead when they're asking FOR specific
   numbers/status as an answer (e.g. "what's the WAPE on the 40% discount run"), not to see the UI.
-• Approving a scenario (approve_scenario) makes it the live forecast for every user — treat it like
-  any other real, hard-to-reverse action. Call it once to see what it would approve (this never
-  actually approves anything), tell the user what you found, ask them to confirm, and END YOUR TURN
-  there — do not call the tool again in this same reply. Only call it again with confirm=true in a
-  LATER message, once the user's own next message actually confirms. Calling it again with
-  confirm=true immediately, in the same turn as the preview, is refused outright (there's no real
-  confirmation to act on yet) and just wastes a call — so don't. Never treat "run a scenario and
-  approve it" as pre-authorization to skip confirming the approve step specifically — running and
-  approving are two separate real actions, each needing its own confirmation where required.
+• Approving a scenario (approve_scenario) makes it the live forecast for every user. Call it when the
+  user asks to approve or apply a scenario; never start a run instead. It shows them the scenario and
+  asks them to confirm. Never claim it is approved yourself.
 • For "any data quality issues with this scenario" / "does this run look OK", use
   check_scenario_validations rather than eyeballing the raw numbers yourself — it runs the same
   fixed checklist the dashboard's own "Run validations" button does, so the pass/warn/fail verdicts
@@ -1069,8 +1065,9 @@ Rules:
     Overview and Scenarios. Also has a guided product walkthrough.
   – Overview: headline KPIs and the Plan & Scenario Comparison Matrix (last year vs. committed plan
     vs. scenarios), with a 12W/26W/52W horizon.
-  – Discount Schemes: create, edit, commit and withdraw Percent off, Flat amount off and Buy X get Y
-    promotions scoped by SKU, postal code and dates. Committed schemes apply to future runs.
+  – Discount Schemes: create and manage promotions (percent off, flat amount, Buy X get Y, bundle,
+    free gift, cashback, tiered) scoped by SKU, postal code and dates; Save as a draft or Commit and run.
+    Committed schemes are applied to future forecasts; schemes can also be detected from sales.
   – Forecasts: the approved forecast — forecast units, revenue estimate, avg discount/unit and
     backtest WAPE for a 4/12/52-week horizon, a weekly chart of actuals vs. forecast, and a
     per-SKU table compared with last year.
@@ -1092,10 +1089,10 @@ Rules:
   Never invent a page, button or feature that isn't listed here.
 • For "how much stock/inventory do I need" questions use the REQUIRED INVENTORY section below or the
   get_inventory tool — not the forecast units, which are demand, not required stock.
-• run_scenario defaults to the organization's approved (live) dataset, like the Scenarios page
+• run_scenario always runs on the organization's approved (live) dataset, like the Scenarios page
   default, and supports the same levers as the Scenarios page: spend_pct, price_pct (optionally for
   one price_sku and/or one price_postal_code), unit_cap (optionally for one postal_code),
-  campaign_code, excluded_holiday_dates, holiday_off, included_schemes and excluded_schemes. Set only the levers the user asked for. If they ask something you
+  excluded_holiday_dates, holiday_off, included_schemes and excluded_schemes. Set only the levers the user asked for. If they ask something you
   can't run (e.g. a lever not listed), say so instead of starting a different run. If the user only
   asks WHETHER you can do something, answer in words — never start a run for a hypothetical.
 • The user's current page, when given below, is where they are right now — use it to resolve
@@ -1165,13 +1162,11 @@ TOOL_CONFIG = {
             "inputSchema": {"json": {"type": "object", "properties": {"code": {"type": "string"}}}},
         }},
         {"toolSpec": {
-            "name": "save_discount_scheme",
-            "description": "Create or update a promotion draft, commit it for future forecasts, or withdraw it. Never starts a run. For edits send the full terms and current version.",
-            "inputSchema": {"json": {"type": "object", "required": ["code", "action"],
+            "name": "draft_discount_scheme",
+            "description": "Prepare a promotion draft for the user to confirm, new or replacing a saved draft. Only with terms the user gave: never fill in a discount, SKU, PIN code or date yourself. Cannot commit or withdraw.",
+            "inputSchema": {"json": {"type": "object", "required": ["name", "mechanic", "scope"],
                 "properties": {
-                    "action": {"type": "string", "enum": ["draft", "commit_only", "withdraw"]},
-                    "code": {"type": "string"},
-                    "version": {"type": "integer", "description": "Zero for new schemes, current version for updates."},
+                    "code": {"type": "string", "description": "Scheme ID if the user gave one."},
                     "name": {"type": "string"},
                     "mechanic": {"type": "string", "enum": ["Percent off", "Flat amount off", "Buy X get Y"]},
                     "scope": {"type": "array", "items": SCHEME_LINE_SCHEMA},
@@ -1184,7 +1179,9 @@ TOOL_CONFIG = {
                     "Start a real forecast pipeline run (the actual LightGBM model, not a "
                     "simulation) on the organization's approved dataset. Takes about 3-5 minutes. "
                     "Use only when the user explicitly asks to run, start, kick off, or try a new "
-                    "forecast/scenario — never for a hypothetical 'can you…' question. Supports the "
+                    "forecast/scenario — never for a hypothetical 'can you…' question, and never to approve "
+                    "one (use approve_scenario). Unless they plainly said to run it, the user is asked to "
+                    "confirm first. Supports the "
                     "Scenarios page levers below; set only the ones the user asked for."
                 ),
                 "inputSchema": {"json": {
@@ -1203,8 +1200,6 @@ TOOL_CONFIG = {
                         "postal_code":  {"type": "string",  "description": "Limit the spend change and unit cap to one postal code. Omit for all."},
                         "holiday_off":  {"type": "boolean", "description": "Turn off forward holiday effects."},
                         "excluded_schemes": {"type": "array", "items": {"type": "string"}, "description": "Committed discount scheme IDs to leave out of this run."},
-                        "source": {"type": "string", "enum": ["approved", "default"]},
-                        "campaign_code": {"type": "string", "description": "Committed campaign ID for a spend adjustment."},
                         "included_schemes": {"type": "array", "items": {"type": "string"}, "description": "Draft scheme IDs to apply to this run only."},
                         "excluded_holiday_dates": {"type": "array", "items": {"type": "string"}, "description": "Forward holidays to omit, YYYY-MM-DD."},
                         "discount_scenario": {
@@ -1268,16 +1263,8 @@ TOOL_CONFIG = {
                 "name": "approve_scenario",
                 "description": (
                     "Approve a completed scenario, making it the live forecast that powers Overview "
-                    "& Forecasts for every user. THIS IS A REAL, VISIBLE CHANGE. Call this tool "
-                    "WITHOUT confirm (or confirm=false) to preview what it would approve — it will "
-                    "NOT approve anything on that call, just return what it found (WAPE, volume "
-                    "error) plus a needs_confirmation flag. Tell the user what you found and ask "
-                    "them to confirm, THEN STOP — end your turn there and wait. Only call this tool "
-                    "again with confirm=true in a LATER message, after the user's own next message "
-                    "explicitly confirms. Calling it again with confirm=true in THIS SAME turn, "
-                    "right after the preview and without a real reply from the user in between, is "
-                    "refused by the backend and wastes a turn — there is no way to skip the wait, "
-                    "so don't attempt it. Look the scenario up by scenario_id, by label (partial "
+                    "& Forecasts for every user. This shows the user what it would approve and asks them "
+                    "to confirm; it never approves by itself. Look the scenario up by scenario_id, by label (partial "
                     "match, e.g. 'the 40% discount scenario'), or omit both for 'approve the latest "
                     "run' (the user's most recently requested scenario)."
                 ),
@@ -1286,7 +1273,6 @@ TOOL_CONFIG = {
                     "properties": {
                         "scenario_id": {"type": "string", "description": "e.g. scn-1234567890-abcdef. Omit to look up by label or use the most recent."},
                         "label":       {"type": "string", "description": "Full or partial scenario name. Omit if scenario_id is given."},
-                        "confirm":     {"type": "boolean", "description": "Only true on the SECOND call, after the user has explicitly confirmed. Default false."},
                     },
                 }},
             }
@@ -1827,15 +1813,18 @@ def _detect_anomalies(result):
 def _planning_result(name, inputs, claims):
     if not claims.get('email'):
         return {'error': 'Sign in to view planning data.'}
-    limit = inputs.get('limit', 10)
-    if type(limit) is not int or not 1 <= limit <= 25:
+    limit = _whole(inputs.get('limit', 10))
+    if limit is None or not 1 <= limit <= 25:
         return {'error': 'Choose between 1 and 25 rows.'}
 
     if name == 'rank_forecast_skus':
-        horizon = inputs.get('weeks', 4)
-        if type(horizon) is not int or horizon not in (4, 12, 52):
+        horizon = _whole(inputs.get('weeks', 4))
+        if horizon not in (4, 12, 52):
             return {'error': 'Choose 4, 12 or 52 forecast weeks.'}
-        data = _get_forecast_data() or {}
+        try:
+            data = _get_forecast_data() or {}
+        except Exception:
+            return {'error': 'No approved forecast is available.'}
         weeks = data.get('weeks', [])
         start = data.get('backtestWeeks', len(weeks))
         period = weeks[start:start + horizon]
@@ -1870,7 +1859,7 @@ def _planning_result(name, inputs, claims):
         return {'error': response.get('error', 'Scenarios unavailable.')}
     scenarios = response['scenarios']
     if name == 'list_scenario_runs':
-        label = (inputs.get('label') or '').casefold()
+        label = str(inputs.get('label') or '').casefold()
         fields = ('id', 'label', 'status', 'approved', 'created_at', 'wape')
         rows = [{key: row[key] for key in fields if key in row} for row in scenarios
                 if label in (row.get('label') or '').casefold()
@@ -1889,10 +1878,361 @@ def _planning_result(name, inputs, claims):
             'approved_id': result['base']['id'], 'rows': result['rows'][:limit]}
 
 
+# ---- confirmations ------------------------------------------------------
+# Saving a scheme, starting a run the user didn't plainly ask for, and
+# approving all change something real. The model never does these itself: its
+# tool call only produces a block of exact terms, which handler() sends as the
+# whole reply. If the user's NEXT message is a plain yes, handler() carries
+# out that block as written, without the model. A prompt can't guarantee this
+# (Nova has previewed and confirmed in one go, acted on "what if" questions
+# and made up dates); reading the block back from the conversation can.
+CONFIRM_HEAD = '**Confirm: {}**'
+CONFIRM_TAIL = 'Reply **yes** to go ahead, or tell me what to change. Nothing has been done yet.'
+CONFIRM_KINDS = ('Save draft scheme', 'Start scenario run', 'Approve scenario')
+_YES = re.compile(r"(yes|yep|yeah|y|ok|okay|sure|confirm|confirmed|go ahead|do it|yes please|please do|"
+                  r"save it|start it|run it|approve it)([ ,]+(please|go ahead|do it|save it|start it|run it|approve it|confirm))?[ .!]*", re.I)
+_NO = re.compile(r"(no|nope|n|cancel|stop|don'?t|do not|never ?mind)([ ,]+(thanks|thank you|please|cancel|stop))?[ .!]*", re.I)
+
+
+def _plain(value, limit=120):
+    """One line, safe to show and read back from a confirmation block."""
+    return re.sub(r'[\s*]+', ' ', str(value)).strip()[:limit]
+
+
+def _confirm_block(kind, fields):
+    lines = [CONFIRM_HEAD.format(kind)] + [f'- {key}: {_plain(value, 400)}' for key, value in fields] + ['', CONFIRM_TAIL]
+    return '\n'.join(lines)
+
+
+def _read_confirm_block(text):
+    """(kind, fields) if this whole message is a block from _confirm_block."""
+    lines = str(text or '').strip().split('\n')
+    kind = next((k for k in CONFIRM_KINDS if lines[0].strip() == CONFIRM_HEAD.format(k)), None)
+    if not kind or len(lines) < 4 or lines[-1].strip() != CONFIRM_TAIL or lines[-2].strip():
+        return None
+    fields = []
+    for line in lines[1:-2]:
+        m = re.fullmatch(r'- ([A-Za-z0-9 ]+): (.*)', line.strip())
+        if not m:
+            return None
+        fields.append((m.group(1), m.group(2)))
+    return kind, fields
+
+
+def _whole(value):
+    """The model sends 10 as 10.0 at times. None if it isn't a whole number."""
+    if type(value) is int:
+        return value
+    if isinstance(value, float) and math.isfinite(value) and value == int(value):
+        return int(value)
+    if isinstance(value, str) and re.fullmatch(r'[+-]?\d{1,9}', value.strip()):
+        return int(value)
+    return None
+
+
+def _number(value):
+    if type(value) in (int, float) and math.isfinite(value):
+        return value
+    try:
+        return float(value) if isinstance(value, str) and math.isfinite(float(value)) else None
+    except ValueError:
+        return None
+
+
+def _num_text(value):
+    return f'{value:g}' if value != int(value) else str(int(value))
+
+
+_SCHEME_LINE = re.compile(r'(?:(?P<pct>[\d.]+)% off|(?P<flat>[\d.]+) off per unit|buy (?P<buy>\d+) get (?P<free>\d+) free)'
+                          r' \| SKU (?P<sku>ALL|SKU-\d{3,}) \| PIN (?P<pin>ALL|[A-Z0-9 -]{2,12})'
+                          r' \| (?P<start>\d{4}-\d\d-\d\d) to (?P<end>\d{4}-\d\d-\d\d)')
+
+
+# What the user has typed must mention each term; a saved draft's own terms
+# count when it is being edited. The exact values are then shown to confirm.
+_DATE_WORDS = re.compile(r"\d{4}-\d\d|\d{1,2}[/.]\d{1,2}|\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\b|\b(today|tomorrow|tonight|"
+                         r"weekend|diwali|holi|christmas|xmas|new year)\b|\b(next|this|coming|following)\s+(\d+\s+)?(days?|weeks?|months?|quarter|year|"
+                         r"mon|tues|wednes|thurs|fri|satur|sun)", re.I)
+_ALL_PINS = re.compile(r"\b(all|every|any)\b[^.;]{0,40}\b(pin|pins|pincodes?|postal|postcodes?|zips?|zipcodes?|locations?|areas?|regions?|cities|places)\b"
+                       r"|everywhere|nationwide|all[- ](over|india)|pan[- ]india", re.I)
+_ALL_SKUS = re.compile(r"\b(all|every|entire|whole)\b[^.;]{0,25}\b(skus?|products?|items?|catalog(ue)?|range)\b|everything|site-?wide|store-?wide", re.I)
+_NUMBER_WORDS = {w: i for i, w in enumerate('zero one two three four five six seven eight nine ten'.split())}
+
+
+def _said_number(value, text):
+    said = {float(n) for n in re.findall(r'\d+(?:\.\d+)?', text)} | {float(_NUMBER_WORDS[w]) for w in re.findall(r'[a-z]+', text) if w in _NUMBER_WORDS}
+    return float(value) in said or (float(value) == 50 and 'half' in text)
+
+
+def _unsaid_terms(scope, mechanic, text, existing):
+    """Terms the model sent that the user never mentioned."""
+    text, old, ask = text.lower(), (existing or {}).get('scope') or [], []
+    for line in scope:
+        sku, pin = line['sku'], line['postal_code']
+        if not any(o.get('sku') == sku for o in old) and not (
+                _ALL_SKUS.search(text) if sku == 'ALL' else re.search(r'sku[- ]?0*' + sku[4:].lstrip('0') + r'\b', text)):
+            ask.append('which SKU, or all SKUs')
+        if not any(o.get('postal_code') == pin for o in old) and not (
+                _ALL_PINS.search(text) if pin == 'ALL' else pin.lower() in text):
+            ask.append('which PIN code, or all PIN codes')
+        if not any((o.get('start_date'), o.get('end_date')) == (line['start_date'], line['end_date']) for o in old) and not _DATE_WORDS.search(text):
+            ask.append('the start and end dates')
+        if mechanic == 'Buy X get Y':
+            if not any(o.get('buy_quantity') == line['buy_quantity'] and o.get('free_quantity') == line['free_quantity'] for o in old) and not (
+                    _said_number(line['buy_quantity'], text) and _said_number(line['free_quantity'], text)):
+                ask.append('how many units the customer buys and how many they get free')
+        elif not any(o.get('discount') == line['discount'] for o in old) and not _said_number(line['discount'], text):
+            ask.append('the discount')
+    return ask
+
+
+def _scheme_draft_block(inputs, claims, request_state):
+    """Check a scheme's terms and return the block to confirm, or an error the
+    model must turn into a question. Saves nothing."""
+    ask = []
+    name = _plain(inputs.get('name') or '')
+    code = re.sub(r'[^A-Z0-9-]+', '-', _plain(inputs.get('code') or name, 40).upper()).strip('-')
+    mechanic = inputs.get('mechanic')
+    if not name and not code:
+        ask.append('a name for the scheme')
+    if mechanic not in ('Percent off', 'Flat amount off', 'Buy X get Y'):
+        ask.append('whether it is a percent off, a flat amount off, or buy X get Y')
+    scope = inputs.get('scope')
+    if not isinstance(scope, list) or not scope:
+        ask.append('the SKU (or all SKUs), the PIN code (or all), the dates and the discount')
+        scope = []
+    if len(scope) > 30:
+        return {'error': 'A scheme can have up to 30 lines.'}
+    lines, rows, past = [], [], False
+    try:
+        skus = set((_get_forecast_data() or {}).get('skus', {}))
+    except Exception:
+        skus = set()
+    for line in scope:
+        if not isinstance(line, dict):
+            return {'error': 'Send each scope line with its SKU, PIN code, dates and discount.'}
+        sku, pin = str(line.get('sku') or '').strip().upper(), str(line.get('postal_code') or '').strip().upper()
+        if not re.fullmatch(r'ALL|SKU-\d{3,}', sku):
+            ask.append('which SKU, or all SKUs')
+        elif sku != 'ALL' and skus and sku not in skus:
+            return {'error': f'{sku} is not in the forecast. Tell the user, and ask which SKU they mean.'}
+        if not re.fullmatch(r'ALL|[A-Z0-9 -]{2,12}', pin):
+            ask.append('which PIN code, or all PIN codes')
+        try:
+            start, end = (dt.date.fromisoformat(str(line.get(key) or '')) for key in ('start_date', 'end_date'))
+            if not 0 <= (end - start).days < 364:
+                return {'error': 'The end date must be on or after the start date, within 364 days.'}
+            past = past or end < dt.date.today()
+        except ValueError:
+            ask.append('the start and end dates')
+            continue
+        row = {'sku': sku, 'postal_code': pin, 'start_date': start.isoformat(), 'end_date': end.isoformat()}
+        if mechanic == 'Buy X get Y':
+            buy, free = _whole(line.get('buy_quantity')), _whole(line.get('free_quantity'))
+            if not buy or not free or not (1 <= buy <= 1000000 and 1 <= free <= 1000000) or 100 * free > 99 * (buy + free):
+                ask.append('how many units the customer buys and how many they get free')
+                continue
+            terms = f'buy {buy} get {free} free'
+            row.update(buy_quantity=buy, free_quantity=free)
+        else:
+            value = _number(line.get('discount'))
+            if value is None or not 0 < value <= (1000000 if mechanic == 'Flat amount off' else 99):
+                ask.append('the discount amount' if mechanic == 'Flat amount off' else 'the discount percentage, up to 99')
+                continue
+            row['discount'] = value
+            terms = f'{_num_text(value)} off per unit' if mechanic == 'Flat amount off' else f'{_num_text(value)}% off'
+        rows.append(row)
+        lines.append(f"{terms} | SKU {sku} | PIN {pin} | {row['start_date']} to {row['end_date']}")
+    need = lambda items: {'error': 'Not saved. Ask the user for: ' + '; '.join(dict.fromkeys(items)) + '. Do not fill these in yourself.'}
+    if ask:
+        return need(ask)
+    status, found = _invoke_scenarios_api('GET', '/scenarios', claims, query={'view': 'schemes'})
+    if status != 200 or 'schemes' not in found:
+        return {'error': found.get('error', 'Could not load schemes.')}
+    if not found.get('can_edit'):
+        return {'error': 'Only an admin can save discount schemes.'}
+    existing = next((row for row in found['schemes'] if row['code'] == code and row.get('version')), None)
+    if existing and existing.get('status') != 'draft':
+        return {'error': f"{code} is {existing.get('status')}. Changing it is done on the Discount Schemes page."}
+    unsaid = _unsaid_terms(rows, mechanic, request_state.get('user_text', ''), existing)
+    if unsaid:
+        return need(unsaid)
+    fields = [('Scheme ID', code), ('Name', name or code), ('Mechanic', mechanic)]
+    fields += [(f'Line {i + 1}', text) for i, text in enumerate(lines)]
+    if existing:
+        fields.append(('Replaces', f"the saved draft, version {existing['version']}"))
+    if past:
+        fields.append(('Note', 'some of these dates are already past'))
+    request_state['confirm_block'] = _confirm_block('Save draft scheme', fields)
+    return {'needs_confirmation': True, 'message': 'Shown to the user to confirm. Not saved. Say nothing more.'}
+
+
+def _save_confirmed_scheme(fields, claims, request_state):
+    known = dict(fields)
+    scope = []
+    for key, text in fields:
+        if not key.startswith('Line '):
+            continue
+        m = _SCHEME_LINE.fullmatch(text)
+        if not m:
+            return 'I couldn’t read those terms back, so nothing was saved. Please ask me again.'
+        row = {'sku': m['sku'], 'postal_code': m['pin'], 'start_date': m['start'], 'end_date': m['end']}
+        if m['buy']:
+            row.update(buy_quantity=int(m['buy']), free_quantity=int(m['free']),
+                       discount=100 * int(m['free']) / (int(m['buy']) + int(m['free'])))
+        else:
+            value = float(m['pct'] or m['flat'])
+            row['discount'] = int(value) if value == int(value) else value
+        scope.append(row)
+    version = re.search(r'version (\d+)$', known.get('Replaces', ''))
+    body = {'action': 'draft', 'code': known.get('Scheme ID'), 'name': known.get('Name'), 'mechanic': known.get('Mechanic'),
+            'scope': scope, 'version': int(version.group(1)) if version else 0}
+    status, result = _invoke_scenarios_api('POST', '/scenarios', claims, body, query={'view': 'schemes'})
+    if status != 200 or 'scheme' not in result:
+        return f"Not saved: {result.get('error', 'the scheme could not be saved.')}"
+    request_state['schemes_changed'] = True
+    return (f"Saved **{known.get('Scheme ID')}** as a draft. It isn’t applied to any forecast yet. You can use it in Scenarios, "
+            'or commit it on the Discount Schemes page.')
+
+
+# Plainly asked to run: start it. Anything else (questions, "cut prices and
+# show me", approvals) is confirmed first.
+_RUN_WORDS = re.compile(r'\b(re-?run|run|start|launch|kick off|simulate)\b', re.I)
+_NOT_PLAIN = re.compile(r"\?|\b(what|would|should|could|how|why|if|don'?t|do not|never|not|approve|approval|instead of|before|explain)\b"
+                        r"|^\s*(can|is|are|will|do|does|did|has|have|which|who|when|where)\b", re.I)
+
+
+def _plain_run_request(message):
+    return bool(_RUN_WORDS.search(message)) and not _NOT_PLAIN.search(message)
+
+
+_RUN_FIELDS = (('Price change', 'price_pct', '%'), ('Price change SKU', 'price_sku', ''), ('Price change PIN', 'price_postal_code', ''),
+               ('Marketing spend change', 'spend_pct', '%'), ('Weekly unit cap', 'unit_cap', ''), ('Spend and cap PIN', 'postal_code', ''))
+_RUN_LISTS = (('Saved schemes included', 'included_schemes'), ('Committed schemes left out', 'excluded_schemes'),
+              ('Holidays left out', 'excluded_holiday_dates'))
+
+
+def _run_block(body):
+    levers, fields = body.get('levers') or {}, [('Run name', body['label'])]
+    for title, key, unit in _RUN_FIELDS:
+        if levers.get(key) not in (None, ''):
+            fields.append((title, f'{levers[key]:+d}%' if unit else levers[key]))
+    if levers.get('holiday_off'):
+        fields.append(('Holiday effects', 'off'))
+    fields += [(title, ', '.join(levers[key])) for title, key in _RUN_LISTS if levers.get(key)]
+    for title, key in (('Known prices', 'known_prices'), ('Weather', 'weather'), ('Calibration', 'calibrate')):
+        if body[key] is False:
+            fields.append((title, 'off'))
+    if body['refresh_days'] != 28:
+        fields.append(('Refresh days', body['refresh_days']))
+    if len(fields) == 1:
+        fields.append(('Changes', 'none, same settings as the approved plan'))
+    return _confirm_block('Start scenario run', fields)
+
+
+def _start_run(body, claims, request_state):
+    status, result = _invoke_scenarios_api('POST', '/scenarios', claims, body)
+    if status != 202:
+        return {'error': result.get('error', 'failed to start the scenario run')}
+    request_state['scenarios_changed'] = request_state['run_started'] = True
+    return {'started': True, 'scenario_id': result['scenario_id'], 'config': body}
+
+
+def _start_confirmed_run(fields, claims, request_state):
+    known, levers = dict(fields), {}
+    for title, key, unit in _RUN_FIELDS:
+        if title in known:
+            value = known[title]
+            levers[key] = int(value.rstrip('%')) if unit or key == 'unit_cap' else value
+    if 'price_pct' in levers:
+        levers.setdefault('price_sku', '')
+        levers.setdefault('price_postal_code', '')
+    if known.get('Holiday effects') == 'off':
+        levers['holiday_off'] = True
+    for title, key in _RUN_LISTS:
+        if title in known:
+            levers[key] = known[title].split(', ')
+    body = {'label': known.get('Run name') or 'Started by Lyra', 'source': 'approved',
+            'known_prices': known.get('Known prices') != 'off', 'weather': known.get('Weather') != 'off',
+            'calibrate': known.get('Calibration') != 'off', 'refresh_days': int(known.get('Refresh days') or 28)}
+    if levers:
+        body['levers'] = levers
+    result = _start_run(body, claims, request_state)
+    if 'error' in result:
+        return f"Not started: {result['error']}"
+    return f"Started **{body['label']}**. It takes about 3 to 5 minutes; ask me for an update or check the Scenarios page."
+
+
+def _approve_block(match):
+    return _confirm_block('Approve scenario', [
+        ('Scenario', match.get('label') or match['id']), ('Scenario ID', match['id']),
+        ('Run on', str(match.get('created_at') or '')[:16].replace('T', ' ') + ' UTC'),
+        ('WAPE', f"{match.get('wape')}%"), ('Volume error', f"{match.get('volume_error')}%"),
+        ('Effect', 'replaces the live forecast on Overview and Forecasts for every user')])
+
+
+def _approve_by_name(message, claims, request_state):
+    """"Approve <scenario name>": find it here rather than leave the model to
+    guess a scenario (or start a run instead). None lets the model answer."""
+    if not claims.get('email') or not re.match(r'\s*(please\s+|can you\s+|could you\s+)?approve\b', message, re.I):
+        return None
+    status, response = _invoke_scenarios_api('GET', '/scenarios', claims)
+    if status != 200:
+        return None
+    text = ' '.join(message.casefold().split())
+    hits = [s for s in response.get('scenarios', []) if s.get('status') == 'completed'
+            and (s['id'] in text or (len(s.get('label') or '') >= 3 and ' '.join(s['label'].casefold().split()) in text))]
+    if any(s['id'] in text for s in hits):
+        hits = [s for s in hits if s['id'] in text]
+    longest = max((len(s.get('label') or '') for s in hits), default=0)
+    hits = [s for s in hits if len(s.get('label') or '') == longest]
+    if len(hits) > 1:
+        return 'More than one run has that name. Which one? Reply "approve" with its ID:\n' + '\n'.join(
+            f"- {s.get('label')}, {str(s.get('created_at') or '')[:16].replace('T', ' ')} UTC, {s['id']}" for s in hits[:8])
+    if not hits:
+        return None
+    if hits[0].get('approved'):
+        return f"**{_plain(hits[0].get('label'))}** is already the approved plan."
+    return _approve_block(hits[0])
+
+
+def _approve_confirmed(fields, claims, request_state):
+    sid = dict(fields).get('Scenario ID') or ''
+    if not re.fullmatch(r'scn-\d+-[a-f0-9]+', sid):
+        return 'I couldn’t read that scenario back, so nothing was approved. Please ask me again.'
+    status, result = _invoke_scenarios_api('POST', f'/scenarios/{sid}/approve', claims)
+    if status != 200:
+        return f"Not approved: {result.get('error', 'the scenario could not be approved.')}"
+    request_state['celebrate'] = request_state['scenarios_changed'] = True
+    return f"Approved **{dict(fields).get('Scenario')}**. It is now the live forecast for everyone."
+
+
+def _answer_confirmation(message, history, claims, request_state):
+    """The reply to a yes or no right after a confirmation block, else None."""
+    last = history[-1] if history and isinstance(history[-1], dict) else {}
+    block = _read_confirm_block(last.get('content')) if last.get('role') == 'assistant' else None
+    if not block:
+        return None
+    if _NO.fullmatch(message):
+        return 'OK, nothing was done.'
+    if not _YES.fullmatch(message):
+        return None
+    if not claims.get('email'):
+        return 'Sign in first. Nothing was done.'
+    kind, fields = block
+    act = {'Save draft scheme': _save_confirmed_scheme, 'Start scenario run': _start_confirmed_run,
+           'Approve scenario': _approve_confirmed}[kind]
+    try:
+        return act(fields, claims, request_state)
+    except (ValueError, KeyError) as exc:
+        print(f'CONFIRM_FAILED: {exc}')
+        return 'I couldn’t read that back, so nothing was done. Please ask me again.'
+
+
 def execute_tool(name, inputs, claims, request_state):
     if name in PLANNING_NAMES:
         return _planning_result(name, inputs, claims)
-    if name in ('list_discount_schemes', 'save_discount_scheme', 'run_scenario') and not claims.get('email'):
+    if name in ('list_discount_schemes', 'draft_discount_scheme', 'run_scenario') and not claims.get('email'):
         return {'error': 'Sign in to manage discount schemes or run scenarios.'}
     if name == 'list_discount_schemes':
         status, result = _invoke_scenarios_api('GET', '/scenarios', claims, query={'view': 'schemes'})
@@ -1906,15 +2246,8 @@ def execute_tool(name, inputs, claims, request_state):
                 if not code or row['code'] == code]
         return {'schemes': rows, 'can_edit': result.get('can_edit', False)}
 
-    if name == 'save_discount_scheme':
-        if inputs.get('action') not in ('draft', 'commit_only', 'withdraw'):
-            return {'error': 'Choose draft, commit_only, or withdraw.'}
-        body = {k: inputs[k] for k in ('code', 'name', 'mechanic', 'scope', 'version', 'action') if k in inputs}
-        status, result = _invoke_scenarios_api('POST', '/scenarios', claims, body, query={'view': 'schemes'})
-        if status != 200 or 'scheme' not in result:
-            return {'error': result.get('error', 'Could not save scheme.')}
-        row = result['scheme']
-        return {'saved': True, 'code': body['code'].strip().upper(), 'status': row['status'], 'version': row['version']}
+    if name == 'draft_discount_scheme':
+        return _scheme_draft_block(inputs, claims, request_state)
 
     if name == 'run_scenario':
         # The old discount preset ran a pre-staged file built from the
@@ -1933,16 +2266,14 @@ def execute_tool(name, inputs, claims, request_state):
         }
         # Same default as the Scenarios page: the org's approved (live)
         # dataset, so a Lyra run is comparable with the live forecast.
-        body['source'] = inputs.get('source', 'approved')
-        if body['source'] not in ('default', 'approved'):
-            return {'error': 'Choose the approved or default dataset.'}
+        body['source'] = 'approved'
         levers = {}
         for key in ('spend_pct', 'price_pct', 'unit_cap'):
             if inputs.get(key) is not None:
-                if type(inputs[key]) is not int:
+                levers[key] = _whole(inputs[key])
+                if levers[key] is None:
                     return {'error': f'{key} must be a whole number'}
-                levers[key] = inputs[key]
-        for key in ('price_sku', 'price_postal_code', 'postal_code', 'campaign_code'):
+        for key in ('price_sku', 'price_postal_code', 'postal_code'):
             if inputs.get(key):
                 levers[key] = str(inputs[key]).strip().upper()
         if 'price_pct' in levers:
@@ -1952,13 +2283,22 @@ def execute_tool(name, inputs, claims, request_state):
             levers['holiday_off'] = True
         for key in ('included_schemes', 'excluded_schemes', 'excluded_holiday_dates'):
             if inputs.get(key):
-                levers[key] = inputs[key]
+                values = inputs[key] if isinstance(inputs[key], list) else [inputs[key]]
+                levers[key] = [_plain(v, 80).upper().strip('()[]"\'') for v in values]
         if levers:
             body['levers'] = levers
-        status, result = _invoke_scenarios_api('POST', '/scenarios', claims, body)
-        if status != 202:
-            return {'error': result.get('error', 'failed to start the scenario run')}
-        return {'started': True, 'scenario_id': result['scenario_id'], 'config': body}
+        body['label'] = _plain(body['label'], 80)
+        body['refresh_days'] = _whole(body['refresh_days'])
+        if body['refresh_days'] not in (7, 14, 28):
+            return {'error': 'refresh_days must be 7, 14 or 28'}
+        if request_state.get('run_started'):
+            return {'error': 'A run was already started for this message.'}
+        if re.search(r'\bapprov', request_state.get('message', ''), re.I) and not _RUN_WORDS.search(request_state.get('message', '')):
+            return {'error': 'The user asked about approving, not a new run. Use approve_scenario.'}
+        if _plain_run_request(request_state.get('message', '')):
+            return _start_run(body, claims, request_state)
+        request_state['confirm_block'] = _run_block(body)
+        return {'needs_confirmation': True, 'message': 'Shown to the user to confirm. Not started. Say nothing more.'}
 
     if name == 'get_inventory':
         inv = _get_inventory_data()
@@ -2057,48 +2397,13 @@ def execute_tool(name, inputs, claims, request_state):
                     'message': f'"{match.get("label") or match["id"]}" is already the approved/live '
                                f'scenario — nothing to do.'}
 
-        # Two-call confirm gate: this changes what's live for every user. The
-        # FIRST call (confirm omitted/false) only ever previews — it never
-        # approves — and records this scenario as "previewed this request"
-        # below. Only a confirm=true call from a request where NO preview
-        # happened in THIS invocation is honored — this is the part that
-        # actually matters: Nova's own bounded tool-use loop can (and, once
-        # in testing, did) chain a preview and an immediate confirm=true
-        # call within the SAME request, with no real human reply in
-        # between, silently defeating a gate that only lived in the prompt.
-        # request_state is fresh per HTTP request/handler() invocation, so
-        # this rejects that same-request chain outright — confirm=true can
-        # only succeed on a genuinely later request, which only happens
-        # once the user has actually typed something new.
-        previewed = request_state.setdefault('approve_previewed_ids', set())
-        if not inputs.get('confirm'):
-            previewed.add(match['id'])
-            return {
-                'needs_confirmation': True,
-                'scenario_id': match['id'],
-                'label': match.get('label'),
-                'wape': match.get('wape'),
-                'volume_error': match.get('volume_error'),
-                'message': (
-                    f'Found "{match.get("label") or match["id"]}" (WAPE '
-                    f'{match.get("wape")}%, volume error {match.get("volume_error")}%). Approving '
-                    f'it replaces the live forecast that currently powers Overview & Forecasts for '
-                    f'every user. Tell the user what you found and ask them to explicitly confirm '
-                    f'— only call this again with confirm=true and this same scenario_id after '
-                    f'they say yes IN THEIR NEXT MESSAGE. Do not approve without that.'
-                ),
-            }
-
-        if match['id'] in previewed:
-            return {'error': 'Refused: confirm=true arrived in the same request as the preview — '
-                              'no real user reply happened in between. A genuine confirmation from '
-                              'the user is required first: ask them, then wait for their next '
-                              'message before calling this tool again with confirm=true.'}
-
-        astatus, aresult = _invoke_scenarios_api('POST', f"/scenarios/{match['id']}/approve", claims)
-        if astatus != 200:
-            return {'error': aresult.get('error', 'failed to approve the scenario')}
-        return {'approved': True, 'scenario_id': match['id'], 'label': match.get('label')}
+        # Never approves here: see "confirmations" above. (A confirm=true flag
+        # used to do it, and was honoured even on the model's first call.)
+        named = bool(inputs.get('scenario_id') or inputs.get('label'))
+        if not named and not re.search(r'\b(latest|last|newest|recent|it|this|that)\b', request_state.get('message', ''), re.I):
+            return {'error': 'Ask the user which scenario they want to approve.'}
+        request_state['confirm_block'] = _approve_block(match)
+        return {'needs_confirmation': True, 'message': 'Shown to the user to confirm. Not approved. Say nothing more.'}
 
     if name == 'check_scenario_validations':
         status, result = _invoke_scenarios_api('GET', '/scenarios', claims)
@@ -2624,6 +2929,23 @@ def handler(event, context):
             return {'statusCode': 400, 'headers': CORS,
                     'body': json.dumps({'error': 'message required'})}
 
+        request_state = {'message': message,  # per request; never shared
+                         'user_text': ' . '.join([str(h.get('content') or '') for h in history[-8:]
+                                                  if isinstance(h, dict) and h.get('role') == 'user'] + [message])}
+        confirmed = _answer_confirmation(message, history, _claims(event), request_state)
+        if confirmed is None:
+            confirmed = _approve_by_name(message, _claims(event), request_state)
+        if confirmed is not None:
+            return {
+                'statusCode': 200,
+                'headers':    {**CORS, 'Content-Type': 'application/json'},
+                'body':       json.dumps({'reply': confirmed, 'point_to': None, 'generate_report': False,
+                                          'open_scenario_id': None, 'celebrate': bool(request_state.get('celebrate')),
+                                          'chart': None, 'annotate': None,
+                                          'schemes_changed': bool(request_state.get('schemes_changed')),
+                                          'scenarios_changed': bool(request_state.get('scenarios_changed'))}),
+            }
+
         data_cache_key = f"data:{_CURRENT_ORG['id']}"
         if data_cache_key not in _cache:
             _cache[data_cache_key] = build_data_summary()
@@ -2659,12 +2981,6 @@ def handler(event, context):
         annotate = None
         reply = ''
         tool_results = {}  # (name, sorted-inputs) already executed this request
-        # Fresh per request — carries cross-tool-call state within this one
-        # invocation (currently: which scenario ids approve_scenario has
-        # already previewed here, so a confirm=true can't succeed without a
-        # genuine new request in between). Never persisted or shared across
-        # requests/users — that's the whole point of it.
-        request_state = {}
         # Bounded loop rather than a single follow-up call: Nova sometimes
         # chains a second tool call (e.g. point_to_ui then run_scenario)
         # before it's ready to produce the final text, so one fixed
@@ -2708,14 +3024,8 @@ def handler(event, context):
                     else:
                         result = execute_tool(tu['name'], inputs, claims, request_state)
                         tool_results[call_sig] = result
-                    if tu['name'] == 'save_discount_scheme' and result.get('saved'):
-                        request_state['schemes_changed'] = True
-                    if tu['name'] == 'run_scenario' and result.get('started'):
-                        request_state['scenarios_changed'] = True
                     if tu['name'] == 'open_scenario' and result.get('opened'):
                         open_scenario_id = result['scenario_id']
-                    if tu['name'] == 'approve_scenario' and result.get('approved'):
-                        celebrate = True
                     if tu['name'] == 'compare_skus' and result.get('a') and result.get('b'):
                         chart = {
                             'type': 'sku_compare',
@@ -2754,6 +3064,8 @@ def handler(event, context):
                     }})
             messages.append({'role': 'user', 'content': tool_result_blocks})
 
+            if request_state.get('confirm_block'):
+                break  # the block is the whole reply; nothing more to say or call
             if repeated_call:
                 # Nudge toward a decisive final answer instead of looping
                 # again. toolConfig must stay present here — the Converse
@@ -2789,6 +3101,10 @@ def handler(event, context):
             point_to = None
         if point_to and point_to == page:
             point_to = None  # they're already on it
+        if request_state.get('confirm_block'):
+            reply, point_to = request_state['confirm_block'], None
+        elif _read_confirm_block(reply):
+            reply = 'Nothing has been done. What would you like me to do?'  # only code may write a block
 
         # No text means the user would get a canned "Done!" / "I've
         # highlighted it" instead of an answer (seen live: a "how do I…"
