@@ -929,6 +929,45 @@ def set_ticket_status(org, caller_email, ticket_id, event):
     return _resp(200, {'ok': True})
 
 
+def _run_pricing(org, run_id, run_map, approved_map):
+    """What a run did to selling prices, in that run's own SKU labels, so the
+    page can work out its revenue. None when that can't be told for sure."""
+    config = _read_json(f'orgs/{org}/scenarios/{run_id}/config.json')
+    if not config or not run_map:
+        return None
+    levers = config.get('levers') or {}
+    price = None
+    if levers.get('price_pct') is not None:
+        sku, postal = levers.get('price_sku'), levers.get('price_postal_code')
+        if 'price_sku' not in levers and 'price_postal_code' not in levers:
+            # Older runs stored one target or used the shared postal code.
+            scope, target = levers.get('price_scope'), levers.get('price_target')
+            sku = target if scope == 'sku' else None
+            postal = target if scope == 'zip' else None if sku else levers.get('postal_code')
+        if sku:
+            # The SKU was a label of whatever was approved then. Only trust it
+            # if it still means the same product in the plan and in this run.
+            product = next((p for p, label in approved_map.items() if label == sku), None)
+            if product is None or run_map.get(product) != sku:
+                return None
+        price = {'pct': levers['price_pct'], 'sku': sku or '', 'postal_code': postal or ''}
+    lines, labels = [], {}
+    for plan in config.get('discount_schemes') or []:
+        revision = plan.get('forecast_id')
+        if revision not in labels:
+            anon = _read_json(f'orgs/{org}/scenarios/{revision}/anon.json') or {}
+            labels[revision] = {label: product for product, label in anon.items()}
+        for line in plan.get('scope') or []:
+            sku = run_map.get(labels[revision].get(line['sku']))
+            if sku:  # the runner skips products it can't map, too
+                lines.append({'sku': sku, 'postal_code': line['postal_code'], 'start_date': line['start_date'],
+                              'end_date': line['end_date'], 'discount': line['discount'],
+                              'flat': plan.get('mechanic') == 'Flat amount off'})
+        if len(lines) > 20000:
+            return None
+    return {'price': price, 'schemes': lines}
+
+
 def _baseline_comparison(org, scenario_id, base_id=None):
     valid_id = r'scn-\d+-[a-f0-9]+'
     if not re.fullmatch(valid_id, scenario_id or '') or (base_id and not re.fullmatch(valid_id, base_id)):
@@ -940,13 +979,15 @@ def _baseline_comparison(org, scenario_id, base_id=None):
         return _resp(404, {'error': 'Forecast comparison is unavailable for these revisions.'})
     base_map = _read_json(f'{prefix}/scenarios/{base["id"]}/anon.json') or {}
     variant_map = _read_json(f'{prefix}/scenarios/{scenario_id}/anon.json') or {}
+    pricing = {'scenario': _run_pricing(org, scenario_id, variant_map, base_map),
+               'base': _run_pricing(org, base['id'], base_map, base_map)}
     if not base_map or not variant_map:
-        return _resp(200, {'base': base, 'rows': [], 'detail_available': False})
+        return _resp(200, {'base': base, 'rows': [], 'detail_available': False, 'pricing': pricing})
     weeks = {week: i for i, week in enumerate(base['weeks']) if i >= base.get('backtestWeeks', len(base['weeks']))}
     periods = [(weeks[week], i) for i, week in enumerate(variant['weeks'])
                if i >= variant.get('backtestWeeks', len(variant['weeks'])) and week in weeks]
     if not periods:
-        return _resp(200, {'base': base, 'rows': [], 'detail_available': False})
+        return _resp(200, {'base': base, 'rows': [], 'detail_available': False, 'pricing': pricing})
 
     def total(series, side):
         values = series.get('f', [])
@@ -962,7 +1003,7 @@ def _baseline_comparison(org, scenario_id, base_id=None):
             if a is not None and b is not None:
                 rows.append({'sku': sku, 'postal_code': postal, 'base': a, 'scenario': b, 'change': b - a})
     rows.sort(key=lambda row: (-abs(row['change']), row['sku'], row['postal_code']))
-    return _resp(200, {'base': base, 'rows': rows[:100], 'detail_available': True})
+    return _resp(200, {'base': base, 'rows': rows[:100], 'detail_available': True, 'pricing': pricing})
 
 
 def handler(event, context):

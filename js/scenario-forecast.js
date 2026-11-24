@@ -13,6 +13,8 @@
   var sort = { key: 'units', dir: 'desc' };
   var visible = { a: true, f: true, p: true, w: true };
   var onTotals = null;
+  var prices = { scenario: null, base: null }; // what each run did to selling prices; null: not known
+  var supply = null;    // {safety, stock} by plan SKU, for stock needed
 
   function start(d) { return d.backtestWeeks == null ? d.weeks.length : d.backtestWeeks; }
   function finite(v) { return Number.isFinite(v); }
@@ -84,6 +86,112 @@
 
   function change(now, before) { return now != null && before > 0 ? 100 * (now - before) / before : null; }
 
+  // --- Revenue: forecast units x the SKU's average selling price, changed by
+  // the run's own price lever and discount schemes the way the model applies
+  // them (a scheme comes off the list price; the price change multiplies).
+  function indexPricing(p) {
+    if (!p) return null;
+    var lines = {};
+    (p.schemes || []).forEach(function (line) {
+      var key = line.sku + '|' + String(line.postal_code).toUpperCase();
+      (lines[key] = lines[key] || []).push(line);
+    });
+    return { price: p.price, lines: lines, any: !!p.price || (p.schemes || []).length > 0 };
+  }
+
+  function dayList(week) {
+    var from = new Date(week + 'T00:00:00Z').getTime();
+    return [0, 1, 2, 3, 4, 5, 6].map(function (n) { return new Date(from + n * 86400000).toISOString().slice(0, 10); });
+  }
+
+  function priceInWeek(item, id, code, week, p) {
+    var usual = item.avgPrice, list = usual + (finite(item.avgDiscount) ? item.avgDiscount : 0);
+    var lines = p.lines[id + '|' + code.toUpperCase()], price = usual;
+    if (lines) {
+      var sum = 0;
+      dayList(week).forEach(function (day) {
+        var off = 0;
+        lines.forEach(function (line) {
+          if (day >= line.start_date && day <= line.end_date) off = Math.max(off, line.flat ? line.discount : list * line.discount / 100);
+        });
+        sum += off > 0 ? Math.max(0, list - off) : usual;
+      });
+      price = sum / 7;
+    }
+    var lever = p.price;
+    if (lever && (!lever.sku || lever.sku === id) && (!lever.postal_code || lever.postal_code.toUpperCase() === code.toUpperCase())) {
+      price *= 1 + lever.pct / 100;
+    }
+    return price;
+  }
+
+  // One SKU's revenue on the given week numbers of a run; null if it has no
+  // selling price or a week has no forecast. Without price details (an older
+  // backend), usual prices.
+  function skuRevenue(d, id, code, at, p) {
+    var item = d && d.skus[id];
+    if (!item || !finite(item.avgPrice)) return null;
+    var series = code ? (item.byZip || {})[code] : item;
+    if (!series || !at.every(function (i) { return finite(series.f[i]); })) return null;
+    var zips = code ? [code] : Object.keys(item.byZip || {}), sum = 0;
+    at.forEach(function (i) {
+      sum += series.f[i] * item.avgPrice;
+      if (p && p.any) zips.forEach(function (z) {
+        var units = item.byZip[z].f[i];
+        if (finite(units)) sum += units * (priceInWeek(item, id, z, d.weeks[i], p) - item.avgPrice);
+      });
+    });
+    return sum;
+  }
+
+  // Revenue across SKUs; those without a selling price are counted, not guessed.
+  function allRevenue(d, at, p) {
+    var out = { value: null, missing: 0 };
+    Object.keys(d.skus).forEach(function (id) {
+      var r = skuRevenue(d, id, '', at, p);
+      if (r == null) out.missing++; else out.value = (out.value || 0) + r;
+    });
+    return out;
+  }
+
+  // Stock still needed for these weeks: each SKU's forecast plus its safety
+  // stock, less what is on hand, in transit and on order. A SKU with more
+  // than enough doesn't reduce another SKU's need.
+  function stockNeeded(d, at, planId) {
+    if (!supply) return null;
+    var sum = 0, ids = Object.keys(d.skus);
+    for (var n = 0; n < ids.length; n++) {
+      var known = planId(ids[n]), safety = known && supply.safety[known], f = d.skus[ids[n]].f;
+      if (!finite(safety) || !at.every(function (i) { return finite(f[i]); })) return null;
+      var held = supply.stock ? supply.stock[known] || {} : {};
+      var have = (held.present || 0) + (held.intransit || 0) + (held.openpo || 0);
+      sum += Math.max(0, at.reduce(function (t, i) { return t + f[i]; }, 0) + safety - have);
+    }
+    return ids.length ? sum : null;
+  }
+
+  function totals() {
+    var edge = start(run), count = weeksAhead(), mine = [], theirs = [], at = base && new Map(base.weeks.map(function (w, i) { return [w, i]; }));
+    for (var i = edge; i < edge + count; i++) {
+      var j = at ? at.get(run.weeks[i]) : null;
+      if (!base) mine.push(i);
+      else if (j != null && j >= start(base) && finite(base.all.f[j])) { mine.push(i); theirs.push(j); }
+    }
+    // Nothing in common with the plan: still show the scenario's own numbers.
+    // Nor with a plan for entirely different products, where a change means nothing.
+    var compared = theirs.length > 0 && Object.keys(pair).length > 0;
+    if (!compared) for (mine = [], i = edge; i < edge + count; i++) mine.push(i);
+    if (!mine.length) return null;
+    var units = function (d, list) { return list.reduce(function (t, k) { return t + d.all.f[k]; }, 0); };
+    return {
+      otherProducts: !!base && theirs.length > 0 && !compared,
+      weeks: mine.length, scenario: units(run, mine), base: compared ? units(base, theirs) : null,
+      revenue: allRevenue(run, mine, prices.scenario), baseRevenue: compared ? allRevenue(base, theirs, prices.base) : null,
+      stock: stockNeeded(run, mine, function (id) { return pair[id]; }),
+      baseStock: compared ? stockNeeded(base, theirs, function (id) { return id; }) : null,
+    };
+  }
+
   function figures(id, code, count) {
     var s = seriesOf(run, id, code), from = start(run);
     if (!s) return null;
@@ -91,10 +199,10 @@
     var prior = total((s.lastYear || []).slice(from, from + count));
     if ((s.lastYear || []).slice(from, from + count).length < count) prior = null;
     var plan = total(planOnWeeks(planSeries(id, code), run.weeks.slice(from, from + count), from));
-    var price = id === 'ALL' ? null : run.skus[id].avgPrice;
+    var ahead = run.weeks.map(function (_, i) { return i; }).slice(from, from + count);
     var first = Math.max(0, from - horizon);
     return { sku: id, units: units, plan: plan, vsPlan: change(units, plan), prior: prior, change: change(units, prior),
-             revenue: units != null && finite(price) ? units * price : null,
+             revenue: units == null ? null : skuRevenue(run, id, code, ahead, prices.scenario),
              wape: seriesWape(s.a.slice(first, from), s.f.slice(first, from)).overall };
   }
 
@@ -133,13 +241,7 @@
     el('scfSku').value = sku === 'ALL' ? '' : sku;
     el('scfSkuFilter').value = sku;
     draw();
-    if (onTotals) {
-      var edge = start(run), count = weeksAhead();
-      var plan = planOnWeeks(planSeries('ALL', ''), run.weeks.slice(edge, edge + count), edge);
-      var mine = run.all.f.slice(edge, edge + count), both = { base: 0, scenario: 0, weeks: 0 };
-      mine.forEach(function (v, i) { if (finite(v) && finite(plan[i])) { both.base += plan[i]; both.scenario += v; both.weeks++; } });
-      onTotals(both.weeks ? both : null);
-    }
+    if (onTotals) onTotals(totals());
     table();
   }
 
@@ -231,11 +333,13 @@
     }
   }
 
-  // note: shown when the run's prices differ from the history revenue uses.
+  // note: shown under the table. pricing, supply: see revenue and stock above.
   function show(result, plan, options) {
     run = result;
     base = plan && Array.isArray(plan.weeks) && plan.skus ? plan : null;
     onTotals = options && options.onTotals;
+    prices = { scenario: indexPricing(options && options.pricing && options.pricing.scenario), base: indexPricing(options && options.pricing && options.pricing.base) };
+    supply = options && options.supply || null;
     pairSkus();
     page = 1;
     el('scfBody').hidden = el('scfResults').hidden = el('scfControls').hidden = el('scfLegend').hidden = false;
@@ -252,7 +356,8 @@
     pick(run.skus[sku] ? sku : 'ALL', zip);
   }
 
-  window.scenarioForecast = { show: show, clear: clear, redraw: draw };
+  window.scenarioForecast = { show: show, clear: clear, redraw: draw,
+    setSupply: function (next) { supply = next; if (run && onTotals) onTotals(totals()); } };
 
   document.addEventListener('DOMContentLoaded', function () {
     if (!el('scfBody')) return;

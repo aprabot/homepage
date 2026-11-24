@@ -902,3 +902,8 @@
 @media(max-width:960px){#dashboard .scheme-scope-fields.has-bundle{grid-template-columns:repeat(2,minmax(0,1fr))}#dashboard .scheme-bundle-fields{order:0}#dashboard .has-bundle .scheme-remove{justify-self:start}}
 @media(max-width:600px){#dashboard .scheme-bundle-fields{grid-template-columns:1fr 1fr}#dashboard .scheme-effective{grid-column:1/-1;padding-top:2px}}
 @media(max-width:375px){#dashboard .scheme-scope-fields.has-bundle{grid-template-columns:minmax(0,1fr)}}
+
+/* Scenario KPIs. */
+#dashboard .scenario-result-kpis .v{min-height:1.2em}
+#dashboard .scenario-result-kpis .v .skel-line{width:70%;height:16px;margin-top:4px}
+#dashboard .scenario-kpi-note{margin:-2px 0 12px;font-size:12px;line-height:1.5;color:var(--muted)}
