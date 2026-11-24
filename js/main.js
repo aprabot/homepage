@@ -1353,6 +1353,8 @@
         askedTab.log.push({html:cbMd(reply), who:'bot', chart:d.chart||null});
       }
       askedTab.history.push({role:'assistant',content:reply});
+      if(d.schemes_changed && window.loadDiscountSchemes) window.loadDiscountSchemes();
+      if(d.scenarios_changed) document.dispatchEvent(new Event('apra:scenarios-changed'));
       if(!stillActive)return;
       if(d.annotate) cbAnnotateChart(d.annotate);
       if(d.point_to) cbPointTo(d.point_to);

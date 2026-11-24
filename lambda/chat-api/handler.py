@@ -988,7 +988,17 @@ Rules:
   defaults (known_prices=true, weather=true, calibrate=true,
   refresh_days=28) — don't ask clarifying questions for settings they didn't mention, just use
   the defaults and say so in your reply.
-• For a discount or price change ("a 20% discount on all products", "cut SKU-002's price 10% in
+• Use list_scenario_runs for a run list, get_plan_approval_history for approval records,
+  get_scenario_demand_changes for the SKU and postal code changes versus the approved plan,
+  and rank_forecast_skus for the top SKUs by forward units. When ranking, report the weeks
+  covered and any skipped incomplete series.
+• For a named promotion, use list_discount_schemes and save_discount_scheme. Create as draft
+  unless the user explicitly requests committing it. Ask for missing promotion terms, SKU or
+  all SKUs, PIN code or all PIN codes, and dates. Do not invent scope or dates. Use ALL for
+  an explicitly unrestricted SKU or postal code. Commit or withdraw only on an explicit request.
+  Fetch the current version before changing an existing scheme. A scheme save does not run a
+  forecast. When asked to try a draft in a scenario, pass its ID in included_schemes.
+• For a scenario testing a discount or price change ("a 20% discount on all products", "cut SKU-002's price 10% in
   400001"), use run_scenario's price_pct lever (negative for a discount), with price_sku and/or
   price_postal_code if they named one. A discount_scenario=true call is the same as price_pct=-20 on
   every product. One SKU and/or one postal code per run is the most it can target — if they ask for
@@ -1059,9 +1069,8 @@ Rules:
     Overview and Scenarios. Also has a guided product walkthrough.
   – Overview: headline KPIs and the Plan & Scenario Comparison Matrix (last year vs. committed plan
     vs. scenarios), with a 12W/26W/52W horizon.
-  – Discount Schemes: create and manage promotions (percent off, flat amount, Buy X get Y, bundle,
-    free gift, cashback, tiered) scoped by SKU, postal code and dates; save as Draft or Commit and run.
-    Committed schemes are applied to future forecasts; schemes can also be detected from sales.
+  – Discount Schemes: create, edit, commit and withdraw Percent off, Flat amount off and Buy X get Y
+    promotions scoped by SKU, postal code and dates. Committed schemes apply to future runs.
   – Forecasts: the approved forecast — forecast units, revenue estimate, avg discount/unit and
     backtest WAPE for a 4/12/52-week horizon, a weekly chart of actuals vs. forecast, and a
     per-SKU table compared with last year.
@@ -1070,7 +1079,7 @@ Rules:
     %, holiday impact, a weekly unit cap, price % for one SKU and/or PIN code, weather and refresh
     settings), Run, a comparison against the approved plan (revenue, units vs. plan, capped units,
     stock needed), Apply to plan, plus revision history and approval history. (Promotions are
-    created on Discount Schemes, not here — Scenarios only chooses which committed schemes to leave out.)
+    managed in Discount Schemes. A scenario can include drafts and exclude committed schemes.)
   – Inventory: required inventory per SKU and site (cycle stock + safety stock) by month. On-hand,
     in-transit and open PO stock aren't connected yet.
   – AI Insights: your own written brief on the current approved forecast.
@@ -1083,10 +1092,10 @@ Rules:
   Never invent a page, button or feature that isn't listed here.
 • For "how much stock/inventory do I need" questions use the REQUIRED INVENTORY section below or the
   get_inventory tool — not the forecast units, which are demand, not required stock.
-• run_scenario always runs on the organization's approved (live) dataset, like the Scenarios page
+• run_scenario defaults to the organization's approved (live) dataset, like the Scenarios page
   default, and supports the same levers as the Scenarios page: spend_pct, price_pct (optionally for
   one price_sku and/or one price_postal_code), unit_cap (optionally for one postal_code),
-  holiday_off, excluded_schemes. Set only the levers the user asked for. If they ask something you
+  campaign_code, excluded_holiday_dates, holiday_off, included_schemes and excluded_schemes. Set only the levers the user asked for. If they ask something you
   can't run (e.g. a lever not listed), say so instead of starting a different run. If the user only
   asks WHETHER you can do something, answer in words — never start a run for a hypothetical.
 • The user's current page, when given below, is where they are right now — use it to resolve
@@ -1107,8 +1116,67 @@ Rules:
 {data}
 """
 
+SCHEME_LINE_SCHEMA = {
+    "type": "object",
+    "required": ["sku", "postal_code", "start_date", "end_date"],
+    "properties": {
+        "sku": {"type": "string", "description": "Forecast SKU or ALL."},
+        "postal_code": {"type": "string", "description": "PIN code as text, or ALL."},
+        "start_date": {"type": "string", "description": "Inclusive YYYY-MM-DD."},
+        "end_date": {"type": "string", "description": "Inclusive YYYY-MM-DD."},
+        "discount": {"type": "number", "description": "Percentage or flat amount per unit."},
+        "buy_quantity": {"type": "integer", "description": "Paid units in Buy X get Y."},
+        "free_quantity": {"type": "integer", "description": "Free units in Buy X get Y."},
+    },
+}
+
+def _planning_tool(name, description, properties):
+    return {"toolSpec": {"name": name, "description": description, "inputSchema": {"json": {
+        "type": "object", "properties": properties,
+    }}}}
+
+
+PLANNING_LIMIT = {"type": "integer", "description": "Number of rows, 1 to 25. Default 10."}
+PLANNING_TOOLS = [
+    _planning_tool("list_scenario_runs", "List scenario runs, newest first. Filter by name, run status or current approval.", {
+        "label": {"type": "string"}, "status": {"type": "string"},
+        "approved": {"type": "boolean"}, "limit": PLANNING_LIMIT,
+    }),
+    _planning_tool("get_plan_approval_history", "Show who approved each plan, when, and which scenario it replaced. Optionally filter by scenario ID.", {
+        "scenario_id": {"type": "string"}, "limit": PLANNING_LIMIT,
+    }),
+    _planning_tool("get_scenario_demand_changes", "Show the biggest absolute changes in forecast units by SKU and postal code against the current approved plan, across overlapping forward weeks. Supply a scenario ID or name.", {
+        "scenario_id": {"type": "string"}, "label": {"type": "string"}, "limit": PLANNING_LIMIT,
+    }),
+    _planning_tool("rank_forecast_skus", "Rank SKUs by total forecast units over the next 4, 12 or 52 forecast weeks. Optionally filter by postal code. Report actual period and incomplete data.", {
+        "weeks": {"type": "integer", "enum": [4, 12, 52]},
+        "postal_code": {"type": "string"}, "limit": PLANNING_LIMIT,
+    }),
+]
+PLANNING_NAMES = {tool["toolSpec"]["name"] for tool in PLANNING_TOOLS}
+
+
 TOOL_CONFIG = {
     "tools": [
+        *PLANNING_TOOLS,
+        {"toolSpec": {
+            "name": "list_discount_schemes",
+            "description": "List promotion IDs, statuses and versions. Supply a code to inspect its terms before editing.",
+            "inputSchema": {"json": {"type": "object", "properties": {"code": {"type": "string"}}}},
+        }},
+        {"toolSpec": {
+            "name": "save_discount_scheme",
+            "description": "Create or update a promotion draft, commit it for future forecasts, or withdraw it. Never starts a run. For edits send the full terms and current version.",
+            "inputSchema": {"json": {"type": "object", "required": ["code", "action"],
+                "properties": {
+                    "action": {"type": "string", "enum": ["draft", "commit_only", "withdraw"]},
+                    "code": {"type": "string"},
+                    "version": {"type": "integer", "description": "Zero for new schemes, current version for updates."},
+                    "name": {"type": "string"},
+                    "mechanic": {"type": "string", "enum": ["Percent off", "Flat amount off", "Buy X get Y"]},
+                    "scope": {"type": "array", "items": SCHEME_LINE_SCHEMA},
+                }}},
+        }},
         {
             "toolSpec": {
                 "name": "run_scenario",
@@ -1135,6 +1203,10 @@ TOOL_CONFIG = {
                         "postal_code":  {"type": "string",  "description": "Limit the spend change and unit cap to one postal code. Omit for all."},
                         "holiday_off":  {"type": "boolean", "description": "Turn off forward holiday effects."},
                         "excluded_schemes": {"type": "array", "items": {"type": "string"}, "description": "Committed discount scheme IDs to leave out of this run."},
+                        "source": {"type": "string", "enum": ["approved", "default"]},
+                        "campaign_code": {"type": "string", "description": "Committed campaign ID for a spend adjustment."},
+                        "included_schemes": {"type": "array", "items": {"type": "string"}, "description": "Draft scheme IDs to apply to this run only."},
+                        "excluded_holiday_dates": {"type": "array", "items": {"type": "string"}, "description": "Forward holidays to omit, YYYY-MM-DD."},
                         "discount_scenario": {
                             "type": "boolean",
                             "description": (
@@ -1501,12 +1573,14 @@ def _org_id(email):
     return domain
 
 
-def _invoke_scenarios_api(method, path, claims, body=None):
+def _invoke_scenarios_api(method, path, claims, body=None, query=None):
     fake_event = {
         'requestContext': {'http': {'method': method, 'path': path},
                             'authorizer': {'jwt': {'claims': claims}}},
         'body': json.dumps(body) if body is not None else None,
     }
+    if query:
+        fake_event['queryStringParameters'] = query
     resp = lam.invoke(FunctionName=SCENARIOS_API_FUNCTION, InvocationType='RequestResponse',
                        Payload=json.dumps(fake_event).encode('utf-8'))
     payload = json.loads(resp['Payload'].read())
@@ -1750,7 +1824,98 @@ def _detect_anomalies(result):
     return {'backtest_misses': backtest_misses, 'forward_swings': forward_swings, 'wape_outliers': wape_outliers}
 
 
+def _planning_result(name, inputs, claims):
+    if not claims.get('email'):
+        return {'error': 'Sign in to view planning data.'}
+    limit = inputs.get('limit', 10)
+    if type(limit) is not int or not 1 <= limit <= 25:
+        return {'error': 'Choose between 1 and 25 rows.'}
+
+    if name == 'rank_forecast_skus':
+        horizon = inputs.get('weeks', 4)
+        if type(horizon) is not int or horizon not in (4, 12, 52):
+            return {'error': 'Choose 4, 12 or 52 forecast weeks.'}
+        data = _get_forecast_data() or {}
+        weeks = data.get('weeks', [])
+        start = data.get('backtestWeeks', len(weeks))
+        period = weeks[start:start + horizon]
+        if not period:
+            return {'error': 'No forward forecast weeks are available.'}
+        postal = str(inputs.get('postal_code') or '').strip().upper()
+        rows = []
+        incomplete = 0
+        for sku, item in data.get('skus', {}).items():
+            series = item.get('byZip', {}).get(postal) if postal else item
+            if series is None:
+                continue
+            values = series.get('f', [])[start:start + len(period)]
+            if len(values) != len(period) or not all(type(v) in (int, float) and math.isfinite(v) for v in values):
+                incomplete += 1
+                continue
+            rows.append({'sku': sku, 'forecast_units': sum(values)})
+        rows.sort(key=lambda row: (-row['forecast_units'], row['sku']))
+        return {'week_starts': period, 'requested_weeks': horizon, 'postal_code': postal or None,
+                'ranked_skus': len(rows), 'incomplete_skus': incomplete, 'rows': rows[:limit]}
+
+    if name == 'get_plan_approval_history':
+        status, response = _invoke_scenarios_api('GET', '/scenarios/approvals', claims)
+        if status != 200:
+            return {'error': response.get('error', 'Approval history unavailable.')}
+        rows = [row for row in response['approvals']
+                if not inputs.get('scenario_id') or row['scenario_id'] == inputs['scenario_id']]
+        return {'matching_approvals': len(rows), 'approvals': rows[:limit]}
+
+    status, response = _invoke_scenarios_api('GET', '/scenarios', claims)
+    if status != 200:
+        return {'error': response.get('error', 'Scenarios unavailable.')}
+    scenarios = response['scenarios']
+    if name == 'list_scenario_runs':
+        label = (inputs.get('label') or '').casefold()
+        fields = ('id', 'label', 'status', 'approved', 'created_at', 'wape')
+        rows = [{key: row[key] for key in fields if key in row} for row in scenarios
+                if label in (row.get('label') or '').casefold()
+                and (not inputs.get('status') or row.get('status') == inputs['status'])
+                and ('approved' not in inputs or bool(row.get('approved')) == inputs['approved'])]
+        return {'matching_runs': len(rows), 'scenarios': rows[:limit]}
+
+    match, error = _match_scenario(inputs, scenarios, claims, allow_default=False)
+    if error:
+        return error
+    status, result = _invoke_scenarios_api('GET', '/scenarios', claims,
+                                          query={'view': 'baseline', 'scenario': match['id']})
+    if status != 200 or not result.get('detail_available'):
+        return {'error': result.get('error', 'No comparable SKU and postal code detail is available.')}
+    return {'scenario_id': match['id'], 'scenario_label': match.get('label'),
+            'approved_id': result['base']['id'], 'rows': result['rows'][:limit]}
+
+
 def execute_tool(name, inputs, claims, request_state):
+    if name in PLANNING_NAMES:
+        return _planning_result(name, inputs, claims)
+    if name in ('list_discount_schemes', 'save_discount_scheme', 'run_scenario') and not claims.get('email'):
+        return {'error': 'Sign in to manage discount schemes or run scenarios.'}
+    if name == 'list_discount_schemes':
+        status, result = _invoke_scenarios_api('GET', '/scenarios', claims, query={'view': 'schemes'})
+        if status != 200 or 'schemes' not in result:
+            return {'error': result.get('error', 'Could not load schemes.')}
+        code = str(inputs.get('code') or '').strip().upper()
+        fields = ['code', 'name', 'mechanic', 'version', 'status', 'detected']
+        if code:
+            fields.append('scope')
+        rows = [{k: row[k] for k in fields if k in row} for row in result['schemes']
+                if not code or row['code'] == code]
+        return {'schemes': rows, 'can_edit': result.get('can_edit', False)}
+
+    if name == 'save_discount_scheme':
+        if inputs.get('action') not in ('draft', 'commit_only', 'withdraw'):
+            return {'error': 'Choose draft, commit_only, or withdraw.'}
+        body = {k: inputs[k] for k in ('code', 'name', 'mechanic', 'scope', 'version', 'action') if k in inputs}
+        status, result = _invoke_scenarios_api('POST', '/scenarios', claims, body, query={'view': 'schemes'})
+        if status != 200 or 'scheme' not in result:
+            return {'error': result.get('error', 'Could not save scheme.')}
+        row = result['scheme']
+        return {'saved': True, 'code': body['code'].strip().upper(), 'status': row['status'], 'version': row['version']}
+
     if name == 'run_scenario':
         # The old discount preset ran a pre-staged file built from the
         # platform's original catalog, which doesn't match an org that has
@@ -1768,23 +1933,26 @@ def execute_tool(name, inputs, claims, request_state):
         }
         # Same default as the Scenarios page: the org's approved (live)
         # dataset, so a Lyra run is comparable with the live forecast.
-        body['source'] = 'approved'
+        body['source'] = inputs.get('source', 'approved')
+        if body['source'] not in ('default', 'approved'):
+            return {'error': 'Choose the approved or default dataset.'}
         levers = {}
         for key in ('spend_pct', 'price_pct', 'unit_cap'):
             if inputs.get(key) is not None:
-                try:
-                    levers[key] = int(inputs[key])
-                except (TypeError, ValueError):
+                if type(inputs[key]) is not int:
                     return {'error': f'{key} must be a whole number'}
-        for key in ('price_sku', 'price_postal_code', 'postal_code'):
+                levers[key] = inputs[key]
+        for key in ('price_sku', 'price_postal_code', 'postal_code', 'campaign_code'):
             if inputs.get(key):
                 levers[key] = str(inputs[key]).strip().upper()
-        if ('price_sku' in levers or 'price_postal_code' in levers) and 'price_pct' not in levers:
-            return {'error': 'a price SKU or postal code needs a price_pct'}
+        if 'price_pct' in levers:
+            levers.setdefault('price_sku', '')
+            levers.setdefault('price_postal_code', '')
         if inputs.get('holiday_off') is True:
             levers['holiday_off'] = True
-        if inputs.get('excluded_schemes'):
-            levers['excluded_schemes'] = [str(x) for x in inputs['excluded_schemes']]
+        for key in ('included_schemes', 'excluded_schemes', 'excluded_holiday_dates'):
+            if inputs.get(key):
+                levers[key] = inputs[key]
         if levers:
             body['levers'] = levers
         status, result = _invoke_scenarios_api('POST', '/scenarios', claims, body)
@@ -2490,7 +2658,7 @@ def handler(event, context):
         chart = None
         annotate = None
         reply = ''
-        seen_tool_calls = set()  # (name, sorted-inputs) already executed this request
+        tool_results = {}  # (name, sorted-inputs) already executed this request
         # Fresh per request — carries cross-tool-call state within this one
         # invocation (currently: which scenario ids approve_scenario has
         # already previewed here, so a confirm=true can't succeed without a
@@ -2534,10 +2702,16 @@ def handler(event, context):
                     # iteration budget reliably bounds a genuine loop, so
                     # detect the repeat directly instead.
                     call_sig = (tu['name'], json.dumps(inputs, sort_keys=True))
-                    if call_sig in seen_tool_calls:
+                    if call_sig in tool_results:
                         repeated_call = True
-                    seen_tool_calls.add(call_sig)
-                    result = execute_tool(tu['name'], inputs, claims, request_state)
+                        result = tool_results[call_sig]
+                    else:
+                        result = execute_tool(tu['name'], inputs, claims, request_state)
+                        tool_results[call_sig] = result
+                    if tu['name'] == 'save_discount_scheme' and result.get('saved'):
+                        request_state['schemes_changed'] = True
+                    if tu['name'] == 'run_scenario' and result.get('started'):
+                        request_state['scenarios_changed'] = True
                     if tu['name'] == 'open_scenario' and result.get('opened'):
                         open_scenario_id = result['scenario_id']
                     if tu['name'] == 'approve_scenario' and result.get('approved'):
@@ -2648,7 +2822,8 @@ def handler(event, context):
             'headers':    {**CORS, 'Content-Type': 'application/json'},
             'body':       json.dumps({'reply': reply, 'point_to': point_to, 'generate_report': trigger_report,
                                        'open_scenario_id': open_scenario_id, 'celebrate': celebrate, 'chart': chart,
-                                       'annotate': annotate}),
+                                       'annotate': annotate, 'schemes_changed': bool(request_state.get('schemes_changed')),
+                                       'scenarios_changed': bool(request_state.get('scenarios_changed'))}),
         }
 
     except Exception as exc:
