@@ -9,7 +9,7 @@
   var list = document.getElementById('ovOppList');
   if (!list) return;
   var LONG_COVER = 26, GROWTH = 10, PEAK = 25, WEAK_WAPE = 20;
-  var loaded = null, fetched = 0, busy = false, showAll = false;
+  var loaded = null, fetched = 0, busy = false, selected = null, drawn = null; // selected: the item the person picked; the top one until then
   var supply = null;        // {safety: {sku}, lead: days, stock: {..}|null}; null until read
   var schemes = null;       // null until read
   var runs = {};            // run id -> {run, entry} from the matrix
@@ -68,16 +68,21 @@
     if (low.length) {
       low.sort(function (a, b) { return a.lasts - b.lasts; });
       var urgent = low.filter(function (x) { return x.urgent; }).length;
-      out.push({ rank: urgent ? 0 : 1, tag: 'Stock', tone: urgent ? 'risk' : 'warn', title: 'Reorder ' + skus(low.length),
-        rows: low.map(function (x) { return [x.sku, 'order ' + whole(x.order), x.lasts === Infinity ? '' : 'lasts ' + x.lasts.toFixed(1) + ' weeks']; }),
+      var units = low.reduce(function (t, x) { return t + x.order; }, 0);
+      out.push({ rank: urgent ? 0 : 1, tag: 'Stock', tone: urgent ? 'risk' : 'warn', icon: 'box', title: 'Reorder ' + skus(low.length),
+        big: whole(units), unit: 'units to order', line: urgent ? names(low.filter(function (x) { return x.urgent; }).map(function (x) { return x.sku; }), 2) + (urgent === 1 ? ' runs' : ' run') + ' out before a new order could arrive.' : 'Stock is below the reorder point.',
+        bars: low.map(function (x) { return { label: x.sku, value: x.lasts, text: x.lasts.toFixed(1) + ' weeks left', sub: 'order ' + whole(x.order), tone: x.urgent ? 'risk' : '' }; }),
+        mark: { value: supply.lead / 7, text: 'New order arrives' },
         why: (urgent ? skus(urgent) + (urgent === 1 ? ' runs' : ' run') + ' out before a new order could arrive. ' : '') +
           'Orders cover a ' + supply.lead + '-day lead time plus safety stock. ' + source + '.',
         go: 'Inventory', label: 'Open Inventory' });
     }
     if (long.length) {
       long.sort(function (a, b) { return b.lasts - a.lasts; });
-      out.push({ rank: 5, tag: 'Stock', tone: 'info', title: 'Excess stock on ' + skus(long.length),
-        rows: long.map(function (x) { return [x.sku, x.lasts === Infinity ? 'more than the forecast' : x.lasts.toFixed(0) + ' weeks of cover', x.over > 0 ? whole(x.over) + ' beyond ' + LONG_COVER + ' weeks' : '']; }),
+      out.push({ rank: 5, tag: 'Stock', tone: 'info', icon: 'box', title: 'Excess stock on ' + skus(long.length),
+        big: long[0].lasts === Infinity ? '52+' : long[0].lasts.toFixed(0), unit: 'weeks of ' + long[0].sku, line: 'More than ' + LONG_COVER + ' weeks of stock on hand or on the way.',
+        bars: long.map(function (x) { return { label: x.sku, value: Math.min(x.lasts, 60), text: x.lasts === Infinity ? 'over a year' : x.lasts.toFixed(0) + ' weeks', sub: x.over > 0 ? whole(x.over) + ' extra' : '' }; }),
+        mark: { value: LONG_COVER, text: LONG_COVER + ' weeks' },
         why: (long.some(function (x) { return weakWape(base, x.sku) != null; }) ? 'The forecast for ' + names(long.filter(function (x) { return weakWape(base, x.sku) != null; }).map(function (x) { return x.sku; }), 3) +
           ' isn’t reliable yet, so check it first. ' : '') + 'A discount could clear it. ' + source + '.', go: 'Scenarios', label: 'Test a discount' });
     }
@@ -94,14 +99,15 @@
       if (change >= GROWTH) up.push({ sku: sku, change: change, units: now - then });
       else if (change <= -GROWTH) down.push({ sku: sku, change: change, units: now - then });
     });
-    var rows = function (items) { return items.map(function (x) { return [x.sku, pct(x.change), (x.units > 0 ? '+' : '−') + whole(Math.abs(x.units)) + ' units']; }); };
+    var bars = function (items, tone) { return items.map(function (x) { return { label: x.sku, value: Math.abs(x.units), text: (x.units > 0 ? '+' : '−') + whole(Math.abs(x.units)), sub: pct(x.change), tone: tone }; }); };
+    var net = function (items) { var t = items.reduce(function (a, x) { return a + x.units; }, 0); return (t > 0 ? '+' : '−') + whole(Math.abs(t)); };
     if (up.length) {
       up.sort(function (a, b) { return b.units - a.units; });
-      out.push({ rank: 2, tag: 'Demand', tone: 'good', title: 'Growing: ' + skus(up.length), rows: rows(up), why: 'Next ' + n + ' weeks against the same weeks last year. Check supply can keep up.', go: 'Forecasts', label: 'See forecast' });
+      out.push({ rank: 2, tag: 'Demand', tone: 'good', icon: 'up', title: skus(up.length) + ' growing', big: net(up), unit: 'units vs. last year', line: 'Over the next ' + n + ' weeks. Check supply can keep up.', bars: bars(up, 'good'), why: 'Next ' + n + ' weeks against the same weeks last year. Check supply can keep up.', go: 'Forecasts', label: 'See forecast' });
     }
     if (down.length) {
       down.sort(function (a, b) { return a.units - b.units; });
-      out.push({ rank: 3, tag: 'Demand', tone: 'warn', title: 'Slowing: ' + skus(down.length), rows: rows(down), why: 'Next ' + n + ' weeks against the same weeks last year. A promotion could help.', go: 'Scenarios', label: 'Test a promotion' });
+      out.push({ rank: 3, tag: 'Demand', tone: 'warn', icon: 'down', title: skus(down.length) + ' slowing', big: net(down), unit: 'units vs. last year', line: 'Over the next ' + n + ' weeks. A promotion could help.', bars: bars(down, 'warn'), why: 'Next ' + n + ' weeks against the same weeks last year. A promotion could help.', go: 'Scenarios', label: 'Test a promotion' });
     }
     // The highest stretch of weeks well above the average, not just one week.
     var f = base.all.f.slice(edge), total = sum(f);
@@ -111,9 +117,10 @@
         var a = top, b = top;
         while (a > 0 && f[a - 1] >= bar) a--;
         while (b < f.length - 1 && f[b + 1] >= bar) b++;
-        out.push({ rank: 4, tag: 'Demand', tone: 'info', title: 'Peak season ahead',
-          rows: [['Starts', weekDay(base.weeks[edge + a]), ''], ['Lasts', (b - a + 1) + ' week' + (b > a ? 's' : ''), ''],
-            ['Highest week', whole(f[top]) + ' units', pct(100 * (f[top] - mean) / mean) + ' vs. average']],
+        out.push({ rank: 4, tag: 'Demand', tone: 'info', icon: 'peak', title: 'Peak season ahead',
+          big: pct(100 * (f[top] - mean) / mean), unit: 'above average', line: (b - a + 1) + ' busy week' + (b > a ? 's' : '') + ' from ' + weekDay(base.weeks[edge + a]) + '.',
+          columns: f.map(function (v, i) { return { value: v, on: i >= a && i <= b, text: 'Week of ' + weekDay(base.weeks[edge + i]) + ': ' + whole(v) + ' units' }; }),
+          ends: [weekDay(base.weeks[edge]), whole(f[top]) + ' units at the peak', weekDay(base.weeks[base.weeks.length - 1])],
           why: 'Weeks at least ' + PEAK + '% above the forecast’s average of ' + whole(mean) + ' units. Plan stock and promotions around them.', go: 'Forecasts', label: 'See forecast' });
       }
     }
@@ -122,8 +129,11 @@
     }).filter(function (x) { return x.wape != null; });
     if (weak.length) {
       weak.sort(function (a, b) { return b.wape - a.wape; });
-      out.push({ rank: 6, tag: 'Accuracy', tone: 'warn', title: 'Check the forecast for ' + skus(weak.length),
-        rows: weak.map(function (x) { return [x.sku, x.wape.toFixed(0) + '% WAPE', x.fresh ? 'no sales last year' : '']; }),
+      out.push({ rank: 6, tag: 'Accuracy', tone: 'warn', icon: 'target', title: 'Check the forecast for ' + skus(weak.length),
+        big: weak[0].wape.toFixed(0) + '%', unit: 'error on ' + weak[0].sku, line: weak[0].fresh ? 'It had no sales last year to learn from.' : 'Far above your other SKUs.',
+        bars: weak.map(function (x) { return { label: x.sku, value: x.wape, text: x.wape.toFixed(0) + '% WAPE', sub: x.fresh && weak.length > 1 ? 'no sales last year' : '', tone: 'warn' }; }).slice(0, 3)
+          .concat([{ label: 'All SKUs', value: base.overallWape, text: base.overallWape.toFixed(1) + '% WAPE', sub: '' }]),
+        moreBars: Math.max(0, weak.length - 3),
         why: 'Error over ' + edge + ' weeks of actuals; all SKUs together are at ' + base.overallWape.toFixed(1) + '%. Treat these numbers with care.', go: 'Forecasts', label: 'See forecast' });
     }
     return out;
@@ -137,14 +147,16 @@
     var over = schemes.filter(function (s) { return s.status === 'draft' && (s.scope || []).length && !(s.scope || []).some(function (l) { return l.end_date >= today; }); });
     if (found.length) {
       found.sort(function (a, b) { return (b.observed_units || 0) - (a.observed_units || 0); });
-      out.push({ rank: 7, tag: 'Promotions', tone: 'info', title: found.length + ' past promotion' + (found.length === 1 ? '' : 's') + ' you could repeat',
-        rows: found.map(function (s) { return [s.code, s.observed_units == null ? '' : whole(s.observed_units) + ' units sold', s.last_seen ? 'last seen ' + day(s.last_seen + 'T00:00:00') : '']; }),
+      var known = found.filter(function (s) { return s.observed_units != null; });
+      out.push({ rank: 7, tag: 'Promotions', tone: 'info', icon: 'tag', title: 'Past promotion' + (found.length === 1 ? '' : 's') + ' you could repeat',
+        big: String(found.length), unit: 'found in your sales', line: known.length ? known[0].code + ' sold the most: ' + whole(known[0].observed_units) + ' units.' : 'Add a discount and dates to test one.',
+        bars: found.map(function (s) { return { label: s.code, value: s.observed_units || 0, text: s.observed_units == null ? '' : whole(s.observed_units) + ' units', sub: s.last_seen ? 'last seen ' + day(s.last_seen + 'T00:00:00') : '' }; }),
         why: 'Found in your sales. Add a discount and dates to test one in Scenarios.', go: 'Discount Schemes', label: 'Set one up' });
     }
-    if (saved.length) out.push({ rank: 7, tag: 'Promotions', tone: 'info', title: saved.length + ' saved scheme' + (saved.length === 1 ? '' : 's') + ' not in the plan',
-      rows: saved.map(function (s) { return [s.code, s.name || '', '']; }), why: 'Saved, but not applied to the forecast. Test or commit them.', go: 'Scenarios', label: 'Test in a scenario' });
-    if (over.length) out.push({ rank: 8, tag: 'Promotions', tone: 'info', title: over.length + ' saved scheme' + (over.length === 1 ? ' has' : 's have') + ' ended',
-      rows: over.map(function (s) { return [s.code, s.name || '', '']; }), why: 'Their dates are past, so they have no effect. Update the dates to use them.', go: 'Discount Schemes', label: 'Update dates' });
+    if (saved.length) out.push({ rank: 7, tag: 'Promotions', tone: 'info', icon: 'tag', title: 'Saved scheme' + (saved.length === 1 ? '' : 's') + ' not in the plan', big: String(saved.length), unit: 'ready to test',
+      line: 'Saved, but not applied to the forecast.', chips: saved.map(function (s) { return s.code; }), why: 'Saved, but not applied to the forecast. Test or commit them.', go: 'Scenarios', label: 'Test in a scenario' });
+    if (over.length) out.push({ rank: 8, tag: 'Promotions', tone: 'info', icon: 'tag', title: 'Saved scheme' + (over.length === 1 ? ' that has' : 's that have') + ' ended', big: String(over.length), unit: 'out of date',
+      line: 'Their dates are past, so they do nothing.', chips: over.map(function (s) { return s.code; }), why: 'Their dates are past, so they have no effect. Update the dates to use them.', go: 'Discount Schemes', label: 'Update dates' });
     return out;
   }
 
@@ -167,12 +179,15 @@
     var out = [];
     if (better.length) {
       better.sort(function (a, b) { return b.money - a.money; });
-      out.push({ rank: 2, tag: 'Scenario', tone: 'good', title: better.length === 1 ? 'A scenario beats the plan on revenue' : better.length + ' scenarios beat the plan on revenue',
-        rows: better.map(function (x) { return [x.label, pct(x.money) + ' revenue', pct(x.units) + ' units']; }), why: 'Next 52 weeks, at the prices each run used.', go: 'Scenarios', label: 'Compare' });
+      out.push({ rank: 2, tag: 'Scenario', tone: 'good', icon: 'up', title: better.length === 1 ? 'A scenario beats the plan' : better.length + ' scenarios beat the plan',
+        big: pct(better[0].money), unit: 'revenue, ' + better[0].label, line: 'Over the next 52 weeks, with ' + pct(better[0].units) + ' units.',
+        bars: better.map(function (x) { return { label: x.label, value: x.money, text: pct(x.money) + ' revenue', sub: pct(x.units) + ' units', tone: 'good' }; }),
+        why: 'Next 52 weeks, at the prices each run used.', go: 'Scenarios', label: 'Compare' });
     }
-    if (elastic) out.push({ rank: 3, tag: 'Pricing', tone: 'good', title: 'Test a small price rise',
-      rows: [[elastic.label, pct(elastic.price) + ' price', pct(elastic.units) + ' units'], ['Revenue', pct(elastic.money), 'vs. plan']],
-      why: 'In the model a price cut added fewer units than it gave up in price, so a rise may earn more. It’s a hint from one run, so test it before acting.', go: 'Scenarios', label: 'Test a price rise' });
+    if (elastic) out.push({ rank: 3, tag: 'Pricing', tone: 'good', icon: 'price', title: 'Test a small price rise',
+      big: pct(elastic.money), unit: 'revenue from a ' + Math.abs(elastic.price) + '% price cut', line: 'The cut lost more in price than it gained in units.',
+      diverging: [{ label: 'Price', value: elastic.price }, { label: 'Units', value: elastic.units }, { label: 'Revenue', value: elastic.money, judge: true }],
+      why: 'From “' + elastic.label + '” against the plan, next 52 weeks. In the model a price cut added fewer units than it gave up in price, so a rise may earn more. It’s a hint from one run, so test it before acting.', go: 'Scenarios', label: 'Test a price rise' });
     return out;
   }
 
@@ -183,23 +198,157 @@
     return node;
   }
 
-  function card(item) {
-    var box = el('article', 'ov-opp-card');
-    box.dataset.tone = item.tone;
-    box.append(el('span', 'ov-opp-tag', item.tag), el('h5', '', item.title));
-    var table = el('div', 'ov-opp-rows');
-    item.rows.slice(0, 4).forEach(function (row) {
-      var line = el('div');
-      line.append(el('b', '', row[0]), el('span', '', row[1]), el('small', '', row[2] || ''));
-      table.append(line);
+  var ICONS = {
+    box: 'M3 8l9-5 9 5v8l-9 5-9-5V8zM3 8l9 5 9-5M12 13v8', up: 'M4 16l6-6 4 4 6-7M15 7h5v5', down: 'M4 8l6 6 4-4 6 7M15 17h5v-5',
+    peak: 'M3 19h18M4 19l5-9 3 4 3-7 5 12', target: 'M12 21a9 9 0 1 0 0-18 9 9 0 0 0 0 18zM12 16a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM12 12h.01',
+    tag: 'M20 12l-8 8-9-9V3h8l9 9zM7.5 7.5h.01', price: 'M19 5L5 19M7.5 9.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4zM16.5 18.5a2 2 0 1 0 0-4 2 2 0 0 0 0 4z',
+  };
+
+  function icon(name) {
+    var box = el('span', 'ov-opp-ic');
+    box.setAttribute('aria-hidden', 'true');
+    box.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="' + ICONS[name] + '"/></svg>';
+    return box;
+  }
+
+  // Every bar carries its own value, so the chart is also the table.
+  function barChart(item) {
+    var box = el('div', 'ov-opp-bars'), bars = item.bars.slice(0, 6), more = (item.moreBars || 0) + Math.max(0, item.bars.length - 6);
+    var max = Math.max.apply(null, bars.map(function (b) { return b.value; }).concat(item.mark ? [item.mark.value * 1.15] : [0])) || 1;
+    bars.forEach(function (b) {
+      var row = el('div', 'ov-opp-bar'), top = el('div', 'ov-opp-bar-t'), track = el('div', 'ov-opp-track'), fill = el('i');
+      top.append(el('b', '', b.label), el('span', '', b.text));
+      if (b.sub) top.append(el('small', '', b.sub));
+      fill.style.width = Math.max(1, 100 * b.value / max) + '%';
+      if (b.tone) fill.dataset.tone = b.tone;
+      track.append(fill);
+      if (item.mark) {
+        var tick = el('u');
+        tick.style.left = 100 * item.mark.value / max + '%';
+        track.append(tick);
+      }
+      row.append(top, track);
+      box.append(row);
     });
-    if (item.rows.length > 4) table.append(el('div', 'ov-opp-more', 'and ' + (item.rows.length - 4) + ' more'));
-    box.append(table, el('p', '', item.why));
+    if (item.mark) {
+      var key = el('div', 'ov-opp-key');
+      key.append(el('u'), item.mark.text + (/week/.test(item.mark.text) ? '' : ', ' + (item.mark.value % 1 ? item.mark.value.toFixed(1) : item.mark.value) + ' weeks'));
+      box.append(key);
+    }
+    if (more) box.append(el('div', 'ov-opp-key', 'and ' + more + ' more'));
+    return box;
+  }
+
+  function divergingChart(rows) {
+    var box = el('div', 'ov-opp-div'), max = Math.max.apply(null, rows.map(function (r) { return Math.abs(r.value); })) || 1;
+    rows.forEach(function (r) {
+      var line = el('div'), track = el('div', 'ov-opp-dtrack'), fill = el('i');
+      fill.style.width = 50 * Math.abs(r.value) / max + '%';
+      fill.style[r.value < 0 ? 'right' : 'left'] = '50%';
+      fill.dataset.sign = r.value < 0 ? 'down' : 'up';
+      if (r.judge) fill.dataset.judge = '';
+      track.append(fill);
+      line.append(el('b', '', r.label), track, el('span', '', pct(r.value)));
+      box.append(line);
+    });
+    return box;
+  }
+
+  function columnChart(item) {
+    var box = el('div', 'ov-opp-cols'), plot = el('div', 'ov-opp-plot'), max = Math.max.apply(null, item.columns.map(function (c) { return c.value; })) || 1;
+    var tip = el('div', 'ov-opp-tip');
+    tip.hidden = true;
+    plot.setAttribute('role', 'img');
+    plot.setAttribute('aria-label', 'Weekly forecast. ' + item.line + ' ' + item.ends[1] + '.');
+    item.columns.forEach(function (c) {
+      var col = el('span'), fill = el('i');
+      fill.style.height = Math.max(2, 100 * c.value / max) + '%';
+      if (c.on) fill.dataset.on = '';
+      col.append(fill);
+      var show = function () { tip.textContent = c.text; tip.hidden = false; };
+      col.addEventListener('mouseenter', show);
+      col.addEventListener('click', show); // touch
+      plot.append(col);
+    });
+    plot.addEventListener('mouseleave', function () { tip.hidden = true; });
+    var ends = el('div', 'ov-opp-ends');
+    ends.append(el('span', '', item.ends[0]), el('span', '', item.ends[2]));
+    box.append(plot, ends, tip);
+    return box;
+  }
+
+  var GROUPS = [['act', 'Act now'], ['grow', 'Grow'], ['watch', 'Watch']];
+  function groupOf(item) { return item.rank <= 1 ? 'act' : item.tone === 'good' || item.tag === 'Promotions' ? 'grow' : 'watch'; }
+
+  function choose(key, focus) {
+    list.querySelectorAll('.ov-opp-item').forEach(function (b) {
+      var on = b.dataset.key === key;
+      b.setAttribute('aria-expanded', String(on));
+      document.getElementById(b.getAttribute('aria-controls')).hidden = !on;
+      if (on && focus) b.focus();
+    });
+  }
+
+  // A row in the list, and its detail. On wide screens the detail sits beside
+  // the list; on phones it opens under its own row (see the CSS grid).
+  function row(item, i) {
+    var b = el('button', 'ov-opp-item'), titles = el('span', 'ov-opp-names'), figure = el('span', 'ov-opp-num', item.big);
+    b.type = 'button';
+    b.dataset.key = item.title;
+    b.dataset.tone = item.tone;
+    b.setAttribute('aria-controls', 'ovOpp' + i);
+    titles.append(el('b', '', item.title), el('small', '', item.unit));
+    b.append(icon(item.icon), titles, figure);
+    b.addEventListener('click', function () { selected = item.title; choose(selected); });
+    b.addEventListener('keydown', function (event) {
+      var step = { ArrowDown: 1, ArrowUp: -1 }[event.key];
+      if (!step) return;
+      event.preventDefault();
+      var all = Array.from(list.querySelectorAll('.ov-opp-item')), next = all[(all.indexOf(b) + step + all.length) % all.length];
+      selected = next.dataset.key;
+      choose(selected, true);
+    });
+    return b;
+  }
+
+  function detail(item, i) {
+    var box = el('section', 'ov-opp-detail');
+    box.id = 'ovOpp' + i;
+    box.dataset.tone = item.tone;
+    box.setAttribute('aria-label', item.title);
+    var figure = el('div', 'ov-opp-fig'), chart = item.bars ? barChart(item) : item.diverging ? divergingChart(item.diverging) : item.columns ? columnChart(item) : el('div', 'ov-opp-chips');
+    figure.append(el('strong', '', item.big), el('span', '', item.unit));
+    (item.chips || []).slice(0, 12).forEach(function (c) { chart.append(el('span', '', c)); });
+    if (item.chips && item.chips.length > 12) chart.append(el('span', '', '+' + (item.chips.length - 12)));
     var go = el('button', 'ov-opp-go', item.label + ' →');
     go.type = 'button';
     go.addEventListener('click', function () { goToPanel(item.go); window.scrollTo(0, 0); });
-    box.append(go);
+    box.append(el('span', 'ov-opp-tag', item.tag), el('h5', '', item.title), figure, el('p', 'ov-opp-line', item.line), chart, el('p', 'ov-opp-why', item.why), go);
     return box;
+  }
+
+  function build(items) {
+    var now = JSON.stringify(items);
+    if (now === drawn) return; // nothing changed: keep focus and tooltips
+    drawn = now;
+    var held = list.contains(document.activeElement) && document.activeElement.dataset.key;
+    var out = [], n = 0, rows = 0;
+    GROUPS.forEach(function (g) {
+      var mine = items.filter(function (x) { return groupOf(x) === g[0]; });
+      if (!mine.length) return;
+      var head = el('div', 'ov-opp-group', g[1]);
+      out.push(head);
+      rows++;
+      mine.forEach(function (item) {
+        out.push(row(item, n), detail(item, n));
+        n++;
+        rows++;
+      });
+    });
+    list.replaceChildren.apply(list, out);
+    list.style.setProperty('--rows', rows);
+    var keys = Array.from(list.querySelectorAll('.ov-opp-item')).map(function (b) { return b.dataset.key; });
+    if (keys.length) choose(keys.includes(selected) ? selected : keys[0], !!held && keys.includes(held) && held === selected);
   }
 
   function render() {
@@ -213,10 +362,7 @@
     }
     var reading = base && (supply === null || schemes === null);
     document.getElementById('ovOppCount').textContent = reading && !items.length ? '…' : items.length;
-    list.replaceChildren.apply(list, (showAll ? items : items.slice(0, 6)).map(card));
-    var more = document.getElementById('ovOppMore');
-    more.hidden = items.length <= 6;
-    more.textContent = showAll ? 'Show fewer' : 'Show all ' + items.length;
+    build(items);
     empty.hidden = items.length > 0;
     empty.querySelector('p').textContent = !base ? 'Your forecast couldn’t be loaded' : reading ? 'Checking your data…' : 'Nothing needs attention right now';
     empty.querySelector('.sub').textContent = !base || reading ? '' : 'Stock, demand, accuracy, promotions and scenarios were checked against your live forecast.';
@@ -250,7 +396,6 @@
     render();
   });
   document.addEventListener('apra:matrix-runs', function (event) { runs = event.detail; render(); });
-  document.getElementById('ovOppMore').addEventListener('click', function () { showAll = !showAll; render(); });
   // Coming back to Overview: stock or schemes may have changed elsewhere.
   document.querySelectorAll('.dnav li').forEach(function (li) {
     if (li.title === 'Overview') li.addEventListener('click', function () { if (fetched && Date.now() - fetched > 15000) read(); });
