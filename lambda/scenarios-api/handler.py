@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 import boto3
 
 import inbound
+import last_year
 
 s3      = boto3.client('s3')
 lam     = boto3.client('lambda')
@@ -412,7 +413,7 @@ def _live_sku_map(org):
     return _read_json(f'orgs/{org}/scenarios/{latest.get("id")}/anon.json', default={}) or {}
 
 
-def _read_upload(org, key):
+def _read_upload(org, key, limit=inbound.MAX_BYTES):
     """A file this org uploaded. Never follows a key outside its own prefix."""
     if not isinstance(key, str) or not key.startswith(f'orgs/{org}/uploads/') or '..' in key:
         raise inbound.InboundError('Choose a file you uploaded.')
@@ -420,7 +421,7 @@ def _read_upload(org, key):
         obj = s3.get_object(Bucket=BUCKET, Key=key)
     except s3.exceptions.ClientError:
         raise inbound.InboundError('The uploaded file could not be found.')
-    if obj['ContentLength'] > inbound.MAX_BYTES:
+    if obj['ContentLength'] > limit:
         raise inbound.InboundError('The file is too large.')
     return obj['Body'].read()
 
@@ -462,6 +463,30 @@ def save_stock(org, email, event):
 def inbound_view(org, email):
     """GET /scenarios?view=inbound: everything Inventory knows from uploads."""
     return _resp(200, {'inbound': inbound_summary(org), 'stock': stock_summary(org), 'can_edit': _is_admin(org, email)})
+
+
+def last_year_view(org):
+    """GET /scenarios?view=last_year: last year's real sales for the approved
+    plan's weeks, from the file it was trained on. Kept beside the plan."""
+    latest = _read_json(f'orgs/{org}/forecast/latest.json') or {}
+    run_id = str(latest.get('id') or '')
+    if not re.fullmatch(r'scn-\d+-[a-f0-9]+', run_id):
+        return _resp(200, {'last_year': {'status': 'none'}})
+    folder = f'orgs/{org}/scenarios/{run_id}'
+    weeks = latest.get('weeks', [])[latest.get('backtestWeeks', len(latest.get('weeks', []))):]
+    saved = _read_json(f'{folder}/last_year.json')
+    if saved and saved.get('version') == last_year.VERSION and saved.get('weeks') == weeks:
+        return _resp(200, {'last_year': {'status': 'ok', **saved}})
+    key = (_read_json(f'{folder}/config.json') or {}).get('custom_input_key') or ''
+    anon = _read_json(f'{folder}/anon.json') or {}
+    if not key.startswith(f'orgs/{org}/uploads/') or '..' in key or not weeks or not anon:
+        return _resp(200, {'last_year': {'status': 'none'}})
+    try:
+        result = last_year.summarize(_read_upload(org, key, last_year.MAX_BYTES), key, {str(p): sku for p, sku in anon.items()}, weeks)
+    except inbound.InboundError as exc:
+        return _resp(200, {'last_year': {'status': 'error', 'error': str(exc)}})
+    _write_json(f'{folder}/last_year.json', result)
+    return _resp(200, {'last_year': {'status': 'ok', **result}})
 
 
 def inbound_summary(org):
@@ -1039,6 +1064,9 @@ def handler(event, context):
         query = event.get('queryStringParameters') or {}
         if method == 'GET' and path == '/scenarios' and query.get('view') == 'inbound':
             return inbound_view(org, caller_email)
+
+        if method == 'GET' and path == '/scenarios' and query.get('view') == 'last_year':
+            return last_year_view(org)
 
         # Before the plain POST below, which starts a forecast run.
         if path == '/scenarios' and method == 'POST' and query.get('view'):

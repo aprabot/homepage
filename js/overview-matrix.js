@@ -13,6 +13,7 @@
   var picked = [];                 // run ids the person chose, by column
   var cache = {};                  // run id|plan id -> {state, result, base, pricing}
   var closed = {};                 // group -> true/false, once clicked
+  var history = {};                // plan id -> last year's real sales, once read
 
   function plan() { return loaded && window.DATA && window.DATA.id ? window.DATA : null; }
   function start(d) { return d.backtestWeeks == null ? d.weeks.length : d.backtestWeeks; }
@@ -30,6 +31,69 @@
     return isNaN(d) ? '' : d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
   }
   function madeOn(id) { var m = /^scn-(\d+)-/.exec(id || ''); return m ? day(Number(m[1]) * 1000) : ''; }
+
+  // Last year's real sales for the plan's weeks, from the sales file. An older
+  // backend answers with the scenario list instead: then it stays unknown.
+  function readHistory(base) {
+    if (history[base.id]) return history[base.id];
+    var entry = history[base.id] = { state: 'loading' };
+    APRA_SESSION.fetch(API + '?view=last_year')
+      .then(function (r) { if (!r.ok) throw new Error('HTTP ' + r.status); return r.json(); })
+      .then(function (d) {
+        var y = d.last_year, ok = y && y.status === 'ok' && y.last && y.before && JSON.stringify(y.weeks) === JSON.stringify(base.weeks.slice(start(base)));
+        entry.state = ok ? 'ready' : 'none';
+        if (ok) { entry.last = y.last; entry.before = y.before; }
+      })
+      .catch(function () { entry.state = 'none'; })
+      .then(render);
+    return entry;
+  }
+
+  function first(values, n) { return values ? sum(values.slice(0, n)) : null; }
+  function change(now, before) { return now != null && before > 0 ? 100 * (now - before) / before : null; }
+
+  // Postal codes growing faster or slower than the whole, of those that sold in
+  // both periods. now/then: {postal code: number|null}.
+  function spread(now, then, overall) {
+    if (!now || !then || overall == null) return null;
+    var out = { above: 0, below: 0, of: 0 };
+    Object.keys(then).forEach(function (z) {
+      var c = now[z] == null ? null : change(now[z], then[z]);
+      if (c == null) return;
+      out.of++;
+      if (c > overall + 0.05) out.above++; else if (c < overall - 0.05) out.below++;
+    });
+    return out.of ? out : null;
+  }
+
+  function zipSums(year, key, n) {
+    if (!year || !year.zips) return null;
+    var out = {};
+    Object.keys(year.zips).forEach(function (z) { out[z] = first(year.zips[z][key], n); });
+    return out;
+  }
+
+  // Last year as a column: what sold in the same weeks, against the year before.
+  function lastYearFigures(base) {
+    var n = ahead(base), h = readHistory(base), units = lastYear(base);
+    if (h.state !== 'ready') return { state: h.state, units: units, zipUnits: null, zipRevenue: null };
+    var sold = function (year) { return Object.keys(year.skus).filter(function (k) { return year.skus[k].slice(0, n).some(function (v) { return v > 0; }); }).length; };
+    var u = first(h.last.units, n), r = first(h.last.revenue, n), zu = zipSums(h.last, 'units', n), zr = zipSums(h.last, 'revenue', n);
+    var yoy = change(u, first(h.before.units, n)), ryoy = change(r, first(h.before.revenue, n));
+    return { state: 'ready', units: u, revenue: r, skus: sold(h.last), zips: zu ? Object.keys(zu).filter(function (z) { return zu[z] > 0; }).length : null,
+      yoy: yoy, revenueYoy: ryoy, zipUnits: zu, zipRevenue: zr,
+      spread: spread(zu, zipSums(h.before, 'units', n), yoy), revenueSpread: spread(zr, zipSums(h.before, 'revenue', n), ryoy) };
+  }
+
+  // A plan's or run's growth on last year, in total and by postal code.
+  function growth(f, d, pricing, ly, n) {
+    f.revenueYoy = ly.revenue > 0 ? change(f.revenue, ly.revenue) : null;
+    if (!ly.zipUnits) return;
+    var zips = scenarioForecast.byZip(d, pricing, n), units = {}, money = {};
+    Object.keys(zips).forEach(function (z) { units[z] = zips[z].units; money[z] = zips[z].revenue; });
+    f.spread = spread(units, ly.zipUnits, f.yoy);
+    f.revenueSpread = f.revenueYoy == null ? null : spread(money, ly.zipRevenue, f.revenueYoy);
+  }
 
   // Runs other than the plan itself.
   function others() { return (runs || []).filter(function (r) { return r.id !== plan().id; }); }
@@ -95,37 +159,52 @@
 
   function pct(v, digits) { return (v > 0 ? '+' : '') + v.toFixed(digits == null ? 1 : digits) + '%'; }
 
-  function rows(base, figures) {
+  function rows(base, figures, ids) {
     var s = start(base), n = ahead(base), span = 'next ' + n + ' weeks';
-    var p = planFigures(base);
+    var p = planFigures(base), ly = lastYearFigures(base);
     // With prices known for the plan (committed schemes), use the same basis as the runs.
-    var priced = figures.find(function (f) { return f.planRevenue != null && f.planUnits === p.units; });
-    var planRevenue = priced ? priced.planRevenue : p.revenue;
-    var change = function (now, before) { return now != null && before > 0 ? 100 * (now - before) / before : null; };
-    var count = function (key) { return { text: function (f) { return f[key] == null ? null : whole(f[key]); } }; };
+    var at = figures.findIndex(function (f) { return f.planRevenue != null && f.planUnits === p.units; });
+    if (at >= 0) p.revenue = figures[at].planRevenue;
+    growth(p, base, at >= 0 ? cache[ids[at] + '|' + base.id].pricing.base : null, ly, n);
+    figures.forEach(function (f, k) {
+      var entry = cache[ids[k] + '|' + base.id];
+      // Only a run for the same products and weeks can be held against last year.
+      if (f.state === 'ready' && !f.other && f.weeks === n) growth(f, entry.result, entry.pricing && entry.pricing.scenario, ly, n);
+    });
+    var count = function (key) { return function (f) { return f[key] == null ? null : whole(f[key]); }; };
+    var rate = function (key) { return function (f) { return f[key] == null ? null : pct(f[key]); }; };
+    var side = function (key, which) { return function (f) { return f[key] ? whole(f[key][which]) : null; }; };
+    var noYear = ly.state === 'ready' ? 'Not in your sales file' : ly.state === 'loading' ? '…' : 'Last year’s sales couldn’t be read';
+    var growthRows = function (yoy, zip, why) {
+      return [{ name: 'YoY growth predicted', text: rate(yoy), why: why, lastWhy: noYear, lastNote: 'Last year against the year before' },
+        { name: 'Channel A/B CAGR', why: 'Needs sales by channel' },
+        { name: '# Zip codes above overall growth', text: side(zip, 'above'), why: why, lastWhy: noYear, lastNote: 'Of zip codes that sold in both years' },
+        { name: '# Zip codes below overall growth', text: side(zip, 'below'), why: why, lastWhy: noYear, lastNote: 'Of zip codes that sold in both years' }];
+    };
     var list = [
       { group: 'coverage', title: 'Coverage', rows: [
-        Object.assign({ name: '# SKUs' }, count('skus')), Object.assign({ name: '# Zip codes' }, count('zips')),
-        { name: 'Forecast units, ' + span, last: lastYear(base), text: function (f) { return f.units == null ? null : whole(f.units); },
+        { name: '# SKUs', text: count('skus'), lastWhy: noYear, lastNote: 'SKUs that sold in the same weeks last year' },
+        { name: '# Zip codes', text: count('zips'), lastWhy: noYear, lastNote: 'Zip codes that bought in the same weeks last year' },
+        { name: 'Forecast units, ' + span, text: count('units'), lastWhy: noYear, lastNote: 'Units sold in the same weeks last year',
           vs: function (f) { return f.other ? null : change(f.units, f.planUnits); } }] },
       { group: 'accuracy', title: 'Accuracy (WAPE)', sub: 'Lower is better', rows: [12, 24].filter(function (w) { return s >= w; }).map(function (w) { return { name: 'Last ' + w + ' weeks', w: w }; })
         .concat([{ name: s < 52 ? 'All ' + s + ' weeks of actuals' : 'Full year', w: s < 52 ? Infinity : 52 }]).map(function (r) {
-          r.text = function (f) { var v = f.wape(r.w === Infinity && f === p ? s : r.w); return v == null ? null : v.toFixed(1) + '%'; };
+          r.text = function (f) {
+            if (!f.wape) return null;
+            var v = f.wape(r.w === Infinity && f === p ? s : r.w);
+            return v == null ? null : v.toFixed(1) + '%';
+          };
+          r.lastWhy = 'No forecast to check';
           return r;
         }) },
       { group: 'money', title: 'Money', rows: [
-        { name: 'Revenue predicted (after discount), ' + span, text: function (f) { var v = f === p ? planRevenue : f.revenue; return v == null ? null : whole(v); },
+        { name: 'Revenue predicted (after discount), ' + span, text: count('revenue'), lastWhy: noYear, lastNote: 'Units sold × that day’s selling price, same weeks last year',
           vs: function (f) { return f.other ? null : change(f.revenue, f.planRevenue); }, why: 'No selling prices in your sales data' },
         { name: 'Marketing spend committed', why: 'Not connected yet' }] },
-      { group: 'growth-units', title: 'Growth: Units', rows: [
-        { name: 'YoY growth predicted', text: function (f) { return f.yoy == null ? null : pct(f.yoy); }, why: 'No last-year data' },
-        { name: 'Channel A/B CAGR', why: 'Needs sales by channel' },
-        { name: '# Zip codes above overall growth', why: 'Needs last year by zip code' },
-        { name: '# Zip codes below overall growth', why: 'Needs last year by zip code' }] },
-      { group: 'growth-rev', title: 'Growth: Revenue', rows: ['YoY growth predicted', 'Channel A/B CAGR', '# Zip codes above overall growth', '# Zip codes below overall growth']
-        .map(function (name) { return { name: name, why: 'Needs last year’s revenue' }; }) },
+      { group: 'growth-units', title: 'Growth: Units', rows: growthRows('yoy', 'spread', 'No last-year data') },
+      { group: 'growth-rev', title: 'Growth: Revenue', rows: growthRows('revenueYoy', 'revenueSpread', 'Needs last year’s revenue') },
     ];
-    return { plan: p, groups: list };
+    return { plan: p, last: ly, groups: list };
   }
 
   function el(tag, className, text) {
@@ -195,7 +274,7 @@
     var shown = {};
     ids.forEach(function (id) { shown[id] = { run: runs.find(function (r) { return r.id === id; }), entry: load(id) }; });
     document.dispatchEvent(new CustomEvent('apra:matrix-runs', { detail: shown })); // Opportunities
-    var all = rows(base, figures), span = 3 + Math.max(1, ids.length);
+    var all = rows(base, figures, ids), span = 3 + Math.max(1, ids.length);
     var out = [];
     all.groups.forEach(function (g) {
       var empty = !g.rows.some(function (r) { return r.text && r.text(all.plan) != null; });
@@ -214,7 +293,10 @@
         line.dataset.groupItem = g.group;
         var planText = r.text ? r.text(all.plan) : null;
         line.classList.toggle('ov-row-empty', planText == null);
-        line.append(el('td', '', r.name), el('td', r.last == null ? 'ov-none' : '', r.last == null ? '—' : whole(r.last)));
+        var then = r.text ? r.text(all.last) : null, lastCell = el('td', then == null ? 'ov-none' : '', then == null ? '—' : then);
+        if (then == null && r.lastWhy) { lastCell.textContent = r.lastWhy === '…' ? '…' : '—'; lastCell.title = r.lastWhy; }
+        if (then != null && r.lastNote) lastCell.title = r.lastNote;
+        line.append(el('td', '', r.name), lastCell);
         line.append(el('td', 'ov-plan-col' + (planText == null ? ' ov-none' : ''), planText == null ? r.why || '—' : planText));
         figures.forEach(function (f) {
           var text = f.state === 'ready' && r.text ? r.text(f) : null, cell = el('td', text == null ? 'ov-none' : '', f.state === 'loading' && r.text ? '…' : text == null ? '—' : text);

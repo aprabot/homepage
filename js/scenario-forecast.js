@@ -342,7 +342,23 @@
     return totals(result, plan, pairSkus(result, plan), { scenario: indexPricing(pricing && pricing.scenario), base: indexPricing(pricing && pricing.base) }, weeks);
   }
 
-  window.scenarioForecast = { show: show, clear: clear, redraw: draw, compare: compare };
+  // Forecast units and revenue by postal code for the first `weeks` weeks.
+  // revenue is null where a SKU sold there has no selling price.
+  function byZip(d, pricing, weeks) {
+    var edge = start(d), count = weeksAhead(d, weeks), at = [], p = indexPricing(pricing), out = {};
+    for (var i = edge; i < edge + count; i++) at.push(i);
+    Object.keys(d.skus).forEach(function (id) {
+      Object.keys(d.skus[id].byZip || {}).forEach(function (z) {
+        var units = total(at.map(function (k) { return d.skus[id].byZip[z].f[k]; })), money = skuRevenue(d, id, z, at, p);
+        var box = out[z] || (out[z] = { units: 0, revenue: 0 });
+        box.units = units == null || box.units == null ? null : box.units + units;
+        box.revenue = money == null || box.revenue == null ? null : box.revenue + money;
+      });
+    });
+    return out;
+  }
+
+  window.scenarioForecast = { show: show, clear: clear, redraw: draw, compare: compare, byZip: byZip };
 
   document.addEventListener('DOMContentLoaded', function () {
     if (!el('scfBody')) return;
