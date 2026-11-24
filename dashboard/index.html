@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261124a">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261124b">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -1890,12 +1890,13 @@
               <div id="obHolidayOverride" style="display:none;margin-top:14px">
                 <div style="margin-bottom:14px">
                   <div class="field ob-festival-region">
-                    <label for="obHolidayImportState">Default state or region for this file</label>
+                    <label for="obHolidayImportState">State for uploaded rows without one</label>
                     <input id="obHolidayImportState" type="text" maxlength="80" autocomplete="off" placeholder="All states, or type a state">
                   </div>
+                  <div class="ob-suggest" id="obHolidayImportSuggest" hidden></div>
                   <label for="obHolidayFile" style="display:block;margin-bottom:6px">Upload festivals</label>
                   <input id="obHolidayFile" class="file-input" type="file" accept=".csv,.tsv,.xlsx" aria-describedby="obHolidayFileHelp">
-                  <p class="dsubtle" id="obHolidayFileHelp" style="margin:6px 0;font-size:12px">CSV, TSV, or XLSX with <code>date</code> (YYYY-MM-DD), <code>name</code>, and <code>state</code> columns. A default state can cover rows without one. Use “All states” for a nationwide festival.</p>
+                  <p class="dsubtle" id="obHolidayFileHelp" style="margin:6px 0;font-size:12px">CSV, TSV, or XLSX with <code>date</code> (YYYY-MM-DD), <code>name</code>, and <code>state</code> columns. The state above covers rows without one. Use “All states” for a nationwide festival.</p>
                   <p class="stest-msg" id="obHolidayFileStatus" role="status"></p>
                 </div>
                 <div id="obHolidayList" style="display:flex;flex-wrap:wrap;gap:8px"></div>
@@ -1906,6 +1907,7 @@
                   <div class="field"><label for="obHolidayState">State or region</label><input id="obHolidayState" type="text" maxlength="80" autocomplete="off" placeholder="All states, or type a state"></div>
                   <button type="button" class="dbtn" id="obHolidayAdd">Add festival</button>
                 </div>
+                <div class="ob-suggest" id="obHolidaySuggest" hidden></div>
                 <p class="stest-msg" id="obHolidayAddStatus" role="status"></p>
               </div>
             </div>
@@ -2376,7 +2378,7 @@
 <script src="../js/ads.js?v=shopify-check"></script>
 <script src="../js/discount-schemes.js?v=20261123e"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
-<script src="../js/onboarding.js?v=20261123b"></script>
+<script src="../js/onboarding.js?v=20261123c"></script>
 <script src="../js/onboarding-visuals.js?v=20261122h"></script>
 <script src="../js/tour.js"></script>
 <script src="../js/qrcode-lib.js"></script>

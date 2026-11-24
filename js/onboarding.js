@@ -901,56 +901,91 @@
       { month: 11, day: 23, name: 'Labor Thanksgiving Day' },
     ],
   };
-  // State-level holidays for India, keyed by the same full state name shown
-  // in PIN_PREFIX_TO_STATE_IN below. The full name is stored as the state
-  // and shown alongside the festival date.
+  // State festivals for India, keyed by the full names in STATE_NAMES.
   //
-  // Same bar as HOLIDAY_RULES above: only state holidays with a fixed (or
-  // effectively fixed) Gregorian date are listed — state-formation-day
-  // anniversaries (gazetted against the Gregorian calendar directly), plus
-  // the handful of solar-calendar new year festivals that, like Baisakhi,
-  // track the sun's entry into Mesha and so fall on April 13 or 14 (never
-  // drifting further) rather than a true lunar date.
-  //
-  // Deliberately excluded, despite being well-known state holidays, because
-  // their date actually shifts year to year on a lunar or lunisolar
-  // calendar: Gudi Padwa and Ugadi (Maharashtra/Karnataka/Telangana/AP),
-  // Onam (Malayalam calendar, Kerala), Bihu (Assamese calendar), Durga
-  // Puja/Vijaya Dashami (West Bengal), and Pongal (commonly cited as Jan
-  // 14/15, but several states' official calendars move it further some
-  // years) — left for the user to confirm and add manually, same as
-  // Diwali/Holi/Eid in the national list above.
-  var HOLIDAY_RULES_STATE_IN = {
-    'Maharashtra': [
-      { month: 5, day: 1, name: 'Maharashtra Day' },
-    ],
-    'Tamil Nadu': [
-      { month: 4, day: 14, name: 'Tamil New Year (Puthandu)' },
-    ],
-    'Karnataka': [
-      { month: 11, day: 1, name: 'Karnataka Rajyotsava' },
-    ],
-    'Gujarat': [
-      { month: 5, day: 1, name: 'Gujarat Day' },
-    ],
-    'West Bengal': [
-      { month: 4, day: 14, name: 'Bengali New Year (Pohela Boishakh)' },
-    ],
-    'Punjab': [
-      { month: 4, day: 13, name: 'Baisakhi' },
-    ],
-    'Kerala': [
-      // Onam excluded (Malayalam-calendar lunar date, shifts every year) —
-      // no other state holiday here clears the fixed-date bar.
-    ],
-    'Telangana': [
-      { month: 6, day: 2, name: 'Telangana Formation Day' },
-    ],
-    'Delhi': [
-      // No state-specific holiday here clears the fixed-date bar — Delhi
-      // observes the IN national calendar as-is.
-    ],
+  // { month, day } repeats every year; { date } is one year's date of a
+  // festival that moves. Moving dates are never worked out here, only copied:
+  //   2027: DoPT O.M. 12/2/2023-JCA, 16 July 2026 (gazetted + restricted).
+  //   2026: Punjab Government list, as published by the Accountant General.
+  // Where those lists have no date (Guru Arjan Dev's martyrdom day 2027,
+  // Vishu in Kerala's own calendar, ...) the festival is left out. State
+  // days are included only where sources agree. Add each new year's list here.
+  var MOVING_IN = {
+    makar: { date: '2027-01-14', name: 'Makar Sankranti' },
+    saraswati: { date: '2027-02-11', name: 'Basant Panchami (Saraswati Puja)' },
+    ravidas: { date: '2027-02-20', name: 'Guru Ravidas Jayanti' },
+    shivratri: { date: '2027-03-06', name: 'Maha Shivratri' },
+    ugadi: { date: '2027-04-07', name: 'Ugadi' },
+    padwa: { date: '2027-04-07', name: 'Gudi Padwa' },
+    rakhi: { date: '2027-08-17', name: 'Raksha Bandhan' },
+    ganesh: { date: '2027-09-04', name: 'Ganesh Chaturthi' },
+    puja7: { date: '2027-10-06', name: 'Durga Puja (Saptami)' },
+    puja8: { date: '2027-10-07', name: 'Durga Puja (Ashtami)' },
+    puja9: { date: '2027-10-08', name: 'Durga Puja (Navami)' },
+    valmiki: { date: '2027-10-15', name: 'Maharishi Valmiki Jayanti' },
+    karwa: { date: '2027-10-18', name: 'Karwa Chauth' },
+    govardhan: { date: '2027-10-30', name: 'Govardhan Puja' },
+    bhaiDuj: { date: '2027-10-31', name: 'Bhai Duj' },
+    chhath: { date: '2027-11-04', name: 'Chhath Puja' },
   };
+  var DURGA_PUJA = [MOVING_IN.puja7, MOVING_IN.puja8, MOVING_IN.puja9];
+  var NOV_1 = function (name) { return { month: 11, day: 1, name: name }; };
+  var HOLIDAY_RULES_STATE_IN = {
+    'Andhra Pradesh': [NOV_1('Andhra Pradesh Day'), MOVING_IN.makar, MOVING_IN.ugadi, MOVING_IN.ganesh],
+    'Arunachal Pradesh': [{ month: 2, day: 20, name: 'Arunachal Pradesh Day' }],
+    'Assam': [{ month: 12, day: 2, name: 'Assam Day' }, { date: '2027-01-14', name: 'Magh Bihu' },
+      { date: '2027-04-15', name: 'Bohag Bihu' }].concat(DURGA_PUJA),
+    'Bihar': [{ month: 3, day: 22, name: 'Bihar Diwas' }, MOVING_IN.makar, MOVING_IN.saraswati, MOVING_IN.rakhi, MOVING_IN.chhath].concat(DURGA_PUJA),
+    'Chhattisgarh': [NOV_1('Chhattisgarh Rajyotsava'), MOVING_IN.rakhi, MOVING_IN.govardhan],
+    'Delhi': [MOVING_IN.ravidas, MOVING_IN.shivratri, MOVING_IN.rakhi, MOVING_IN.valmiki, MOVING_IN.karwa, MOVING_IN.govardhan, MOVING_IN.bhaiDuj, MOVING_IN.chhath],
+    'Goa': [{ month: 12, day: 19, name: 'Goa Liberation Day' }, MOVING_IN.padwa, MOVING_IN.ganesh],
+    'Gujarat': [{ month: 5, day: 1, name: 'Gujarat Day' }, { date: '2027-01-14', name: 'Uttarayan (Makar Sankranti)' }, MOVING_IN.shivratri, MOVING_IN.rakhi, MOVING_IN.ganesh],
+    'Haryana': [NOV_1('Haryana Day'), MOVING_IN.ravidas, MOVING_IN.shivratri, { date: '2027-04-14', name: 'Vaisakhi' }, MOVING_IN.rakhi, MOVING_IN.valmiki, MOVING_IN.karwa],
+    'Himachal Pradesh': [{ month: 1, day: 25, name: 'Himachal Pradesh Statehood Day' }, MOVING_IN.ravidas, MOVING_IN.shivratri, MOVING_IN.rakhi],
+    'Jharkhand': [{ month: 11, day: 15, name: 'Jharkhand Day' }, MOVING_IN.saraswati, MOVING_IN.chhath].concat(DURGA_PUJA),
+    'Karnataka': [NOV_1('Karnataka Rajyotsava'), MOVING_IN.makar, MOVING_IN.shivratri, MOVING_IN.ugadi, MOVING_IN.ganesh],
+    'Kerala': [NOV_1('Kerala Day'), { date: '2027-09-12', name: 'Onam (Thiruvonam)' }],
+    'Madhya Pradesh': [NOV_1('Madhya Pradesh Day'), MOVING_IN.ravidas, MOVING_IN.shivratri, MOVING_IN.rakhi, MOVING_IN.govardhan, MOVING_IN.bhaiDuj],
+    'Maharashtra': [{ month: 5, day: 1, name: 'Maharashtra Day' }, MOVING_IN.makar, { month: 2, day: 19, name: 'Shivaji Jayanti' },
+      MOVING_IN.shivratri, MOVING_IN.padwa, MOVING_IN.ganesh],
+    'Manipur': [{ month: 1, day: 21, name: 'Manipur Day' }],
+    'Meghalaya': [{ month: 1, day: 21, name: 'Meghalaya Day' }],
+    'Mizoram': [{ month: 2, day: 20, name: 'Mizoram Day' }],
+    'Nagaland': [{ month: 12, day: 1, name: 'Nagaland Day' }],
+    'Odisha': [{ month: 4, day: 1, name: 'Odisha Day (Utkal Divas)' }, MOVING_IN.saraswati, { date: '2027-07-05', name: 'Rath Yatra' }, MOVING_IN.ganesh].concat(DURGA_PUJA),
+    'Puducherry': [NOV_1('Puducherry Liberation Day'), { date: '2027-01-15', name: 'Pongal' }, { month: 8, day: 16, name: 'De Jure Transfer Day' }],
+    'Punjab': [
+      { date: '2026-11-24', name: 'Guru Nanak Jayanti' }, { date: '2026-12-14', name: 'Guru Tegh Bahadur Martyrdom Day' },
+      { date: '2026-12-28', name: 'Shaheedi Sabha, Sri Fatehgarh Sahib' },
+      { month: 1, day: 13, name: 'Lohri' }, { date: '2027-01-14', name: 'Maghi (Makar Sankranti)' },
+      { date: '2027-01-15', name: 'Guru Gobind Singh Jayanti' }, MOVING_IN.ravidas, MOVING_IN.shivratri,
+      { month: 3, day: 23, name: 'Shaheedi Diwas (Bhagat Singh, Sukhdev, Rajguru)' }, { month: 4, day: 8, name: 'Guru Nabha Dass Jayanti' },
+      { date: '2027-04-14', name: 'Baisakhi' }, { month: 7, day: 31, name: 'Shaheed Udham Singh Martyrdom Day' },
+      MOVING_IN.rakhi, MOVING_IN.valmiki, MOVING_IN.karwa, NOV_1('Punjab Day'), { date: '2027-11-14', name: 'Guru Nanak Jayanti' },
+      { month: 11, day: 16, name: 'Kartar Singh Sarabha Martyrdom Day' },
+    ],
+    'Rajasthan': [{ month: 3, day: 30, name: 'Rajasthan Day' }, MOVING_IN.makar, MOVING_IN.shivratri, MOVING_IN.rakhi, MOVING_IN.govardhan, MOVING_IN.bhaiDuj],
+    'Sikkim': [{ month: 5, day: 16, name: 'Sikkim Day' }],
+    'Tamil Nadu': [{ date: '2027-01-15', name: 'Pongal' }, { month: 4, day: 14, name: 'Tamil New Year (Puthandu)' },
+      { month: 7, day: 18, name: 'Tamil Nadu Day' }, MOVING_IN.ganesh],
+    'Telangana': [{ month: 6, day: 2, name: 'Telangana Formation Day' }, MOVING_IN.makar, MOVING_IN.ugadi, MOVING_IN.ganesh],
+    'Tripura': [{ month: 1, day: 21, name: 'Tripura Day' }, MOVING_IN.saraswati].concat(DURGA_PUJA),
+    'Uttar Pradesh': [MOVING_IN.makar, MOVING_IN.ravidas, MOVING_IN.shivratri, MOVING_IN.rakhi, MOVING_IN.valmiki, MOVING_IN.govardhan, MOVING_IN.bhaiDuj, MOVING_IN.chhath],
+    'Uttarakhand': [{ month: 11, day: 9, name: 'Uttarakhand Day' }, MOVING_IN.shivratri, MOVING_IN.rakhi],
+    'West Bengal': [MOVING_IN.saraswati, { date: '2027-04-15', name: 'Bengali New Year (Pohela Boishakh)' },
+      { date: '2027-05-09', name: 'Rabindranath Tagore Jayanti' }].concat(DURGA_PUJA),
+  };
+
+  // Gazetted nationwide festivals that move (same 2027 list). Offered for All
+  // states, not added by default: the moon-sighted ones can still shift.
+  var MOVING_NATIONAL_IN = [
+    { date: '2026-11-24', name: 'Guru Nanak Jayanti' },
+    { date: '2027-03-10', name: 'Eid-ul-Fitr' }, { date: '2027-03-23', name: 'Holi' }, { date: '2027-03-26', name: 'Good Friday' },
+    { date: '2027-04-15', name: 'Ram Navami' }, { date: '2027-04-19', name: 'Mahavir Jayanti' }, { date: '2027-05-17', name: 'Eid-ul-Zuha (Bakrid)' },
+    { date: '2027-05-20', name: 'Buddha Purnima' }, { date: '2027-06-16', name: 'Muharram' }, { date: '2027-08-15', name: 'Milad-un-Nabi' },
+    { date: '2027-08-25', name: 'Janmashtami' }, { date: '2027-10-09', name: 'Dussehra' }, { date: '2027-10-29', name: 'Diwali' },
+    { date: '2027-11-14', name: 'Guru Nanak Jayanti' },
+  ];
 
   // India Post's postal circles assign the first 1-2 digits of a 6-digit PIN
   // to a state/UT — a long-stable public mapping (unchanged in decades), so
@@ -959,8 +994,7 @@
   // state's range is sometimes a narrow slice of a wider single-digit zone
   // (e.g. Goa's 403 sits inside Maharashtra's broader 40-44 zone).
   //
-  // Only the states covered by HOLIDAY_RULES_STATE_IN are listed — no point
-  // mapping PIN prefixes for a state we have no holiday data for yet.
+  // Not every state is mapped yet; unmapped pincodes are simply not detected.
   var PIN_PREFIX_TO_STATE_IN = {
     '11': 'Delhi',
     '14': 'Punjab', '15': 'Punjab', '16': 'Punjab',
@@ -1030,7 +1064,8 @@
     var out = [];
     [today.getUTCFullYear(), today.getUTCFullYear() + 1].forEach(function (year) {
       rules.forEach(function (rule) {
-        var d = rule.day
+        if (rule.date && Number(rule.date.slice(0, 4)) !== year) return;
+        var d = rule.date ? new Date(rule.date + 'T00:00:00Z') : rule.day
           ? new Date(Date.UTC(year, rule.month - 1, rule.day))
           : nthWeekdayOfMonth(year, rule.month, rule.weekday, rule.n);
         if (d >= today && d <= horizon) out.push({ date: d, name: rule.name });
@@ -1111,6 +1146,80 @@
 
   // Autocomplete for a state field (ARIA combobox). Typing something that
   // isn't listed is still allowed, for a city or region.
+  // Built-in festivals for the state in a field, one click to add. Those
+  // already listed (for that state or for all states) are left out.
+  var SUGGEST_BOXES = { obHolidayState: 'obHolidaySuggest', obHolidayImportState: 'obHolidayImportSuggest' };
+  function renderSuggestions(inputId) {
+    var input = document.getElementById(inputId);
+    var box = document.getElementById(SUGGEST_BOXES[inputId]);
+    var country = currentCountry();
+    var state = normalizeHolidayState(input.value, country);
+    var all = state === ALL_STATES;
+    box.replaceChildren();
+    box.hidden = country !== 'IN' || !state || !(all || holidayStateNames(country).includes(state));
+    if (box.hidden) return;
+
+    var built = resolveRules(all ? MOVING_NATIONAL_IN : HOLIDAY_RULES_STATE_IN[state] || []);
+    var entries = built.map(function (holiday) {
+      return { date: holiday.date, name: holiday.name, state: all ? null : state, country: country, auto: false };
+    }).filter(function (entry) {
+      return !holidayState[holidayKey(entry)] && !holidayState[holidayKey({ ...entry, state: null })];
+    });
+    var head = document.createElement('div');
+    head.className = 'ob-suggest-head';
+    var title = document.createElement('span');
+    title.setAttribute('role', 'status');
+    title.tabIndex = -1;
+    title.textContent = entries.length
+      ? (all ? 'Nationwide festivals' : state + ' festivals') + ' in the coming year'
+      : built.length ? 'All ' + (all ? 'nationwide' : state) + ' festivals are in your list.'
+      : 'No built-in festivals for ' + state + ' yet. Add them yourself.';
+    head.append(title);
+    box.append(head);
+    if (!entries.length) return;
+
+    var add = function (chosen) {
+      var scroll = box.getBoundingClientRect().top;
+      chosen.forEach(function (entry) { holidayState[holidayKey(entry)] = entry; });
+      renderHolidayList();
+      // The list above just grew: keep the suggestions under the pointer.
+      var scroller = box.parentElement;
+      while (scroller && !(scroller.scrollHeight > scroller.clientHeight && /auto|scroll/.test(getComputedStyle(scroller).overflowY))) {
+        scroller = scroller.parentElement;
+      }
+      (scroller || window).scrollBy({ top: box.getBoundingClientRect().top - scroll, behavior: 'instant' });
+      var next = box.querySelector('button') || box.querySelector('[role="status"]');
+      next.focus({ preventScroll: true });
+    };
+    var addAll = document.createElement('button');
+    addAll.type = 'button';
+    addAll.className = 'ob-suggest-all';
+    addAll.textContent = entries.length === 1 ? 'Add it' : 'Add all ' + entries.length;
+    addAll.addEventListener('click', function () { add(entries); });
+    head.append(addAll);
+    var chips = document.createElement('div');
+    chips.className = 'ob-suggest-chips';
+    entries.forEach(function (entry) {
+      var chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'ob-suggest-chip';
+      var name = document.createElement('span');
+      name.textContent = '+ ' + entry.name;
+      var day = document.createElement('small');
+      day.textContent = entry.date.toISOString().slice(0, 10);
+      chip.append(name, day);
+      chip.setAttribute('aria-label', 'Add ' + entry.name + ', ' + day.textContent);
+      chip.addEventListener('click', function () { add([entry]); });
+      chips.append(chip);
+    });
+    box.append(chips);
+    if (all) {
+      var note = document.createElement('p');
+      note.textContent = 'Eid, Muharram and Milad-un-Nabi can shift with the moon sighting.';
+      box.append(note);
+    }
+  }
+
   function initStateAutocomplete(input) {
     var list = document.createElement('div');
     list.className = 'ob-state-list';
@@ -1135,6 +1244,7 @@
     function choose(name) {
       input.value = name;
       close();
+      renderSuggestions(input.id);
     }
     function mark(index) {
       var options = list.querySelectorAll('[role="option"]');
@@ -1184,7 +1294,7 @@
 
     input.addEventListener('focus', function () { open(true); });
     input.addEventListener('click', function () { if (list.hidden) open(true); });
-    input.addEventListener('input', function () { open(false); });
+    input.addEventListener('input', function () { open(false); renderSuggestions(input.id); });
     input.addEventListener('blur', close);
     input.addEventListener('keydown', function (event) {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
@@ -1266,6 +1376,7 @@
 
       listEl.appendChild(tag);
     });
+    Object.keys(SUGGEST_BOXES).forEach(renderSuggestions);
     renderFestivalCard();
   }
 

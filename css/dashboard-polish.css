@@ -903,6 +903,20 @@
 @media(max-width:600px){#dashboard .scheme-bundle-fields{grid-template-columns:1fr 1fr}#dashboard .scheme-effective{grid-column:1/-1;padding-top:2px}}
 @media(max-width:375px){#dashboard .scheme-scope-fields.has-bundle{grid-template-columns:minmax(0,1fr)}}
 
+/* Built-in festivals offered for the chosen state. */
+#dashboard .ob-suggest{margin:12px 0 0;padding:12px;border:1px solid var(--obv-accent-line);border-radius:10px;background:var(--obv-accent-soft)}
+#dashboard .ob-suggest[hidden]{display:none}
+#dashboard .ob-festival-region+.ob-suggest{margin:0 0 14px}
+#dashboard .ob-suggest-head{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;font-size:13px;font-weight:600;color:var(--text)}
+#dashboard .ob-suggest-all{padding:6px 12px;border:0;border-radius:7px;background:var(--obv-accent);color:#0A0E15;font:600 12.5px var(--body);cursor:pointer}
+[data-theme="light"] #dashboard .ob-suggest-all{color:#fff;background:#4A7200}
+#dashboard .ob-suggest-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+#dashboard .ob-suggest-chip{display:inline-flex;align-items:baseline;gap:8px;flex-wrap:wrap;max-width:100%;padding:6px 11px;border:1px solid var(--line-2);border-radius:16px;background:var(--ink-2);color:var(--text);font:500 12.5px var(--body);text-align:left;cursor:pointer}
+#dashboard .ob-suggest-chip small{color:var(--muted);font:500 11px var(--mono)}
+#dashboard .ob-suggest-chip:hover{border-color:var(--obv-accent)}
+#dashboard .ob-suggest button:focus-visible{outline:2px solid var(--obv-accent);outline-offset:2px}
+#dashboard .ob-suggest p{margin:9px 0 0;font-size:12px;color:var(--muted)}
+
 /* Scenario KPIs. */
 #dashboard .scenario-result-kpis .v{min-height:1.2em}
 #dashboard .scenario-result-kpis .v .skel-line{width:70%;height:16px;margin-top:4px}
