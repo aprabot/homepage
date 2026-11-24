@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261123j">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261123k">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -871,7 +871,12 @@
             <label>Postal code<select data-scheme-zip required></select><input type="hidden" name="postal_code"></label>
             <label>Start date<input name="start_date" type="date" required></label>
             <label>End date<input name="end_date" type="date" required></label>
-            <label><span>Discount</span><span class="scheme-discount-input"><input name="discount" required type="number" min="0.01" step="any" aria-label="Discount" aria-describedby="scheme-discount-help"><span class="scheme-discount-unit" aria-hidden="true">%</span></span></label>
+            <label data-scheme-amount><span>Discount</span><span class="scheme-discount-input"><input name="discount" required type="number" min="0.01" step="any" aria-label="Discount" aria-describedby="scheme-discount-help"><span class="scheme-discount-unit" aria-hidden="true">%</span></span></label>
+            <div class="scheme-bundle-fields" data-scheme-bundle hidden>
+              <label>Customer buys (X)<input name="buy_quantity" type="number" min="1" max="1000000" step="1" inputmode="numeric" placeholder="2"></label>
+              <label>Gets free (Y)<input name="free_quantity" type="number" min="1" max="1000000" step="1" inputmode="numeric" placeholder="1"></label>
+              <span class="scheme-effective" data-scheme-effective aria-live="polite"></span>
+            </div>
             <button type="button" class="scheme-remove">Remove</button>
           </div>
         </fieldset>
@@ -2362,13 +2367,13 @@
 <script src="../js/main.js?v=20261123a"></script>
 <script src="../js/theme.js"></script>
 <script src="../js/scenario-forecast.js?v=20261123a"></script>
-<script src="../js/scenarios.js?v=20261123d"></script>
+<script src="../js/scenarios.js?v=20261123e"></script>
 <script src="../js/insights.js"></script>
 <script src="../js/inventory.js?v=20261123a"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
 <script src="../js/ads.js?v=shopify-check"></script>
-<script src="../js/discount-schemes.js?v=20261123d"></script>
+<script src="../js/discount-schemes.js?v=20261123e"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/onboarding.js?v=20261123b"></script>
 <script src="../js/onboarding-visuals.js?v=20261122h"></script>

@@ -724,7 +724,11 @@
       var low = amounts[0], high = amounts[amounts.length - 1];
       parts.push((low === high ? fmt(low) : fmt(low) + '–' + fmt(high)) + (scheme.mechanic === 'Flat amount off' ? ' off' : '% off'));
     }
-    if (scheme.mechanic && !['Percent off', 'Flat amount off'].includes(scheme.mechanic)) parts.unshift(scheme.mechanic);
+    var bundle = lines[0];
+    if (scheme.mechanic === 'Buy X get Y' && bundle.buy_quantity && lines.every(function (line) {
+      return line.buy_quantity === bundle.buy_quantity && line.free_quantity === bundle.free_quantity;
+    })) parts.unshift('Buy ' + bundle.buy_quantity + ' get ' + bundle.free_quantity);
+    else if (scheme.mechanic && !['Percent off', 'Flat amount off'].includes(scheme.mechanic)) parts.unshift(scheme.mechanic);
     var count = function (key, all, many) {
       var values = Array.from(new Set(lines.map(function (line) { return String(line[key] || '').toUpperCase(); }).filter(Boolean)));
       if (values.includes('ALL')) return all;

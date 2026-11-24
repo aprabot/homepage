@@ -892,3 +892,13 @@
 @keyframes obAnswerTick{from{stroke-dashoffset:24}to{stroke-dashoffset:0}}
 @media(max-width:620px){#dashboard .ob-answer{flex-wrap:wrap;gap:14px}#dashboard .ob-answer-text{flex:1 1 180px}}
 @media(prefers-reduced-motion:reduce){#dashboard .ob-answer,#dashboard .ob-answer-ic svg{animation:none}}
+
+/* Discount schemes: Buy X get Y, on its own row of the scope line. */
+#dashboard .scheme-scope-fields.has-bundle{grid-template-columns:repeat(2,minmax(94px,1fr)) repeat(2,minmax(117px,1.1fr)) auto}
+#dashboard .scheme-bundle-fields{order:1;grid-column:1/-1;display:grid;grid-template-columns:minmax(0,150px) minmax(0,150px) minmax(0,1fr);gap:6px 12px;align-items:end;position:static;
+  margin-top:4px;padding:12px;border:1px solid var(--obv-accent-line);border-radius:8px;background:var(--obv-accent-soft)}
+#dashboard .scheme-bundle-fields[hidden],#dashboard .scheme-editor [data-scheme-amount][hidden]{display:none}
+#dashboard .scheme-effective{grid-column:auto;align-self:center;padding-top:20px;font-size:12.5px;line-height:1.4;color:var(--text)}
+@media(max-width:960px){#dashboard .scheme-scope-fields.has-bundle{grid-template-columns:repeat(2,minmax(0,1fr))}#dashboard .scheme-bundle-fields{order:0}#dashboard .has-bundle .scheme-remove{justify-self:start}}
+@media(max-width:600px){#dashboard .scheme-bundle-fields{grid-template-columns:1fr 1fr}#dashboard .scheme-effective{grid-column:1/-1;padding-top:2px}}
+@media(max-width:375px){#dashboard .scheme-scope-fields.has-bundle{grid-template-columns:minmax(0,1fr)}}

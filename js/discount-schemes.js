@@ -63,7 +63,7 @@
       const stage = scheme.status === 'committed' && starts.length
         ? 'Committed · ' + (today < starts[0] ? 'Planned' : today > ends.at(-1) ? 'Past' : 'Active')
         : scheme.status === 'draft' ? 'Saved' : scheme.status === 'withdrawn' ? 'Withdrawn' : 'Needs details';
-      [scheme.code, scheme.name || '—', scheme.mechanic || '—', dates,
+      [scheme.code, scheme.name || '—', offer(scheme) || scheme.mechanic || '—', dates,
         scheme.detected ? (scheme.version ? 'Created and detected' : 'Detected from sales') : 'Created',
         stage, scheme.observed_units?.toLocaleString() ?? '—', '—']
         .forEach(value => { line.insertCell().textContent = value; });
@@ -88,18 +88,68 @@
     });
   }
 
+  // "Buy 2 get 1" when every line has the same X and Y.
+  function offer(scheme) {
+    const lines = scheme.scope || [];
+    const same = lines.length && lines.every(line => line.buy_quantity && line.free_quantity &&
+      line.buy_quantity === lines[0].buy_quantity && line.free_quantity === lines[0].free_quantity);
+    return scheme.mechanic === 'Buy X get Y' && same ? 'Buy ' + lines[0].buy_quantity + ' get ' + lines[0].free_quantity : '';
+  }
+
+  // Buy X get Y as the percentage off each unit that the forecast uses.
+  function bundleDiscount(buy, free) {
+    return 100 * Number(free) / (Number(buy) + Number(free));
+  }
+
+  function refreshBundlePreview(row) {
+    const buy = row.querySelector('input[name="buy_quantity"]');
+    const free = row.querySelector('input[name="free_quantity"]');
+    const output = row.querySelector('[data-scheme-effective]');
+    free.setCustomValidity('');
+    if (!free.disabled && buy.value && free.value && bundleDiscount(buy.value, free.value) > 99) {
+      free.setCustomValidity('That gives away more than 99%. Enter fewer free units or more units to buy.');
+    }
+    const complete = buy.value && free.value && buy.validity.valid && free.validity.valid;
+    if (complete) {
+      const total = Number(buy.value) + Number(free.value);
+      output.textContent = 'Customer pays for ' + Number(buy.value).toLocaleString() + ' of every ' + total.toLocaleString() +
+        ' units: ' + bundleDiscount(buy.value, free.value).toLocaleString(undefined, {maximumFractionDigits: 2}) + '% off each.';
+    } else if (free.validity.customError) {
+      output.textContent = free.validationMessage;
+    } else {
+      output.textContent = row.dataset.savedDiscount
+        ? 'Saved as ' + row.dataset.savedDiscount + '% off. Enter X and Y to replace it.'
+        : 'Enter whole numbers, for example buy 2, get 1 free.';
+    }
+  }
+
   function refreshScopeControls() {
     const rows = Array.from(scopes.children);
     const count = rows.length;
     get('scheme-scope-count').textContent = count ? count + (count === 1 ? ' line' : ' lines') : '';
-    const flat = form.elements.mechanic.value === 'Flat amount off';
-    get('scheme-discount-help').textContent = flat
-      ? 'Enter a discount amount in the selling price currency.'
-      : 'Enter the effective discount percentage for each scope line.';
+    const mechanic = form.elements.mechanic.value;
+    const flat = mechanic === 'Flat amount off';
+    const bundle = mechanic === 'Buy X get Y';
+    get('scheme-discount-help').textContent = bundle
+      ? 'Enter how many units the customer buys (X) and how many more they get free (Y), for each scope line.'
+      : flat ? 'Enter a discount amount in the selling price currency.'
+        : 'Enter the effective discount percentage for each scope line.';
     rows.forEach((row, index) => {
       row.querySelector('legend').textContent = 'Scope line ' + (index + 1);
+      const showBundle = bundle && (!displayOnly || row.dataset.hasBundle === 'true');
+      const amount = row.querySelector('input[name="discount"]');
+      row.querySelector('.scheme-scope-fields').classList.toggle('has-bundle', showBundle);
+      row.querySelector('[data-scheme-bundle]').hidden = !showBundle;
+      row.querySelector('[data-scheme-amount]').hidden = showBundle;
       row.querySelector('.scheme-discount-unit').hidden = flat;
-      row.querySelector('input[name="discount"]').max = flat ? '1000000' : '99';
+      amount.disabled = showBundle || displayOnly;
+      amount.required = !amount.disabled;
+      amount.max = flat ? '1000000' : '99';
+      row.querySelectorAll('[data-scheme-bundle] input').forEach(input => {
+        input.disabled = !showBundle || displayOnly;
+        input.required = !input.disabled;
+      });
+      refreshBundlePreview(row);
       const remove = row.querySelector('button');
       remove.hidden = displayOnly;
       remove.disabled = count < 2;
@@ -146,6 +196,11 @@
     row.querySelectorAll('input').forEach(input => { input.value = values[input.name] ?? ''; });
     fillSkus(row);
     fillZips(row, false);
+    row.dataset.hasBundle = String(values.buy_quantity != null && values.free_quantity != null);
+    const amount = row.querySelector('input[name="discount"]');
+    if (row.dataset.hasBundle === 'true') amount.value = ''; // worked out from X and Y
+    else if (editing?.mechanic === 'Buy X get Y' && amount.value) row.dataset.savedDiscount = amount.value;
+    row.querySelector('[data-scheme-bundle]').addEventListener('input', () => refreshBundlePreview(row));
     const start = row.querySelector('input[name="start_date"]');
     const end = row.querySelector('input[name="end_date"]');
     const syncDates = () => { end.min = start.value; };
@@ -195,9 +250,16 @@
     event.preventDefault();
     const action = event.submitter?.value || 'draft';
     const fields = form.elements;
+    const mechanic = fields.mechanic.value;
     const scope = Array.from(scopes.children, row => {
-      const entries = Object.fromEntries(Array.from(row.querySelectorAll('input'), input => [input.name, input.value.trim()]));
-      return {...entries, sku: entries.sku.toUpperCase(), discount: Number(entries.discount)};
+      const entries = Object.fromEntries(Array.from(row.querySelectorAll('input:not(:disabled)'), input => [input.name, input.value.trim()]));
+      entries.sku = entries.sku.toUpperCase();
+      if (mechanic === 'Buy X get Y') {
+        entries.buy_quantity = Number(entries.buy_quantity);
+        entries.free_quantity = Number(entries.free_quantity);
+        entries.discount = bundleDiscount(entries.buy_quantity, entries.free_quantity);
+      } else entries.discount = Number(entries.discount);
+      return entries;
     });
     if (action === 'commit' && !confirm('Commit this scheme and start a new forecast run?')) return;
     const controls = Array.from(form.querySelectorAll('button'));
@@ -207,7 +269,7 @@
     message.textContent = 'Saving…';
     try {
       const result = await request({action, code: fields.code.value, name: fields.name.value,
-        mechanic: fields.mechanic.value, scope, version: editing?.version || 0});
+        mechanic, scope, version: editing?.version || 0});
       await load();
       close();
       if (action === 'draft') status.textContent = 'Saved. Use it in Scenarios with the button on its row.';
