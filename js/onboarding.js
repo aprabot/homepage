@@ -1035,13 +1035,165 @@
     });
   }
 
+  // Every state or region offered when adding festivals. India's 28 states
+  // and 8 union territories, US states and DC, Japan's prefectures, UK nations.
+  var STATE_NAMES = {
+    IN: 'Andaman and Nicobar Islands|Andhra Pradesh|Arunachal Pradesh|Assam|Bihar|Chandigarh|Chhattisgarh|' +
+      'Dadra and Nagar Haveli and Daman and Diu|Delhi|Goa|Gujarat|Haryana|Himachal Pradesh|Jammu and Kashmir|Jharkhand|' +
+      'Karnataka|Kerala|Ladakh|Lakshadweep|Madhya Pradesh|Maharashtra|Manipur|Meghalaya|Mizoram|Nagaland|Odisha|Puducherry|' +
+      'Punjab|Rajasthan|Sikkim|Tamil Nadu|Telangana|Tripura|Uttar Pradesh|Uttarakhand|West Bengal',
+    US: 'Alabama|Alaska|Arizona|Arkansas|California|Colorado|Connecticut|Delaware|District of Columbia|Florida|Georgia|Hawaii|' +
+      'Idaho|Illinois|Indiana|Iowa|Kansas|Kentucky|Louisiana|Maine|Maryland|Massachusetts|Michigan|Minnesota|Mississippi|' +
+      'Missouri|Montana|Nebraska|Nevada|New Hampshire|New Jersey|New Mexico|New York|North Carolina|North Dakota|Ohio|' +
+      'Oklahoma|Oregon|Pennsylvania|Rhode Island|South Carolina|South Dakota|Tennessee|Texas|Utah|Vermont|Virginia|' +
+      'Washington|West Virginia|Wisconsin|Wyoming',
+    JP: 'Aichi|Akita|Aomori|Chiba|Ehime|Fukui|Fukuoka|Fukushima|Gifu|Gunma|Hiroshima|Hokkaido|Hyogo|Ibaraki|Ishikawa|Iwate|' +
+      'Kagawa|Kagoshima|Kanagawa|Kochi|Kumamoto|Kyoto|Mie|Miyagi|Miyazaki|Nagano|Nagasaki|Nara|Niigata|Oita|Okayama|Okinawa|' +
+      'Osaka|Saga|Saitama|Shiga|Shimane|Shizuoka|Tochigi|Tokushima|Tokyo|Tottori|Toyama|Wakayama|Yamagata|Yamaguchi|Yamanashi',
+    GB: 'England|Northern Ireland|Scotland|Wales',
+  };
+  // Nationwide: stored as no state, the same as the built-in national holidays.
+  var ALL_STATES = 'All states';
+
   function holidayStateNames(country) {
-    return country === 'IN' ? Object.keys(HOLIDAY_RULES_STATE_IN).sort() : [];
+    return STATE_NAMES[country] ? STATE_NAMES[country].split('|') : [];
+  }
+
+  function isAllStates(text, country) {
+    var t = text.toLowerCase();
+    return /^(all|all (states|regions|prefectures|nations|over)|nationwide|national|everywhere)$/.test(t) ||
+      t === 'all ' + countryName(country).toLowerCase();
+  }
+
+  // States to suggest for what's typed: all states first, then the ones in
+  // the sales file, then the rest; better matches come first once typing.
+  function suggestStates(typed, country) {
+    var query = typed.trim().toLowerCase();
+    var mine = country === 'IN' ? pinToStatesIN(salesPins) : [];
+    var rank = function (name) {
+      var n = name.toLowerCase();
+      if (!query) return 0;
+      if (n.startsWith(query)) return 0;
+      if (n.split(' ').some(function (word) { return word.startsWith(query); })) return 1;
+      if (query.length > 1 && n.split(' ').filter(function (w) { return w !== 'and'; }).map(function (w) { return w[0]; }).join('') === query) return 0;
+      return n.includes(query) ? 2 : -1;
+    };
+    var states = holidayStateNames(country).map(function (name) {
+      return { name: name, rank: rank(name), mine: mine.includes(name) };
+    }).filter(function (item) { return item.rank >= 0; }).sort(function (a, b) {
+      return a.rank - b.rank || b.mine - a.mine || a.name.localeCompare(b.name);
+    });
+    if (!query || ALL_STATES.toLowerCase().includes(query) || isAllStates(query, country) ||
+        ('all ' + countryName(country)).toLowerCase().startsWith(query) || 'nationwide'.startsWith(query)) {
+      states.unshift({ name: ALL_STATES, all: true });
+    }
+    return states;
+  }
+
+  // Autocomplete for a state field (ARIA combobox). Typing something that
+  // isn't listed is still allowed, for a city or region.
+  function initStateAutocomplete(input) {
+    var list = document.createElement('div');
+    list.className = 'ob-state-list';
+    list.id = input.id + 'List';
+    list.setAttribute('role', 'listbox');
+    list.setAttribute('aria-label', 'States');
+    list.hidden = true;
+    input.parentNode.classList.add('ob-state-field');
+    input.after(list);
+    input.setAttribute('role', 'combobox');
+    input.setAttribute('aria-autocomplete', 'list');
+    input.setAttribute('aria-controls', list.id);
+    input.setAttribute('aria-expanded', 'false');
+    var active = -1;
+
+    function close() {
+      list.hidden = true;
+      active = -1;
+      input.setAttribute('aria-expanded', 'false');
+      input.removeAttribute('aria-activedescendant');
+    }
+    function choose(name) {
+      input.value = name;
+      close();
+    }
+    function mark(index) {
+      var options = list.querySelectorAll('[role="option"]');
+      active = options.length && index >= 0 ? index % options.length : -1; // negative: nothing highlighted
+      options.forEach(function (option, i) { option.setAttribute('aria-selected', String(i === active)); });
+      if (active < 0) { input.removeAttribute('aria-activedescendant'); return; }
+      input.setAttribute('aria-activedescendant', options[active].id);
+      options[active].scrollIntoView({ block: 'nearest' });
+    }
+    function open(showAll) {
+      var country = currentCountry();
+      var typed = showAll ? '' : input.value;
+      var items = suggestStates(typed, country);
+      list.replaceChildren.apply(list, items.map(function (item, i) {
+        var option = document.createElement('div');
+        option.id = list.id + i;
+        option.setAttribute('role', 'option');
+        option.setAttribute('aria-selected', 'false');
+        option.dataset.name = item.name;
+        option.className = item.all ? 'all' : '';
+        var text = document.createElement('span');
+        var at = typed.trim() ? item.name.toLowerCase().indexOf(typed.trim().toLowerCase()) : -1;
+        if (at < 0) text.textContent = item.name;
+        else {
+          var hit = document.createElement('b');
+          hit.textContent = item.name.slice(at, at + typed.trim().length);
+          text.append(item.name.slice(0, at), hit, item.name.slice(at + typed.trim().length));
+        }
+        option.append(text);
+        if (item.all || item.mine) {
+          var tag = document.createElement('small');
+          tag.textContent = item.all ? 'Nationwide' : 'In your sales';
+          option.append(tag);
+        }
+        return option;
+      }));
+      if (!items.length) {
+        var none = document.createElement('p');
+        none.textContent = 'Not in the list — it will be saved as typed.';
+        list.append(none);
+      }
+      list.hidden = false;
+      input.setAttribute('aria-expanded', 'true');
+      list.scrollTop = 0;
+      mark(typed.trim() && items.length ? 0 : -1);
+    }
+
+    input.addEventListener('focus', function () { open(true); });
+    input.addEventListener('click', function () { if (list.hidden) open(true); });
+    input.addEventListener('input', function () { open(false); });
+    input.addEventListener('blur', close);
+    input.addEventListener('keydown', function (event) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (list.hidden) open(true);
+        var last = list.querySelectorAll('[role="option"]').length - 1;
+        mark(event.key === 'ArrowDown' ? active + 1 : active > 0 ? active - 1 : last);
+      } else if ((event.key === 'Enter' || event.key === 'Tab') && !list.hidden && active >= 0) {
+        // Enter picks the state; a second Enter then adds the festival.
+        if (event.key === 'Enter') { event.preventDefault(); event.stopImmediatePropagation(); }
+        choose(list.querySelectorAll('[role="option"]')[active].dataset.name);
+      } else if (event.key === 'Escape' && !list.hidden) {
+        event.stopPropagation();
+        close();
+      }
+    });
+    // mousedown, not click: keeps focus in the field.
+    list.addEventListener('mousedown', function (event) {
+      event.preventDefault();
+      var option = event.target.closest('[role="option"]');
+      if (option) choose(option.dataset.name);
+    });
   }
 
   function normalizeHolidayState(value, country) {
     var state = String(value ?? '').trim().replace(/\s+/g, ' ');
     if (state.length < 2 || state.length > 80 || !/\p{L}/u.test(state)) return null;
+    if (isAllStates(state, country)) return ALL_STATES;
     return holidayStateNames(country).find(function (name) {
       return name.toLowerCase() === state.toLowerCase();
     }) || state;
@@ -1054,12 +1206,6 @@
 
   function holidaysForCountry(country = currentCountry()) {
     return Object.values(holidayState).filter(function (holiday) { return holiday.country === country; });
-  }
-
-  function renderHolidayStateChoices() {
-    var options = document.getElementById('obHolidayStateOptions');
-    var states = holidayStateNames(currentCountry());
-    options.replaceChildren(...states.map(function (state) { return new Option(state, state); }));
   }
 
   function renderHolidayList() {
@@ -1076,7 +1222,7 @@
       : "We don't have default holidays for this country yet — add any that apply below.";
 
     holidays.forEach(function (h) {
-      var scope = h.state || 'Nationwide';
+      var scope = h.state || ALL_STATES;
       var tag = document.createElement('span');
       tag.className = 'sku-tag';
 
@@ -1182,19 +1328,20 @@
     var name = nameInput.value.trim();
     var state = normalizeHolidayState(stateInput.value, country);
     if (!date || !name || !state) {
-      setStatus(status, 'Enter a valid date, a festival name, and a state or region.', 'err');
+      setStatus(status, 'Enter a valid date, a festival name, and a state (or All states).', 'err');
       (!date ? dateInput : !name ? nameInput : stateInput).focus();
       return;
     }
-    var entry = { date: date, name: name, state: state, country: country, auto: false };
+    var entry = { date: date, name: name, state: state === ALL_STATES ? null : state, country: country, auto: false };
+    var where = state === ALL_STATES ? 'all states' : state;
     var key = holidayKey(entry);
     if (holidayState[key]) {
-      setStatus(status, 'That festival is already listed for ' + state + ' on this date.', 'err');
+      setStatus(status, 'That festival is already listed for ' + where + ' on this date.', 'err');
       return;
     }
     holidayState[key] = entry;
     dateInput.value = ''; nameInput.value = '';
-    setStatus(status, 'Added for ' + state + '.', 'ok');
+    setStatus(status, 'Added for ' + where + '.', 'ok');
     renderHolidayList();
   }
 
@@ -1235,7 +1382,7 @@
       }
 
       if (stateIndex === -1 && !defaultState) {
-        throw new Error('Add a state column or enter a default state or region above the upload.');
+        throw new Error('Add a state column, or choose a default state (or All states) above the upload.');
       }
       var holidays = rows.map(function (row, index) {
         var value = row[dateIndex];
@@ -1248,9 +1395,9 @@
         var stateValue = stateIndex < 0 ? '' : String(row[stateIndex] ?? '').trim();
         var state = stateValue ? normalizeHolidayState(stateValue, country) : defaultState;
         if (!date || !name || !state) {
-          throw new Error('Check festival entry ' + (index + 1) + '. Include a valid YYYY-MM-DD date, name, and state or region.');
+          throw new Error('Check festival entry ' + (index + 1) + '. Include a valid YYYY-MM-DD date, name, and state (or All states).');
         }
-        return { date: date, name: name, state: state, country: country, auto: false };
+        return { date: date, name: name, state: state === ALL_STATES ? null : state, country: country, auto: false };
       });
 
       var added = 0;
@@ -1526,7 +1673,6 @@
     }
     if (stepIs(n, 'sku')) { renderSkuMasterSummary(); renderNewSkuList(); }
     if (stepIs(n, 'weather')) {
-      renderHolidayStateChoices();
       loadDefaultHolidays();
       renderFestivalCard();
       renderWeatherCard();
@@ -2055,6 +2201,8 @@
 
     document.getElementById('obHolidayFile').addEventListener('change', function () { importHolidayFile(this); });
     document.getElementById('obHolidayAdd').addEventListener('click', addManualHoliday);
+    // Before the Enter-to-add handlers below, so Enter can pick a suggestion first.
+    ['obHolidayState', 'obHolidayImportState'].forEach(function (id) { initStateAutocomplete(document.getElementById(id)); });
     ['obHolidayDate', 'obHolidayName', 'obHolidayState'].forEach(function (id) {
       document.getElementById(id).addEventListener('keydown', function (e) {
         if (e.key === 'Enter') { e.preventDefault(); addManualHoliday(); }
