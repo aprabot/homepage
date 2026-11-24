@@ -18,6 +18,7 @@
   var salesSkuIds = null, skuMasterIds = null, skuMasterKey = null;
   var skuMasterUploading = false, skuMasterUploadVersion = 0;
   var spendKey = null, spendSkipped = false;
+  var spendFileName = '', spendUploading = false, spendVersion = 0; // version: ignore uploads the user has since removed
   var inboundKey = null, inboundSkipped = false;
   var STEP_NAMES = ['country', 'shopify', 'sales', 'spend', 'sku', 'inbound', 'weather', 'review'];
   var TOTAL_STEPS = STEP_NAMES.length;
@@ -686,10 +687,28 @@
     if (pill) pill.style.display = 'none';
   }
 
+  // Marketing spend shows one of: the upload form, "no marketing spend", or
+  // a check before removing a file that's already there.
+  function showSpend(view, focusId) {
+    ['Form', 'None', 'Confirm'].forEach(function (name) {
+      document.getElementById('obSpend' + name).style.display = name.toLowerCase() === view ? '' : 'none';
+    });
+    if (focusId) document.getElementById(focusId).focus();
+  }
+  function setNoSpend() {
+    spendSkipped = true; spendKey = null;
+    spendFileName = ''; spendUploading = false; spendVersion++;
+    document.getElementById('obSpendFile').value = '';
+    resetSpendSummary();
+    setStatus(document.getElementById('obSpendStatus'), '');
+    showSpend('none', 'obSpendNone');
+  }
   function analyzeSpendFile(file) {
+    var version = spendVersion;
     var ext = (file.name.split('.').pop() || '').toLowerCase();
     if (ext === 'xlsx' && typeof XLSX === 'undefined') return;
     readTabularRows(file, 'spend').then(function (rows) {
+      if (version !== spendVersion) return;
       resetSpendSummary();
       if (!rows.length) return;
       var first = rows[0];
@@ -1704,7 +1723,7 @@
         : lastHistWarnings.length ? tile('Sales data', 'warn', 'Usable w/ warnings')
         : tile('Sales data', 'ok', 'Ready'),
       spendKey ? tile('Marketing spend', 'ok', 'Received')
-        : spendSkipped ? tile('Marketing spend', 'warn', 'Skipped')
+        : spendSkipped ? tile('Marketing spend', 'ok', 'No spend')
         : tile('Marketing spend', '', 'Not provided'),
       skuMasterUploading ? tile('SKU master', '', 'Uploading')
         : skuMasterKey ? tile('SKU master', 'ok', unconfirmed ? 'Uploaded · ' + unconfirmed + ' to confirm' : 'Uploaded')
@@ -2011,6 +2030,8 @@
     if (shopifyAttempt) shopifyAttempt.popup.close();
     endShopifyAttempt();
     spendKey = null; spendSkipped = false;
+    spendFileName = ''; spendUploading = false; spendVersion++;
+    showSpend('form');
     inboundKey = null; inboundSkipped = false;
     weatherFileKey = null;
     sheetWeather = null; fileWeather = null;
@@ -2162,20 +2183,40 @@
     document.getElementById('obSpendFile').addEventListener('change', function () {
       var file = this.files[0];
       if (!file) return;
-      spendSkipped = false;
+      var version = ++spendVersion;
+      spendSkipped = false; spendUploading = true; spendFileName = file.name;
+      showSpend('form');
       var statusEl = document.getElementById('obSpendStatus');
       uploadFile(file, statusEl).then(function (key) {
-        spendKey = key;
+        if (version !== spendVersion) return;
+        spendKey = key; spendUploading = false;
         lockCountry();
         setStatus(statusEl, file.name + ' received — saved with your setup; spend isn’t used in forecasting yet.', 'ok');
-      }).catch(function () {});
+        if (document.getElementById('obSpendConfirm').style.display !== 'none') askRemoveSpend();
+      }).catch(function () {
+        if (version !== spendVersion) return;
+        spendUploading = false; spendFileName = '';
+        if (!spendKey) showSpend('form');
+      }).then(function () {
+        // The file was removed mid-upload: don't leave its message behind.
+        if (version !== spendVersion && !spendUploading && !spendKey) setStatus(statusEl, '');
+      });
       analyzeSpendFile(file);
     });
+    function askRemoveSpend() {
+      document.getElementById('obSpendConfirmText').textContent = (spendFileName || 'Your spend file') +
+        (spendUploading ? ' is still uploading.' : ' is uploaded.') + ' Choosing “no marketing spend” takes it out of your setup.';
+    }
     document.getElementById('obSpendSkipBtn').addEventListener('click', function () {
-      spendSkipped = true; spendKey = null;
-      document.getElementById('obSpendFile').value = '';
-      resetSpendSummary();
-      setStatus(document.getElementById('obSpendStatus'), 'No marketing spend — noted.', 'ok');
+      if (!spendKey && !spendUploading) { setNoSpend(); return; }
+      askRemoveSpend();
+      showSpend('confirm', 'obSpendKeep');
+    });
+    document.getElementById('obSpendKeep').addEventListener('click', function () { showSpend('form', 'obSpendSkipBtn'); });
+    document.getElementById('obSpendRemove').addEventListener('click', setNoSpend);
+    document.getElementById('obSpendChange').addEventListener('click', function () {
+      spendSkipped = false;
+      showSpend('form', 'obSpendSkipBtn');
     });
 
     document.getElementById('obInboundFile').addEventListener('change', function () {

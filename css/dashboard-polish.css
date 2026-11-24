@@ -834,3 +834,17 @@
 #dashboard .ob-state-list .all::after{content:"";position:absolute;left:6px;right:6px;bottom:-3px;border-bottom:1px solid var(--line)}
 #dashboard .ob-state-list p{margin:0;padding:8px 10px;font-size:12.5px;color:var(--muted)}
 #dashboard .ob-festival-fields{grid-template-columns:repeat(2,minmax(0,1fr));gap:12px}
+
+/* Onboarding: an answer that replaces the form it was given in. */
+#dashboard .ob-answer{display:flex;align-items:center;gap:18px;padding:6px 2px;outline:none;animation:obAnswerIn .28s ease-out}
+#dashboard .ob-answer-ic{flex:none;display:grid;place-items:center;width:48px;height:48px;border-radius:50%;background:var(--obv-accent-soft);color:var(--obv-accent)}
+#dashboard .ob-answer-ic svg{width:24px;height:24px;stroke-dasharray:24;animation:obAnswerTick .4s .12s ease-out backwards}
+#dashboard .ob-answer-text{flex:1;min-width:0}
+#dashboard .ob-answer h4{margin:0 0 4px;font-size:17px}
+#dashboard .ob-answer p{margin:0;font-size:13.5px;line-height:1.5;color:var(--muted);max-width:62ch;overflow-wrap:anywhere}
+#dashboard .ob-answer .btn{padding:9px 15px;font-size:13.5px}
+#dashboard .ob-answer-btns{display:flex;gap:8px;flex-wrap:wrap}
+@keyframes obAnswerIn{from{opacity:0;transform:translateY(6px)}}
+@keyframes obAnswerTick{from{stroke-dashoffset:24}to{stroke-dashoffset:0}}
+@media(max-width:620px){#dashboard .ob-answer{flex-wrap:wrap;gap:14px}#dashboard .ob-answer-text{flex:1 1 180px}}
+@media(prefers-reduced-motion:reduce){#dashboard .ob-answer,#dashboard .ob-answer-ic svg{animation:none}}

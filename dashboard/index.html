@@ -517,7 +517,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261123g">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261123i">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -1743,9 +1743,28 @@
           <div class="ob-step" id="obStep4" style="display:none">
           <p class="dsubtle" style="margin-bottom:16px">Optional, but it will sharpen how your ad spend connects to demand. No campaign data? Just say so below and move on — nothing here blocks you. Spend isn't used in the forecast yet; anything you upload is kept on file for when it is.</p>
           <div class="dcard" style="margin:0">
+            <input type="file" id="obSpendFile" accept=".xlsx,.csv,.tsv,.txt" style="display:none">
+            <div class="ob-answer" id="obSpendNone" style="display:none" tabindex="-1" role="group" aria-labelledby="obSpendNoneTitle">
+              <span class="ob-answer-ic" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg></span>
+              <div class="ob-answer-text">
+                <h4 id="obSpendNoneTitle">No marketing spend</h4>
+                <p>You’re all set for this step. Spend isn’t used in the forecast yet, so nothing changes. Press Continue to move on.</p>
+              </div>
+              <button type="button" class="btn btn-ghost" id="obSpendChange">Change answer</button>
+            </div>
+            <div class="ob-answer ask" id="obSpendConfirm" style="display:none" tabindex="-1" role="group" aria-labelledby="obSpendConfirmTitle">
+              <div class="ob-answer-text">
+                <h4 id="obSpendConfirmTitle">Remove your spend file?</h4>
+                <p id="obSpendConfirmText"></p>
+              </div>
+              <div class="ob-answer-btns">
+                <button type="button" class="btn btn-ghost" id="obSpendKeep">Keep file</button>
+                <button type="button" class="btn btn-ghost" id="obSpendRemove">Remove it</button>
+              </div>
+            </div>
+            <div id="obSpendForm">
             <div style="display:flex;gap:10px;margin-bottom:14px;flex-wrap:wrap">
               <label class="btn btn-pri" for="obSpendFile" style="cursor:pointer">Upload spend file</label>
-              <input type="file" id="obSpendFile" accept=".xlsx,.csv,.tsv,.txt" style="display:none">
               <button type="button" class="btn btn-ghost" id="obSpendSkipBtn">I have no marketing spend</button>
             </div>
             <p class="stest-msg" id="obSpendStatus" style="margin:0 0 12px"></p>
@@ -1757,6 +1776,7 @@
               </div>
               <span class="pill ok" id="obSpendChannels" style="display:none;margin-top:12px"></span>
               <p class="stest-msg" style="margin:12px 0 0;color:var(--muted)">Expected columns: <span class="mono">date</span>, <span class="mono">campaign</span>, <span class="mono">channel</span>, <span class="mono">spend</span> — plus <span class="mono">postal_code</span> and <span class="mono">sku</span> if you have that detail.</p>
+            </div>
             </div>
           </div>
           </div>
@@ -2313,7 +2333,7 @@
 <script src="../js/ads.js?v=shopify-check"></script>
 <script src="../js/discount-schemes.js?v=20261123d"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
-<script src="../js/onboarding.js?v=20261123a"></script>
+<script src="../js/onboarding.js?v=20261123b"></script>
 <script src="../js/onboarding-visuals.js?v=20261122h"></script>
 <script src="../js/tour.js"></script>
 <script src="../js/qrcode-lib.js"></script>
