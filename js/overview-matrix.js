@@ -192,6 +192,9 @@
       return;
     }
     var figures = ids.map(function (id) { return runFigures(id, base); });
+    var shown = {};
+    ids.forEach(function (id) { shown[id] = { run: runs.find(function (r) { return r.id === id; }), entry: load(id) }; });
+    document.dispatchEvent(new CustomEvent('apra:matrix-runs', { detail: shown })); // Opportunities
     var all = rows(base, figures), span = 3 + Math.max(1, ids.length);
     var out = [];
     all.groups.forEach(function (g) {

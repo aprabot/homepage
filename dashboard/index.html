@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261124d">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261124e">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -646,17 +646,19 @@
         <div class="ov-opp-head">
           <div style="display:flex;align-items:center;gap:10px">
             <h4 style="margin:0">Opportunities</h4>
-            <span class="ov-opp-count">0</span>
+            <span class="ov-opp-count" id="ovOppCount">…</span>
           </div>
           <div class="dsubtle" style="margin:0;font-size:.78rem;display:flex;align-items:center;gap:7px">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="var(--signal)" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-            Checked after every forecast run, commit and withdrawal
+            <span id="ovOppNote">From your live forecast, stock, promotions and scenarios</span>
           </div>
         </div>
-        <div class="ov-opp-empty">
+        <div class="ov-opp-list" id="ovOppList"></div>
+        <button type="button" class="ov-opp-all" id="ovOppMore" hidden>Show all</button>
+        <div class="ov-opp-empty" id="ovOppEmpty">
           <svg viewBox="0 0 24 24" width="30" height="30" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <p>No opportunity signals yet</p>
-          <p class="sub">Opportunity detection (inventory alerts, demand signals, promo/media alignment) isn't wired up yet — this section will populate automatically once that logic exists.</p>
+          <p>Checking your data…</p>
+          <p class="sub"></p>
         </div>
       </div>
     </div>
@@ -2336,7 +2338,8 @@
 <script src="../js/main.js?v=20261124b"></script>
 <script src="../js/theme.js"></script>
 <script src="../js/scenario-forecast.js?v=20261124d"></script>
-<script src="../js/overview-matrix.js?v=20261124a"></script>
+<script src="../js/overview-matrix.js?v=20261124b"></script>
+<script src="../js/opportunities.js?v=20261124a"></script>
 <script src="../js/scenarios.js?v=20261124d"></script>
 <script src="../js/insights.js"></script>
 <script src="../js/inventory.js?v=20261123a"></script>
