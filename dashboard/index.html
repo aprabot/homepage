@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261126e">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261126f">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -1161,14 +1161,22 @@
       <p class="dsubtle">Changes save as you make them.</p>
 
       <div class="set-layout">
+        <div class="set-bar">
         <div class="set-tabs" role="tablist" aria-label="Settings"><button type="button" role="tab" id="setTab-account" data-set-tab="account" aria-controls="setPane" aria-selected="false" tabindex="-1">Account</button><button type="button" role="tab" id="setTab-security" data-set-tab="security" aria-controls="setPane" aria-selected="false" tabindex="-1">Security</button><button type="button" role="tab" id="setTab-team" data-set-tab="team" aria-controls="setPane" aria-selected="false" tabindex="-1">Team</button><button type="button" role="tab" id="setTab-appearance" data-set-tab="appearance" aria-controls="setPane" aria-selected="false" tabindex="-1">Appearance</button><button type="button" role="tab" id="setTab-lyra" data-set-tab="lyra" aria-controls="setPane" aria-selected="false" tabindex="-1">Lyra</button><button type="button" role="tab" id="setTab-report" data-set-tab="report" aria-controls="setPane" aria-selected="false" tabindex="-1">Report</button></div>
+          <div class="set-search" role="search">
+            <svg viewBox="0 0 16 16" aria-hidden="true"><circle cx="7" cy="7" r="4.6" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="m10.5 10.5 3.2 3.2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            <input type="search" id="setSearch" placeholder="Search settings" aria-label="Search settings" autocomplete="off" spellcheck="false">
+          </div>
+        </div>
+        <p class="set-search-status" id="setSearchStatus" role="status" aria-live="polite"></p>
         <div class="set-main" id="setPane" role="tabpanel">
+      <p class="set-nomatch" id="setNoMatch" hidden></p>
 
       <section class="scard set-sec" id="setAccount" data-tab="account">
         <div class="set-sec-head">
           <div><h2>Account</h2><p>Who you’re signed in as.</p></div>
         </div>
-        <div class="srow">
+        <div class="srow" data-keywords="sign out log out logout email user profile avatar name me">
           <div class="set-who">
             <div class="settings-avatar" id="settingsAvatar">U</div>
             <div>
@@ -1178,7 +1186,7 @@
           </div>
           <button class="dbtn set-btn-quiet" onclick="logout()">Sign out</button>
         </div>
-        <div class="srow" id="settingsOrgRow" style="display:none">
+        <div class="srow" id="settingsOrgRow" style="display:none" data-keywords="organization organisation company org workspace">
           <div>
             <div class="srow-label">Organization</div>
             <div class="srow-desc" id="settingsOrgName">—</div>
@@ -1190,7 +1198,7 @@
         <div class="set-sec-head">
           <div><h2>Security</h2><p>Protect sign-in with a code from your phone.</p></div>
         </div>
-        <div class="srow" id="mfaStatusRow">
+        <div class="srow" id="mfaStatusRow" data-keywords="2fa mfa two factor two-step authenticator otp one-time code login sign in password security">
           <div>
             <div class="srow-label">Two-factor authentication <span class="set-badge" id="mfaBadge" hidden></span></div>
             <div class="srow-desc" id="mfaStatusDesc">Checking status…</div>
@@ -1220,7 +1228,7 @@
         </div>
       </section>
 
-      <section class="scard set-sec" id="settingsTeamCard" data-tab="team" style="display:none">
+      <section class="scard set-sec" id="settingsTeamCard" data-keywords="team members users people colleagues invite admin viewer role roles permissions approve" data-tab="team" style="display:none">
         <div class="set-sec-head">
           <div><h2>Team</h2><p>People in your organization and what they can do.</p></div>
         </div>
@@ -1242,7 +1250,7 @@
         <div class="set-sec-head">
           <div><h2>Appearance</h2><p>How the dashboard looks on this device.</p></div>
         </div>
-        <div class="srow">
+        <div class="srow" data-keywords="dark light mode colour color appearance night">
           <div>
             <div class="srow-label">Theme</div>
             <div class="srow-desc">Choose your interface colour scheme</div>
@@ -1263,7 +1271,7 @@
           <div><h2>Lyra, AI analyst</h2><p>How Lyra answers you. Applies from your next message.</p></div><button type="button" class="set-reset" onclick="resetLyraParams()">Reset to defaults</button>
         </div>
         <!-- Response style -->
-        <div class="srow" style="flex-wrap:wrap;gap:12px">
+        <div class="srow" style="flex-wrap:wrap;gap:12px" data-keywords="lyra short long verbose brief detail">
           <div style="flex:1;min-width:180px">
             <div class="srow-label">Answer length</div>
             <div class="srow-desc">How much detail Lyra includes in each reply</div>
@@ -1276,7 +1284,7 @@
         </div>
 
         <!-- Tone -->
-        <div class="srow" style="flex-wrap:wrap;gap:12px">
+        <div class="srow" style="flex-wrap:wrap;gap:12px" data-keywords="lyra style voice precise conversational creative">
           <div style="flex:1;min-width:180px">
             <div class="srow-label">Tone</div>
             <div class="srow-desc">How Lyra communicates its answers</div>
@@ -1289,7 +1297,7 @@
         </div>
 
         <!-- Focus -->
-        <div class="srow" style="flex-wrap:wrap;gap:12px">
+        <div class="srow" style="flex-wrap:wrap;gap:12px" data-keywords="lyra accuracy trends anomalies">
           <div style="flex:1;min-width:180px">
             <div class="srow-label">Focus area</div>
             <div class="srow-desc">What Lyra pays most attention to</div>
@@ -1303,7 +1311,7 @@
         </div>
 
         <!-- Language -->
-        <div class="srow" style="flex-wrap:wrap;gap:12px">
+        <div class="srow" style="flex-wrap:wrap;gap:12px" data-keywords="lyra simple technical jargon plain">
           <div style="flex:1;min-width:180px">
             <div class="srow-label">Language complexity</div>
             <div class="srow-desc">How technical Lyra's explanations are</div>
@@ -1317,7 +1325,7 @@
         <p class="stest-msg set-saved" id="lyraParamMsg" role="status"></p>
       </section>
 
-      <section class="scard set-sec" id="setReport" data-tab="report">
+      <section class="scard set-sec" id="setReport" data-keywords="report pdf download export" data-tab="report">
         <div class="set-sec-head">
           <div><h2>Downloadable report</h2><p>What’s included the next time you generate the PDF report from the sidebar.</p></div><button type="button" class="set-reset" onclick="resetReportParams()">Reset to defaults</button>
         </div>
@@ -1365,7 +1373,7 @@
           </div>
         </div>
 
-        <div class="srow" style="flex-wrap:wrap;gap:12px">
+        <div class="srow" style="flex-wrap:wrap;gap:12px" data-keywords="report pdf rows top">
           <div style="flex:1;min-width:180px">
             <div class="srow-label">SKUs per table</div>
             <div class="srow-desc">How many rows in the SKU tables above</div>
@@ -1381,7 +1389,7 @@
         <p class="stest-msg set-saved" id="reportParamMsg" role="status"></p>
       </section>
 
-      <section class="scard set-sec" id="setSupport" data-tab="account">
+      <section class="scard set-sec" id="setSupport" data-keywords="help contact email bug problem" data-tab="account">
         <div class="set-sec-head">
           <div><h2>Support</h2><p>Questions or something not working?</p></div>
         </div>
@@ -2544,6 +2552,7 @@
     var KEY='apra_settings_tab', current=null, wanted=null;
     function avail(t){return !(t.dataset.setTab==='team'&&team&&team.style.display==='none');}
     function show(name,focus,user){
+      if(user&&search&&search.value)clearSearch();
       if(user){wanted=name;try{localStorage.setItem(KEY,name);}catch(e){}}
       var tab=tabs.filter(function(t){return t.dataset.setTab===name&&avail(t);})[0]||tabs[0];
       current=tab.dataset.setTab;
@@ -2561,7 +2570,52 @@
       if(j==null)return;
       e.preventDefault(); show(vis[(j+vis.length)%vis.length].dataset.setTab,true,true);
     });
-    if(team&&'MutationObserver' in window)new MutationObserver(function(){sync();if(wanted==='team'&&avail(tabs[2])&&current!=='team')show('team');}).observe(team,{attributes:true,attributeFilter:['style']});
+    if(team&&'MutationObserver' in window)new MutationObserver(function(){sync();if(search&&search.value){runSearch();return;}if(wanted==='team'&&avail(tabs[2])&&current!=='team')show('team');}).observe(team,{attributes:true,attributeFilter:['style']});
+    /* Search: matches every word typed against each setting's label,
+       description, its section and a few extra words people use (2fa,
+       dark mode, logout), across all tabs at once. Clearing it, or picking
+       a tab, returns to the tab view. */
+    var search=document.getElementById('setSearch');
+    var status=document.getElementById('setSearchStatus');
+    var none=document.getElementById('setNoMatch');
+    function norm(t){return String(t||'').toLowerCase().replace(/[‘’'"“”]/g,'').replace(/\s+/g,' ');}
+    function text(el){return norm(el.textContent+' '+(el.dataset.keywords||''));}
+    function clearSearch(){
+      search.value=''; panel.classList.remove('set-searching');
+      [].forEach.call(panel.querySelectorAll('.set-miss'),function(r){r.classList.remove('set-miss');});
+      none.hidden=true; status.textContent='';
+    }
+    function runSearch(){
+      var words=norm(search.value).trim().split(' ').filter(Boolean);
+      if(!words.length){clearSearch();show(current);return;}
+      panel.classList.add('set-searching');
+      var hits=0, first=true;
+      secs.forEach(function(sec){
+        var head=sec.querySelector('.set-sec-head');
+        var secText=norm((head?head.textContent:'')+' '+(sec.dataset.keywords||''));
+        var rows=[].slice.call(sec.querySelectorAll('.srow'));
+        var shown=0;
+        if(!rows.length){
+          var all=text(sec); shown=(sec.style.display!=='none'&&words.every(function(w){return all.indexOf(w)>=0;}))?1:0;
+        } else rows.forEach(function(r){
+          var t=secText+' '+text(r);
+          var ok=words.every(function(w){return t.indexOf(w)>=0;});
+          r.classList.toggle('set-miss',!ok);
+          if(ok&&r.style.display!=='none')shown++;
+        });
+        sec.hidden=!shown; hits+=shown;
+        sec.classList.toggle('set-first',!!shown&&first); if(shown)first=false;
+      });
+      tabs.forEach(function(t){t.setAttribute('aria-selected','false');});
+      none.hidden=!!hits;
+      none.textContent=hits?'':'No settings match “'+search.value.trim()+'”.';
+      status.textContent=hits?hits+(hits===1?' setting matches':' settings match'):'No settings match';
+    }
+    if(search){
+      search.addEventListener('input',runSearch);
+      search.addEventListener('keydown',function(e){if(e.key==='Escape'&&search.value){e.preventDefault();e.stopPropagation();clearSearch();show(current);}});
+    }
+
     try{wanted=localStorage.getItem(KEY);}catch(e){}
     sync(); show(wanted||'account');
   })();
