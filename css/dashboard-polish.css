@@ -1152,3 +1152,35 @@
 @media(max-width:560px){#dashboard .inv-more-body{left:0;right:auto}#dashboard .inv-kpi b{font-size:24px}}
 #dashboard .inv-plan-acts #invPlanCsv{background:none;color:var(--text);border:1px solid var(--line-2)}
 #dashboard .inv-plan-acts #invPlanCsv:hover{border-color:var(--muted)}
+
+/* Inventory, cleaner: one line of data status, a borderless KPI strip,
+   one value per cell, no fills. */
+#dashboard .inv-data .inv-stock-bar{padding:0;background:none;box-shadow:none;gap:12px}
+#dashboard .inv-data .inv-stock-text{display:flex;align-items:baseline;flex-wrap:wrap;gap:4px 10px;font-size:12.5px}
+#dashboard .inv-data .inv-stock-text b{font-size:12.5px}
+#dashboard .inv-data .inv-stock-bar .dbtn{height:auto;padding:0;border:0;background:none;color:var(--obv-accent);font-size:12.5px;font-weight:600}
+#dashboard .inv-data .inv-stock-bar .dbtn:hover{text-decoration:underline}
+#dashboard .inv-point-chips[hidden],#dashboard .inv-plan-sum:empty{display:none}
+#dashboard .inv-kpis{gap:0;margin-top:22px;padding:4px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+#dashboard .inv-kpi,[data-theme="light"] #dashboard .inv-kpi{padding:14px 20px 14px 0;border-radius:0;background:none;box-shadow:none}
+#dashboard .inv-kpi+.inv-kpi{padding-left:20px;border-left:1px solid var(--line)}
+#dashboard .inv-kpi b{font-size:26px}
+#dashboard .inv-kpi small{font-size:11.5px}
+#dashboard .inv-plan-grid{margin-top:20px}
+#dashboard .inv-plan-table,[data-theme="light"] #dashboard .inv-plan-table{background:none;box-shadow:none;border-radius:0}
+#dashboard .inv-plan-bar{padding:0 0 10px}
+#dashboard .inv-plan-acts{gap:10px}
+#dashboard .inv-plan-tbl thead th{background:none;border-bottom:1px solid var(--line);font-size:12px;font-weight:600;color:var(--muted)}
+#dashboard .inv-plan-tbl td{padding-top:11px;padding-bottom:11px;border-bottom:1px solid var(--line)}
+#dashboard .inv-plan-tbl tbody tr:last-child td{border-bottom:0}
+#dashboard .inv-cell,#dashboard .inv-cell[data-s="red"],#dashboard .inv-cell[data-s="amber"],#dashboard .inv-plan-row[aria-selected="true"] td.inv-cell[data-s="red"]{background:none}
+#dashboard .inv-plan-row:hover td{background:rgba(255,255,255,.025)}
+[data-theme="light"] #dashboard .inv-plan-row:hover td{background:rgba(17,19,24,.025)}
+#dashboard .inv-plan-row[aria-selected="true"] td,[data-theme="light"] #dashboard .inv-plan-row[aria-selected="true"] td{background:color-mix(in srgb,var(--text) 6%,transparent)}
+#dashboard .inv-plan-row[aria-selected="true"] td:first-child{box-shadow:inset 2px 0 0 var(--text)}
+#dashboard .inv-plan-tbl td:nth-child(2){color:var(--muted)}
+#dashboard .inv-plan-tbl td small{display:inline;margin-left:6px}
+#dashboard .inv-plan-panel{background:none;box-shadow:none;padding:0 0 0 22px;border-left:1px solid var(--line);border-radius:0}
+[data-theme="light"] #dashboard .inv-plan-panel{background:none;box-shadow:none}
+@media(max-width:1100px){#dashboard .inv-plan-panel{padding:20px 0 0;border-left:0;border-top:1px solid var(--line)}}
+@media(max-width:900px){#dashboard .inv-kpi:nth-child(3){padding-left:0;border-left:0}#dashboard .inv-kpi:nth-child(n+3){border-top:1px solid var(--line)}}

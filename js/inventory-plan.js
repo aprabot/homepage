@@ -215,19 +215,18 @@
       t.dataset.tone = tone || '';
     };
     var units = short.reduce(function (a, g) { return a + Math.round(g.worst); }, 0);
-    tile('invKpiShort', known ? String(short.length) : '—', known ? 'of ' + groups.length + ' SKUs fall short' : 'Needs a stock file', short.length ? 'risk' : known ? 'good' : '');
-    tile('invKpiUnits', known ? whole(units) : '—', known ? 'units to order, largest shortfall per SKU' : 'Needs a stock file', '');
-    tile('invKpiLate', known ? String(late.length) : '—', known ? (late.length ? 'SKUs to order today, already late' : 'Nothing is late') : 'Needs a stock file', late.length ? 'risk' : '');
-    tile('invKpiNext', !known ? '—' : due ? label(due) : late.length ? 'Today' : 'None', !known ? 'Needs a stock file' : due ? 'next order-by date' : late.length ? 'every order due is late' : 'no order needed', '');
+    tile('invKpiShort', known ? String(short.length) : '—', known ? 'of ' + groups.length : 'Needs a stock file', short.length ? 'risk' : known ? 'good' : '');
+    tile('invKpiUnits', known ? whole(units) : '—', known ? 'largest shortfall per SKU' : 'Needs a stock file', '');
+    tile('invKpiLate', known ? String(late.length) : '—', known ? (late.length ? 'order today' : 'none') : 'Needs a stock file', late.length ? 'risk' : '');
+    tile('invKpiNext', !known ? '—' : due ? label(due) : late.length ? 'Today' : 'None', !known ? 'Needs a stock file' : due ? 'order-by date' : late.length ? 'all due orders are late' : 'nothing to order', '');
     el('invPlanSum').textContent = !res.points.length ? 'Pick a date from today on.' : !known
-      ? 'Required stock only: there is no stock file, so shortfalls can’t be worked out. Upload one above.'
-      : run.name + ' at ' + state.level + ', checked on ' + res.points.length + ' date' + (res.points.length === 1 ? '' : 's') + ': ' + res.points.map(label).join(', ') + '.';
+      ? 'Required stock only: there is no stock file, so shortfalls can’t be worked out. Upload one above.' : '';
   }
 
   function orderCell(g) {
     var td = node('td');
     if (!(g.worst > 0)) { td.append(node('span', 'inv-dim', g.held ? 'Not needed' : '—')); return td; }
-    if (g.late) { td.append(node('b', 'inv-late', 'Order now')); td.append(node('small', '', g.lateDays + ' day' + (g.lateDays === 1 ? '' : 's') + ' late')); }
+    if (g.late) { var now = node('b', 'inv-late', 'Now'); td.title = g.lateDays + ' day' + (g.lateDays === 1 ? '' : 's') + ' late'; td.append(now, node('small', '', g.lateDays + 'd late')); }
     else td.append(node('span', '', label(g.by)));
     return td;
   }
@@ -238,8 +237,9 @@
     td.dataset.s = r.status;
     td.dataset.point = r.point;
     td.title = label(parse(r.point)) + ': ' + STATUS[r.status] + (r.required != null ? ', required ' + whole(r.required) : '') + (r.projected != null ? ', projected ' + whole(r.projected) : '');
-    if (r.short > 0) { td.append(node('b', '', '−' + whole(r.short))); td.append(node('small', '', r.days == null ? '' : r.days.toFixed(1) + ' days')); }
-    else if (r.status === 'green') { td.append(node('span', '', '✓')); td.append(node('small', '', r.days == null ? '' : Math.round(r.days) + ' days')); }
+    if (r.days != null) td.title += ', ' + r.days.toFixed(1) + ' days of cover';
+    if (r.short > 0) td.append(node('b', '', '−' + whole(r.short)));
+    else if (r.status === 'green') { var tick = node('span', '', '✓'); tick.setAttribute('aria-label', 'Covered'); td.append(tick); }
     else td.append(node('span', 'inv-dim', r.status === 'nodata' ? 'Past forecast' : '—'));
     return td;
   }
@@ -249,7 +249,7 @@
     var counts = { all: groups.length, short: 0, red: 0, ok: 0 };
     groups.forEach(function (g) { if (g.worst > 0) counts.short++; if (g.status === 'red') counts.red++; if (g.status === 'green') counts.ok++; });
     var chips = el('invPlanFilters');
-    chips.replaceChildren.apply(chips, [['all', 'All'], ['short', 'Short'], ['red', 'Stockout risk'], ['ok', 'Covered']].map(function (f) {
+    chips.replaceChildren.apply(chips, [['all', 'All'], ['short', 'Short'], ['ok', 'Covered']].map(function (f) {
       var b = node('button', 'inv-chip', f[1] + ' ' + counts[f[0]]);
       b.type = 'button';
       b.setAttribute('aria-pressed', String(state.filter === f[0]));
@@ -420,6 +420,7 @@
     sel.value = state.run;
     el('invPlanPreset').value = state.points ? 'custom' : state.preset;
     var chips = el('invPlanPoints');
+    chips.hidden = !state.points;
     chips.replaceChildren.apply(chips, (res ? res.points : []).map(function (t) {
       var b = node('button', 'inv-point', label(t) + ' ×');
       b.type = 'button';
