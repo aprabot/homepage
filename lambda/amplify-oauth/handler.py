@@ -145,19 +145,84 @@ def _conn_item(org, platform):
     return resp.get('Item')
 
 
+# ---- Account details shown on the Integrations page. Shopify's store name,
+# plan, currency, country and time zone come from its shop.json (readable
+# with the token we already hold, no extra scope). Looked up at connect time
+# and refreshed at most weekly from /status, cached on the connection item,
+# so /status normally makes no outside call. Meta and Google need their own
+# account lookups (Google Ads developer token, Meta app review) that aren't
+# in place yet, so they report no account details. ----
+SHOPIFY_API_VERSION = '2024-10'
+_ACCOUNT_REFRESH_SECONDS = 7 * 24 * 3600
+
+
+def _shopify_account(shop, token):
+    req = urllib.request.Request(
+        f'https://{shop}/admin/api/{SHOPIFY_API_VERSION}/shop.json?fields=name,domain,plan_display_name,currency,country_name,iana_timezone',
+        headers={'X-Shopify-Access-Token': token, 'Accept': 'application/json'})
+    with urllib.request.urlopen(req, timeout=4) as resp:
+        info = json.loads(resp.read().decode('utf-8')).get('shop') or {}
+    details = {k: info.get(src) for k, src in (('domain', 'domain'), ('plan', 'plan_display_name'),
+                                               ('currency', 'currency'), ('country', 'country_name'),
+                                               ('timezone', 'iana_timezone')) if info.get(src)}
+    return (info.get('name') or None), details
+
+
+def _refresh_shopify_account(org, item, token=None):
+    """Best effort: a failure here never breaks /status or a connect."""
+    try:
+        shop = item.get('external_account_id')
+        if not shop:
+            return item
+        if token is None:
+            if not item.get('token_ref'):
+                return item
+            token = secretsmanager.get_secret_value(SecretId=item['token_ref'])['SecretString']
+        name, details = _shopify_account(shop, token)
+        now = _now()
+        table.update_item(
+            Key={'pk': f'ORG#{org}', 'sk': 'CONN#shopify'},
+            UpdateExpression='SET account_name = :n, account_details = :d, account_checked_at = :t',
+            ConditionExpression='#s = :connected',
+            ExpressionAttributeNames={'#s': 'status'},
+            ExpressionAttributeValues={':n': name, ':d': details, ':t': now, ':connected': 'connected'})
+        return {**item, 'account_name': name, 'account_details': details, 'account_checked_at': now}
+    except Exception as exc:  # noqa: BLE001 — details are optional
+        print(f"SHOPIFY_ACCOUNT_LOOKUP_FAILED[{org}]: {exc}")
+        return item
+
+
+def _account_is_stale(item):
+    checked = item.get('account_checked_at')
+    if not checked:
+        return True
+    try:
+        age = datetime.now(timezone.utc) - datetime.fromisoformat(checked)
+    except ValueError:
+        return True
+    return age.total_seconds() > _ACCOUNT_REFRESH_SECONDS
+
+
 def status(org):
     out = {}
     for platform in PLATFORM_CONFIG:
         item = _conn_item(org, platform)
         if item is None:
             out[platform] = {'status': 'not_connected'}
-        else:
-            out[platform] = {
-                'status': item.get('status'),
-                'external_account_id': item.get('external_account_id'),
-                'connected_by': item.get('connected_by'),
-                'connected_at': item.get('connected_at'),
-            }
+            continue
+        if platform == 'shopify' and item.get('status') == 'connected' and _account_is_stale(item):
+            item = _refresh_shopify_account(org, item)
+        out[platform] = {
+            'status': item.get('status'),
+            'external_account_id': item.get('external_account_id'),
+            'account_name': item.get('account_name'),
+            'account_details': item.get('account_details') or {},
+            'access': PLATFORM_CONFIG[platform]['scope'],
+            'connected_by': item.get('connected_by'),
+            'connected_at': item.get('connected_at'),
+            'revoked_by': item.get('revoked_by'),
+            'revoked_at': item.get('revoked_at'),
+        }
     return _resp(200, out)
 
 
@@ -348,7 +413,7 @@ def callback(platform, event):
     # Milestone 1); for Meta a /me/adaccounts call. Left null for those
     # until that follow-up lands; nothing in this app currently depends on
     # it being non-null.
-    table.put_item(Item={
+    item = {
         'pk': f'ORG#{org}', 'sk': f'CONN#{platform}',
         'entity_type': 'connection',
         'platform': platform,
@@ -357,7 +422,10 @@ def callback(platform, event):
         'token_ref': token_ref,
         'connected_by': state_item.get('initiated_by'),
         'connected_at': _now(),
-    })
+    }
+    table.put_item(Item=item)
+    if platform == 'shopify':
+        _refresh_shopify_account(org, item, token=token)
     return _redirect(f'{AMPLIFY_BASE_URL}?connected={platform}')
 
 
