@@ -180,28 +180,78 @@
 /* ============================================================
    AI Insights
 ============================================================ */
-/* Tagline in the text colour — lime stays for actions and highlights. */
-#dashboard #insightsTagline{color:var(--text)!important;font-size:1rem!important}
-#dashboard #insightsSummary{font-size:.98rem;line-height:1.65;color:var(--text);opacity:.88}
+/* A brief, not a stack of boxes: headline and summary, the numbers it
+   rests on, findings as cards with their figure large, then watch areas
+   and opportunities side by side. Every item can be taken to Lyra. */
+#dashboard .ins{--ins-watch:#FFCF5C;--ins-opp:#54E6C4;--ins-low:#FFCF5C}
+[data-theme="light"] #dashboard .ins{--ins-watch:#8A5A00;--ins-opp:#0B7A6D;--ins-low:#8A5A00}
+#dashboard .ins [hidden]{display:none!important}
+#dashboard .ins-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+#dashboard .ins-head{display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap}
+#dashboard .ins-intro{margin:0}
+#dashboard .ins-meta{display:flex;flex-wrap:wrap;gap:4px 0;margin:6px 0 0;font-size:12.5px;color:var(--muted)}
+#dashboard .ins-meta span:empty{display:none}
+#dashboard .ins-meta span+span:not(:empty)::before{content:'·';margin:0 8px}
+#dashboard .ins-meta a{color:var(--text);text-decoration:underline;text-decoration-color:var(--line);text-underline-offset:3px}
+#dashboard .ins-meta a:hover{text-decoration-color:currentColor}
+#dashboard .ins-actions{display:flex;align-items:center;gap:10px}
+#dashboard .ins-actions .cb-speak-btn{width:38px;height:38px;border:1px solid var(--line)}
+#dashboard .ins-actions .dbtn{height:38px}
 
-/* Key findings: label column + readable detail, instead of a small mono
-   line pushed to the far right. (The inline right-align/width come from
-   js/insights.js, hence !important.) */
-#dashboard #insightsFindings li{display:grid;grid-template-columns:minmax(150px,220px) minmax(0,1fr);gap:18px;
-  align-items:baseline;padding:14px 0;cursor:default}
-#dashboard #insightsFindings li .nmx{font-weight:600;font-size:13.5px;color:var(--text)}
-#dashboard #insightsFindings li:hover .nmx{color:var(--text)}
-#dashboard #insightsFindings li .sku{font-family:var(--body)!important;font-size:13.5px;line-height:1.55;
-  color:var(--text);opacity:.82;text-align:left!important;max-width:none!important}
+#dashboard .ins-brief{margin-top:30px;max-width:860px}
+#dashboard .ins-brief .skel-line{display:block;margin-bottom:12px}
+#dashboard .ins-eyebrow{margin:0 0 8px;font-size:14px;font-weight:500;color:var(--muted)}
+#dashboard .ins-headline{margin:0;font-family:var(--display);font-size:clamp(1.5rem,2.4vw,2rem);line-height:1.2;font-weight:600;color:var(--text);letter-spacing:-.01em}
+#dashboard .ins-summary{margin:14px 0 0;font-size:15px;line-height:1.7;color:var(--text);opacity:.85;max-width:75ch}
 
-/* Watch areas and opportunities: bulleted, comfortable line length. */
-#dashboard #insightsWatch li,#dashboard #insightsOpportunities li{display:block;position:relative;padding:12px 0 12px 18px;
-  font-size:13.5px;line-height:1.55;color:var(--text);cursor:default}
-#dashboard #insightsWatch li::before,#dashboard #insightsOpportunities li::before{content:'';position:absolute;left:2px;top:20px;
-  width:6px;height:6px;border-radius:50%}
-#dashboard #insightsWatch li::before{background:#ffcf5c}
-#dashboard #insightsOpportunities li::before{background:#54E6C4}
-@media(max-width:640px){#dashboard #insightsFindings li{grid-template-columns:1fr;gap:4px}}
+#dashboard .ins-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:28px 0 0;padding:4px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
+#dashboard .ins-stats>div{padding:14px 20px}
+#dashboard .ins-stats>div:first-child{padding-left:0}
+#dashboard .ins-stats>div+div{border-left:1px solid var(--line)}
+#dashboard .ins-stats dt{font-size:12.5px;color:var(--muted)}
+#dashboard .ins-stats dd{margin:6px 0 0;font-family:var(--display);font-size:24px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+#dashboard .ins-stats dd.ins-stat-note{margin-top:2px;font-family:var(--body);font-size:11.5px;font-weight:400;color:var(--muted)}
+
+#dashboard .ins-sec{margin-top:34px}
+#dashboard .ins-sec h3{display:flex;align-items:center;gap:8px;margin:0 0 14px;font-size:14px;font-weight:600;color:var(--text)}
+#dashboard .ins-sec h3 svg{width:15px;height:15px;flex:none}
+#dashboard .ins-sec[data-tone="watch"] h3 svg{color:var(--ins-watch)}
+#dashboard .ins-sec[data-tone="opp"] h3 svg{color:var(--ins-opp)}
+
+#dashboard .ins-findings{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px;margin:0;padding:0;list-style:none}
+#dashboard #insightsLoading .ins-findings{margin-top:34px}
+#dashboard .ins-card{display:flex;flex-direction:column;gap:8px;padding:16px 16px 12px;border:1px solid var(--line);border-radius:12px}
+#dashboard .ins-card-label{margin:0;font-size:12px;font-weight:600;color:var(--muted)}
+#dashboard .ins-card-value{display:flex;flex-direction:column;gap:2px;margin:0}
+#dashboard .ins-card-value b{font-family:var(--display);font-size:26px;line-height:1.1;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+#dashboard .ins-card-value span{font-size:13px;font-weight:600;color:var(--text)}
+#dashboard .ins-card-detail{flex:1;margin:0;font-size:12.5px;line-height:1.55;color:var(--muted)}
+#dashboard .ins-card-foot{display:flex;align-items:center;justify-content:space-between;gap:8px;min-height:26px;margin-top:2px}
+#dashboard .ins-conf{display:inline-flex;align-items:center;gap:6px;font-size:11.5px;color:var(--muted)}
+#dashboard .ins-conf::before{content:'';width:7px;height:7px;border-radius:50%;background:var(--muted)}
+#dashboard .ins-conf[data-level="high"]::before{background:var(--ins-opp)}
+#dashboard .ins-conf[data-level="low"]::before{background:var(--ins-low)}
+#dashboard .ins-ask{margin-left:auto;padding:4px 0;border:0;background:none;color:var(--obv-accent);font:inherit;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap}
+#dashboard .ins-ask:hover{text-decoration:underline}
+#dashboard .ins-ask:focus-visible{outline:2px solid var(--obv-accent);outline-offset:2px;border-radius:4px}
+
+#dashboard .ins-two{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:0 40px}
+#dashboard .ins-list{margin:0;padding:0;list-style:none;border-top:1px solid var(--line)}
+#dashboard .ins-list li{display:flex;align-items:baseline;gap:16px;padding:13px 0 13px 14px;border-bottom:1px solid var(--line);position:relative}
+#dashboard .ins-list li::before{content:'';position:absolute;left:0;top:15px;bottom:15px;width:2px;border-radius:2px}
+#dashboard .ins-sec[data-tone="watch"] .ins-list li::before{background:var(--ins-watch)}
+#dashboard .ins-sec[data-tone="opp"] .ins-list li::before{background:var(--ins-opp)}
+#dashboard .ins-list p{flex:1;margin:0;font-size:13.5px;line-height:1.6;color:var(--text)}
+@media(max-width:900px){#dashboard .ins-two{grid-template-columns:1fr}}
+@media(max-width:640px){
+  #dashboard .ins-stats{grid-template-columns:1fr}
+  #dashboard .ins-meta{flex-direction:column;gap:2px}
+  #dashboard .ins-meta span+span:not(:empty)::before{content:none}
+  #dashboard .ins-stats>div{padding:12px 0}
+  #dashboard .ins-stats>div+div{border-left:0;border-top:1px solid var(--line)}
+  #dashboard .ins-list li{flex-direction:column;gap:4px}
+  #dashboard .ins-list .ins-ask{margin-left:0}
+}
 
 /* ============================================================
    Ads — Campaigns, Products, Performance, Integrations

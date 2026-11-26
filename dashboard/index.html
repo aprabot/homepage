@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261126b">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261126d">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -1030,79 +1030,50 @@
     </div>
 
     <!-- AI Insights panel -->
-    <div class="dbody" id="insightsPanel" style="display:none">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;gap:20px;flex-wrap:wrap">
+    <div class="dbody ins" id="insightsPanel" style="display:none">
+      <div class="ins-head">
         <div>
           <h1 class="dgreet">AI Insights</h1>
-          <p id="insightsTagline" style="display:none;font-family:var(--display);font-weight:600;font-size:1.05rem;color:var(--signal);margin:4px 0 6px"></p>
-          <p class="dsubtle" id="insightsSubtitle" style="margin-bottom:0">Lyra's read on the current forecast — generated from the live, approved data.</p>
-          <p class="dsubtle" id="insightsScenarioRef" style="margin:4px 0 0;display:none"></p>
+          <p class="dsubtle ins-intro">Lyra’s read on the current forecast, written from the live, approved data.</p>
+          <p class="ins-meta"><span id="insightsSubtitle"></span><span id="insightsScenarioRef" hidden></span></p>
         </div>
-        <div id="insightsSpeakSlot"></div>
+        <div class="ins-actions">
+          <div id="insightsSpeakSlot"></div>
+          <button type="button" class="dbtn" id="insightsAskLyraBtn" hidden>Ask Lyra</button>
+        </div>
       </div>
 
-      <div id="insightsLoading">
-        <span id="insightsLoadingText" style="position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)">Loading insights…</span>
-        <div class="dcard" style="margin-top:24px">
-          <div class="ch"><h4><span class="skel-line title"></span></h4></div>
-          <span class="skel-line wide"></span>
-          <span class="skel-line" style="width:65%"></span>
-        </div>
-        <div class="dcard" style="margin-top:20px">
-          <div class="ch"><h4>Key findings</h4></div>
-          <ul class="movers">
-            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
-            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
-            <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
-          </ul>
-        </div>
-        <div class="dgrid" style="margin-top:20px">
-          <div class="dcard">
-            <div class="ch"><h4>Watch areas</h4></div>
-            <ul class="movers">
-              <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
-              <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
-            </ul>
-          </div>
-          <div class="dcard">
-            <div class="ch"><h4>Opportunities</h4></div>
-            <ul class="movers">
-              <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
-              <li class="skel-row"><span class="skel-line"></span><span class="skel-line short"></span></li>
-            </ul>
-          </div>
-        </div>
+      <div id="insightsLoading" aria-busy="true">
+        <span id="insightsLoadingText" class="ins-sr">Loading insights…</span>
+        <div class="ins-brief"><span class="skel-line title"></span><span class="skel-line wide"></span><span class="skel-line" style="width:65%"></span></div>
+        <div class="ins-stats"><div><span class="skel-line short"></span></div><div><span class="skel-line short"></span></div><div><span class="skel-line short"></span></div></div>
+        <div class="ins-findings"><div class="ins-card"><span class="skel-line"></span><span class="skel-line short"></span></div><div class="ins-card"><span class="skel-line"></span><span class="skel-line short"></span></div><div class="ins-card"><span class="skel-line"></span><span class="skel-line short"></span></div></div>
       </div>
       <p id="insightsError" class="dsubtle" style="margin:32px 0 12px;text-align:center;display:none"></p>
 
       <div id="insightsContent" style="display:none">
-        <div class="dcard" style="margin-top:24px">
-          <div class="ch"><h4 id="insightsHeadline" style="font-size:1.3rem"></h4></div>
-          <p class="dsubtle" id="insightsSummary" style="margin-bottom:0"></p>
-        </div>
+        <section class="ins-brief" aria-labelledby="insightsHeadline">
+          <p class="ins-eyebrow" id="insightsTagline" hidden></p>
+          <h2 class="ins-headline" id="insightsHeadline"></h2>
+          <p class="ins-summary" id="insightsSummary"></p>
+        </section>
 
-        <div class="dcard" style="margin-top:20px">
-          <div class="ch"><h4>Key findings</h4></div>
-          <ul class="movers" id="insightsFindings"></ul>
-        </div>
+        <dl class="ins-stats" id="insightsStats" hidden></dl>
 
-        <div class="dgrid" style="margin-top:20px">
-          <div class="dcard">
-            <div class="ch"><h4>Watch areas</h4></div>
-            <ul class="movers" id="insightsWatch"></ul>
-          </div>
-          <div class="dcard">
-            <div class="ch"><h4>Opportunities</h4></div>
-            <ul class="movers" id="insightsOpportunities"></ul>
-          </div>
-        </div>
+        <section class="ins-sec" id="insightsFindingsSec">
+          <h3>Key findings</h3>
+          <ul class="ins-findings" id="insightsFindings"></ul>
+        </section>
 
-        <div class="dcard" style="margin-top:20px;padding:18px 22px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
-          <div>
-            <div style="font-weight:600;margin-bottom:2px">Want to dig deeper?</div>
-            <p class="dsubtle" style="margin:0;font-size:12.5px">Ask Lyra to break down a finding, compare SKUs, or check a specific date.</p>
-          </div>
-          <button type="button" class="dbtn" id="insightsAskLyraBtn">Ask Lyra →</button>
+        <div class="ins-two">
+          <section class="ins-sec" data-tone="watch" id="insightsWatchSec">
+            <h3><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 1.8 15 14H1z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8 6.2v3.6M8 11.6v.1" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>Watch areas</h3>
+            <ul class="ins-list" id="insightsWatch"></ul>
+          </section>
+          <section class="ins-sec" data-tone="opp" id="insightsOppSec">
+            <h3><svg viewBox="0 0 16 16" aria-hidden="true"><path d="M2 12 6.5 7.5l3 3L14 4M10 4h4v4" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>Opportunities</h3>
+            <ul class="ins-list" id="insightsOpportunities"></ul>
+          </section>
         </div>
       </div>
     </div>
@@ -2294,7 +2265,7 @@
 <script src="../js/overview-matrix.js?v=20261124c"></script>
 <script src="../js/opportunities.js?v=20261124b"></script>
 <script src="../js/scenarios.js?v=20261124d"></script>
-<script src="../js/insights.js"></script>
+<script src="../js/insights.js?v=20261126a"></script>
 <script src="../js/inventory.js?v=20261126a"></script>
 <script src="../js/inventory-plan.js?v=20261126c"></script>
 <script src="../js/knowledge.js"></script>
