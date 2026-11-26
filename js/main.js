@@ -1920,7 +1920,7 @@
   }
 
   // esc closes login
-  addEventListener('keydown',e=>{if(e.key==='Escape')closeLogin();});
+  addEventListener('keydown',e=>{if(e.key==='Escape'&&typeof closeLogin==='function')closeLogin();}); // the login modal is on the home page only
 
   // spotlight cursor glow on cards
   document.querySelectorAll('.card').forEach(card=>{

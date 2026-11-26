@@ -21,7 +21,7 @@
   if (!box) return;
   var el = function (id) { return document.getElementById(id); };
 
-  var state = { run: 'plan', points: null, preset: 'mondays3', level: 'P75', lead: null, review: REVIEW_DAYS, undated: true, filter: 'all', sel: null };
+  var state = { run: 'plan', points: null, preset: 'mondays3', level: 'P75', lead: null, review: REVIEW_DAYS, undated: true, filter: 'all', sel: null, point: null, view: 'sku' };
   var inputs = null;   // {stock, inbound, params} once read
   var runs = [];       // completed scenarios
   var results = {};    // scenario id -> {state, result}
@@ -185,75 +185,165 @@
   function node(tag, cls, text) { var n = document.createElement(tag); if (cls) n.className = cls; if (text != null) n.textContent = text; return n; }
   function num(v) { return v == null ? '—' : whole(v); }
 
+  // Per SKU: its rows by date, the most it falls short and when to order.
+  function bySku(res) {
+    var out = {};
+    res.rows.forEach(function (r) {
+      var g = out[r.sku] || (out[r.sku] = { sku: r.sku, rows: {}, worst: 0, by: null, late: false, held: r.held, status: 'green' });
+      g.rows[r.point] = r;
+      if (r.short > 0) {
+        g.worst = Math.max(g.worst, r.short);
+        var due = r.late ? today() : r.orderBy;
+        if (!g.by || due < g.by) g.by = due;
+        g.late = g.late || r.late;
+        if (r.late) g.lateDays = Math.max(g.lateDays || 0, days(r.orderBy, today()));
+      }
+      var rank = { red: 3, amber: 2, nostock: 1, nodata: 1, green: 0 };
+      if (rank[r.status] > rank[g.status]) g.status = r.status;
+    });
+    return Object.keys(out).sort().map(function (k) { return out[k]; });
+  }
+
   function summary(res, run) {
-    var s = el('invPlanSum'), risky = res.rows.filter(function (r) { return r.short > 0; });
-    var late = risky.filter(function (r) { return r.late; }), skus = {};
-    risky.forEach(function (r) { skus[r.sku] = Math.max(skus[r.sku] || 0, r.short); });
-    var first = res.points[0];
-    s.replaceChildren();
-    if (!res.points.length) { s.textContent = 'Pick a date from today on.'; return; }
-    if (!res.rows.some(function (r) { return r.projected != null; })) {
-      s.append('Required stock only: ', node('b', '', 'there is no stock file'), ', so shortfalls can’t be worked out. Upload one below.');
-      return;
-    }
-    if (!risky.length) { s.append('Every SKU is covered at ', node('b', '', state.level), ' for all ' + res.points.length + ' dates.'); return; }
-    var n = Object.keys(skus).length;
-    s.append(node('b', '', n + ' SKU' + (n === 1 ? '' : 's')), ' fall short on at least one date, ' + whole(Object.values(skus).reduce(function (a, b) { return a + b; }, 0)) + ' units at the worst point. ');
-    if (late.length) s.append(node('b', 'inv-late', late.length + ' order' + (late.length === 1 ? ' is' : 's are') + ' already late'), ': order today. ');
-    else {
-      var soonest = risky.reduce(function (a, r) { return r.orderBy < a ? r.orderBy : a; }, risky[0].orderBy);
-      s.append('The first order is due by ', node('b', '', label(soonest)), '. ');
-    }
-    if (first) s.append(run.name + ', ' + state.level + ' demand.');
+    var groups = bySku(res), short = groups.filter(function (g) { return g.worst > 0; }), late = groups.filter(function (g) { return g.late; });
+    var known = res.rows.some(function (r) { return r.projected != null; });
+    var due = short.filter(function (g) { return !g.late; }).reduce(function (a, g) { return !a || g.by < a ? g.by : a; }, null);
+    var tile = function (id, value, note, tone) {
+      var t = el(id);
+      t.querySelector('b').textContent = value;
+      t.querySelector('small').textContent = note;
+      t.dataset.tone = tone || '';
+    };
+    var units = short.reduce(function (a, g) { return a + Math.round(g.worst); }, 0);
+    tile('invKpiShort', known ? String(short.length) : '—', known ? 'of ' + groups.length + ' SKUs fall short' : 'Needs a stock file', short.length ? 'risk' : known ? 'good' : '');
+    tile('invKpiUnits', known ? whole(units) : '—', known ? 'units to order, largest shortfall per SKU' : 'Needs a stock file', '');
+    tile('invKpiLate', known ? String(late.length) : '—', known ? (late.length ? 'SKUs to order today, already late' : 'Nothing is late') : 'Needs a stock file', late.length ? 'risk' : '');
+    tile('invKpiNext', !known ? '—' : due ? label(due) : late.length ? 'Today' : 'None', !known ? 'Needs a stock file' : due ? 'next order-by date' : late.length ? 'every order due is late' : 'no order needed', '');
+    el('invPlanSum').textContent = !res.points.length ? 'Pick a date from today on.' : !known
+      ? 'Required stock only: there is no stock file, so shortfalls can’t be worked out. Upload one above.'
+      : run.name + ' at ' + state.level + ', checked on ' + res.points.length + ' date' + (res.points.length === 1 ? '' : 's') + ': ' + res.points.map(label).join(', ') + '.';
+  }
+
+  function orderCell(g) {
+    var td = node('td');
+    if (!(g.worst > 0)) { td.append(node('span', 'inv-dim', g.held ? 'Not needed' : '—')); return td; }
+    if (g.late) { td.append(node('b', 'inv-late', 'Order now')); td.append(node('small', '', g.lateDays + ' day' + (g.lateDays === 1 ? '' : 's') + ' late')); }
+    else td.append(node('span', '', label(g.by)));
+    return td;
+  }
+
+  function cell(r) {
+    var td = node('td', 'inv-cell');
+    if (!r) { td.textContent = '—'; return td; }
+    td.dataset.s = r.status;
+    td.dataset.point = r.point;
+    td.title = label(parse(r.point)) + ': ' + STATUS[r.status] + (r.required != null ? ', required ' + whole(r.required) : '') + (r.projected != null ? ', projected ' + whole(r.projected) : '');
+    if (r.short > 0) { td.append(node('b', '', '−' + whole(r.short))); td.append(node('small', '', r.days == null ? '' : r.days.toFixed(1) + ' days')); }
+    else if (r.status === 'green') { td.append(node('span', '', '✓')); td.append(node('small', '', r.days == null ? '' : Math.round(r.days) + ' days')); }
+    else td.append(node('span', 'inv-dim', r.status === 'nodata' ? 'Past forecast' : '—'));
+    return td;
   }
 
   function table(res) {
-    var counts = { all: res.rows.length, short: 0, red: 0, ok: 0 };
-    res.rows.forEach(function (r) { if (r.short > 0) counts.short++; if (r.status === 'red') counts.red++; if (r.status === 'green') counts.ok++; });
+    var groups = bySku(res);
+    var counts = { all: groups.length, short: 0, red: 0, ok: 0 };
+    groups.forEach(function (g) { if (g.worst > 0) counts.short++; if (g.status === 'red') counts.red++; if (g.status === 'green') counts.ok++; });
     var chips = el('invPlanFilters');
-    chips.replaceChildren.apply(chips, [['all', 'All'], ['short', 'Shortfall'], ['red', 'Stockout risk'], ['ok', 'Covered']].map(function (f) {
-      var b = node('button', 'inv-chip', f[1] + ' (' + counts[f[0]] + ')');
+    chips.replaceChildren.apply(chips, [['all', 'All'], ['short', 'Short'], ['red', 'Stockout risk'], ['ok', 'Covered']].map(function (f) {
+      var b = node('button', 'inv-chip', f[1] + ' ' + counts[f[0]]);
       b.type = 'button';
       b.setAttribute('aria-pressed', String(state.filter === f[0]));
       b.addEventListener('click', function () { state.filter = f[0]; render(); });
       return b;
     }));
-    var shown = res.rows.filter(function (r) {
-      return state.filter === 'all' || (state.filter === 'short' && r.short > 0) || (state.filter === 'red' && r.status === 'red') || (state.filter === 'ok' && r.status === 'green');
-    });
-    var body = el('invPlanRows');
-    body.replaceChildren.apply(body, shown.map(function (r) {
-      var tr = node('tr', 'inv-plan-row'), key = r.point + '|' + r.sku;
-      tr.tabIndex = 0;
-      tr.dataset.key = key;
-      tr.setAttribute('aria-selected', String(state.sel === key));
-      var by = r.orderBy == null || !(r.short > 0) ? node('span', 'inv-dim', r.short === 0 ? 'Not needed' : '—')
-        : r.late ? node('b', 'inv-late', 'Order now') : node('span', '', label(r.orderBy));
-      if (r.late) { var lateBy = node('small', '', days(r.orderBy, today()) + ' days late'); var w = node('span'); w.append(by, lateBy); by = w; }
-      var pill = node('span', 'inv-status', STATUS[r.status]);
-      pill.dataset.s = r.status;
-      [label(parse(r.point)), r.sku, num(r.required), num(r.projected), r.short == null ? '—' : whole(r.short), r.days == null ? '—' : r.days.toFixed(1)].forEach(function (v, i) {
-        var td = node('td', i > 1 ? 'n' : '', v);
-        if (i === 1) td.className = 'inv-sku';
-        tr.append(td);
-      });
-      var t1 = node('td'), t2 = node('td');
-      t1.append(by); t2.append(pill);
-      tr.append(t1, t2);
-      return tr;
-    }));
-    if (!shown.length) {
+    var keep = function (g) { return state.filter === 'all' || (state.filter === 'short' && g.worst > 0) || (state.filter === 'red' && g.status === 'red') || (state.filter === 'ok' && g.status === 'green'); };
+    groups = groups.filter(keep);
+    el('invPlanView').querySelectorAll('button').forEach(function (b) { b.setAttribute('aria-pressed', String(b.dataset.v === state.view)); });
+    var head = el('invPlanHead'), body = el('invPlanRows');
+    var th = function (text, cls) { var c = node('th', cls || '', text); c.scope = 'col'; return c; };
+    if (state.view === 'sku') {
+      var hr = node('tr');
+      hr.append(th('SKU'), th('On hand', 'n'));
+      res.points.forEach(function (t) { hr.append(th(label(t), 'n')); });
+      hr.append(th('To order', 'n'), th('Order by'));
+      head.replaceChildren(hr);
+      body.replaceChildren.apply(body, groups.map(function (g) {
+        var tr = node('tr', 'inv-plan-row');
+        tr.tabIndex = 0;
+        tr.dataset.sku = g.sku;
+        tr.setAttribute('aria-selected', String(state.sel === g.sku));
+        var name = node('td', 'inv-sku');
+        var dot = node('span', 'inv-status', '');
+        dot.dataset.s = g.status;
+        dot.title = STATUS[g.status];
+        var inner = node('span', 'inv-sku-in');
+        inner.append(dot, g.sku);
+        name.append(inner);
+        tr.append(name, node('td', 'n', g.held && g.held.present != null ? whole(g.held.present) : '—'));
+        res.points.forEach(function (t) { tr.append(cell(g.rows[iso(t)])); });
+        tr.append(node('td', 'n inv-order', g.worst > 0 ? whole(g.worst) : '—'), orderCell(g));
+        return tr;
+      }));
+    } else {
+      var h2 = node('tr');
+      ['Date', 'SKU', 'Required', 'Projected', 'Shortfall', 'Cover days', 'Order by', 'Status'].forEach(function (t, i) { h2.append(th(t, i > 1 && i < 6 ? 'n' : '')); });
+      head.replaceChildren(h2);
+      var rows = res.rows.filter(function (r) { return groups.some(function (g) { return g.sku === r.sku; }); });
+      body.replaceChildren.apply(body, rows.map(function (r) {
+        var tr = node('tr', 'inv-plan-row');
+        tr.tabIndex = 0;
+        tr.dataset.sku = r.sku;
+        tr.dataset.point = r.point;
+        tr.setAttribute('aria-selected', String(state.sel === r.sku && state.point === r.point));
+        [label(parse(r.point)), r.sku, num(r.required), num(r.projected), r.short == null ? '—' : whole(r.short), r.days == null ? '—' : r.days.toFixed(1)].forEach(function (v, i) {
+          tr.append(node('td', i === 1 ? 'inv-sku' : i > 1 ? 'n' : '', v));
+        });
+        var by = node('td');
+        by.append(r.short > 0 ? (r.late ? node('b', 'inv-late', 'Order now') : node('span', '', label(r.orderBy))) : node('span', 'inv-dim', r.short === 0 ? 'Not needed' : '—'));
+        var st = node('td'), pill = node('span', 'inv-status', STATUS[r.status]);
+        pill.dataset.s = r.status;
+        st.append(pill);
+        tr.append(by, st);
+        return tr;
+      }));
+    }
+    if (!body.children.length) {
       var tr = node('tr'), td = node('td', 'inv-dim', 'Nothing matches this filter.');
-      td.colSpan = 8; tr.append(td); body.append(tr);
+      td.colSpan = 20; tr.append(td); body.append(tr);
     }
   }
 
   function panel(res, run) {
-    var p = el('invPlanPanel'), r = res.rows.find(function (x) { return x.point + '|' + x.sku === state.sel; }) || res.rows[0];
+    var p = el('invPlanPanel'), skus = Object.keys(run.d.skus).sort();
+    if (!skus.includes(state.sel)) {
+      var first = bySku(res).sort(function (a, b) { return b.worst - a.worst; })[0];
+      state.sel = first ? first.sku : skus[0];
+    }
+    var rows = res.rows.filter(function (x) { return x.sku === state.sel; });
+    if (!rows.some(function (x) { return x.point === state.point; })) {
+      var worst = rows.slice().sort(function (a, b) { return (b.short || 0) - (a.short || 0); })[0];
+      state.point = worst ? worst.point : null;
+    }
+    var r = rows.find(function (x) { return x.point === state.point; });
     p.replaceChildren();
     if (!r) return;
-    state.sel = r.point + '|' + r.sku;
-    var t = parse(r.point), steps = node('ol', 'inv-steps');
+    var t = parse(r.point), head = node('div', 'inv-panel-head'), title = node('div');
+    title.append(node('h3', '', r.sku), node('span', 'inv-dim', run.name + ' · ' + state.level));
+    var pill = node('span', 'inv-status', STATUS[r.status]);
+    pill.dataset.s = r.status;
+    head.append(title, pill);
+    var tabs = node('div', 'inv-tabs');
+    tabs.setAttribute('role', 'group');
+    tabs.setAttribute('aria-label', 'Date');
+    rows.forEach(function (x) {
+      var b = node('button', '', label(parse(x.point)));
+      b.type = 'button';
+      b.dataset.s = x.status;
+      b.setAttribute('aria-pressed', String(x.point === state.point));
+      b.addEventListener('click', function () { state.point = x.point; render(); });
+      tabs.append(b);
+    });
+    var steps = node('ol', 'inv-steps');
     var step = function (title, note, value, strong) {
       var li = node('li', strong ? 'res' : ''), text = node('span', '', title);
       text.append(node('small', '', note));
@@ -261,18 +351,15 @@
       steps.append(li);
     };
     var u = r.uplift[state.level];
-    step('Demand to cover', r.cover + ' days from ' + label(t) + ' (' + r.lead + ' lead time + ' + state.review + ' review) at ' + state.level +
-      (state.level === 'P50' ? '' : ', ×' + u.toFixed(2) + ' from ' + (r.uplift.own ? 'this SKU’s' : 'all SKUs’') + ' backtest errors'), num(r.required));
+    step('Demand to cover', r.cover + ' days from ' + label(t) + ' (' + r.lead + ' lead time + ' + state.review + ' review)' +
+      (state.level === 'P50' ? '' : ', ×' + u.toFixed(2) + ' for ' + state.level + ' from ' + (r.uplift.own ? 'this SKU’s' : 'all SKUs’') + ' backtest errors'), num(r.required));
     if (r.held) {
-      var held = r.held;
-      step('Projected stock on ' + label(t), whole(held.present) + ' on hand' + (state.undated && r.undated ? ' + ' + whole(r.undated) + ' in transit and on order, arriving ' + label(r.arrive) : '') +
+      step('Projected stock on ' + label(t), whole(r.held.present) + ' on hand' + (state.undated && r.undated ? ' + ' + whole(r.undated) + ' in transit and on order, arriving ' + label(r.arrive) : '') +
         ' − P50 demand from ' + label(res.from), num(r.projected));
       step('Shortfall', 'Required − projected', r.short == null ? '—' : whole(r.short), true);
       step('Order by', r.lead + '-day lead time before ' + label(t), r.short > 0 ? (r.late ? 'Today' : label(r.orderBy)) : 'Not needed', true);
     } else step('Projected stock', 'Needs a stock file with this SKU', '—');
-    var head = node('div', 'inv-panel-head');
-    head.append(node('h3', '', r.sku), node('span', 'inv-dim', run.name + ' · ' + label(t)));
-    p.append(head, steps, chart(res, run, r.sku));
+    p.append(head, chart(res, run, r.sku), tabs, steps);
   }
 
   // Projected stock against required stock for one SKU, dates marked.
@@ -292,7 +379,7 @@
       var used = demand(day);
       level = used == null ? level : Math.max(0, level - used);
     }
-    var W = 340, H = 150, max = Math.max.apply(null, proj.concat(need.filter(Number.isFinite))) * 1.1 || 1;
+    var W = 420, H = 170, max = Math.max.apply(null, proj.concat(need.filter(Number.isFinite))) * 1.1 || 1;
     var X = function (i) { return 6 + i / n * (W - 12); }, Y = function (v) { return H - 20 - v / max * (H - 36); };
     var path = function (list) { return list.map(function (v, i) { return v == null ? '' : (i && list[i - 1] != null ? 'L' : 'M') + X(i).toFixed(1) + ' ' + Y(v).toFixed(1); }).join(''); };
     var gap = '';
@@ -326,6 +413,7 @@
   }
 
   function controls(res) {
+    el('invPlanMoreSum').textContent = 'Lead time ' + leadDays() + ' days · review ' + state.review + ' · country' + (state.undated ? '' : ' · open orders left out');
     var sel = el('invPlanRun'), base = plan();
     var opts = [['plan', 'Committed plan']].concat(runs.filter(function (r) { return !base || r.id !== base.id; }).map(function (r) { return [r.id, 'Scenario: ' + (r.label || 'Untitled')]; }));
     if (sel.options.length !== opts.length) sel.replaceChildren.apply(sel, opts.map(function (o) { return new Option(o[1], o[0]); }));
@@ -361,14 +449,14 @@
     status.textContent = '';
     box.dataset.ready = '1';
     var res = evaluate(run);
-    el('invPlanPoMsg').textContent = ''; // the inputs changed
+    if (box.lastKey !== JSON.stringify([state.run, state.points, state.preset, state.level, state.lead, state.review, state.undated])) el('invPlanPoMsg').textContent = ''; // the inputs changed
+    box.lastKey = JSON.stringify([state.run, state.points, state.preset, state.level, state.lead, state.review, state.undated]);
     box.res = res;
     controls(res);
     summary(res, run);
     table(res);
     panel(res, run);
     notes(res, run);
-    el('invPlanRows').querySelectorAll('tr.inv-plan-row').forEach(function (tr) { tr.setAttribute('aria-selected', String(tr.dataset.key === state.sel)); });
   }
 
   function exportCsv() {
@@ -433,12 +521,34 @@
   number(el('invPlanLead'), 'lead', 1, 180);
   number(el('invPlanReview'), 'review', 0, 90);
   el('invPlanUndated').addEventListener('change', function () { state.undated = this.checked; render(); });
-  el('invPlanRows').addEventListener('click', function (e) { var tr = e.target.closest('tr.inv-plan-row'); if (tr) { state.sel = tr.dataset.key; render(); } });
+  var pick = function (tr) { state.sel = tr.dataset.sku; if (tr.dataset.point) state.point = tr.dataset.point; };
+  el('invPlanRows').addEventListener('click', function (e) {
+    var tr = e.target.closest('tr.inv-plan-row');
+    if (!tr) return;
+    pick(tr);
+    var c = e.target.closest('td.inv-cell');
+    if (c && c.dataset.point) state.point = c.dataset.point;
+    render();
+  });
   el('invPlanRows').addEventListener('keydown', function (e) {
     var tr = e.target.closest('tr.inv-plan-row');
     if (!tr) return;
-    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); state.sel = tr.dataset.key; render(); el('invPlanRows').querySelector('[data-key="' + CSS.escape(state.sel) + '"]').focus(); }
+    var step = { ArrowDown: 1, ArrowUp: -1 }[e.key];
+    if (step) {
+      e.preventDefault();
+      var all = Array.from(el('invPlanRows').querySelectorAll('tr.inv-plan-row')), next = all[all.indexOf(tr) + step];
+      if (next) next.focus();
+      return;
+    }
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      pick(tr);
+      render();
+      var again = el('invPlanRows').querySelector('tr[data-sku="' + CSS.escape(state.sel) + '"]' + (tr.dataset.point ? '[data-point="' + tr.dataset.point + '"]' : ''));
+      if (again) again.focus();
+    }
   });
+  el('invPlanView').addEventListener('click', function (e) { var b = e.target.closest('button'); if (b) { state.view = b.dataset.v; render(); } });
   el('invPlanCsv').addEventListener('click', exportCsv);
   el('invPlanPo').addEventListener('click', draftPos);
   document.addEventListener('apra:scenarios-list', function (event) {
