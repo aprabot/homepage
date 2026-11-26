@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261124f">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261125a">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -1117,6 +1117,45 @@
          Bedrock-generated AI Insights content). -->
     <div class="dbody" id="inventoryPanel" style="display:none">
       <h1 class="dgreet">Inventory</h1>
+      <p class="dsubtle">How much stock you need at the dates you pick to meet the forecast, and where it falls short.</p>
+
+      <section class="inv-plan" id="invPlan" aria-label="Stock needed">
+        <div class="inv-plan-controls">
+          <label class="inv-field"><span>Forecast run</span><select id="invPlanRun"><option value="plan">Committed plan</option></select></label>
+          <div class="inv-field"><span>Points in time</span>
+            <div class="inv-points"><select id="invPlanPreset" aria-label="Points in time">
+              <option value="mondays3">Next 3 Mondays</option><option value="mondays8">Every Monday, 8 weeks</option>
+              <option value="months3">End of the next 3 months</option><option value="custom">My dates</option></select>
+              <input type="date" id="invPlanAdd" aria-label="Add a date"></div></div>
+          <div class="inv-field"><span>Service level</span>
+            <div class="theme-pill inv-seg" id="invPlanLevel" role="group" aria-label="Service level">
+              <button type="button" data-v="P50">P50</button><button type="button" data-v="P75">P75</button><button type="button" data-v="P90">P90</button></div></div>
+          <div class="inv-field"><span>Level</span>
+            <div class="theme-pill inv-seg" role="group" aria-label="Level">
+              <button type="button" aria-pressed="true">Country</button>
+              <button type="button" disabled title="Needs a file mapping pincodes to sites">Site</button>
+              <button type="button" disabled title="Needs a file mapping pincodes to sites and regions">Region</button></div></div>
+          <label class="inv-field inv-num"><span>Lead time (days)</span><input type="number" id="invPlanLead" min="1" max="180" step="1"></label>
+          <label class="inv-field inv-num"><span>Review (days)</span><input type="number" id="invPlanReview" min="0" max="90" step="1"></label>
+          <label class="inv-check"><input type="checkbox" id="invPlanUndated"> Count in-transit and open orders</label>
+        </div>
+        <div class="inv-point-chips" id="invPlanPoints"></div>
+        <p class="inv-plan-sum" id="invPlanSum" aria-live="polite"></p>
+        <p class="inv-dim" id="invPlanState" role="status"></p>
+        <div class="inv-plan-grid">
+          <div class="inv-plan-table">
+            <div class="inv-plan-bar"><div class="inv-chips" id="invPlanFilters"></div><div class="inv-plan-acts"><button type="button" class="dbtn inv-stock-ghost" id="invPlanCsv">Export CSV</button><button type="button" class="dbtn" id="invPlanPo" title="Demo: not connected to a procurement system">Create PO drafts <span class="inv-demo">Demo</span></button></div></div>
+            <p class="inv-po-msg" id="invPlanPoMsg" role="status" aria-live="polite"></p>
+            <div class="table-wrap"><table class="dtable inv-plan-tbl">
+              <thead><tr><th scope="col">Point</th><th scope="col">SKU</th><th scope="col" class="n">Required</th><th scope="col" class="n">Projected</th><th scope="col" class="n">Shortfall</th><th scope="col" class="n">Cover days</th><th scope="col">Order by</th><th scope="col">Status</th></tr></thead>
+              <tbody id="invPlanRows"></tbody></table></div>
+          </div>
+          <aside class="inv-plan-panel" id="invPlanPanel" aria-label="How it is worked out"></aside>
+        </div>
+        <details class="inv-plan-notes"><summary>What this uses</summary><ul id="invPlanNotes"></ul></details>
+      </section>
+
+      <h2 class="inv-sec">Monthly requirement and receipts</h2>
       <p class="dsubtle">Required inventory per SKU combines cycle stock and safety stock from shipment history. Sites, units received and delivery frequency come from the inbound receipts you uploaded; stock on hand, in transit and on order come from your stock file.</p>
 
       <div id="invLoading" style="margin-top:18px">
@@ -2336,12 +2375,13 @@
 <script src="../js/data.js"></script>
 <script src="../js/main.js?v=20261124b"></script>
 <script src="../js/theme.js"></script>
-<script src="../js/scenario-forecast.js?v=20261124e"></script>
+<script src="../js/scenario-forecast.js?v=20261125a"></script>
 <script src="../js/overview-matrix.js?v=20261124c"></script>
 <script src="../js/opportunities.js?v=20261124b"></script>
 <script src="../js/scenarios.js?v=20261124d"></script>
 <script src="../js/insights.js"></script>
 <script src="../js/inventory.js?v=20261123a"></script>
+<script src="../js/inventory-plan.js?v=20261125a"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
 <script src="../js/ads.js?v=shopify-check"></script>

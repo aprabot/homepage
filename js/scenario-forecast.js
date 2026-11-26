@@ -358,7 +358,7 @@
     return out;
   }
 
-  window.scenarioForecast = { show: show, clear: clear, redraw: draw, compare: compare, byZip: byZip };
+  window.scenarioForecast = { show: show, clear: clear, redraw: draw, compare: compare, byZip: byZip, pair: pairSkus };
 
   document.addEventListener('DOMContentLoaded', function () {
     if (!el('scfBody')) return;
