@@ -384,10 +384,14 @@
     // state: 'loading' | 'empty' | 'error' | 'content' — the Inventory
     // page's own loading/empty/error chrome (both the catalog summary and
     // the drill-down live inside #invContent, so one state covers both).
-    document.getElementById('invLoading').style.display = state === 'loading' ? '' : 'none';
-    document.getElementById('invEmpty').style.display = state === 'empty' ? '' : 'none';
-    document.getElementById('invError').style.display = state === 'error' ? '' : 'none';
-    document.getElementById('invContent').style.display = state === 'content' ? '' : 'none';
+    // Only the stock bar is left of this view; the planner (inventory-plan.js)
+    // shows its own loading and error states, and doesn't need this data.
+    [['invLoading', 'loading'], ['invEmpty', 'empty'], ['invError', 'error']].forEach(function (x) {
+      var el = document.getElementById(x[0]);
+      if (el) el.style.display = state === x[1] ? '' : 'none';
+    });
+    var content = document.getElementById('invContent');
+    if (content) content.style.display = '';
   }
 
   window.loadInventory = function (force) {
@@ -399,7 +403,7 @@
       .then(function (data) {
         loaded = true;
         var skuIds = Object.keys(data.bySku || {});
-        if (!skuIds.length) { showState('empty'); return; }
+        if (!skuIds.length) { showState('empty'); loadInbound(); return; }
         showState('content');
         initCatalogSummary();
         detailView.initForData();
@@ -408,9 +412,11 @@
       })
       .catch(function (err) {
         loaded = true;
+        loadInbound(); // the stock bar doesn't need this data
         if (err.status === 404) { showState('empty'); return; }
         showState('error');
-        document.getElementById('invError').textContent = 'Could not load inventory data right now (' + err.message + ').';
+        var box = document.getElementById('invError');
+        if (box) box.textContent = 'Could not load inventory data right now (' + err.message + ').';
       });
   };
 
@@ -430,7 +436,7 @@
                        intransit: 'In-transit', openpo: 'Open PO units'};
 
   function loadInbound() {
-    if (!document.getElementById('inventoryReqBody')) return;
+    if (!document.getElementById('invStockBar')) return;
     inbound = { status: 'loading' };
     var request = inbound;
     APRA_SESSION.fetch(SCENARIOS_API + '?view=inbound')
@@ -504,18 +510,19 @@
           return post(SCENARIOS_API + '?view=stock', { key: d.key });
         });
       })
-      .then(function (d) { setStock(d.stock, true); })
+      .then(function (d) { setStock(d.stock, true); if (window.invPlanRefresh) window.invPlanRefresh(); })
       .catch(function (err) { renderStockBar('Not updated: ' + err.message, 'err'); })
       .then(function () { input.disabled = !stockCanEdit; input.value = ''; });
   }
 
   function downloadStockTemplate() {
     var sites = {};
-    (invReqRows || []).forEach(function (row) { ((inboundFor(row.sku) || {}).sites || []).forEach(function (x) { sites[x.code] = x.name; }); });
+    var skuList = Object.keys((lastData && lastData.bySku) || (window.DATA && window.DATA.skus) || {}).sort().map(function (sku) { return { sku: sku }; });
+    (invReqRows || skuList).forEach(function (row) { ((inboundFor(row.sku) || {}).sites || []).forEach(function (x) { sites[x.code] = x.name; }); });
     var codes = Object.keys(sites).sort();
     var q = function (v) { v = String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     var lines = ['as_of,site_code,site_name,sku,on_hand,in_transit,open_po'];
-    (invReqRows || []).forEach(function (row) {
+    (invReqRows || skuList).forEach(function (row) {
       (codes.length ? codes : ['']).forEach(function (code) { lines.push(['', q(code), q(sites[code] || ''), row.sku, '', '', ''].join(',')); });
     });
     var a = document.createElement('a');
@@ -590,6 +597,7 @@
   }
 
   function invReqUpdateKpiTabUI() {
+    if (!document.getElementById('invTableNote')) return; // the monthly table was removed
     document.getElementById('invTableNote').textContent = inboundNote();
     var hasInbound = !!inbound && inbound.status === 'ok';
     document.querySelectorAll('.inv-kpi-tab').forEach(function (tab) {
@@ -749,9 +757,11 @@
     var search = document.getElementById('invReqSearch');
     var resetBtn = document.getElementById('invReqResetBtn');
     var clearTabBtn = document.getElementById('invClearTabBtn');
+    // The stock file bar stays even without the monthly table.
+    var tpl = document.getElementById('invStockTpl'), file = document.getElementById('invStockFile');
+    if (tpl) tpl.addEventListener('click', downloadStockTemplate);
+    if (file) file.addEventListener('change', function () { if (this.files[0]) uploadStock(this.files[0]); });
     if (!skuSel) return; // this section's markup isn't on the current page
-    document.getElementById('invStockTpl').addEventListener('click', downloadStockTemplate);
-    document.getElementById('invStockFile').addEventListener('change', function () { if (this.files[0]) uploadStock(this.files[0]); });
     document.getElementById('inventoryReqBody').addEventListener('click', function (e) {
       var btn = e.target.closest('.inv-sites-btn');
       if (!btn) return;

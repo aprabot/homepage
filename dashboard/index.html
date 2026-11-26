@@ -1155,116 +1155,12 @@
         <details class="inv-plan-notes"><summary>What this uses</summary><ul id="invPlanNotes"></ul></details>
       </section>
 
-      <h2 class="inv-sec">Monthly requirement and receipts</h2>
-      <p class="dsubtle">Required inventory per SKU combines cycle stock and safety stock from shipment history. Sites, units received and delivery frequency come from the inbound receipts you uploaded; stock on hand, in transit and on order come from your stock file.</p>
-
-      <div id="invLoading" style="margin-top:18px">
-        <span class="skel-line wide"></span>
-        <span class="skel-line" style="width:60%"></span>
-      </div>
-      <p class="dsubtle" id="invEmpty" style="margin:20px 0 4px;display:none">No inventory data yet for the current approved forecast — this is computed fresh each time a scenario runs and gets folded in the next time one is approved.</p>
-      <p class="dsubtle" id="invError" style="margin:20px 0 4px;display:none"></p>
-
-      <div id="invContent" style="display:none;margin-top:18px">
+      <div id="invContent" style="margin-top:18px">
         <div class="inv-stock-bar" id="invStockBar" hidden>
           <div class="inv-stock-text"><b id="invStockTitle"></b><span id="invStockStatus" role="status"></span></div>
           <button type="button" class="dbtn inv-stock-ghost" id="invStockTpl">Download template</button>
           <label class="dbtn" for="invStockFile" id="invStockLabel">Upload stock file</label>
           <input type="file" id="invStockFile" class="inv-stock-input" accept=".xlsx,.csv,.tsv,.txt">
-        </div>
-        <div class="inv-locked-badge">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 0 0 2-2V7a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg>
-          <span style="font-size:12px">Required inventory — <b style="color:var(--text)" id="invReqMonthLabel">—</b></span>
-          <span class="inv-lockpill" title="The real data behind this number is monthly, not a rolling 4-week window — this label matches the actual granularity computed server-side">Monthly</span>
-        </div>
-
-        <div class="inv-kpi-grid">
-          <button type="button" class="inv-kpi-tab" data-kpi-tab="present" onclick="window.invReqPickKpiTab(this)" disabled>
-            <div class="inv-kpi-top">
-              <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Total Inventory Units</span>
-              <span class="inv-kpi-hint">No data</span>
-            </div>
-            <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub">On hand</span></div>
-            <div class="inv-kpi-foot"><span class="inv-kpi-src">Needs a stock file</span><span></span></div>
-          </button>
-          <button type="button" class="inv-kpi-tab" data-kpi-tab="required" onclick="window.invReqPickKpiTab(this)">
-            <div class="inv-kpi-top">
-              <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12l2 2 4-4m6 2a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Recommended Inventory</span>
-              <span class="inv-kpi-hint">Sort desc</span>
-            </div>
-            <div class="inv-kpi-val-row"><span class="inv-kpi-val" id="kpi-required-total">—</span><span class="inv-kpi-sub">Cycle + safety stock</span></div>
-            <div class="inv-kpi-foot"><span>Required this month</span><span id="kpi-required-sub">—</span></div>
-          </button>
-          <button type="button" class="inv-kpi-tab" data-kpi-tab="received" onclick="window.invReqPickKpiTab(this)" disabled>
-            <div class="inv-kpi-top">
-              <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12M7 10l5 5 5-5M4 21h16" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Received</span>
-              <span class="inv-kpi-hint">No data</span>
-            </div>
-            <div class="inv-kpi-val-row"><span class="inv-kpi-val" id="kpi-received-total">—</span><span class="inv-kpi-sub">Last 30 days</span></div>
-            <div class="inv-kpi-foot"><span id="kpi-received-foot">From inbound receipts</span><span id="kpi-received-sub">—</span></div>
-          </button>
-          <button type="button" class="inv-kpi-tab" data-kpi-tab="intransit" onclick="window.invReqPickKpiTab(this)" disabled>
-            <div class="inv-kpi-top">
-              <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M13 16V6a1 1 0 0 0-1-1H4a1 1 0 0 0-1 1v10a1 1 0 0 0 1 1h1m8-1a1 1 0 0 1-1 1H9m4-1V8a1 1 0 0 1 1-1h2.586a1 1 0 0 1 .707.293l3.414 3.414a1 1 0 0 1 .293.707V16a1 1 0 0 1-1 1h-1m-6-1a1 1 0 0 0 1 1h1M5 17a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0m6 0a2 2 0 1 0 4 0m-4 0a2 2 0 1 1 4 0"/></svg></span>In-Transit Inventory</span>
-              <span class="inv-kpi-hint">No data</span>
-            </div>
-            <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub"></span></div>
-            <div class="inv-kpi-foot"><span class="inv-kpi-src">Needs a stock file</span><span></span></div>
-          </button>
-          <button type="button" class="inv-kpi-tab" data-kpi-tab="openpo" onclick="window.invReqPickKpiTab(this)" disabled>
-            <div class="inv-kpi-top">
-              <span class="inv-kpi-label"><span class="inv-kpi-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 12h6m-6 4h6m2 5H7a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5.586a1 1 0 0 1 .707.293l5.414 5.414a1 1 0 0 1 .293.707V19a2 2 0 0 1-2 2Z" stroke-linecap="round" stroke-linejoin="round"/></svg></span>Open PO Units</span>
-              <span class="inv-kpi-hint">No data</span>
-            </div>
-            <div class="inv-kpi-val-row"><span class="inv-kpi-val">—</span><span class="inv-kpi-sub"></span></div>
-            <div class="inv-kpi-foot"><span class="inv-kpi-src">Needs a stock file</span><span></span></div>
-          </button>
-        </div>
-
-        <div class="dcard" style="padding:0;overflow:hidden;margin-top:16px">
-          <div class="inv-table-topbar">
-            <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap">
-              <div class="inv-filter-field inv-filter-sku"><label for="invReqSkuFilter">SKU</label><select id="invReqSkuFilter"><option value="ALL">All SKUs</option></select></div>
-              <div class="inv-filter-field inv-filter-search-f"><label for="invReqSearch">Quick Search</label><input type="text" id="invReqSearch" placeholder="SKU…"></div>
-              <button type="button" class="dbtn" id="invReqResetBtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);height:38px;font-size:11.5px;padding:0 12px">Reset</button>
-              <span id="invReqCounter" style="font-size:12px;font-weight:600;color:var(--text)">—</span>
-              <span class="inv-active-pill" id="invActiveTabPill" style="display:none"><span id="invActiveTabText"></span><button type="button" id="invClearTabBtn" aria-label="Clear">×</button></span>
-            </div>
-            <div class="inv-note" id="invTableNote" role="status">Required uses this month’s cycle stock and safety stock.</div>
-          </div>
-          <div class="table-wrap">
-            <table class="dtable" id="inventoryReqTable">
-              <thead>
-                <tr>
-                  <th class="amp-sortable" data-sort-key="sku">SKU <span class="ov-sort-ic">⇅</span></th>
-                  <th>Site</th>
-                  <th class="amp-sortable" data-sort-key="present">Present inventory <span class="ov-sort-ic">⇅</span></th>
-                  <th class="amp-sortable" data-sort-key="required">Required <span class="ov-sort-ic">⇅</span></th>
-                  <th class="amp-sortable" data-sort-key="received">Received (30 days) <span class="ov-sort-ic">⇅</span></th>
-                  <th class="amp-sortable" data-sort-key="intransit">In-transit <span class="ov-sort-ic">⇅</span></th>
-                  <th class="amp-sortable" data-sort-key="openpo">Open PO units <span class="ov-sort-ic">⇅</span></th>
-                  <th class="amp-sortable" data-sort-key="delta">Delta <span class="ov-sort-ic">⇅</span></th>
-                  <th class="amp-sortable" data-sort-key="every">Inbound frequency <span class="ov-sort-ic">⇅</span></th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody id="inventoryReqBody"></tbody>
-              <tfoot id="inventoryReqTfoot">
-                <tr>
-                  <td>Total / net summary</td>
-                  <td id="inv-foot-count" class="inv-foot-muted">—</td>
-                  <td id="inv-foot-present">—</td>
-                  <td id="inv-foot-required">—</td>
-                  <td id="inv-foot-received">—</td>
-                  <td id="inv-foot-intransit">—</td>
-                  <td id="inv-foot-openpo">—</td>
-                  <td id="inv-foot-delta">—</td>
-                  <td>—</td>
-                  <td>—</td>
-                </tr>
-              </tfoot>
-            </table>
-          </div>
         </div>
       </div>
     </div>
@@ -2380,7 +2276,7 @@
 <script src="../js/opportunities.js?v=20261124b"></script>
 <script src="../js/scenarios.js?v=20261124d"></script>
 <script src="../js/insights.js"></script>
-<script src="../js/inventory.js?v=20261123a"></script>
+<script src="../js/inventory.js?v=20261126a"></script>
 <script src="../js/inventory-plan.js?v=20261125a"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
