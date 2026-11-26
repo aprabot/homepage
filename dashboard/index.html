@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261126d">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261126e">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -1158,23 +1158,25 @@
     <!-- Settings panel (hidden by default) -->
     <div class="settings-body" id="settingsPanel" style="display:none">
       <h1>Settings</h1>
-      <p class="dsubtle">Manage your preferences and integrations.</p>
+      <p class="dsubtle">Changes save as you make them.</p>
 
-      <!-- Account -->
-      <div class="scard">
-        <div class="scard-head">
-          <span class="scard-ic c-signal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7" stroke-linecap="round"/></svg></span>
-          <h4>Account</h4>
+      <div class="set-layout">
+        <div class="set-tabs" role="tablist" aria-label="Settings"><button type="button" role="tab" id="setTab-account" data-set-tab="account" aria-controls="setPane" aria-selected="false" tabindex="-1">Account</button><button type="button" role="tab" id="setTab-security" data-set-tab="security" aria-controls="setPane" aria-selected="false" tabindex="-1">Security</button><button type="button" role="tab" id="setTab-team" data-set-tab="team" aria-controls="setPane" aria-selected="false" tabindex="-1">Team</button><button type="button" role="tab" id="setTab-appearance" data-set-tab="appearance" aria-controls="setPane" aria-selected="false" tabindex="-1">Appearance</button><button type="button" role="tab" id="setTab-lyra" data-set-tab="lyra" aria-controls="setPane" aria-selected="false" tabindex="-1">Lyra</button><button type="button" role="tab" id="setTab-report" data-set-tab="report" aria-controls="setPane" aria-selected="false" tabindex="-1">Report</button></div>
+        <div class="set-main" id="setPane" role="tabpanel">
+
+      <section class="scard set-sec" id="setAccount" data-tab="account">
+        <div class="set-sec-head">
+          <div><h2>Account</h2><p>Who you’re signed in as.</p></div>
         </div>
         <div class="srow">
-          <div style="display:flex;align-items:center;gap:14px">
+          <div class="set-who">
             <div class="settings-avatar" id="settingsAvatar">U</div>
             <div>
               <div class="srow-label" id="settingsEmail">—</div>
-              <div class="srow-desc">Signed in — Demand Planner</div>
+              <div class="srow-desc" id="settingsSignedInAs">Signed in</div>
             </div>
           </div>
-          <button class="dbtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2)" onclick="logout()">Sign out</button>
+          <button class="dbtn set-btn-quiet" onclick="logout()">Sign out</button>
         </div>
         <div class="srow" id="settingsOrgRow" style="display:none">
           <div>
@@ -1182,17 +1184,15 @@
             <div class="srow-desc" id="settingsOrgName">—</div>
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- Security (2FA) -->
-      <div class="scard">
-        <div class="scard-head">
-          <span class="scard-ic c-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="11" width="18" height="11" rx="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4" stroke-linecap="round"/></svg></span>
-          <h4>Security</h4>
+      <section class="scard set-sec" id="setSecurity" data-tab="security">
+        <div class="set-sec-head">
+          <div><h2>Security</h2><p>Protect sign-in with a code from your phone.</p></div>
         </div>
         <div class="srow" id="mfaStatusRow">
           <div>
-            <div class="srow-label">Two-factor authentication</div>
+            <div class="srow-label">Two-factor authentication <span class="set-badge" id="mfaBadge" hidden></span></div>
             <div class="srow-desc" id="mfaStatusDesc">Checking status…</div>
           </div>
           <button class="dbtn" id="mfaActionBtn" style="background:var(--signal);color:#0A0E15;border-color:var(--signal)" onclick="mfaActionClick()" disabled>…</button>
@@ -1218,28 +1218,29 @@
           </div>
           <p class="stest-msg" id="mfaEnrollMsg"></p>
         </div>
-      </div>
+      </section>
 
-      <!-- Support -->
-      <div class="scard">
-        <div class="scard-head">
-          <span class="scard-ic c-mint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 12a8 8 0 0 1 16 0" stroke-linecap="round"/><rect x="2" y="12" width="5" height="7" rx="2"/><rect x="17" y="12" width="5" height="7" rx="2"/><path d="M20 19a4 4 0 0 1-4 4h-2" stroke-linecap="round"/></svg></span>
-          <h4>Support</h4>
+      <section class="scard set-sec" id="settingsTeamCard" data-tab="team" style="display:none">
+        <div class="set-sec-head">
+          <div><h2>Team</h2><p>People in your organization and what they can do.</p></div>
         </div>
-        <div class="srow">
-          <div>
-            <div class="srow-label">Questions or something not working?</div>
-            <div class="srow-desc">We're a small team and read every message personally — no ticket queue, no bot in between.</div>
-          </div>
-          <a class="dbtn" style="background:var(--ink-3);color:var(--text);border:1px solid var(--line-2);text-decoration:none" href="mailto:contact@aprabot.com">Email support</a>
+        <ul class="set-notes">
+          <li>Anyone who signs up with a matching email joins this organization automatically.</li>
+          <li>Only an <b>admin</b> can approve a forecast for everyone to see. A <b>viewer</b> can run scenarios and use everything else, but not approve.</li>
+          <li>Making someone an admin is <b>permanent</b>: admin status can be granted here but not revoked.</li>
+        </ul>
+        <div class="table-wrap">
+          <table class="dtable">
+            <thead><tr><th>Member</th><th>Role</th><th id="teamActionHead" style="display:none"></th></tr></thead>
+            <tbody id="teamMembersBody"><tr><td colspan="3" class="dsubtle">Loading…</td></tr></tbody>
+          </table>
         </div>
-      </div>
+        <p class="stest-msg" id="teamRoleMsg" role="status"></p>
+      </section>
 
-      <!-- Appearance -->
-      <div class="scard">
-        <div class="scard-head">
-          <span class="scard-ic c-signal"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="4.5"/><line x1="12" y1="2" x2="12" y2="5" stroke-linecap="round"/><line x1="12" y1="19" x2="12" y2="22" stroke-linecap="round"/><line x1="4.93" y1="4.93" x2="6.7" y2="6.7" stroke-linecap="round"/><line x1="17.3" y1="17.3" x2="19.07" y2="19.07" stroke-linecap="round"/><line x1="2" y1="12" x2="5" y2="12" stroke-linecap="round"/><line x1="19" y1="12" x2="22" y2="12" stroke-linecap="round"/></svg></span>
-          <h4>Appearance</h4>
+      <section class="scard set-sec" id="setAppearance" data-tab="appearance">
+        <div class="set-sec-head">
+          <div><h2>Appearance</h2><p>How the dashboard looks on this device.</p></div>
         </div>
         <div class="srow">
           <div>
@@ -1255,15 +1256,12 @@
             </button>
           </div>
         </div>
-      </div>
+      </section>
 
-      <!-- Lyra parameters -->
-      <div class="scard">
-        <div class="scard-head">
-          <span class="scard-ic c-mint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3l1.6 4.2L18 8.8l-4.4 1.6L12 14.6l-1.6-4.2L6 8.8l4.4-1.6L12 3Z" stroke-linejoin="round"/><path d="M19 14l.8 2.2L22 17l-2.2.8L19 20l-.8-2.2L16 17l2.2-.8L19 14Z" stroke-linejoin="round"/></svg></span>
-          <h4>Lyra — AI Analyst</h4>
+      <section class="scard set-sec" id="setLyra" data-tab="lyra">
+        <div class="set-sec-head">
+          <div><h2>Lyra, AI analyst</h2><p>How Lyra answers you. Applies from your next message.</p></div><button type="button" class="set-reset" onclick="resetLyraParams()">Reset to defaults</button>
         </div>
-
         <!-- Response style -->
         <div class="srow" style="flex-wrap:wrap;gap:12px">
           <div style="flex:1;min-width:180px">
@@ -1316,21 +1314,13 @@
           </div>
         </div>
 
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-          <button class="dbtn" onclick="resetLyraParams()">Reset defaults</button>
-          <button class="dbtn" style="background:var(--signal);color:#0A0E15;border-color:var(--signal)" onclick="saveLyraParams()">Save</button>
-        </div>
-        <p class="stest-msg" id="lyraParamMsg"></p>
-      </div>
+        <p class="stest-msg set-saved" id="lyraParamMsg" role="status"></p>
+      </section>
 
-      <!-- Downloadable report -->
-      <div class="scard">
-        <div class="scard-head">
-          <span class="scard-ic c-blue"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" stroke-linejoin="round"/><path d="M14 2v6h6M8 13h8M8 17h6" stroke-linecap="round"/></svg></span>
-          <h4>Downloadable Report</h4>
+      <section class="scard set-sec" id="setReport" data-tab="report">
+        <div class="set-sec-head">
+          <div><h2>Downloadable report</h2><p>What’s included the next time you generate the PDF report from the sidebar.</p></div><button type="button" class="set-reset" onclick="resetReportParams()">Reset to defaults</button>
         </div>
-        <p class="dsubtle" style="margin:-4px 0 4px;font-size:12.5px">Choose what's included the next time you generate the PDF report from the sidebar.</p>
-
         <div class="srow" style="flex-wrap:wrap;gap:12px">
           <div style="flex:1;min-width:180px">
             <div class="srow-label">AI Insights</div>
@@ -1388,32 +1378,22 @@
           </div>
         </div>
 
-        <div style="display:flex;justify-content:flex-end;gap:10px;margin-top:16px">
-          <button class="dbtn" onclick="resetReportParams()">Reset defaults</button>
-          <button class="dbtn" style="background:var(--signal);color:#0A0E15;border-color:var(--signal)" onclick="saveReportParams()">Save</button>
-        </div>
-        <p class="stest-msg" id="reportParamMsg"></p>
-      </div>
+        <p class="stest-msg set-saved" id="reportParamMsg" role="status"></p>
+      </section>
 
-      <!-- Team -->
-      <div class="scard" id="settingsTeamCard" style="display:none">
-        <div class="scard-head">
-          <span class="scard-ic c-mint"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="9" cy="8" r="3.2"/><path d="M2.5 20c0-3.3 3-5.8 6.5-5.8s6.5 2.5 6.5 5.8" stroke-linecap="round"/><circle cx="17" cy="8.5" r="2.4"/><path d="M15.2 14.6c2.9.3 4.8 2.4 4.8 5.4" stroke-linecap="round"/></svg></span>
-          <h4>Team</h4>
+      <section class="scard set-sec" id="setSupport" data-tab="account">
+        <div class="set-sec-head">
+          <div><h2>Support</h2><p>Questions or something not working?</p></div>
         </div>
-        <p class="dsubtle" style="margin:-4px 0 12px;font-size:12.5px">
-          Anyone who signs up with a matching email joins this organization automatically. Only an
-          <b>admin</b> can approve a forecast for everyone to see — a <b>viewer</b> can run scenarios
-          and use everything else, but not approve. Admin status can be granted but not revoked here —
-          promoting someone is permanent.
-        </p>
-        <div class="table-wrap">
-          <table class="dtable">
-            <thead><tr><th>Member</th><th>Role</th><th id="teamActionHead" style="display:none"></th></tr></thead>
-            <tbody id="teamMembersBody"><tr><td colspan="3" class="dsubtle">Loading…</td></tr></tbody>
-          </table>
+        <div class="srow">
+          <div>
+            <div class="srow-desc">We're a small team and read every message personally — no ticket queue, no bot in between.</div>
+          </div>
+          <a class="dbtn set-btn-quiet" style="text-decoration:none" href="mailto:contact@aprabot.com">Email support</a>
         </div>
-        <p class="stest-msg" id="teamRoleMsg"></p>
+      </section>
+
+        </div>
       </div>
     </div>
 
@@ -2264,7 +2244,7 @@
 <script src="../js/scenario-forecast.js?v=20261125a"></script>
 <script src="../js/overview-matrix.js?v=20261124c"></script>
 <script src="../js/opportunities.js?v=20261124b"></script>
-<script src="../js/scenarios.js?v=20261124d"></script>
+<script src="../js/scenarios.js?v=20261126s"></script>
 <script src="../js/insights.js?v=20261126a"></script>
 <script src="../js/inventory.js?v=20261126a"></script>
 <script src="../js/inventory-plan.js?v=20261126c"></script>
@@ -2409,10 +2389,12 @@
     function activatePill(groupId, key, def){
       var val=localStorage.getItem(key)||def;
       document.getElementById(groupId).querySelectorAll('button').forEach(function(b){
-        b.classList.toggle('active', b.dataset.val===val ||
-                                     b.dataset[groupId.replace('Group','')] === val ||
-                                     b.dataset.style===val||b.dataset.tone===val||
-                                     b.dataset.focus===val||b.dataset.lang===val);
+        var on = b.dataset.val===val ||
+                 b.dataset[groupId.replace('Group','')] === val ||
+                 b.dataset.style===val||b.dataset.tone===val||
+                 b.dataset.focus===val||b.dataset.lang===val;
+        b.classList.toggle('active', on);
+        b.setAttribute('aria-pressed', on ? 'true' : 'false');
       });
     }
     activatePill('styleGroup','lyra_style','balanced');
@@ -2431,6 +2413,9 @@
     if(emailEl&&nameEl) emailEl.textContent=nameEl.textContent||'—';
     var avatarEl=document.getElementById('settingsAvatar');
     if(avatarEl&&nameEl&&nameEl.textContent) avatarEl.textContent=nameEl.textContent.charAt(0).toUpperCase();
+    var whoEl=document.getElementById('settingsSignedInAs');
+    var who=mfaCurrentEmail();
+    if(whoEl) whoEl.textContent = who ? 'Signed in as ' + who : 'Signed in';
     /* 2FA status — re-checked every time Settings opens, same reasoning as
        loadTeamMembers() below: a change made in another tab/session (or
        right after enrolling) should show up without a full page reload */
@@ -2458,10 +2443,12 @@
       btn.disabled = false;
       if (_mfaEnabled) {
         desc.textContent = 'Enabled — an authenticator app code is required at sign-in.';
+        mfaBadge('On', 'on');
         btn.textContent = 'Disable 2FA';
         btn.style.background = 'var(--ink-3)'; btn.style.color = 'var(--text)'; btn.style.borderColor = 'var(--line-2)';
       } else {
         desc.textContent = 'Not enabled — add an authenticator app for an extra layer of login security.';
+        mfaBadge('Off', 'off');
         btn.textContent = 'Enable 2FA';
         btn.style.background = 'var(--signal)'; btn.style.color = '#0A0E15'; btn.style.borderColor = 'var(--signal)';
       }
@@ -2470,6 +2457,12 @@
       btn.disabled = false; btn.textContent = 'Retry';
       btn.style.background = 'var(--ink-3)'; btn.style.color = 'var(--text)'; btn.style.borderColor = 'var(--line-2)';
     });
+  }
+
+  function mfaBadge(text, state){
+    var b = document.getElementById('mfaBadge');
+    if (!b) return;
+    b.textContent = text; b.dataset.state = state; b.hidden = false;
   }
 
   function mfaActionClick(){
@@ -2539,6 +2532,40 @@
     });
   }
 
+  /* Settings tabs: one topic at a time. The last tab used is remembered on
+     this device. Team only appears once the member list has loaded. */
+  (function(){
+    var panel=document.getElementById('settingsPanel');
+    var bar=panel&&panel.querySelector('.set-tabs');
+    if(!bar)return;
+    var tabs=[].slice.call(bar.querySelectorAll('[role="tab"]'));
+    var secs=[].slice.call(panel.querySelectorAll('.set-sec[data-tab]'));
+    var team=document.getElementById('settingsTeamCard');
+    var KEY='apra_settings_tab', current=null, wanted=null;
+    function avail(t){return !(t.dataset.setTab==='team'&&team&&team.style.display==='none');}
+    function show(name,focus,user){
+      if(user){wanted=name;try{localStorage.setItem(KEY,name);}catch(e){}}
+      var tab=tabs.filter(function(t){return t.dataset.setTab===name&&avail(t);})[0]||tabs[0];
+      current=tab.dataset.setTab;
+      tabs.forEach(function(t){var on=t===tab;t.setAttribute('aria-selected',on?'true':'false');t.tabIndex=on?0:-1;});
+      secs.forEach(function(s){s.hidden=s.dataset.tab!==current;});
+      document.getElementById('setPane').setAttribute('aria-labelledby',tab.id);
+      if(focus)tab.focus();
+    }
+    function sync(){tabs.forEach(function(t){t.hidden=!avail(t);});if(current==='team'&&!avail(tabs[2]))show('account');}
+    tabs.forEach(function(t){t.addEventListener('click',function(){show(t.dataset.setTab,false,true);});});
+    bar.addEventListener('keydown',function(e){
+      var vis=tabs.filter(function(t){return !t.hidden;}), i=vis.indexOf(document.activeElement);
+      if(i<0)return;
+      var j={ArrowRight:i+1,ArrowLeft:i-1,Home:0,End:vis.length-1}[e.key];
+      if(j==null)return;
+      e.preventDefault(); show(vis[(j+vis.length)%vis.length].dataset.setTab,true,true);
+    });
+    if(team&&'MutationObserver' in window)new MutationObserver(function(){sync();if(wanted==='team'&&avail(tabs[2])&&current!=='team')show('team');}).observe(team,{attributes:true,attributeFilter:['style']});
+    try{wanted=localStorage.getItem(KEY);}catch(e){}
+    sync(); show(wanted||'account');
+  })();
+
   function setTheme(t){
     document.documentElement.dataset.theme = t;
     localStorage.setItem('apraTheme', t);
@@ -2556,11 +2583,23 @@
   function lyraPickTone(btn){  pillSelect('toneGroup', btn,'lyra_tone');  }
   function lyraPickFocus(btn){ pillSelect('focusGroup',btn,'lyra_focus'); }
   function lyraPickLang(btn){  pillSelect('langGroup', btn,'lyra_lang');  }
+  /* Choices save the moment they're picked (as the theme always did), so
+     nothing is lost by leaving the page without pressing Save. */
+  var _savedTimers={};
+  function settingsSaved(msgId, text){
+    var msg=document.getElementById(msgId);
+    if(!msg)return;
+    msg.className='stest-msg set-saved ok'; msg.textContent=text||'Saved';
+    clearTimeout(_savedTimers[msgId]);
+    _savedTimers[msgId]=setTimeout(function(){msg.textContent='';},2200);
+  }
   function pillSelect(groupId, btn, key){
-    document.getElementById(groupId).querySelectorAll('button').forEach(function(b){b.classList.remove('active');});
-    btn.classList.add('active');
-    /* preview the key live without saving */
-    btn._pendingKey=key; btn._pendingVal=btn.dataset.val||btn.dataset.style||btn.dataset.tone||btn.dataset.focus||btn.dataset.lang;
+    document.getElementById(groupId).querySelectorAll('button').forEach(function(b){b.classList.remove('active');b.setAttribute('aria-pressed','false');});
+    btn.classList.add('active'); btn.setAttribute('aria-pressed','true');
+    var val=btn.dataset.val||btn.dataset.style||btn.dataset.tone||btn.dataset.focus||btn.dataset.lang;
+    if(key&&val) localStorage.setItem(key,val);
+    settingsSaved(/^report/.test(groupId)?'reportParamMsg':'lyraParamMsg',
+      /^report/.test(groupId)?'Saved. Applies to your next report.':'Saved. Lyra uses this from your next message.');
   }
 
   function saveLyraParams(){
@@ -2579,9 +2618,7 @@
   function resetLyraParams(){
     ['lyra_style','lyra_tone','lyra_focus','lyra_lang'].forEach(function(k){localStorage.removeItem(k);});
     syncSettingsPanel();
-    var msg=document.getElementById('lyraParamMsg');
-    msg.className='stest-msg ok'; msg.textContent='Reset to defaults.';
-    setTimeout(function(){msg.textContent='';},2000);
+    settingsSaved('lyraParamMsg','Reset to defaults.');
   }
 
   function reportPick(groupId, key, btn){ pillSelect(groupId, btn, key); }
@@ -2603,9 +2640,7 @@
   function resetReportParams(){
     ['report_insights','report_chart','report_movers','report_backtest','report_rows'].forEach(function(k){localStorage.removeItem(k);});
     syncSettingsPanel();
-    var msg=document.getElementById('reportParamMsg');
-    msg.className='stest-msg ok'; msg.textContent='Reset to defaults.';
-    setTimeout(function(){msg.textContent='';},2000);
+    settingsSaved('reportParamMsg','Reset to defaults.');
   }
 
   /* theme toggle wired to the dropdown item */

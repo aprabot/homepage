@@ -1236,8 +1236,8 @@
           var action = '';
           if (youAreAdmin && !isSelf) {
             action = (m.role === 'viewer')
-              ? '<button class="dbtn" style="padding:5px 10px;font-size:11.5px" ' +
-                'onclick="setMemberRole(\'' + escapeHtml(m.email) + '\',\'admin\',this)">Make admin</button>'
+              ? '<button type="button" class="dbtn set-btn-quiet set-make-admin" ' +
+                'onclick="confirmMakeAdmin(\'' + escapeHtml(m.email) + '\',this)">Make admin</button>'
               : '<span class="dsubtle" style="margin:0;font-size:11px" title="Admin status can only be granted, not revoked">—</span>';
           }
           return '<tr>' +
@@ -1250,6 +1250,18 @@
       .catch(function () {
         card.style.display = 'none'; // transient error — don't show a broken/empty team card
       });
+  };
+
+  // Making someone an admin can't be undone, so the button asks once more
+  // in place (no browser dialog) before it does anything.
+  window.confirmMakeAdmin = function (email, btn) {
+    if (btn.dataset.armed === '1') { clearTimeout(btn._disarm); window.setMemberRole(email, 'admin', btn); return; }
+    btn.dataset.armed = '1';
+    btn.textContent = 'Confirm: permanent';
+    btn.setAttribute('aria-label', 'Confirm making ' + email + ' an admin. This cannot be undone.');
+    btn._disarm = setTimeout(function () {
+      btn.dataset.armed = ''; btn.textContent = 'Make admin'; btn.removeAttribute('aria-label');
+    }, 5000);
   };
 
   window.setMemberRole = function (email, role, btn) {
