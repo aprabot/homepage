@@ -21,6 +21,8 @@
   if (!box) return;
   var el = function (id) { return document.getElementById(id); };
 
+  // What people see for a service level: 'P75' is shown as '75%'.
+  function pct(v) { return String(v).replace(/^P/, '') + '%'; }
   var state = { run: 'plan', points: null, preset: 'mondays3', level: 'P75', lead: null, review: REVIEW_DAYS, undated: true, filter: 'all', sel: null, point: null, view: 'sku' };
   var inputs = null;   // {stock, inbound, params} once read
   var runs = [];       // completed scenarios
@@ -328,7 +330,7 @@
     p.replaceChildren();
     if (!r) return;
     var t = parse(r.point), head = node('div', 'inv-panel-head'), title = node('div');
-    title.append(node('h3', '', r.sku), node('span', 'inv-dim', run.name + ' · ' + state.level));
+    title.append(node('h3', '', r.sku), node('span', 'inv-dim', run.name + ' · ' + pct(state.level) + ' service level'));
     var pill = node('span', 'inv-status', STATUS[r.status]);
     pill.dataset.s = r.status;
     head.append(title, pill);
@@ -352,10 +354,10 @@
     };
     var u = r.uplift[state.level];
     step('Demand to cover', r.cover + ' days from ' + label(t) + ' (' + r.lead + ' lead time + ' + state.review + ' review)' +
-      (state.level === 'P50' ? '' : ', ×' + u.toFixed(2) + ' for ' + state.level + ' from ' + (r.uplift.own ? 'this SKU’s' : 'all SKUs’') + ' backtest errors'), num(r.required));
+      (state.level === 'P50' ? '' : ', ×' + u.toFixed(2) + ' for ' + pct(state.level) + ' from ' + (r.uplift.own ? 'this SKU’s' : 'all SKUs’') + ' backtest errors'), num(r.required));
     if (r.held) {
       step('Projected stock on ' + label(t), whole(r.held.present) + ' on hand' + (state.undated && r.undated ? ' + ' + whole(r.undated) + ' in transit and on order, arriving ' + label(r.arrive) : '') +
-        ' − P50 demand from ' + label(res.from), num(r.projected));
+        ' − median demand from ' + label(res.from), num(r.projected));
       step('Shortfall', 'Required − projected', r.short == null ? '—' : whole(r.short), true);
       step('Order by', r.lead + '-day lead time before ' + label(t), r.short > 0 ? (r.late ? 'Today' : label(r.orderBy)) : 'Not needed', true);
     } else step('Projected stock', 'Needs a stock file with this SKU', '—');
@@ -390,7 +392,7 @@
       '<text x="6" y="' + (H - 5) + '">' + label(first) + '</text><text x="' + (W - 6) + '" y="' + (H - 5) + '" text-anchor="end">' + label(end) + '</text></svg>';
     wrap.innerHTML = svg;
     var key = node('div', 'inv-chart-key');
-    key.append(node('span', 'k-proj', 'Projected'), node('span', 'k-need', 'Required (' + state.level + ')'), node('span', 'k-gap', 'Shortfall'));
+    key.append(node('span', 'k-proj', 'Projected'), node('span', 'k-need', 'Required (' + pct(state.level) + ')'), node('span', 'k-gap', 'Shortfall'));
     wrap.append(key);
     return wrap;
   }
@@ -398,7 +400,7 @@
   function notes(res, run) {
     var list = [], s = inputs && inputs.stock, rec = inputs && inputs.inbound;
     list.push('Forecast: ' + run.name + ', weekly, shared evenly across each week’s days.');
-    if (state.level !== 'P50') list.push(state.level + ': forecast × how sales ran against it in the backtest, per SKU where it has ' + MIN_WEEKS + '+ weeks, otherwise all SKUs.');
+    if (state.level !== 'P50') list.push(pct(state.level) + ' service level: forecast × how sales ran against it in the backtest, per SKU where it has ' + MIN_WEEKS + '+ weeks, otherwise all SKUs.');
     if (!s || s.status !== 'ok') list.push('No stock file, so only required stock is shown.');
     else {
       list.push('Stock: ' + (s.filename || 'stock file') + ', ' + (s.as_of ? 'as of ' + label(parse(s.as_of)) : 'no date in the file, so taken as the upload day, ' + label(res.from)) + '.');
@@ -466,7 +468,7 @@
     var q = function (v) { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
     var lines = [['point', 'level', 'sku', 'service_level', 'required', 'projected', 'shortfall', 'cover_days', 'order_by', 'status'].join(',')];
     res.rows.forEach(function (r) {
-      lines.push([r.point, 'country', r.sku, state.level, r.required == null ? '' : Math.round(r.required), r.projected == null ? '' : Math.round(r.projected),
+      lines.push([r.point, 'country', r.sku, pct(state.level), r.required == null ? '' : Math.round(r.required), r.projected == null ? '' : Math.round(r.projected),
         r.short == null ? '' : Math.round(r.short), r.days == null ? '' : r.days.toFixed(1), r.short > 0 ? (r.late ? iso(today()) : iso(r.orderBy)) : '', STATUS[r.status]].map(q).join(','));
     });
     var a = document.createElement('a');
