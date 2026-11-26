@@ -328,6 +328,71 @@
     });
   }
 
+  // ---- Connection details on the Integrations cards: which account, when
+  // and by whom it was connected (or disconnected), and what access it has.
+  // Only what the connection service reports is shown; nothing is guessed.
+  var ACCESS_TEXT = {
+    read_products: 'products', read_inventory: 'inventory', read_orders: 'orders',
+    ads_management: 'manage ads', 'https://www.googleapis.com/auth/adwords': 'manage Google Ads campaigns',
+  };
+  function accessText(platform, scope) {
+    if (!scope) return '';
+    var parts = String(scope).split(/[,\s]+/).filter(Boolean).map(function (x) { return ACCESS_TEXT[x] || x; });
+    if (platform === 'shopify') return 'Read-only: ' + parts.join(', ');
+    return parts.join(', ').replace(/^./, function (c) { return c.toUpperCase(); });
+  }
+  function whenText(iso) {
+    if (!iso) return '';
+    var d = new Date(iso);
+    if (isNaN(d)) return '';
+    var days = Math.floor((Date.now() - d.getTime()) / 86400000);
+    var ago = days <= 0 ? 'today' : days === 1 ? 'yesterday' : days < 60 ? days + ' days ago'
+      : Math.round(days / 30) + ' months ago';
+    return [d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' }) + ', ' +
+      d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }), ago.charAt(0).toUpperCase() + ago.slice(1)];
+  }
+  function addWhen(add, label, iso) { var w = whenText(iso); if (w) add(label, w[0], w[1]); }
+  function renderConnectionDetails(card, platform, s) {
+    if (!card.closest('#integrationsPanel')) return;   // the Getting Started card stays compact
+    var dl = card.querySelector('.amp-conn-meta');
+    if (!dl) {
+      dl = document.createElement('dl');
+      dl.className = 'amp-conn-meta';
+      card.insertBefore(dl, card.querySelector('.row'));
+    }
+    dl.replaceChildren();
+    function add(label, value, note) {
+      if (!value) return;
+      var row = document.createElement('div');
+      var dt = document.createElement('dt'); dt.textContent = label;
+      var dd = document.createElement('dd'); dd.textContent = value;
+      if (note) { var sm = document.createElement('small'); sm.textContent = note; dd.append(sm); }
+      row.append(dt, dd); dl.append(row);
+    }
+    var det = s.account_details || {};
+    var accountId = s.external_account_id;
+    if (s.status === 'connected') {
+      if (platform === 'shopify') {
+        add('Store', s.account_name || accountId, s.account_name ? accountId : '');
+        if (det.domain && det.domain !== accountId) add('Website', det.domain);
+        add('Plan', det.plan);
+        add('Region', [det.country, det.currency, det.timezone].filter(Boolean).join(' · '));
+      } else {
+        add('Account', s.account_name || accountId || 'Not shown yet',
+          s.account_name || accountId ? '' : 'Account details appear once ' + (platform === 'google' ? 'Google Ads' : 'Meta') + ' API access is approved.');
+      }
+      addWhen(add, 'Connected', s.connected_at);
+      add('Connected by', s.connected_by);
+      add('Access', accessText(platform, s.access));
+    } else if (s.status === 'revoked') {
+      add(platform === 'shopify' ? 'Store' : 'Account', s.account_name || accountId);
+      addWhen(add, 'Disconnected', s.revoked_at);
+      add('Disconnected by', s.revoked_by);
+      addWhen(add, 'First connected', s.connected_at);
+    }
+    dl.hidden = !dl.children.length;
+  }
+
   function renderConnectAccounts(status) {
     // querySelectorAll, not getElementById — the same platform's connect
     // card can appear more than once (Integrations & Settings, and the
@@ -341,7 +406,8 @@
         var shopInput = card.querySelector('.amp-shop-input');
         btn.disabled = false;
         if (s.status === 'connected') {
-          badge.textContent = 'Connected' + (s.external_account_id ? ' — ' + s.external_account_id : '');
+          badge.textContent = card.closest('#integrationsPanel') ? 'Connected'
+            : 'Connected' + (s.external_account_id ? ' — ' + s.external_account_id : '');
           badge.className = 'pill ok amp-conn-status';
           btn.textContent = 'Disconnect';
           btn.onclick = function () { disconnectPlatform(platform); };
@@ -360,6 +426,7 @@
           };
           if (shopInput) shopInput.style.display = '';
         }
+        renderConnectionDetails(card, platform, s);
       });
     });
   }
