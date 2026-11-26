@@ -2571,44 +2571,68 @@
       e.preventDefault(); show(vis[(j+vis.length)%vis.length].dataset.setTab,true,true);
     });
     if(team&&'MutationObserver' in window)new MutationObserver(function(){sync();if(search&&search.value){runSearch();return;}if(wanted==='team'&&avail(tabs[2])&&current!=='team')show('team');}).observe(team,{attributes:true,attributeFilter:['style']});
-    /* Search: matches every word typed against each setting's label,
-       description, its section and a few extra words people use (2fa,
-       dark mode, logout), across all tabs at once. Clearing it, or picking
-       a tab, returns to the tab view. */
+    /* Search: each word typed must start a word in the setting itself (its
+       name, description, options and a few extra words people use, like
+       2fa or logout) or in its section's title. Section descriptions don't
+       count, so a word in "Applies from your next message" doesn't match
+       every Lyra setting. Works across all tabs; clearing it, or picking a
+       tab, returns to the tab view. */
     var search=document.getElementById('setSearch');
     var status=document.getElementById('setSearchStatus');
     var none=document.getElementById('setNoMatch');
-    function norm(t){return String(t||'').toLowerCase().replace(/[‘’'"“”]/g,'').replace(/\s+/g,' ');}
-    function text(el){return norm(el.textContent+' '+(el.dataset.keywords||''));}
+    function norm(t){return String(t||'').toLowerCase().replace(/[‘’'"“”]/g,'');}
+    function tokens(t){
+      var out=[];
+      norm(t).split(/[^a-z0-9@.+_-]+/).forEach(function(w){
+        if(!w)return; out.push(w);
+        w.split(/[@._+-]+/).forEach(function(part){if(part&&part!==w)out.push(part);});
+      });
+      return out;
+    }
+    /* Text pieces joined with spaces: table cells built in script have no
+       whitespace between them, so plain textContent glues words together. */
+    function textOf(el){
+      if(!el)return '';
+      var out=[], w=document.createTreeWalker(el,NodeFilter.SHOW_TEXT);
+      while(w.nextNode())out.push(w.currentNode.nodeValue);
+      return out.join(' ');
+    }
+    function hasAll(words,toks){return words.every(function(w){return toks.some(function(t){return t.indexOf(w)===0;});});}
     function clearSearch(){
       search.value=''; panel.classList.remove('set-searching');
       [].forEach.call(panel.querySelectorAll('.set-miss'),function(r){r.classList.remove('set-miss');});
+      secs.forEach(function(sec){sec.classList.remove('set-first');});
       none.hidden=true; status.textContent='';
     }
     function runSearch(){
-      var words=norm(search.value).trim().split(' ').filter(Boolean);
-      if(!words.length){clearSearch();show(current);return;}
+      var q=search.value.trim();
+      var words=tokens(q).filter(function(w,i,a){return a.indexOf(w)===i;});
+      if(q.length<2||!words.length){
+        if(panel.classList.contains('set-searching')){var keep=search.value;clearSearch();search.value=keep;show(current);}
+        return;
+      }
       panel.classList.add('set-searching');
       var hits=0, first=true;
       secs.forEach(function(sec){
-        var head=sec.querySelector('.set-sec-head');
-        var secText=norm((head?head.textContent:'')+' '+(sec.dataset.keywords||''));
+        var h2=sec.querySelector('.set-sec-head h2');
+        var secToks=tokens((h2?h2.textContent:'')+' '+(sec.dataset.keywords||''));
         var rows=[].slice.call(sec.querySelectorAll('.srow'));
         var shown=0;
-        if(!rows.length){
-          var all=text(sec); shown=(sec.style.display!=='none'&&words.every(function(w){return all.indexOf(w)>=0;}))?1:0;
+        if(sec.style.display==='none'){shown=0;}
+        else if(!rows.length){
+          var table=sec.querySelector('table');
+          shown=hasAll(words,secToks.concat(tokens(textOf(table))))?1:0;
         } else rows.forEach(function(r){
-          var t=secText+' '+text(r);
-          var ok=words.every(function(w){return t.indexOf(w)>=0;});
+          var ok=r.style.display!=='none'&&hasAll(words,secToks.concat(tokens(textOf(r)+' '+(r.dataset.keywords||''))));
           r.classList.toggle('set-miss',!ok);
-          if(ok&&r.style.display!=='none')shown++;
+          if(ok)shown++;
         });
         sec.hidden=!shown; hits+=shown;
         sec.classList.toggle('set-first',!!shown&&first); if(shown)first=false;
       });
       tabs.forEach(function(t){t.setAttribute('aria-selected','false');});
       none.hidden=!!hits;
-      none.textContent=hits?'':'No settings match “'+search.value.trim()+'”.';
+      none.textContent=hits?'':'No settings match “'+q+'”. Try a word like theme, 2fa, Lyra or report.';
       status.textContent=hits?hits+(hits===1?' setting matches':' settings match'):'No settings match';
     }
     if(search){
