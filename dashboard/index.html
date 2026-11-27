@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261127v">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261127w">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -1999,7 +1999,7 @@
           <h1 class="dgreet">Performance</h1>
           <p class="dsubtle">Live results from Google Ads for campaigns launched from APRABot.</p>
         </div>
-        <button type="button" class="camp-btn" id="perf-refresh">Refresh</button>
+        <div class="perf-head-actions"><span class="perf-checked" id="perf-checked" hidden></span><button type="button" class="camp-btn" id="perf-refresh">Refresh</button></div>
       </div>
       <div class="amp-loading perf-loading" id="perf-loading" role="status" aria-live="polite" aria-busy="true" hidden>
         <div class="amp-loading-head"><span class="amp-spinner"></span><span>Getting live results from Google Ads…</span></div>
@@ -2007,16 +2007,15 @@
         <div class="amp-loading-kpis" aria-hidden="true"><span class="skel-line"></span><span class="skel-line"></span><span class="skel-line"></span><span class="skel-line"></span></div>
         <table class="amp-table amp-loading-table" aria-hidden="true"><tbody><tr><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td></tr><tr><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td></tr><tr><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td></tr></tbody></table>
       </div>
-      <p class="perf-note" id="perf-note" hidden></p>
+      <div class="perf-banner" id="perf-note" hidden></div>
       <dl class="camp-stats" id="perf-summary" hidden></dl>
       <div class="ads-table-card camp-list perf-list">
         <table class="amp-table camp-table" id="perf-table" hidden>
-          <thead><tr><th>Campaign</th><th>Google status</th><th>Schedule</th><th class="num">Budget</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Cost</th><th class="num">Conv.</th><th><span class="camp-sr">Link</span></th></tr></thead>
+          <thead><tr><th>Campaign</th><th>Status</th><th>Schedule</th><th class="num">Budget</th><th class="num perf-res">Impr.</th><th class="num perf-res">Clicks</th><th class="num perf-res">CTR</th><th class="num perf-res">Spent</th><th class="num perf-res">Conv.</th><th><span class="camp-sr">Open in Google Ads</span></th></tr></thead>
           <tbody id="perf-rows"></tbody>
         </table>
         <p class="dsubtle" id="perf-status" role="status"></p>
       </div>
-      <p class="dsubtle perf-checked" id="perf-checked"></p>
     </div>
     <!-- Integrations & Settings panel (OAuth connect/disconnect) -->
     <div class="dbody" id="integrationsPanel" style="display:none">
@@ -2306,7 +2305,7 @@
 <script src="../js/inventory-plan.js?v=20261126c"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
-<script src="../js/ads.js?v=20261127v"></script>
+<script src="../js/ads.js?v=20261127w"></script>
 <script src="../js/discount-schemes.js?v=20261123e"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/india-festivals.js?v=20261124a"></script>

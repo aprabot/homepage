@@ -1025,11 +1025,24 @@
     });
     if (skeleton) perfSlowTimer = setTimeout(function () { if (slow) slow.hidden = false; }, 8000);
   }
+  function perfDaysUntil(iso) {
+    var d = new Date(iso + 'T00:00:00'), now = new Date(); now.setHours(0, 0, 0, 0);
+    return Math.round((d - now) / 86400000);
+  }
+  function goToCampaigns() {
+    var li = Array.prototype.find.call(document.querySelectorAll('.dnav li'), function (l) { return l.textContent.trim() === 'Campaigns'; });
+    if (li) li.click();
+  }
+  function perfStat(label, value, note, tone) {
+    var dv = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd'), n = document.createElement('dd');
+    dt.textContent = label; dd.textContent = value; n.className = 'camp-note'; n.textContent = note;
+    if (tone) dv.dataset.tone = tone;
+    dv.append(dt, dd, n); return dv;
+  }
   function loadPerformance() {
     var rows = document.getElementById('perf-rows'), table = document.getElementById('perf-table');
     var status = document.getElementById('perf-status'), note = document.getElementById('perf-note');
     var sum = document.getElementById('perf-summary'), checked = document.getElementById('perf-checked');
-    var btn = document.getElementById('perf-refresh');
     if (!rows) return Promise.resolve();
     status.textContent = '';
     setPerfLoading(true);
@@ -1038,62 +1051,86 @@
       var d = res.body, list = d.campaigns;
       rows.replaceChildren();
       table.hidden = !list.length;
-      var tot = { impressions: 0, clicks: 0, cost: 0, conversions: 0 }, known = 0;
+      var tot = { impressions: 0, clicks: 0, cost: 0, conversions: 0, daily: 0, planned: 0 }, known = 0, running = 0, paused = 0;
       list.forEach(function (c) {
-        var g = c.google, row = rows.insertRow();
-        row.className = 'camp-row';
-        two(cell(row), c.name, c.code);
-        var st = cell(row), p = document.createElement('span');
-        p.className = 'camp-pill'; p.dataset.status = g && g.status === 'ENABLED' ? 'committed' : 'withdrawn';
-        p.textContent = googleStatus(g); st.append(p);
-        if (g && g.status === 'PAUSED' && g.serving_status === 'PENDING') {
-          var sub = document.createElement('span'); sub.className = 'camp-sub'; sub.textContent = 'Starts ' + shortDate(c.start_date); st.append(sub);
-        }
-        var days = planDays(c);
-        two(cell(row), shortDate(c.start_date) + ' – ' + shortDate(c.end_date, true), days + (days === 1 ? ' day' : ' days'));
-        two(cell(row, 'num'), yen(g ? g.daily_budget : c.plan_daily_budget) + ' / day', g ? 'from Google' : 'from the plan');
+        var g = c.google, row = rows.insertRow(), days = planDays(c);
+        var daily = g ? g.daily_budget : c.plan_daily_budget, planned = daily * days;
+        row.className = 'camp-row perf-row';
+        // Campaign, with the platform's mark
+        var nc = cell(row), nm = document.createElement('div'); nm.className = 'perf-name';
+        nm.innerHTML = PLATFORM_ICON[c.platform || 'google'] || '';
+        var nt = document.createElement('div'); two(nt, c.name, c.code); nm.append(nt); nc.append(nm);
+        // Status, in plain words
+        var label = googleStatus(g), st = cell(row), p = document.createElement('span');
+        p.className = 'camp-pill perf-state'; p.dataset.state = label.toLowerCase().replace(/\s+/g, '-'); p.textContent = label; st.append(p);
+        if (g && g.status === 'ENABLED' && g.serving_status === 'SERVING') running++; else if (g && g.status === 'PAUSED') paused++;
+        var until = perfDaysUntil(c.start_date), left = perfDaysUntil(c.end_date);
+        var when = until > 0 ? 'Starts in ' + until + (until === 1 ? ' day' : ' days') : left < 0 ? 'Ended' : until === 0 ? 'Starts today' : 'Day ' + (1 - until) + ' of ' + days;
+        var ws = document.createElement('span'); ws.className = 'camp-sub'; ws.textContent = when; st.append(ws);
+        // Schedule with progress through the campaign's days
+        var sc = cell(row); two(sc, shortDate(c.start_date) + ' – ' + shortDate(c.end_date, true), days + (days === 1 ? ' day' : ' days'));
+        var done = until > 0 ? 0 : left < 0 ? days : Math.min(days, 1 - until);
+        var bar = document.createElement('span'); bar.className = 'perf-bar'; bar.setAttribute('aria-hidden', 'true');
+        var fill = document.createElement('i'); fill.style.width = (100 * done / days) + '%'; bar.append(fill); sc.append(bar);
+        two(cell(row, 'num'), yen(daily) + ' / day', yen(planned) + ' planned');
+        tot.daily += daily; tot.planned += planned;
+        // Results: zeros are dimmed so real numbers stand out once they come
+        function res(v, text) { var td = cell(row, 'num perf-res'); td.textContent = text; if (!v) td.classList.add('is-zero'); return td; }
         if (g) {
           known++;
           ['impressions', 'clicks', 'cost', 'conversions'].forEach(function (k) { tot[k] += Number(g[k]) || 0; });
-          cell(row, 'num').textContent = perfNum(g.impressions);
-          cell(row, 'num').textContent = perfNum(g.clicks);
-          cell(row, 'num').textContent = g.impressions ? (100 * g.clicks / g.impressions).toFixed(2) + '%' : '—';
-          cell(row, 'num').textContent = yen(g.cost);
-          cell(row, 'num').textContent = perfNum(Math.round(g.conversions * 10) / 10);
+          res(g.impressions, perfNum(g.impressions));
+          res(g.clicks, perfNum(g.clicks));
+          res(g.impressions, g.impressions ? (100 * g.clicks / g.impressions).toFixed(2) + '%' : '—');
+          var spent = res(g.cost, yen(g.cost)), of = document.createElement('span'); of.className = 'camp-sub'; of.textContent = 'of ' + yen(planned); spent.append(of);
+          res(g.conversions, perfNum(Math.round(g.conversions * 10) / 10));
         } else {
-          for (var i = 0; i < 5; i++) cell(row, 'num').textContent = '—';
+          for (var i = 0; i < 5; i++) res(0, '—');
         }
         var lk = cell(row, 'camp-acts');
         if (c.url) {
           var a = document.createElement('a'); a.href = c.url; a.target = '_blank'; a.rel = 'noopener';
-          a.className = 'camp-btn perf-open'; a.textContent = 'Open ↗';
+          a.className = 'camp-btn perf-open'; a.textContent = 'Google Ads ↗';
           a.setAttribute('aria-label', 'Open ' + c.name + ' in Google Ads'); lk.append(a);
         }
       });
       sum.replaceChildren();
       if (list.length) {
-        [['On Google Ads', list.length, list.length === 1 ? 'campaign launched' : 'campaigns launched'],
-         ['Impressions', known ? perfNum(tot.impressions) : '—', 'all time'],
-         ['Clicks', known ? perfNum(tot.clicks) : '—', tot.impressions ? (100 * tot.clicks / tot.impressions).toFixed(2) + '% CTR' : 'all time'],
-         ['Cost', known ? yen(tot.cost) : '—', 'all time']].forEach(function (x) {
-          var dv = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd'), n = document.createElement('dd');
-          dt.textContent = x[0]; dd.textContent = x[1]; n.className = 'camp-note'; n.textContent = x[2];
-          dv.append(dt, dd, n); sum.append(dv);
-        });
+        sum.append(
+          perfStat('Campaigns', list.length, running + ' running · ' + paused + ' paused'),
+          perfStat('Daily budget', yen(tot.daily), 'across all campaigns'),
+          perfStat('Impressions', known ? perfNum(tot.impressions) : '—', tot.clicks ? perfNum(tot.clicks) + ' clicks' : 'no clicks yet'),
+          perfStat('Spent', known ? yen(tot.cost) : '—', 'of ' + yen(tot.planned) + ' planned'));
       }
       sum.hidden = !list.length;
-      var notes = [];
-      if (d.error) notes.push('Couldn’t reach Google Ads: ' + d.error);
-      if (list.length && d.test_account) notes.push('Test account: Google never shows these ads, so impressions, clicks and cost stay at 0. Real results appear once campaigns run in a live, billed account.');
-      if (d.committed_not_launched) notes.push(d.committed_not_launched + (d.committed_not_launched === 1 ? ' committed Google plan isn’t' : ' committed Google plans aren’t') + ' launched yet. Launch from Campaigns.');
-      note.textContent = notes.join(' ');
-      note.hidden = !notes.length;
-      note.classList.toggle('is-error', !!d.error);
-      status.textContent = list.length ? '' : 'No campaigns on Google Ads yet. Launch a committed Google plan from Campaigns and its results will show here.';
-      checked.textContent = list.length ? 'Checked with Google ' + new Date(d.checked_at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+      // One banner: Google error first, then the test-account note, then a to-do
+      note.replaceChildren();
+      var parts = 0;
+      function line(cls, tag, text, action) {
+        var p2 = document.createElement('p'); p2.className = 'perf-line ' + cls;
+        if (tag) { var t = document.createElement('span'); t.className = 'perf-tag'; t.textContent = tag; p2.append(t); }
+        p2.append(document.createTextNode(text));
+        if (action) { var b = document.createElement('button'); b.type = 'button'; b.className = 'perf-link'; b.textContent = action[0]; b.onclick = action[1]; p2.append(b); }
+        note.append(p2); parts++;
+      }
+      if (d.error) line('is-error', 'Google Ads', 'Couldn’t get live results: ' + String(d.error).replace(/^Google Ads:\s*/, ''));
+      if (list.length && d.test_account) line('', 'Test account', 'Google never shows ads from test accounts, so results stay at 0. Real numbers appear once campaigns run in a live, billed account.');
+      if (d.committed_not_launched) line('is-todo', null, d.committed_not_launched + (d.committed_not_launched === 1 ? ' committed Google plan isn’t' : ' committed Google plans aren’t') + ' launched yet. ', ['Go to Campaigns →', goToCampaigns]);
+      note.hidden = !parts;
+      status.replaceChildren();
+      if (!list.length) {
+        status.className = 'perf-empty';
+        var h = document.createElement('strong'); h.textContent = 'No campaigns on Google Ads yet';
+        var tx = document.createElement('span'); tx.textContent = 'Launch a committed Google plan from Campaigns and its live results show up here.';
+        var go = document.createElement('button'); go.type = 'button'; go.className = 'camp-btn'; go.textContent = 'Go to Campaigns'; go.onclick = goToCampaigns;
+        status.append(h, tx, go);
+      } else status.className = 'dsubtle';
+      checked.textContent = list.length ? 'Checked ' + new Date(d.checked_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' }) : '';
+      checked.title = list.length ? new Date(d.checked_at).toLocaleString() : '';
       checked.hidden = !list.length;
       perfLoaded = true;
     }).catch(function (err) {
+      status.className = 'dsubtle';
       status.textContent = err.message + (perfLoaded ? ' Showing the last results.' : '');
     }).finally(function () { setPerfLoading(false); });
   }
