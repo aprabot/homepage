@@ -1645,3 +1645,12 @@
 #dashboard.dside-collapsed .dnav li.ads-nav-heading{margin:10px 0 2px;padding:0}
 #dashboard.dside-collapsed .dnav-group-toggle{padding:4px 0}
 #dashboard.dside-collapsed .dnav li[title="Settings"]::after{left:8px;right:8px}
+
+/* Campaigns: "Launch to Google" buttons (form footer, campaign page, list). */
+#dashboard .camp-launch-btn{display:inline-flex;align-items:center;gap:8px}
+#dashboard .camp-launch-btn[hidden],#dashboard .camp-btn-go[hidden]{display:none}
+#dashboard .camp-launch-btn .camp-g,#dashboard .camp-btn-go .camp-g{flex:none}
+#dashboard .camp-btn-go{display:inline-flex;align-items:center;gap:6px;vertical-align:middle;background:var(--obv-accent);border-color:transparent;color:#0A0E15}
+#dashboard .camp-btn-go:hover{border-color:transparent;filter:brightness(1.07)}
+#dashboard .camp-btn-go:disabled{opacity:.6;cursor:default;filter:none}
+[data-theme="light"] #dashboard .camp-btn-go{color:#fff}

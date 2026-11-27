@@ -665,6 +665,41 @@
   var planError = document.getElementById('ads-plan-error');
   var scopeLines = document.getElementById('ads-scope-lines');
   var currentPlan = null;
+  // What the last plan list said about this user and the org's Google Ads
+  // test account; decides which launch buttons the form shows.
+  var plansMeta = { can_edit: false, google_ads: {} };
+  var GOOGLE_G = '<svg class="camp-g" viewBox="0 0 24 24" width="14" height="14" aria-hidden="true"><path fill="currentColor" d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>';
+  function launchButton(id, type, label) {
+    var b = document.createElement('button');
+    b.type = type; b.id = id; b.className = 'dbtn camp-launch-btn'; b.hidden = true;
+    b.innerHTML = GOOGLE_G + '<span></span>';
+    b.querySelector('span').textContent = label;
+    return b;
+  }
+  // Draft form: commit and launch in one go. Committed plan: launch it.
+  var commitPlanBtn = document.getElementById('ads-commit-plan');
+  var commitLaunchBtn = launchButton('ads-commit-launch-plan', 'submit', 'Commit & launch to Google');
+  commitLaunchBtn.value = 'commit_launch';
+  var launchNowBtn = launchButton('ads-launch-plan', 'button', 'Launch to Google');
+  commitPlanBtn.after(commitLaunchBtn, launchNowBtn);
+
+  function updateLaunchButtons() {
+    var ready = plansMeta.can_edit && plansMeta.google_ads.ready;
+    var google = planForm.elements.platform.value === 'google';
+    commitLaunchBtn.hidden = !ready || !google || planForm.dataset.readonly === '1';
+    // With a launch button there, plain Commit becomes the secondary action.
+    commitPlanBtn.classList.toggle('camp-btn-quiet', !commitLaunchBtn.hidden);
+    var lst = currentPlan ? launchState(currentPlan) : '';
+    launchNowBtn.hidden = !(ready && currentPlan && currentPlan.status === 'committed' &&
+      currentPlan.platform === 'google' && (lst === '' || lst === 'failed'));
+    launchNowBtn.querySelector('span').textContent = lst === 'failed' ? 'Retry launch to Google' : 'Launch to Google';
+    launchNowBtn.disabled = false;
+  }
+  planForm.elements.platform.addEventListener('change', updateLaunchButtons);
+  launchNowBtn.onclick = function () {
+    if (!currentPlan) return;
+    launchPlan(currentPlan, launchNowBtn, plansMeta.google_ads.currency, function () { planForm.hidden = true; });
+  };
 
   function addScope(line) {
     var row = document.getElementById('ads-scope-template').content.firstElementChild.cloneNode(true);
@@ -708,6 +743,8 @@
     ['ads-add-scope', 'ads-save-plan', 'ads-commit-plan'].forEach(function (id) {
       document.getElementById(id).hidden = Boolean(readOnly);
     });
+    planForm.dataset.readonly = readOnly ? '1' : '';
+    updateLaunchButtons();
     planForm.hidden = false;
     updatePlanTotal();
     planForm.scrollIntoView({ block: 'start', behavior: 'smooth' });
@@ -822,17 +859,18 @@
     }
     return line;
   }
-  function launchPlan(plan, btn, currency) {
+  function launchPlan(plan, btn, currency, after) {
     var cur = currency || 'the Google account\'s currency';
     if (!confirm('Create "' + plan.name + '" in your Google Ads TEST account?\n\n' +
       'It is created paused, in a test account: no ads run and nothing is charged. ' +
       'Daily budget ' + yen(plan.daily_budget_yen) + ' is sent to Google as ' + cur + '.')) return;
-    btn.disabled = true; btn.textContent = 'Launching…';
+    btn.disabled = true;
+    (btn.querySelector('span') || btn).textContent = 'Launching…';
     planStatus.textContent = '';
     var failure = '';
     postPlan({ action: 'launch', code: plan.code, version: plan.version })
       .catch(function (err) { failure = err.message; })
-      .then(function () { return loadCampaigns(); })
+      .then(function () { if (after) after(); return loadCampaigns(); })
       .then(function () { if (failure) planStatus.textContent = failure; });
   }
   function renderLaunchDetails(plan) {
@@ -878,6 +916,8 @@
       if (!res.ok) throw new Error(res.body.error || 'Could not load campaign plans.');
       if (!Array.isArray(res.body.plans)) throw new Error('Campaign planning is unavailable.');
       document.getElementById('ads-new-plan').disabled = !res.body.can_edit;
+      plansMeta = { can_edit: Boolean(res.body.can_edit), google_ads: res.body.google_ads || {} };
+      if (!planForm.hidden) updateLaunchButtons();
       list.replaceChildren();
       var plans = res.body.plans.slice().sort(function (a, b) {
         var order = { draft: 0, committed: 1, withdrawn: 2 };
@@ -923,7 +963,9 @@
           var go = document.createElement('button');
           go.type = 'button';
           go.className = 'camp-btn camp-btn-go';
-          go.textContent = lst === 'failed' ? 'Retry launch' : 'Launch (test)';
+          go.innerHTML = GOOGLE_G + '<span></span>';
+          go.querySelector('span').textContent = lst === 'failed' ? 'Retry launch' : 'Launch to Google';
+          go.title = 'Creates it paused in your Google Ads test account. No ads run and nothing is charged.';
           go.setAttribute('aria-label', 'Launch ' + plan.name + ' on Google Ads test account');
           go.onclick = function (e) { e.stopPropagation(); launchPlan(plan, go, gads.currency); };
           actions.append(go);
@@ -962,8 +1004,16 @@
   planForm.addEventListener('submit', function (event) {
     event.preventDefault();
     var action = event.submitter ? event.submitter.value : 'save';
+    var launching = action === 'commit_launch';
+    if (launching) action = 'commit';
     var stockWarning = 'Available stock and expected uplift could not be verified. Commit this plan to forecasting anyway?';
-    if (action === 'commit' && !confirm(stockWarning)) return;
+    if (launching) {
+      var cur = plansMeta.google_ads.currency || 'the Google account\'s currency';
+      if (!confirm('Commit "' + (planForm.elements.name.value || 'this plan') + '" and create it in your Google Ads TEST account?\n\n' +
+        'Available stock and expected uplift could not be verified; the plan will still feed forecasts.\n' +
+        'On Google it is created paused, in a test account: no ads run and nothing is charged. ' +
+        'Daily budget ' + yen(Number(planForm.elements.daily_budget_yen.value)) + ' is sent to Google as ' + cur + '.')) return;
+    } else if (action === 'commit' && !confirm(stockWarning)) return;
     var values = Object.fromEntries(new FormData(planForm));
     var scope = Array.from(scopeLines.children, function (line) {
       var get = function (name) { return line.querySelector('[name="' + name + '"]').value; };
@@ -983,10 +1033,15 @@
     var buttons = planForm.querySelectorAll('button');
     buttons.forEach(function (button) { button.disabled = true; });
     planError.textContent = 'Saving…';
-    postPlan(payload).then(function () {
+    postPlan(payload).then(function (saved) {
+      if (!launching) return '';
+      planError.textContent = 'Committed. Launching on Google…';
+      return postPlan({ action: 'launch', code: saved.code, version: saved.version }).then(function () { return ''; },
+        function (err) { return 'Committed, but the Google launch failed: ' + err.message + ' Use Retry launch to try again.'; });
+    }).then(function (note) {
       planError.textContent = '';
       planForm.hidden = true;
-      return loadCampaigns();
+      return loadCampaigns().then(function () { if (note) planStatus.textContent = note; });
     }).catch(function (err) {
       planError.textContent = err.message;
     }).finally(function () {
