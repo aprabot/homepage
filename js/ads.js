@@ -502,6 +502,11 @@
     scopeLines.replaceChildren();
     planError.textContent = '';
     document.getElementById('ads-plan-title').textContent = plan ? plan.name : 'New campaign';
+    var stateChip = document.getElementById('ads-plan-state');
+    if (stateChip) {
+      stateChip.hidden = !plan;
+      if (plan) { stateChip.textContent = STATUS_TEXT[plan.status] || plan.status; stateChip.dataset.status = plan.status; }
+    }
     var readOnly = viewOnly || (plan && plan.status !== 'draft');
     ['code', 'name', 'platform', 'objective', 'daily_budget_yen', 'start_date', 'end_date'].forEach(function (name) {
       if (plan) planForm.elements[name].value = plan[name];
@@ -517,8 +522,85 @@
       document.getElementById(id).hidden = Boolean(readOnly);
     });
     planForm.hidden = false;
-    planForm.scrollIntoView({ block: 'nearest' });
-    planForm.elements.name.focus();
+    updatePlanTotal();
+    planForm.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    if (!readOnly) planForm.elements.name.focus({ preventScroll: true });
+  }
+
+  function updatePlanTotal() {
+    var out = document.getElementById('ads-plan-total');
+    if (!out) return;
+    var el = planForm.elements, budget = Number(el.daily_budget_yen.value);
+    var start = el.start_date.value, end = el.end_date.value;
+    if (!budget || !start || !end || end < start) { out.textContent = ''; return; }
+    var days = planDays({ start_date: start, end_date: end });
+    out.textContent = days + (days === 1 ? ' day' : ' days') + ' × ' + yen(budget) + ' = ' + yen(budget * days) + ' total';
+  }
+  ['daily_budget_yen', 'start_date', 'end_date'].forEach(function (n) {
+    planForm.elements[n].addEventListener('input', updatePlanTotal);
+  });
+  // Scope-line dates follow the campaign dates until someone sets them:
+  // a line added before the campaign dates were filled in no longer sits
+  // there empty, silently blocking Save.
+  ['start_date', 'end_date'].forEach(function (n) {
+    var lineField = n === 'start_date' ? 'line_start' : 'line_end';
+    var el = planForm.elements[n], last = '';
+    el.addEventListener('focus', function () { last = el.value; });
+    el.addEventListener('change', function () {
+      scopeLines.querySelectorAll('[name="' + lineField + '"]').forEach(function (input) {
+        if (!input.disabled && (!input.value || input.value === last)) input.value = el.value;
+      });
+      last = el.value;
+    });
+  });
+
+  // ---- Campaign list: readable dates, budget per day and in total, what
+  // each plan targets, a status pill, and quiet row actions. ----
+  var STATUS_TEXT = { draft: 'Draft', committed: 'Committed', withdrawn: 'Withdrawn' };
+  var PLATFORM_ICON = {
+    google: '<svg viewBox="0 0 24 24" width="14" height="14" fill="#4285F4" aria-hidden="true"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>',
+    meta: '<svg viewBox="0 0 24 24" width="14" height="14" fill="#0668E1" aria-hidden="true"><path d="M6.9 4C3.4 4 0 8.6 0 14.4 0 18 1.7 20 4.4 20c2.3 0 3.8-1.6 6.6-6.6l.2-.4.3.5c2.4 4 4 6.5 6.7 6.5 2.6 0 4.8-2.2 4.8-6.2C23 8.8 20.1 4 16.6 4c-1.8 0-3.3 1.3-4.8 3.4C10.3 5.3 8.8 4 6.9 4zm10 2.1c2.2 0 4.1 3.5 4.1 7.9 0 1.7-.6 2.9-1.8 2.9-1.4 0-2.3-1.3-5.6-6.9l-.3-.6c1.2-2.1 2.4-3.3 3.6-3.3zM7 6.6c1.4 0 2.5 1 3.6 2.9-1.6 2.4-3.9 6.8-5.5 6.8-.9 0-1.6-.6-1.6-2.3C3.5 10.3 5.3 6.6 7 6.6z"/></svg>'
+  };
+  function planDays(plan) {
+    var a = new Date(plan.start_date + 'T00:00:00Z'), b = new Date(plan.end_date + 'T00:00:00Z');
+    return Math.round((b - a) / 86400000) + 1;
+  }
+  function shortDate(iso, withYear) {
+    var d = new Date(iso + 'T00:00:00Z');
+    return isNaN(d) ? iso : d.toLocaleDateString(undefined, withYear
+      ? { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }
+      : { day: 'numeric', month: 'short', timeZone: 'UTC' });
+  }
+  function yen(n) { return Number(n).toLocaleString(undefined, { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }); }
+  function cell(row, cls) { var td = row.insertCell(); if (cls) td.className = cls; return td; }
+  function two(td, main, sub) {
+    var b = document.createElement('span'); b.className = 'camp-main'; b.textContent = main;
+    td.append(b);
+    if (sub) { var s2 = document.createElement('span'); s2.className = 'camp-sub'; s2.textContent = sub; td.append(s2); }
+  }
+  function pill(status) {
+    var p = document.createElement('span');
+    p.className = 'camp-pill'; p.dataset.status = status; p.textContent = STATUS_TEXT[status] || status;
+    return p;
+  }
+  function renderSummary(plans) {
+    var box = document.getElementById('ads-plan-summary');
+    if (!box) return;
+    box.replaceChildren();
+    if (!plans.length) { box.hidden = true; return; }
+    var live = plans.filter(function (p) { return p.status === 'committed'; });
+    var drafts = plans.filter(function (p) { return p.status === 'draft'; }).length;
+    var total = live.reduce(function (s, p) { return s + p.daily_budget_yen * planDays(p); }, 0);
+    [['Committed', live.length, live.length === 1 ? 'plan in forecasting' : 'plans in forecasting'],
+     ['Drafts', drafts, 'not used yet'],
+     ['Committed spend', yen(total), 'over all committed dates']].forEach(function (s) {
+      var d = document.createElement('div');
+      var dt = document.createElement('dt'); dt.textContent = s[0];
+      var dd = document.createElement('dd'); dd.textContent = s[1];
+      var note = document.createElement('dd'); note.className = 'camp-note'; note.textContent = s[2];
+      d.append(dt, dd, note); box.append(d);
+    });
+    box.hidden = false;
   }
 
   function loadCampaigns() {
@@ -529,26 +611,48 @@
       if (!Array.isArray(res.body.plans)) throw new Error('Campaign planning is unavailable.');
       document.getElementById('ads-new-plan').disabled = !res.body.can_edit;
       list.replaceChildren();
-      planStatus.textContent = res.body.plans.length ? '' : 'No campaign plans yet.';
-      res.body.plans.forEach(function (plan) {
+      var plans = res.body.plans.slice().sort(function (a, b) {
+        var order = { draft: 0, committed: 1, withdrawn: 2 };
+        return (order[a.status] - order[b.status]) || a.start_date.localeCompare(b.start_date);
+      });
+      renderSummary(plans);
+      list.closest('.camp-list').classList.toggle('is-empty', !plans.length);
+      planStatus.textContent = plans.length ? '' : 'No campaign plans yet. Create one to plan ad spend by SKU and postal code.';
+      plans.forEach(function (plan) {
         var row = list.insertRow();
-        [plan.name + ' · ' + plan.code, plan.platform === 'meta' ? 'Meta' : 'Google',
-          plan.start_date + ' to ' + plan.end_date,
-          Number(plan.daily_budget_yen).toLocaleString(undefined, { style: 'currency', currency: 'JPY' }),
-          plan.status].forEach(function (value) { row.insertCell().textContent = value; });
-        var actions = row.insertCell();
+        row.className = 'camp-row';
+        row.dataset.status = plan.status;
+        var editable = res.body.can_edit && plan.status === 'draft';
+        var open = function () { openPlan(plan, !res.body.can_edit); };
+        two(cell(row), plan.name, plan.code);
+        var pf = cell(row);
+        pf.innerHTML = '<span class="camp-platform">' + (PLATFORM_ICON[plan.platform] || '') +
+          escHtml(plan.platform === 'meta' ? 'Meta' : 'Google') + '</span>';
+        if (plan.objective) { var ob = document.createElement('span'); ob.className = 'camp-sub'; ob.textContent = plan.objective; pf.append(ob); }
+        var days = planDays(plan);
+        two(cell(row), shortDate(plan.start_date) + ' – ' + shortDate(plan.end_date, true), days + (days === 1 ? ' day' : ' days'));
+        two(cell(row, 'num'), yen(plan.daily_budget_yen) + ' / day', yen(plan.daily_budget_yen * days) + ' total');
+        var skus = Array.from(new Set((plan.scope || []).map(function (l) { return l.sku; })));
+        var pins = Array.from(new Set([].concat.apply([], (plan.scope || []).map(function (l) { return l.postal_codes || []; }))));
+        two(cell(row), skus.slice(0, 2).join(', ') + (skus.length > 2 ? ' +' + (skus.length - 2) : ''),
+          pins.length + (pins.length === 1 ? ' postal code' : ' postal codes'));
+        cell(row).append(pill(plan.status));
+        var actions = cell(row, 'camp-acts');
         var view = document.createElement('button');
         view.type = 'button';
-        view.className = 'dbtn';
-        view.textContent = res.body.can_edit && plan.status === 'draft' ? 'Edit' : 'View';
-        view.onclick = function () { openPlan(plan, !res.body.can_edit); };
+        view.className = 'camp-btn';
+        view.textContent = editable ? 'Edit' : 'View';
+        view.setAttribute('aria-label', view.textContent + ' ' + plan.name);
+        view.onclick = function (e) { e.stopPropagation(); open(); };
         actions.append(view);
         if (res.body.can_edit && plan.status === 'committed') {
           var withdraw = document.createElement('button');
           withdraw.type = 'button';
-          withdraw.className = 'dbtn';
+          withdraw.className = 'camp-btn camp-btn-danger';
           withdraw.textContent = 'Withdraw';
-          withdraw.onclick = function () {
+          withdraw.setAttribute('aria-label', 'Withdraw ' + plan.name);
+          withdraw.onclick = function (e) {
+            e.stopPropagation();
             if (!confirm('Withdraw this plan from future forecast runs? Its history will remain.')) return;
             withdraw.disabled = true;
             postPlan({ action: 'withdraw', code: plan.code, version: plan.version })
@@ -558,6 +662,7 @@
           };
           actions.append(withdraw);
         }
+        row.addEventListener('click', open);
       });
     }).catch(function (err) { planStatus.textContent = err.message; });
   }
@@ -596,6 +701,7 @@
     buttons.forEach(function (button) { button.disabled = true; });
     planError.textContent = 'Saving…';
     postPlan(payload).then(function () {
+      planError.textContent = '';
       planForm.hidden = true;
       return loadCampaigns();
     }).catch(function (err) {

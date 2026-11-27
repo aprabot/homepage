@@ -1300,3 +1300,94 @@
 #dashboard .amp-conn-meta dt{font-size:12px;color:var(--muted)}
 #dashboard .amp-conn-meta dd{margin:0;font-size:13px;color:var(--text);overflow-wrap:anywhere}
 #dashboard .amp-conn-meta dd small{display:block;margin-top:2px;font-size:11.5px;color:var(--muted)}
+
+/* Campaigns: summary strip, a calmer table (readable dates, total budget,
+   scope, status pill, quiet actions), and a sectioned form whose buttons
+   say how important they are. */
+#dashboard .camp{--camp-ok:#54E6C4;--camp-draft:#FFCF5C;--camp-red:#FF8585}
+[data-theme="light"] #dashboard .camp{--camp-ok:#0B7A6D;--camp-draft:#8A5A00;--camp-red:#B3261E}
+#dashboard .camp-sr{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0,0,0,0)}
+#dashboard .camp-stats{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));margin:22px 0 0;padding:4px 0;border-top:1px solid var(--line);border-bottom:1px solid var(--line);max-width:900px}
+#dashboard .camp-stats[hidden]{display:none}
+#dashboard .camp-stats>div{padding:12px 20px}
+#dashboard .camp-stats>div:first-child{padding-left:0}
+#dashboard .camp-stats>div+div{border-left:1px solid var(--line)}
+#dashboard .camp-stats dt{font-size:12.5px;color:var(--muted)}
+#dashboard .camp-stats dd{margin:4px 0 0;font-family:var(--display);font-size:22px;font-weight:600;color:var(--text);font-variant-numeric:tabular-nums}
+#dashboard .camp-stats dd.camp-note{margin-top:2px;font-family:var(--body);font-size:11.5px;font-weight:400;color:var(--muted)}
+
+#dashboard .camp-list,[data-theme="light"] #dashboard .camp-list{margin-top:22px;padding:0;background:none;border:0;box-shadow:none;border-radius:0;overflow-x:auto}
+#dashboard .camp-list.is-empty .camp-table{display:none}
+#dashboard .camp-list.is-empty #ads-plan-status{padding:40px 16px;border:1px dashed var(--line-2);border-radius:12px;text-align:center}
+#dashboard .camp-table{width:100%;border-collapse:collapse;min-width:820px}
+#dashboard .camp-table thead th{padding:10px 14px;font-size:12px;font-weight:600;color:var(--muted);text-align:left;background:none;border-bottom:1px solid var(--line)}
+#dashboard .camp-table thead th:first-child,#dashboard .camp-table tbody td:first-child{padding-left:0}
+#dashboard .camp-table .num{text-align:right}
+#dashboard .camp-table tbody td{padding:14px;vertical-align:middle;border-bottom:1px solid var(--line);background:none}
+#dashboard .camp-row{cursor:pointer}
+#dashboard .camp-row:hover td{background:color-mix(in srgb,var(--text) 3%,transparent)}
+#dashboard .camp-row[data-status="withdrawn"] .camp-main{color:var(--muted)}
+#dashboard .camp-main{display:block;font-size:13.5px;font-weight:500;color:var(--text)}
+#dashboard .camp-table td:first-child .camp-main{font-weight:600}
+#dashboard .camp-sub{display:block;margin-top:3px;font-size:12px;color:var(--muted)}
+#dashboard .camp-table td:first-child .camp-sub{font-family:var(--mono);font-size:11.5px}
+#dashboard .camp-platform{display:inline-flex;align-items:center;gap:7px;font-size:13.5px;color:var(--text)}
+#dashboard .camp-pill{display:inline-flex;align-items:center;gap:6px;padding:2px 10px;border-radius:100px;border:1px solid var(--line-2);font-size:12px;font-weight:600;color:var(--muted);white-space:nowrap}
+#dashboard .camp-pill::before{content:'';width:6px;height:6px;border-radius:50%;background:currentColor}
+#dashboard .camp-pill[data-status="committed"]{color:var(--camp-ok);border-color:color-mix(in srgb,var(--camp-ok) 40%,transparent)}
+#dashboard .camp-pill[data-status="draft"]{color:var(--camp-draft);border-color:color-mix(in srgb,var(--camp-draft) 40%,transparent)}
+#dashboard .camp-acts{text-align:right;white-space:nowrap}
+#dashboard .camp-btn{height:30px;padding:0 12px;border:1px solid var(--line-2);border-radius:8px;background:none;color:var(--text);font:inherit;font-size:12.5px;font-weight:600;cursor:pointer}
+#dashboard .camp-btn+.camp-btn{margin-left:6px}
+#dashboard .camp-btn:hover{border-color:var(--muted)}
+#dashboard .camp-btn-danger{border-color:transparent;color:var(--camp-red)}
+#dashboard .camp-btn-danger:hover{border-color:color-mix(in srgb,var(--camp-red) 45%,transparent)}
+#dashboard .camp-btn:focus-visible,#dashboard .camp-link:focus-visible,#dashboard .camp-x:focus-visible{outline:2px solid var(--obv-accent);outline-offset:2px}
+
+#dashboard .camp-form,[data-theme="light"] #dashboard .camp-form{margin-top:26px;padding:24px 26px;border:1px solid var(--line);border-radius:14px;background:var(--panel);box-shadow:none;max-width:1000px;scroll-margin-top:16px}
+#dashboard .camp-form-head{display:flex;align-items:center;gap:12px;margin-bottom:6px}
+#dashboard .camp-form-head h2{margin:0;font-family:var(--display);font-size:1.35rem;font-weight:600;letter-spacing:-.01em;color:var(--text)}
+#dashboard .camp-form-head .camp-pill[hidden]{display:none}
+#dashboard .camp-x{margin-left:auto;width:32px;height:32px;border:1px solid var(--line-2);border-radius:8px;background:none;color:var(--muted);font-size:20px;line-height:1;cursor:pointer}
+#dashboard .camp-x:hover{color:var(--text);border-color:var(--muted)}
+#dashboard .camp-sec{margin:20px 0 2px;font-size:13px;font-weight:600;color:var(--text);text-transform:none;letter-spacing:0}
+#dashboard .camp-grid-3{grid-template-columns:repeat(auto-fit,minmax(200px,1fr))}
+#dashboard .camp-form .ads-fields label{font-weight:500;color:var(--muted)}
+#dashboard .camp-form .ads-fields small{font-size:11px;font-weight:400;color:var(--muted)}
+#dashboard .camp-form input::placeholder{color:color-mix(in srgb,var(--muted) 70%,transparent)}
+#dashboard .camp-total{min-height:18px;margin:2px 0 0;font-size:12.5px;color:var(--text);font-variant-numeric:tabular-nums}
+#dashboard .camp-help{margin:2px 0 4px;font-size:12.5px}
+#dashboard .camp-line{position:relative;padding:12px 14px 10px;margin:10px 0;border:1px solid var(--line);border-radius:10px}
+#dashboard .camp-line legend{padding:0 6px;font-size:11.5px;font-weight:600;color:var(--muted)}
+#dashboard .camp-grid-line{grid-template-columns:minmax(110px,.8fr) minmax(160px,1.6fr) repeat(2,minmax(130px,1fr)) minmax(100px,.7fr);margin:4px 0 0}
+#dashboard .camp-link{padding:4px 0;border:0;background:none;color:var(--obv-accent);font:inherit;font-size:13px;font-weight:600;cursor:pointer}
+#dashboard .camp-link:hover{text-decoration:underline}
+#dashboard .camp-link[disabled]{opacity:.4;cursor:default;text-decoration:none}
+#dashboard .camp-remove{position:absolute;top:-2px;right:12px;padding:0 6px;background:var(--panel);color:var(--muted);font-size:12px;font-weight:500}
+#dashboard .camp-remove:hover{color:var(--camp-red)}
+#dashboard .camp-actions{display:flex;align-items:center;gap:10px;margin:18px 0 0;padding-top:16px;border-top:1px solid var(--line)}
+#dashboard .camp-actions .dsubtle{margin:0 auto 0 0;font-size:12px}
+#dashboard .camp-btn-quiet,#dashboard .camp-form .camp-btn-quiet{background:none!important;color:var(--text)!important;border:1px solid var(--line-2)!important;box-shadow:none!important}
+@media(max-width:900px){#dashboard .camp-grid-line{grid-template-columns:1fr 1fr}}
+@media(max-width:640px){
+  #dashboard .camp-stats{grid-template-columns:1fr}
+  #dashboard .camp-stats>div{padding:10px 0}
+  #dashboard .camp-stats>div+div{border-left:0;border-top:1px solid var(--line)}
+  #dashboard .camp-form{padding:18px 16px}
+  #dashboard .camp-grid-line{grid-template-columns:1fr}
+  #dashboard .camp-actions{flex-wrap:wrap}
+  #dashboard .camp-actions .dsubtle{flex-basis:100%}
+}
+#dashboard .camp-form .ads-fields label{align-content:start}
+#dashboard .camp-remove{top:-11px}
+@media(max-width:700px){
+  #dashboard .camp-table{min-width:0}
+  #dashboard .camp-table thead{display:none}
+  #dashboard .camp-table,#dashboard .camp-table tbody{display:block}
+  #dashboard .camp-table tr.camp-row{display:grid;grid-template-columns:1fr auto;gap:8px 12px;padding:14px 0;border-bottom:1px solid var(--line)}
+  #dashboard .camp-table tr.camp-row td{display:block;padding:0;border:0;text-align:left}
+  #dashboard .camp-table tr.camp-row td:nth-child(1){grid-column:1}
+  #dashboard .camp-table tr.camp-row td:nth-child(6){grid-column:2;grid-row:1;justify-self:end}
+  #dashboard .camp-table tr.camp-row td:nth-child(n+2):nth-child(-n+5){grid-column:1 / -1}
+  #dashboard .camp-table tr.camp-row td.camp-acts{grid-column:1 / -1;text-align:left}
+}

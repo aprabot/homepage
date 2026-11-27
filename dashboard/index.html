@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261126g">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261126h">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -1866,55 +1866,64 @@
         </div>
       </div>
     </div>
-    <div class="dbody" id="campaignsPanel" style="display:none">
+    <div class="dbody camp" id="campaignsPanel" style="display:none">
       <div class="ads-heading">
         <div>
           <h1 class="dgreet">Campaigns</h1>
-          <p class="dsubtle">Plan ad spend by forecast SKU and postal code.</p>
+          <p class="dsubtle">Plan ad spend by forecast SKU and postal code. Committed plans feed the next forecast run.</p>
         </div>
         <button type="button" class="dbtn" id="ads-new-plan" disabled>+ New campaign</button>
       </div>
-      <div class="dcard ads-table-card">
-        <table class="amp-table">
-          <thead><tr><th>Campaign</th><th>Platform</th><th>Dates</th><th>Daily budget</th><th>Status</th><th>Actions</th></tr></thead>
+      <dl class="camp-stats" id="ads-plan-summary" hidden></dl>
+      <div class="ads-table-card camp-list">
+        <table class="amp-table camp-table">
+          <thead><tr><th>Campaign</th><th>Platform</th><th>Schedule</th><th class="num">Budget</th><th>Scope</th><th>Status</th><th><span class="camp-sr">Actions</span></th></tr></thead>
           <tbody id="ads-plan-list"></tbody>
         </table>
         <p class="dsubtle" id="ads-plan-status" role="status"></p>
       </div>
-      <form class="dcard ads-plan-form" id="ads-plan-form" hidden>
-        <h2 id="ads-plan-title">New campaign</h2>
-        <div class="ads-fields">
-          <label>Campaign name<input name="name" required maxlength="120"></label>
-          <label>Campaign code<input name="code" required maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_\-]{0,39}"></label>
+      <form class="ads-plan-form camp-form" id="ads-plan-form" hidden>
+        <div class="camp-form-head">
+          <h2 id="ads-plan-title">New campaign</h2>
+          <span class="camp-pill" id="ads-plan-state" hidden></span>
+          <button type="button" class="camp-x" id="ads-close-plan" aria-label="Close">×</button>
+        </div>
+        <h3 class="camp-sec">Campaign</h3>
+        <div class="ads-fields camp-grid-3">
+          <label>Campaign name<input name="name" required maxlength="120" placeholder="Diwali push – North"></label>
+          <label>Campaign code<input name="code" required maxlength="40" pattern="[A-Za-z0-9][A-Za-z0-9_\-]{0,39}" placeholder="DIWALI-N-01"><small>Letters, digits, - and _. Can't change after saving.</small></label>
           <label>Platform<select name="platform"><option value="meta">Meta</option><option value="google">Google</option></select></label>
-          <label>Objective<input name="objective" required maxlength="40"></label>
-          <label>Daily budget (JPY)<input name="daily_budget_yen" type="number" required min="1" step="1"></label>
+          <label>Objective<input name="objective" required maxlength="40" placeholder="Awareness, traffic, sales…"></label>
+        </div>
+        <h3 class="camp-sec">Budget and schedule</h3>
+        <div class="ads-fields camp-grid-3">
+          <label>Daily budget (JPY)<input name="daily_budget_yen" type="number" required min="1" step="1" placeholder="1000"></label>
           <label>Start date<input name="start_date" type="date" required></label>
           <label>End date<input name="end_date" type="date" required></label>
         </div>
-        <h3>Scope</h3>
-        <p class="dsubtle">Allocate 100% of the daily budget across the scope lines active on each day.</p>
+        <p class="camp-total" id="ads-plan-total" aria-live="polite"></p>
+        <h3 class="camp-sec">Scope</h3>
+        <p class="dsubtle camp-help">Split the daily budget across SKUs and postal codes. On each campaign day, the active lines must add up to 100%.</p>
         <div id="ads-scope-lines"></div>
-        <button type="button" class="dbtn" id="ads-add-scope">+ Add scope line</button>
+        <button type="button" class="camp-link" id="ads-add-scope">+ Add scope line</button>
         <p class="stest-msg" id="ads-plan-error" role="status"></p>
-        <div class="ads-plan-actions">
-          <button type="button" class="dbtn" id="ads-close-plan">Close</button>
-          <button type="submit" class="dbtn" id="ads-save-plan" value="save">Save draft</button>
+        <div class="ads-plan-actions camp-actions">
+          <p class="dsubtle">Live ad launches are unavailable. Plans are used for forecasting.</p>
+          <button type="submit" class="dbtn camp-btn-quiet" id="ads-save-plan" value="save">Save draft</button>
           <button type="submit" class="dbtn" id="ads-commit-plan" value="commit">Commit</button>
         </div>
-        <p class="dsubtle">Live ad launches are unavailable.</p>
       </form>
       <template id="ads-scope-template">
-        <fieldset class="ads-scope-line">
+        <fieldset class="ads-scope-line camp-line">
           <legend>Scope line</legend>
-          <div class="ads-fields">
-            <label>Forecast SKU<input name="sku" placeholder="SKU-001" required pattern="SKU-\d{3,}" maxlength="20"></label>
-            <label>Postal codes<input name="postal_codes" placeholder="Comma-separated" required maxlength="1300"></label>
+          <div class="ads-fields camp-grid-line">
+            <label>Forecast SKU<input name="sku" placeholder="SKU-001" required pattern="[Ss][Kk][Uu]-\d{3,}" title="A forecast SKU such as SKU-001" maxlength="20"></label>
+            <label>Postal codes<input name="postal_codes" placeholder="110001, 400001" required maxlength="1300"></label>
             <label>Start date<input name="line_start" type="date" required></label>
             <label>End date<input name="line_end" type="date" required></label>
             <label>Spend share (%)<input name="share" type="number" required min="1" max="100"></label>
           </div>
-          <button type="button" class="dbtn ads-remove-scope">Remove line</button>
+          <button type="button" class="camp-link camp-remove ads-remove-scope" aria-label="Remove this scope line">Remove</button>
         </fieldset>
       </template>
     </div>
@@ -2258,7 +2267,7 @@
 <script src="../js/inventory-plan.js?v=20261126c"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
-<script src="../js/ads.js?v=20261126m"></script>
+<script src="../js/ads.js?v=20261126c"></script>
 <script src="../js/discount-schemes.js?v=20261123e"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/india-festivals.js?v=20261124a"></script>
