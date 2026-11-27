@@ -1654,3 +1654,7 @@
 #dashboard .camp-btn-go:hover{border-color:transparent;filter:brightness(1.07)}
 #dashboard .camp-btn-go:disabled{opacity:.6;cursor:default;filter:none}
 [data-theme="light"] #dashboard .camp-btn-go{color:#fff}
+/* With a launch button the footer has three actions: the note gets its own
+   row and the buttons sit together on the right. */
+#dashboard .camp-actions:has(.camp-launch-btn:not([hidden])){flex-wrap:wrap;justify-content:flex-end}
+#dashboard .camp-actions:has(.camp-launch-btn:not([hidden])) .dsubtle{flex-basis:100%;margin:0 0 4px}
