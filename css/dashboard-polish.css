@@ -1536,3 +1536,63 @@
 #dashboard .perf-empty span{font-size:13px;color:var(--muted);max-width:420px}
 #dashboard .perf-empty .camp-btn{margin-top:6px}
 #dashboard .perf .camp-stats,#dashboard .perf-banner{max-width:none}
+
+/* Integrations (v2): grouped cards with a logo tile and status in the
+   header, what connecting gives you while not connected, the connection
+   details once connected, and a quiet footer action. */
+#integrationsPanel .integ-top{display:flex;justify-content:space-between;align-items:flex-end;gap:16px;flex-wrap:wrap;max-width:1100px}
+#integrationsPanel .integ-top .dsubtle{margin-bottom:0}
+#integrationsPanel .integ-summary{margin:0 0 4px;padding:5px 12px;border:1px solid var(--line-2);border-radius:999px;font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+#integrationsPanel .integ-summary[hidden]{display:none}
+#integrationsPanel #ads-integration-status:empty{display:none}
+#dashboard #integrationsPanel .integ-grid{margin-top:24px;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:16px;max-width:1100px}
+#dashboard #integrationsPanel .integ-card{padding:0;overflow:hidden;transition:border-color .15s}
+#dashboard #integrationsPanel .integ-card:hover{border-color:var(--line-2)}
+#integrationsPanel .integ-head{display:flex;align-items:flex-start;gap:12px;padding:18px 18px 0}
+#integrationsPanel .integ-logo{flex:none;display:grid;place-items:center;width:42px;height:42px;border-radius:11px;background:var(--ink-3);border:1px solid var(--line)}
+#integrationsPanel .shopify .integ-logo{background:rgba(149,191,71,.12);border-color:rgba(149,191,71,.22)}
+#integrationsPanel .google .integ-logo{background:rgba(66,133,244,.12);border-color:rgba(66,133,244,.22)}
+#integrationsPanel .meta .integ-logo{background:rgba(6,104,225,.14);border-color:rgba(6,104,225,.26)}
+#integrationsPanel .integ-title{flex:1;min-width:0}
+#integrationsPanel .integ-card h4{margin:1px 0 3px;font-size:15px}
+#integrationsPanel .integ-card .desc{margin:0;font-size:12.5px}
+#integrationsPanel .integ-card>.integ-perks,#integrationsPanel .integ-card>.amp-conn-meta,#integrationsPanel .integ-card>.integ-shop{margin-left:18px;margin-right:18px}
+
+/* Status pill with a dot */
+#dashboard #integrationsPanel .amp-conn-status{flex:none;display:inline-flex;align-items:center;gap:6px;margin-top:2px;padding:3px 10px;border:0;border-radius:999px;
+  font-size:11.5px;white-space:nowrap;background:rgba(149,162,180,.1);color:var(--muted)}
+#dashboard #integrationsPanel .amp-conn-status:not(.integ-checking)::before{content:"";width:6px;height:6px;border-radius:50%;background:currentColor}
+#dashboard #integrationsPanel .amp-conn-status.ok{color:var(--mint);background:rgba(84,230,196,.1)}
+#dashboard #integrationsPanel .amp-conn-status.warn{color:#F2B84B;background:rgba(242,184,75,.1)}
+#dashboard #integrationsPanel .amp-conn-status.risk{color:var(--muted);background:rgba(149,162,180,.1)}
+[data-theme="light"] #dashboard #integrationsPanel .amp-conn-status.ok{color:#0B7A6D;background:rgba(11,122,109,.09)}
+[data-theme="light"] #dashboard #integrationsPanel .amp-conn-status.warn{color:#8B6000;background:rgba(201,138,0,.12)}
+
+/* What connecting gives you (only while not connected) */
+#integrationsPanel .integ-perks{list-style:none;display:grid;gap:8px;margin-top:16px;margin-bottom:18px;padding:14px 0 0;border-top:1px solid var(--line)}
+#integrationsPanel .integ-perks li{position:relative;padding-left:22px;font-size:13px;color:var(--text);line-height:1.4}
+#integrationsPanel .integ-perks li::before{content:"";position:absolute;left:2px;top:3px;width:12px;height:12px;opacity:.75;
+  background:no-repeat center/contain url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2395A2B4' stroke-width='2.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M5 12.5l4.5 4.5L19 7.5'/%3E%3C/svg%3E")}
+#integrationsPanel .integ-perks li.integ-note{color:var(--muted);font-size:12.5px}
+#integrationsPanel .integ-perks li.integ-note::before{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%2395A2B4' stroke-width='2.4' stroke-linecap='round'%3E%3Ccircle cx='12' cy='12' r='9.5'/%3E%3Cpath d='M12 11v6M12 7.5v.01'/%3E%3C/svg%3E")}
+#integrationsPanel .integ-card:is([data-state="connected"],[data-state="checking"]) .integ-perks{display:none}
+#integrationsPanel .integ-card:is([data-state="revoked"],[data-state="unknown"]) .integ-perks{display:none}
+
+/* Connection details */
+#dashboard #integrationsPanel .integ-card .amp-conn-meta{margin-top:16px;margin-bottom:18px}
+#dashboard #integrationsPanel .integ-card .amp-conn-meta>div{grid-template-columns:110px minmax(0,1fr)}
+
+/* Shopify store address */
+#integrationsPanel .integ-shop{display:grid;gap:6px;margin-bottom:18px;font-size:12px;font-weight:600;color:var(--muted)}
+#integrationsPanel .integ-shop .amp-shop-input{width:100%}
+#integrationsPanel .integ-card:is([data-state="connected"],[data-state="checking"]) .integ-shop{display:none}
+
+/* Footer */
+#dashboard #integrationsPanel .integ-card .row{justify-content:flex-end;padding:12px 18px;border-top:1px solid var(--line);background:rgba(255,255,255,.015)}
+[data-theme="light"] #dashboard #integrationsPanel .integ-card .row{background:rgba(0,0,0,.015)}
+#dashboard #integrationsPanel .integ-card .amp-conn-btn{padding:7px 16px;font-size:13px}
+#dashboard #integrationsPanel .integ-card[data-state="connected"] .amp-conn-btn{background:none;border:1px solid transparent;color:var(--muted);box-shadow:none}
+#dashboard #integrationsPanel .integ-card[data-state="connected"] .amp-conn-btn:hover{border-color:rgba(255,133,133,.4);color:#ff8585;background:rgba(255,133,133,.06)}
+[data-theme="light"] #dashboard #integrationsPanel .integ-card[data-state="connected"] .amp-conn-btn:hover{color:#B3261E;border-color:rgba(179,38,30,.35);background:rgba(179,38,30,.05)}
+#dashboard #integrationsPanel .integ-card[data-state="checking"] .amp-conn-btn{visibility:hidden}
+@media(max-width:520px){#dashboard #integrationsPanel .integ-grid{grid-template-columns:1fr}}

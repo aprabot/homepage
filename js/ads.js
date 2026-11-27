@@ -522,6 +522,7 @@
         var btn = card.querySelector('.amp-conn-btn');
         var shopInput = card.querySelector('.amp-shop-input');
         btn.disabled = false;
+        card.dataset.state = s.status === 'connected' || s.status === 'revoked' ? s.status : 'not_connected';
         if (s.status === 'connected') {
           badge.textContent = card.closest('#integrationsPanel') ? 'Connected'
             : 'Connected' + (s.external_account_id ? ' — ' + s.external_account_id : '');
@@ -546,6 +547,12 @@
         renderConnectionDetails(card, platform, s);
       });
     });
+    var summary = document.getElementById('integ-summary');
+    if (summary) {
+      var n = ['meta', 'google', 'shopify'].filter(function (p) { return (status[p] || {}).status === 'connected'; }).length;
+      summary.textContent = n + ' of 3 connected';
+      summary.hidden = false;
+    }
   }
 
   // Loading state on the Integrations cards: a "Checking…" badge with a
@@ -572,6 +579,7 @@
       card.classList.toggle('is-loading', on);
       card.setAttribute('aria-busy', on ? 'true' : 'false');
       if (!on) return;
+      card.dataset.state = 'checking';
       var badge = card.querySelector('.amp-conn-status'), btn = card.querySelector('.amp-conn-btn');
       badge.className = 'pill amp-conn-status integ-checking';
       badge.innerHTML = '<span class="amp-spinner"></span>Checking…';
@@ -599,8 +607,10 @@
       document.querySelectorAll('#integrationsPanel .amp-connect-card').forEach(function (card) {
         var badge = card.querySelector('.amp-conn-status');
         badge.className = 'pill amp-conn-status'; badge.textContent = 'Unknown';
+        card.dataset.state = 'unknown';
         var dl = card.querySelector('.amp-conn-meta'); if (dl) dl.hidden = true;
       });
+      var summary = document.getElementById('integ-summary'); if (summary) summary.hidden = true;
       var note = integrationNote();
       if (!note) return;
       note.className = 'integ-load is-error';

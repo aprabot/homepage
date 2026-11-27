@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261127w">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261127x">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -2019,33 +2019,47 @@
     </div>
     <!-- Integrations & Settings panel (OAuth connect/disconnect) -->
     <div class="dbody" id="integrationsPanel" style="display:none">
-      <h1 class="dgreet">Integrations</h1>
-      <p class="dsubtle">Connect your Shopify store to sync products and inventory. Meta and Google campaign launches are unavailable.</p>
+      <div class="integ-top">
+        <div>
+          <h1 class="dgreet">Integrations</h1>
+          <p class="dsubtle">Connect your store and ad accounts. APRABot only uses the access shown on each card.</p>
+        </div>
+        <p class="integ-summary" id="integ-summary" hidden></p>
+      </div>
 
       <p class="dsubtle" id="ads-integration-status" role="status"></p>
-      <div class="amp-connect-grid" style="margin-top:22px">
-        <div class="amp-connect-card meta" id="amp-connect-meta" data-platform="meta">
-          <h4><svg class="pf-ic" viewBox="0 0 24 24" width="18" height="18" fill="#0668E1" aria-hidden="true"><path d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z"/></svg>Meta Ads</h4>
-          <p class="desc">Facebook and Instagram Ads</p>
-          <div class="row">
+      <div class="amp-connect-grid integ-grid">
+        <div class="amp-connect-card integ-card shopify" id="amp-connect-shopify" data-platform="shopify">
+          <div class="integ-head">
+            <span class="integ-logo" aria-hidden="true"><svg class="pf-ic" viewBox="0 0 24 24" width="22" height="22" fill="#95BF47" aria-hidden="true"><path d="M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z"/></svg></span>
+            <div class="integ-title"><h4>Shopify</h4><p class="desc">Products and inventory</p></div>
             <span class="pill amp-conn-status">—</span>
+          </div>
+          <ul class="integ-perks"><li>Your product catalog and variants</li><li>Current stock levels for each variant</li><li>Read-only: APRABot never changes your store</li></ul>
+          <label class="integ-shop">Store address<input type="text" class="amp-shop-input" placeholder="yourstore.myshopify.com" autocomplete="off" spellcheck="false"></label>
+          <div class="row">
             <button class="dbtn amp-conn-btn" disabled>Connect</button>
           </div>
         </div>
-        <div class="amp-connect-card google" id="amp-connect-google" data-platform="google">
-          <h4><svg class="pf-ic" viewBox="0 0 24 24" width="18" height="18" fill="#4285F4" aria-hidden="true"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg>Google Ads</h4>
-          <p class="desc">Search, Display and Performance Max</p>
-          <div class="row">
+        <div class="amp-connect-card integ-card google" id="amp-connect-google" data-platform="google">
+          <div class="integ-head">
+            <span class="integ-logo" aria-hidden="true"><svg class="pf-ic" viewBox="0 0 24 24" width="22" height="22" fill="#4285F4" aria-hidden="true"><path d="M12.48 10.92v3.28h7.84c-.24 1.84-.853 3.187-1.787 4.133-1.147 1.147-2.933 2.4-6.053 2.4-4.827 0-8.6-3.893-8.6-8.72s3.773-8.72 8.6-8.72c2.6 0 4.507 1.027 5.907 2.347l2.307-2.307C18.747 1.44 16.133 0 12.48 0 5.867 0 .307 5.387.307 12s5.56 12 12.173 12c3.573 0 6.267-1.173 8.373-3.36 2.16-2.16 2.84-5.213 2.84-7.667 0-.76-.053-1.467-.173-2.053H12.48z"/></svg></span>
+            <div class="integ-title"><h4>Google Ads</h4><p class="desc">Search campaigns</p></div>
             <span class="pill amp-conn-status">—</span>
+          </div>
+          <ul class="integ-perks"><li>Launch campaign plans as paused Search campaigns</li><li>See results on the Performance page</li><li class="integ-note">Launches go to a test account for now</li></ul>
+          <div class="row">
             <button class="dbtn amp-conn-btn" disabled>Connect</button>
           </div>
         </div>
-        <div class="amp-connect-card shopify" id="amp-connect-shopify" data-platform="shopify">
-          <h4><svg class="pf-ic" viewBox="0 0 24 24" width="18" height="18" fill="#95BF47" aria-hidden="true"><path d="M15.337 23.979l7.216-1.561s-2.604-17.613-2.625-17.73c-.018-.116-.114-.192-.211-.192s-1.929-.136-1.929-.136-1.275-1.274-1.439-1.411c-.045-.037-.075-.057-.121-.074l-.914 21.104h.023zM11.71 11.305s-.81-.424-1.774-.424c-1.447 0-1.504.906-1.504 1.141 0 1.232 3.24 1.715 3.24 4.629 0 2.295-1.44 3.76-3.406 3.76-2.354 0-3.54-1.465-3.54-1.465l.646-2.086s1.245 1.066 2.28 1.066c.675 0 .975-.545.975-.932 0-1.619-2.654-1.694-2.654-4.359-.034-2.237 1.571-4.416 4.827-4.416 1.257 0 1.875.361 1.875.361l-.945 2.715-.02.01zM11.17.83c.136 0 .271.038.405.135-.984.465-2.064 1.639-2.508 3.992-.656.213-1.293.405-1.889.578C7.697 3.75 8.951.84 11.17.84V.83zm1.235 2.949v.135c-.754.232-1.583.484-2.394.736.466-1.777 1.333-2.645 2.085-2.971.193.501.309 1.176.309 2.1zm.539-2.234c.694.074 1.141.867 1.429 1.755-.349.114-.735.231-1.158.366v-.252c0-.752-.096-1.371-.271-1.871v.002zm2.992 1.289c-.02 0-.06.021-.078.021s-.289.075-.714.21c-.423-1.233-1.176-2.37-2.508-2.37h-.115C12.135.209 11.669 0 11.265 0 8.159 0 6.675 3.877 6.21 5.846c-1.194.365-2.063.636-2.16.674-.675.213-.694.232-.772.87-.075.462-1.83 14.063-1.83 14.063L15.009 24l.927-21.166z"/></svg>Shopify</h4>
-          <p class="desc">Read-only product catalog and inventory sync.</p>
-          <input type="text" class="amp-shop-input" placeholder="yourstore.myshopify.com" style="width:100%;margin-bottom:10px">
-          <div class="row">
+        <div class="amp-connect-card integ-card meta" id="amp-connect-meta" data-platform="meta">
+          <div class="integ-head">
+            <span class="integ-logo" aria-hidden="true"><svg class="pf-ic" viewBox="0 0 24 24" width="22" height="22" fill="#0668E1" aria-hidden="true"><path d="M6.915 4.03c-1.968 0-3.683 1.28-4.871 3.113C.704 9.208 0 11.883 0 14.449c0 .706.07 1.369.21 1.973a6.624 6.624 0 0 0 .265.86 5.297 5.297 0 0 0 .371.761c.696 1.159 1.818 1.927 3.593 1.927 1.497 0 2.633-.671 3.965-2.444.76-1.012 1.144-1.626 2.663-4.32l.756-1.339.186-.325c.061.1.121.196.183.3l2.152 3.595c.724 1.21 1.665 2.556 2.47 3.314 1.046.987 1.992 1.22 3.06 1.22 1.075 0 1.876-.355 2.455-.843a3.743 3.743 0 0 0 .81-.973c.542-.939.861-2.127.861-3.745 0-2.72-.681-5.357-2.084-7.45-1.282-1.912-2.957-2.93-4.716-2.93-1.047 0-2.088.467-3.053 1.308-.652.57-1.257 1.29-1.82 2.05-.69-.875-1.335-1.547-1.958-2.056-1.182-.966-2.315-1.303-3.454-1.303zm10.16 2.053c1.147 0 2.188.758 2.992 1.999 1.132 1.748 1.647 4.195 1.647 6.4 0 1.548-.368 2.9-1.839 2.9-.58 0-1.027-.23-1.664-1.004-.496-.601-1.343-1.878-2.832-4.358l-.617-1.028a44.908 44.908 0 0 0-1.255-1.98c.07-.109.141-.224.211-.327 1.12-1.667 2.118-2.602 3.358-2.602zm-10.201.553c1.265 0 2.058.791 2.675 1.446.307.327.737.871 1.234 1.579l-1.02 1.566c-.757 1.163-1.882 3.017-2.837 4.338-1.191 1.649-1.81 1.817-2.486 1.817-.524 0-1.038-.237-1.383-.794-.263-.426-.464-1.13-.464-2.046 0-2.221.63-4.535 1.66-6.088.454-.687.964-1.226 1.533-1.533a2.264 2.264 0 0 1 1.088-.285z"/></svg></span>
+            <div class="integ-title"><h4>Meta Ads</h4><p class="desc">Facebook and Instagram Ads</p></div>
             <span class="pill amp-conn-status">—</span>
+          </div>
+          <ul class="integ-perks"><li>Link your Facebook and Instagram ad account</li><li class="integ-note">Launching campaigns to Meta isn’t available yet</li></ul>
+          <div class="row">
             <button class="dbtn amp-conn-btn" disabled>Connect</button>
           </div>
         </div>
@@ -2305,7 +2319,7 @@
 <script src="../js/inventory-plan.js?v=20261126c"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
-<script src="../js/ads.js?v=20261127w"></script>
+<script src="../js/ads.js?v=20261127x"></script>
 <script src="../js/discount-schemes.js?v=20261123e"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/india-festivals.js?v=20261124a"></script>
