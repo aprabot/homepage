@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261127s">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261127t">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -1928,19 +1928,28 @@
       </template>
     </div>
     <!-- Products panel -->
-    <div class="dbody" id="productsPanel" style="display:none">
-      <h1 class="dgreet">Products</h1>
-
-      <div class="amp-catalog-kpis" id="amp-catalog-kpis" style="display:none;margin-top:18px">
-        <div class="amp-catalog-kpi"><div class="t">Products</div><div class="v" id="amp-kpi-products">—</div></div>
-        <div class="amp-catalog-kpi"><div class="t">Units in stock</div><div class="v" id="amp-kpi-stock">—</div></div>
-        <div class="amp-catalog-kpi" id="amp-kpi-sold-card" style="display:none"><div class="t">Units sold</div><div class="v" id="amp-kpi-sold">—</div></div>
-        <div class="amp-catalog-kpi" id="amp-kpi-revenue-card" style="display:none"><div class="t">Revenue</div><div class="v" id="amp-kpi-revenue">—</div></div>
+    <div class="dbody prod" id="productsPanel" style="display:none">
+      <div class="ads-heading">
+        <div>
+          <h1 class="dgreet">Products</h1>
+          <p class="dsubtle">Your Shopify catalog and stock, plus any products you add yourself.</p>
+        </div>
       </div>
 
-      <div class="ch" style="margin-top:4px;display:flex;align-items:center;justify-content:space-between"><h4>Your Shopify store</h4><button type="button" class="dbtn" id="amp-shopify-refresh-btn" style="padding:5px 11px;font-size:12.5px">Refresh</button></div>
-      <p class="dsubtle">Your real, live catalog — shown as soon as Shopify is connected, no setup needed.</p>
-      <div class="dcard" style="margin-top:12px" id="amp-shopify-catalog-card">
+      <dl class="camp-stats prod-stats" id="amp-catalog-kpis" style="display:none">
+        <div><dt>Products</dt><dd id="amp-kpi-products">—</dd><dd class="camp-note" id="amp-kpi-variants"></dd></div>
+        <div><dt>Units in stock</dt><dd id="amp-kpi-stock">—</dd><dd class="camp-note">across all variants</dd></div>
+        <div data-tone="low"><dt>Low stock</dt><dd id="amp-kpi-low">—</dd><dd class="camp-note">a variant has under 10</dd></div>
+        <div data-tone="out"><dt>Out of stock</dt><dd id="amp-kpi-out">—</dd><dd class="camp-note">every variant at 0</dd></div>
+        <div id="amp-kpi-sold-card" style="display:none"><dt>Units sold</dt><dd id="amp-kpi-sold">—</dd><dd class="camp-note" id="amp-kpi-sold-note"></dd></div>
+        <div id="amp-kpi-revenue-card" style="display:none"><dt>Revenue</dt><dd id="amp-kpi-revenue">—</dd><dd class="camp-note">store currency</dd></div>
+      </dl>
+
+      <div class="prod-sec-head">
+        <h2>Your Shopify store <span class="prod-store" id="amp-shopify-store"></span></h2>
+        <div class="prod-sync"><span id="amp-shopify-synced"></span><button type="button" class="camp-btn" id="amp-shopify-refresh-btn">Refresh</button></div>
+      </div>
+      <div class="prod-card" id="amp-shopify-catalog-card">
         <div class="amp-loading" id="amp-shopify-loading" role="status" aria-live="polite" aria-busy="true">
           <div class="amp-loading-head"><span class="amp-spinner"></span><span id="amp-shopify-loading-text">Loading your Shopify catalog…</span></div>
           <p class="amp-loading-slow" id="amp-shopify-loading-slow" hidden>Still loading. Shopify can take a little longer for large stores.</p>
@@ -1951,20 +1960,25 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="30" height="30"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <p id="amp-shopify-catalog-empty-text">Connect Shopify (Integrations) to see your real catalog and live inventory here.</p>
         </div>
-        <input type="text" id="amp-shopify-search" placeholder="Search by product, variant, or SKU…" style="display:none;width:100%;margin-bottom:12px;background:var(--ink);border:1px solid var(--line-2);border-radius:8px;padding:8px 12px;font-size:13px;color:var(--text);font-family:inherit">
-        <table class="amp-table" id="amp-shopify-catalog-table" style="display:none">
+        <div class="prod-toolbar" id="amp-shopify-toolbar" style="display:none">
+          <input type="search" id="amp-shopify-search" placeholder="Search product, variant or SKU" aria-label="Search products">
+          <div class="prod-filters" id="amp-shopify-filters" role="group" aria-label="Filter by stock"></div>
+        </div>
+        <table class="amp-table prod-table" id="amp-shopify-catalog-table" style="display:none">
           <thead><tr>
             <th class="amp-sortable" data-sort-key="product">Product</th>
-            <th>Variant</th><th>SKU</th>
-            <th class="amp-sortable" data-sort-key="inventory">Inventory on hand</th>
-            <th class="amp-sortable" id="amp-shopify-units-col" data-sort-key="sold">Units sold</th>
-            <th class="amp-sortable" id="amp-shopify-revenue-col" data-sort-key="revenue">Revenue</th>
+            <th>Stock</th>
+            <th>SKU</th>
+            <th class="amp-sortable num" data-sort-key="inventory">On hand</th>
+            <th class="amp-sortable num" id="amp-shopify-units-col" data-sort-key="sold">Units sold</th>
+            <th class="amp-sortable num" id="amp-shopify-revenue-col" data-sort-key="revenue">Revenue</th>
+            <th><span class="camp-sr">Open in Shopify</span></th>
           </tr></thead>
           <tbody id="amp-shopify-catalog-body"></tbody>
         </table>
       </div>
 
-      <div class="ch" style="margin-top:28px;display:flex;align-items:center;justify-content:space-between"><h4>Manual catalog</h4><button type="button" class="dbtn" id="amp-manual-add-btn" style="padding:5px 11px;font-size:12.5px">Add product</button></div>
+      <div class="prod-sec-head prod-manual-head"><h2>Manual catalog</h2><button type="button" class="camp-btn" id="amp-manual-add-btn">+ Add product</button></div>
       <p class="dsubtle">Products you maintain yourself — for anything not in Shopify, or if you don't use Shopify at all.</p>
       <div class="dcard" style="margin-top:12px">
         <div class="amp-empty-card" id="amp-manual-catalog-empty" role="status">
@@ -2286,7 +2300,7 @@
 <script src="../js/inventory-plan.js?v=20261126c"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
-<script src="../js/ads.js?v=20261127s"></script>
+<script src="../js/ads.js?v=20261127t"></script>
 <script src="../js/discount-schemes.js?v=20261123e"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/india-festivals.js?v=20261124a"></script>

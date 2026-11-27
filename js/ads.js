@@ -19,6 +19,7 @@
     var res = await apiFetch(OAUTH_API + '/status', {cache:'no-store', signal:AbortSignal.timeout(12000)});
     if (!res.ok) throw new Error('Could not load account connections.');
     shopifyStatusCache = res.body.shopify?.status === 'connected';
+    shopifyCatalogState.shop = res.body.shopify?.external_account_id || null;
     return res.body;
   }
 
@@ -54,7 +55,7 @@
   // Full catalog lives client-side once fetched — search/sort are purely
   // local filters over it, no new backend calls needed for either.
   var shopifyCatalogState = { products: [], salesCurrency: null, salesWindowDays: null,
-    search: '', sortKey: null, sortDir: 1 };
+    search: '', sortKey: null, sortDir: 1, filter: 'all', open: {}, syncedAt: null, shop: null };
   var shopifyPollTimer = null;
 
   function shopifyProductSortValue(p, key) {
@@ -92,7 +93,7 @@
     if (!on) { clearTimeout(shopifySlowTimer); shopifySlowTimer = null; slow.hidden = true; return; }
     if (shopifySlowTimer) return;   // already loading: keep the slow-loading timer running
     slow.hidden = true;
-    ['amp-shopify-catalog-empty', 'amp-shopify-catalog-table', 'amp-catalog-kpis', 'amp-shopify-search'].forEach(function (id) {
+    ['amp-shopify-catalog-empty', 'amp-shopify-catalog-table', 'amp-catalog-kpis', 'amp-shopify-toolbar'].forEach(function (id) {
       var el = document.getElementById(id); if (el) el.style.display = 'none';
     });
     shopifySlowTimer = setTimeout(function () { slow.hidden = false; }, 8000);
@@ -109,112 +110,198 @@
     btn.innerHTML = spinning ? '<span class="amp-spinner"></span>Syncing…' : 'Refresh';
   }
 
+  // ---- Shopify catalog: one row per product with its stock status, the
+  // variants tucked under a toggle, filters for the products that need
+  // attention, how old the data is, and a link to the product in Shopify.
+  var LOW_STOCK = 10;
+  function productStock(p) {
+    var vs = p.variants || [], known = vs.filter(function (v) { return v.inventory_on_hand != null; });
+    var total = known.reduce(function (t, v) { return t + v.inventory_on_hand; }, 0);
+    var state = !known.length ? 'unknown'
+      : known.every(function (v) { return v.inventory_on_hand <= 0; }) ? 'out'
+      : known.some(function (v) { return v.inventory_on_hand < LOW_STOCK; }) ? 'low' : 'ok';
+    return { total: known.length ? total : null, state: state };
+  }
+  var STOCK_TEXT = { ok: 'In stock', low: 'Low stock', out: 'Out of stock', unknown: 'Not tracked' };
+  function stockPill(state) {
+    var el = document.createElement('span');
+    el.className = 'prod-stock'; el.dataset.state = state; el.textContent = STOCK_TEXT[state];
+    return el;
+  }
+  function renderShopifySynced(status) {
+    var el = document.getElementById('amp-shopify-synced');
+    if (!el) return;
+    var at = shopifyCatalogState.syncedAt ? new Date(shopifyCatalogState.syncedAt) : null;
+    el.className = '';
+    if (status === 'syncing') { el.textContent = 'Syncing with Shopify…'; return; }
+    if (!at || isNaN(at)) { el.textContent = ''; return; }
+    var days = Math.floor((Date.now() - at.getTime()) / 86400000);
+    el.textContent = 'Synced ' + at.toLocaleDateString(undefined, { day: 'numeric', month: 'short' }) + ' · ' +
+      (days <= 0 ? 'today' : days === 1 ? 'yesterday' : days + ' days ago');
+    el.title = at.toLocaleString();
+    if (days >= 3) el.className = 'is-stale';
+  }
+  function shopifyAdminUrl(p) {
+    var shop = shopifyCatalogState.shop;
+    return shop && p.id ? 'https://' + shop + '/admin/products/' + encodeURIComponent(p.id) : null;
+  }
+  function renderShopifyFilters(counts) {
+    var box = document.getElementById('amp-shopify-filters');
+    if (!box) return;
+    box.replaceChildren();
+    [['all', 'All'], ['ok', 'In stock'], ['low', 'Low stock'], ['out', 'Out of stock']].forEach(function (f) {
+      var b = document.createElement('button');
+      b.type = 'button'; b.className = 'prod-chip'; b.dataset.filter = f[0];
+      b.setAttribute('aria-pressed', shopifyCatalogState.filter === f[0] ? 'true' : 'false');
+      b.append(document.createTextNode(f[1] + ' '));
+      var n = document.createElement('span'); n.textContent = counts[f[0]] || 0; b.append(n);
+      b.onclick = function () { shopifyCatalogState.filter = f[0]; renderShopifyCatalog(); };
+      box.append(b);
+    });
+  }
+
   function renderShopifyCatalog() {
-    var products = shopifyCatalogState.products;
+    var st = shopifyCatalogState, products = st.products;
     var empty = document.getElementById('amp-shopify-catalog-empty');
     var table = document.getElementById('amp-shopify-catalog-table');
     var tbody = document.getElementById('amp-shopify-catalog-body');
     var unitsCol = document.getElementById('amp-shopify-units-col');
     var revenueCol = document.getElementById('amp-shopify-revenue-col');
     var kpis = document.getElementById('amp-catalog-kpis');
-    var searchBox = document.getElementById('amp-shopify-search');
+    var toolbar = document.getElementById('amp-shopify-toolbar');
+    var storeEl = document.getElementById('amp-shopify-store');
+    if (storeEl) storeEl.textContent = st.shop || '';
     if (!products || !products.length) {
-      empty.style.display = '';
-      table.style.display = 'none';
-      kpis.style.display = 'none';
-      searchBox.style.display = 'none';
+      empty.style.display = ''; table.style.display = 'none'; kpis.style.display = 'none'; toolbar.style.display = 'none';
       return;
     }
-    empty.style.display = 'none';
-    table.style.display = '';
-    searchBox.style.display = '';
+    empty.style.display = 'none'; table.style.display = ''; toolbar.style.display = '';
 
-    // Sales columns are only present when the connected store's token has
-    // the read_orders scope (added after Shopify catalog/inventory first
-    // shipped) — omit them entirely for a store that hasn't reconnected
-    // yet, rather than show an all-blank column.
+    // Sales columns only when the store's connection includes orders.
     var hasSales = products.some(function (p) { return (p.variants || []).some(function (v) { return 'units_sold_60d' in v; }); });
-    unitsCol.style.display = hasSales ? '' : 'none';
-    revenueCol.style.display = hasSales ? '' : 'none';
-    if (hasSales) {
-      unitsCol.textContent = 'Units sold (' + (shopifyCatalogState.salesWindowDays || 60) + 'd)';
-      revenueCol.textContent = 'Revenue (' + (shopifyCatalogState.salesWindowDays || 60) + 'd)';
-    }
+    var days = st.salesWindowDays || 60;
+    unitsCol.style.display = revenueCol.style.display = hasSales ? '' : 'none';
+    if (hasSales) { unitsCol.firstChild.nodeValue = 'Sold (' + days + 'd)'; revenueCol.firstChild.nodeValue = 'Revenue (' + days + 'd)'; }
 
-    // Summary strip reflects the FULL catalog, not the filtered/sorted view.
-    var totalStock = 0, totalSold = 0, totalRevenue = 0;
-    var hasAllStock = true, hasAllSold = true, hasAllRevenue = true;
+    // Summary reflects the whole catalog, not the filtered view.
+    var counts = { all: products.length, ok: 0, low: 0, out: 0, unknown: 0 };
+    var totalStock = 0, stockKnown = true, sold = 0, revenue = 0, salesKnown = true, variants = 0;
     products.forEach(function (p) {
+      var ps = productStock(p);
+      counts[ps.state]++;
+      if (ps.total == null) stockKnown = false; else totalStock += ps.total;
       (p.variants || []).forEach(function (v) {
-        if (v.inventory_on_hand != null) totalStock += v.inventory_on_hand;
-        else hasAllStock = false;
-        if (v.units_sold_60d == null) hasAllSold = false;
-        if (v.revenue_60d == null) hasAllRevenue = false;
-        totalSold += v.units_sold_60d || 0;
-        totalRevenue += v.revenue_60d || 0;
+        variants++;
+        if (v.units_sold_60d == null || v.revenue_60d == null) salesKnown = false;
+        sold += v.units_sold_60d || 0; revenue += v.revenue_60d || 0;
       });
     });
     kpis.style.display = '';
-    document.getElementById('amp-kpi-products').textContent = products.length.toLocaleString();
-    document.getElementById('amp-kpi-stock').textContent = hasAllStock ? totalStock.toLocaleString() : '—';
+    document.getElementById('amp-kpi-products').textContent = products.length.toLocaleString('en-IN');
+    document.getElementById('amp-kpi-variants').textContent = variants + (variants === 1 ? ' variant' : ' variants');
+    document.getElementById('amp-kpi-stock').textContent = stockKnown ? totalStock.toLocaleString('en-IN') : '—';
+    document.getElementById('amp-kpi-low').textContent = counts.low;
+    document.getElementById('amp-kpi-out').textContent = counts.out;
     document.getElementById('amp-kpi-sold-card').style.display = hasSales ? '' : 'none';
     document.getElementById('amp-kpi-revenue-card').style.display = hasSales ? '' : 'none';
     if (hasSales) {
-      document.getElementById('amp-kpi-sold').textContent = hasAllSold ? totalSold.toLocaleString() : '—';
-      document.getElementById('amp-kpi-revenue').textContent = hasAllRevenue ? totalRevenue.toFixed(2) + ' ' + (shopifyCatalogState.salesCurrency || '') : '—';
+      document.getElementById('amp-kpi-sold').textContent = salesKnown ? sold.toLocaleString('en-IN') : '—';
+      document.getElementById('amp-kpi-sold-note').textContent = 'last ' + days + ' days';
+      document.getElementById('amp-kpi-revenue').textContent = salesKnown
+        ? revenue.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ' + (st.salesCurrency || '') : '—';
     }
+    renderShopifyFilters(counts);
 
-    // Sort-header arrow indicators.
     document.querySelectorAll('#amp-shopify-catalog-table .amp-sortable').forEach(function (th) {
       th.querySelectorAll('.amp-sort-arrow').forEach(function (a) { a.remove(); });
-      if (th.dataset.sortKey === shopifyCatalogState.sortKey) {
+      th.setAttribute('aria-sort', th.dataset.sortKey === st.sortKey ? (st.sortDir === 1 ? 'ascending' : 'descending') : 'none');
+      if (th.dataset.sortKey === st.sortKey) {
         var arrow = document.createElement('span');
-        arrow.className = 'amp-sort-arrow';
-        arrow.textContent = shopifyCatalogState.sortDir === 1 ? '▲' : '▼';
+        arrow.className = 'amp-sort-arrow'; arrow.textContent = st.sortDir === 1 ? '▲' : '▼';
         th.appendChild(arrow);
       }
     });
 
-    var visible = products.filter(function (p) { return shopifyProductMatchesSearch(p, shopifyCatalogState.search); });
-    if (shopifyCatalogState.sortKey) {
-      var key = shopifyCatalogState.sortKey, dir = shopifyCatalogState.sortDir;
+    var visible = products.filter(function (p) {
+      return shopifyProductMatchesSearch(p, st.search) && (st.filter === 'all' || productStock(p).state === st.filter);
+    });
+    if (st.sortKey) {
+      var key = st.sortKey, dir = st.sortDir;
       visible = visible.slice().sort(function (a, b) {
         var av = shopifyProductSortValue(a, key), bv = shopifyProductSortValue(b, key);
-        if (av < bv) return -1 * dir;
-        if (av > bv) return 1 * dir;
-        return 0;
+        return av < bv ? -dir : av > bv ? dir : 0;
       });
     }
 
-    tbody.innerHTML = '';
+    tbody.replaceChildren();
+    var cols = hasSales ? 7 : 5;
     if (!visible.length) {
-      var noMatch = document.createElement('tr');
-      noMatch.innerHTML = '<td colspan="6" class="dsubtle" style="text-align:center;padding:20px">No products match "' +
-        escHtml(shopifyCatalogState.search) + '"</td>';
-      tbody.appendChild(noMatch);
+      var tr0 = document.createElement('tr'), td0 = document.createElement('td');
+      td0.colSpan = cols; td0.className = 'prod-none';
+      td0.textContent = st.search ? 'No products match “' + st.search + '”.' : 'No products in this group.';
+      tr0.append(td0); tbody.append(tr0);
       return;
     }
+    function td(row, cls, content) {
+      var c = document.createElement('td'); if (cls) c.className = cls;
+      if (content instanceof Node) c.append(content); else if (content != null) c.textContent = content;
+      row.append(c); return c;
+    }
+    function salesCells(row, list) {
+      if (!hasSales) return;
+      var u = 0, r = 0, ok = true;
+      list.forEach(function (v) { if (v.units_sold_60d == null) ok = false; u += v.units_sold_60d || 0; r += v.revenue_60d || 0; });
+      td(row, 'num', ok ? u.toLocaleString('en-IN') : '—');
+      td(row, 'num', ok ? r.toLocaleString(undefined, { maximumFractionDigits: 2 }) + ' ' + (st.salesCurrency || '') : '—');
+    }
     visible.forEach(function (p) {
-      var variants = p.variants || [];
-      variants.forEach(function (v, i) {
-        var tr = document.createElement('tr');
-        if (i === 0 && variants.length > 1) tr.className = 'amp-group-start';
-        var invStr = v.inventory_on_hand != null
-          ? '<span class="' + ampInventoryPillClass(v.inventory_on_hand) + '">' + v.inventory_on_hand.toLocaleString() + '</span>'
-          : '—';
-        var variantLabel = v.title && v.title !== 'Default Title' ? v.title : '';
-        tr.innerHTML =
-          '<td>' + (i === 0 ? ampThumbOrPlaceholder(p.image_url) + escHtml(p.title) : '') + '</td>' +
-          '<td>' + (i > 0 && variantLabel ? '<span class="amp-variant-indent">↳</span>' : '') + escHtml(variantLabel) + '</td>' +
-          '<td class="mono">' + escHtml(v.sku || '—') + '</td>' +
-          '<td>' + invStr + '</td>' +
-          (hasSales ?
-            '<td>' + (v.units_sold_60d == null ? '—' : v.units_sold_60d.toLocaleString()) + '</td>' +
-            '<td>' + (v.revenue_60d == null ? '—' : v.revenue_60d.toFixed(2) + ' ' + escHtml(shopifyCatalogState.salesCurrency || '')) + '</td>' : '');
-        tbody.appendChild(tr);
+      var vs = p.variants || [], multi = vs.length > 1, ps = productStock(p), isOpen = !!st.open[p.id];
+      var row = document.createElement('tr');
+      row.className = 'prod-row';
+      var name = document.createElement('div'); name.className = 'prod-name';
+      name.insertAdjacentHTML('beforeend', ampThumbOrPlaceholder(p.image_url));
+      var txt = document.createElement('div');
+      var title = document.createElement('span'); title.className = 'prod-title'; title.textContent = p.title; txt.append(title);
+      if (multi) {
+        var tg = document.createElement('button');
+        tg.type = 'button'; tg.className = 'prod-toggle';
+        tg.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        tg.textContent = (isOpen ? '▾ ' : '▸ ') + vs.length + ' variants';
+        tg.onclick = function () { st.open[p.id] = !st.open[p.id]; renderShopifyCatalog(); };
+        txt.append(tg);
+      } else if (vs[0] && vs[0].title && vs[0].title !== 'Default Title') {
+        var vt = document.createElement('span'); vt.className = 'prod-sub'; vt.textContent = vs[0].title; txt.append(vt);
+      }
+      name.append(txt);
+      td(row, '', name);
+      td(row, '', stockPill(ps.state));
+      var withSku = vs.filter(function (v) { return v.sku; }).length;
+      td(row, 'mono', !multi ? (vs[0] && vs[0].sku) || '—' : !withSku ? '—' : withSku === vs.length ? withSku + ' SKUs' : withSku + ' of ' + vs.length + ' SKUs');
+      td(row, 'num prod-onhand', ps.total == null ? '—' : ps.total.toLocaleString('en-IN'));
+      salesCells(row, vs);
+      var url = shopifyAdminUrl(p), lc = td(row, 'camp-acts');
+      if (url) {
+        var a = document.createElement('a');
+        a.href = url; a.target = '_blank'; a.rel = 'noopener'; a.className = 'camp-btn prod-open';
+        a.textContent = 'Shopify ↗'; a.setAttribute('aria-label', 'Open ' + p.title + ' in Shopify');
+        lc.append(a);
+      }
+      tbody.append(row);
+      if (multi && isOpen) vs.forEach(function (v) {
+        var vr = document.createElement('tr'); vr.className = 'prod-variant';
+        var vn = document.createElement('span'); vn.className = 'prod-vname';
+        vn.textContent = v.title && v.title !== 'Default Title' ? v.title : 'Default';
+        td(vr, '', vn);
+        td(vr, '', v.inventory_on_hand == null ? '' : stockPill(v.inventory_on_hand <= 0 ? 'out' : v.inventory_on_hand < LOW_STOCK ? 'low' : 'ok'));
+        td(vr, 'mono', v.sku || '—');
+        td(vr, 'num', v.inventory_on_hand == null ? '—' : v.inventory_on_hand.toLocaleString('en-IN'));
+        salesCells(vr, [v]);
+        td(vr, '', '');
+        tbody.append(vr);
       });
     });
   }
+
 
   function pollShopifyCatalog() {
     if (shopifyPollTimer) return; // already polling
@@ -242,6 +329,8 @@
         shopifyCatalogState.products = res.body.products || [];
         shopifyCatalogState.salesCurrency = res.body.sales_currency || null;
         shopifyCatalogState.salesWindowDays = res.body.sales_window_days || null;
+        shopifyCatalogState.syncedAt = res.body.last_synced_at || null;
+        renderShopifySynced(res.body.status);
         if (res.body.status === 'syncing') {
           setShopifyRefreshSpinning(true);
           if (!shopifyCatalogState.products.length) {
