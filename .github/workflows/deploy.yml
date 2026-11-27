@@ -1,0 +1,94 @@
+# Deploy APRABot: beta first, then prod after a manual approval.
+#
+# Runs on every push to main here, or by hand (Actions -> Deploy -> Run
+# workflow), e.g. after a change in aprabot/infra. Each stage deploys the CDK
+# stacks from aprabot/infra (data, backend, site hosting) with this commit's
+# Lambda code, publishes this commit's website, then runs smoke checks. Prod
+# waits for a reviewer on the "production" environment.
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      infra_ref:
+        description: aprabot/infra branch or commit to deploy with
+        default: main
+
+# One deploy at a time; a newer run waits instead of cancelling a deploy halfway.
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+permissions:
+  id-token: write   # OIDC sign-in to AWS
+  contents: read
+
+env:
+  INFRA_REF: ${{ github.event.inputs.infra_ref || 'main' }}
+  APRA_SHOPIFY_API_KEY: ${{ vars.APRA_SHOPIFY_API_KEY }}
+  APRA_GOOGLE_OAUTH_CLIENT_ID: ${{ vars.APRA_GOOGLE_OAUTH_CLIENT_ID }}
+
+jobs:
+  beta:
+    runs-on: ubuntu-latest
+    environment: beta
+    timeout-minutes: 45
+    steps:
+      - &checkout-homepage
+        uses: actions/checkout@v4
+        with: { path: homepage }
+      - &checkout-infra
+        uses: actions/checkout@v4
+        with: { repository: aprabot/infra, ref: '${{ env.INFRA_REF }}', path: infra }
+      - &checkout-forecast
+        uses: actions/checkout@v4
+        with: { repository: aprabot/forecast, path: forecast, fetch-depth: 0 }   # package.py pins forecast.py commits
+      - &node
+        uses: actions/setup-node@v4
+        with: { node-version: 20, cache: npm, cache-dependency-path: infra/package-lock.json }
+      - &python
+        uses: actions/setup-python@v5
+        with: { python-version: '3.12' }
+      - &install
+        run: npm ci
+        working-directory: infra
+      - &package
+        name: Package Lambdas
+        run: npm run package
+        working-directory: infra
+        env: { REF: HEAD }   # this commit
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: 'arn:aws:iam::760541124025:role/aprabot-github-deploy', aws-region: us-east-1 }
+      - &deploy
+        name: Deploy stacks
+        run: npx cdk deploy AprabotData AprabotApp AprabotSite -c stage=${{ github.job == 'prod' && 'prod' || 'beta' }} --require-approval never --progress events
+        working-directory: infra
+      - &publish
+        name: Publish website
+        run: scripts/publish-site.sh ${{ github.job == 'prod' && 'prod' || 'beta' }} HEAD
+        working-directory: infra
+      - &smoke
+        name: Smoke checks
+        run: scripts/smoke.sh ${{ github.job == 'prod' && 'prod' || 'beta' }}
+        working-directory: infra
+
+  prod:
+    needs: beta
+    runs-on: ubuntu-latest
+    environment: production   # a required reviewer approves before this runs
+    timeout-minutes: 45
+    steps:
+      - *checkout-homepage
+      - *checkout-infra
+      - *checkout-forecast
+      - *node
+      - *python
+      - *install
+      - *package
+      - uses: aws-actions/configure-aws-credentials@v4
+        with: { role-to-assume: 'arn:aws:iam::751835847089:role/aprabot-github-deploy', aws-region: us-east-1 }
+      - *deploy
+      - *publish
+      - *smoke
