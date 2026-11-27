@@ -1486,3 +1486,7 @@
   #dashboard .prod-table td:nth-child(1){grid-column:1 / -1}
   #dashboard .prod-vname{padding-left:12px}
 }
+#dashboard .perf-loading{margin-top:22px;padding:16px 18px;border:1px solid var(--line);border-radius:14px}
+#dashboard .perf-loading .amp-loading-table td{padding:14px 10px}
+#dashboard #perf-refresh .amp-spinner{margin-right:6px;vertical-align:-1px}
+#dashboard .perf-checked[hidden]{display:none}

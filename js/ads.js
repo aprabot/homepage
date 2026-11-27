@@ -943,14 +943,37 @@
     return ({ SERVING: 'Running', PENDING: 'Scheduled', ENDED: 'Ended', SUSPENDED: 'Suspended', NONE: 'Not serving' })[g.serving_status] || 'Enabled';
   }
   function perfNum(n) { return n == null ? '—' : Number(n).toLocaleString('en-IN'); }
+  // Loading: a skeleton the first time (nothing on screen yet), otherwise
+  // the current results stay put and only the Refresh button spins.
+  var perfLoaded = false, perfSlowTimer = null;
+  function setPerfLoading(on) {
+    var box = document.getElementById('perf-loading'), slow = document.getElementById('perf-loading-slow');
+    var btn = document.getElementById('perf-refresh');
+    clearTimeout(perfSlowTimer);
+    if (slow) slow.hidden = true;
+    if (btn) {
+      btn.disabled = on;
+      btn.innerHTML = on && perfLoaded ? '<span class="amp-spinner"></span>Refreshing…' : 'Refresh';
+      btn.setAttribute('aria-busy', on ? 'true' : 'false');
+    }
+    if (!box) return;
+    var skeleton = on && !perfLoaded;
+    box.hidden = !skeleton;
+    box.setAttribute('aria-busy', skeleton ? 'true' : 'false');
+    ['perf-note', 'perf-summary', 'perf-table', 'perf-checked'].forEach(function (id) {
+      var el = document.getElementById(id);
+      if (el && skeleton) el.hidden = true;
+    });
+    if (skeleton) perfSlowTimer = setTimeout(function () { if (slow) slow.hidden = false; }, 8000);
+  }
   function loadPerformance() {
     var rows = document.getElementById('perf-rows'), table = document.getElementById('perf-table');
     var status = document.getElementById('perf-status'), note = document.getElementById('perf-note');
     var sum = document.getElementById('perf-summary'), checked = document.getElementById('perf-checked');
     var btn = document.getElementById('perf-refresh');
     if (!rows) return Promise.resolve();
-    status.textContent = 'Loading results from Google Ads…';
-    btn.disabled = true;
+    status.textContent = '';
+    setPerfLoading(true);
     return apiFetch(PERF_API).then(function (res) {
       if (!res.ok || !Array.isArray(res.body.campaigns)) throw new Error((res.body && res.body.error) || 'Could not load performance.');
       var d = res.body, list = d.campaigns;
@@ -1009,9 +1032,11 @@
       note.classList.toggle('is-error', !!d.error);
       status.textContent = list.length ? '' : 'No campaigns on Google Ads yet. Launch a committed Google plan from Campaigns and its results will show here.';
       checked.textContent = list.length ? 'Checked with Google ' + new Date(d.checked_at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+      checked.hidden = !list.length;
+      perfLoaded = true;
     }).catch(function (err) {
-      status.textContent = err.message;
-    }).finally(function () { btn.disabled = false; });
+      status.textContent = err.message + (perfLoaded ? ' Showing the last results.' : '');
+    }).finally(function () { setPerfLoading(false); });
   }
   window.loadAdsPerformance = loadPerformance;
   var perfBtn = document.getElementById('perf-refresh');
