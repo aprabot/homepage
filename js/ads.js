@@ -78,6 +78,25 @@
     });
   }
 
+  // Loading state for the Shopify catalog: skeleton rows and a spinner
+  // instead of the "connect Shopify" empty message, which used to show
+  // while the data was simply still on its way.
+  var shopifySlowTimer = null;
+  function setShopifyLoading(on, text) {
+    var box = document.getElementById('amp-shopify-loading');
+    if (!box) return;
+    var slow = document.getElementById('amp-shopify-loading-slow');
+    if (text) document.getElementById('amp-shopify-loading-text').textContent = text;
+    box.hidden = !on;
+    box.setAttribute('aria-busy', on ? 'true' : 'false');
+    if (!on) { clearTimeout(shopifySlowTimer); shopifySlowTimer = null; slow.hidden = true; return; }
+    if (shopifySlowTimer) return;   // already loading: keep the slow-loading timer running
+    slow.hidden = true;
+    ['amp-shopify-catalog-empty', 'amp-shopify-catalog-table', 'amp-catalog-kpis', 'amp-shopify-search'].forEach(function (id) {
+      var el = document.getElementById(id); if (el) el.style.display = 'none';
+    });
+    shopifySlowTimer = setTimeout(function () { slow.hidden = false; }, 8000);
+  }
   function setShopifyEmptyMessage(text) {
     var el = document.getElementById('amp-shopify-catalog-empty-text');
     if (el) el.textContent = text;
@@ -206,8 +225,12 @@
   }
 
   function loadShopifyCatalog() {
+    // Skeleton only while nothing is on screen yet; a refresh of a loaded
+    // catalog keeps the products visible and spins the Refresh button.
+    if (!shopifyCatalogState.products.length) setShopifyLoading(true, 'Loading your Shopify catalog…');
     fetchShopifyStatus().then(function (connected) {
       if (!connected) {
+        setShopifyLoading(false);
         shopifyCatalogState.products = [];
         setShopifyRefreshSpinning(false);
         setShopifyEmptyMessage('Connect Shopify in Integrations to see the catalog and inventory.');
@@ -222,19 +245,24 @@
         if (res.body.status === 'syncing') {
           setShopifyRefreshSpinning(true);
           if (!shopifyCatalogState.products.length) {
-            setShopifyEmptyMessage('Syncing your Shopify catalog for the first time — this can take a minute for a large store…');
+            setShopifyLoading(true, 'Syncing your Shopify catalog for the first time. This can take a minute for a large store…');
+          } else {
+            setShopifyLoading(false);
+            renderShopifyCatalog();
           }
-          renderShopifyCatalog();
           pollShopifyCatalog();
         } else {
+          setShopifyLoading(false);
           setShopifyRefreshSpinning(false);
           setShopifyEmptyMessage(res.body.status === 'failed' ? 'Shopify sync failed. Try Refresh.' : 'No Shopify products have synced yet.');
           renderShopifyCatalog();
         }
       });
     }).catch(function () {
+      setShopifyLoading(false);
       setShopifyRefreshSpinning(false);
-      setShopifyEmptyMessage('Could not load the Shopify catalog.');
+      setShopifyEmptyMessage('Could not load the Shopify catalog. Try Refresh.');
+      renderShopifyCatalog();
     });
   }
 

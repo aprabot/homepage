@@ -1418,3 +1418,16 @@
 #dashboard #performancePanel .perf-list::before{content:none}
 #dashboard #performancePanel .perf-list.is-empty #perf-status,#dashboard #performancePanel #perf-table[hidden]+#perf-status:not(:empty){padding:40px 16px;border:1px dashed var(--line-2);border-radius:12px;text-align:center}
 @media(max-width:900px){#dashboard .perf .camp-stats{grid-template-columns:repeat(2,minmax(0,1fr))}}
+
+/* Products: loading state while the Shopify catalog is fetched. */
+#dashboard .amp-loading[hidden]{display:none}
+#dashboard .amp-loading-head{display:flex;align-items:center;gap:10px;font-size:13.5px;color:var(--text)}
+#dashboard .amp-loading-head .amp-spinner{margin:0}
+#dashboard .amp-loading-slow{margin:6px 0 0 26px;font-size:12.5px;color:var(--muted)}
+#dashboard .amp-loading-kpis{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin:18px 0 6px}
+#dashboard .amp-loading-kpis .skel-line{display:block;height:46px;border-radius:10px;width:auto}
+#dashboard .amp-loading-table td{padding:13px 10px}
+#dashboard .amp-loading-table .skel-line{display:block}
+@media(max-width:640px){#dashboard .amp-loading-kpis{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(prefers-reduced-motion:reduce){#dashboard .amp-loading .amp-spinner{animation-duration:2.4s}}
+#dashboard .amp-loading-kpis .skel-line+.skel-line{margin-top:0}

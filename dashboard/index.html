@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261127p">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261127s">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -1941,7 +1941,13 @@
       <div class="ch" style="margin-top:4px;display:flex;align-items:center;justify-content:space-between"><h4>Your Shopify store</h4><button type="button" class="dbtn" id="amp-shopify-refresh-btn" style="padding:5px 11px;font-size:12.5px">Refresh</button></div>
       <p class="dsubtle">Your real, live catalog — shown as soon as Shopify is connected, no setup needed.</p>
       <div class="dcard" style="margin-top:12px" id="amp-shopify-catalog-card">
-        <div class="amp-empty-card" id="amp-shopify-catalog-empty">
+        <div class="amp-loading" id="amp-shopify-loading" role="status" aria-live="polite" aria-busy="true">
+          <div class="amp-loading-head"><span class="amp-spinner"></span><span id="amp-shopify-loading-text">Loading your Shopify catalog…</span></div>
+          <p class="amp-loading-slow" id="amp-shopify-loading-slow" hidden>Still loading. Shopify can take a little longer for large stores.</p>
+          <div class="amp-loading-kpis" aria-hidden="true"><span class="skel-line"></span><span class="skel-line"></span><span class="skel-line"></span><span class="skel-line"></span></div>
+          <table class="amp-table amp-loading-table" aria-hidden="true"><tbody><tr><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td></tr><tr><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td></tr><tr><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td></tr><tr><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td></tr><tr><td><span class="skel-line"></span></td><td><span class="skel-line"></span></td><td><span class="skel-line short"></span></td><td><span class="skel-line short"></span></td></tr></tbody></table>
+        </div>
+        <div class="amp-empty-card" id="amp-shopify-catalog-empty" style="display:none">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" width="30" height="30"><path d="M21 8l-9-5-9 5 9 5 9-5Z" stroke-linejoin="round"/><path d="M3 8v8l9 5 9-5V8M12 13v8" stroke-linecap="round" stroke-linejoin="round"/></svg>
           <p id="amp-shopify-catalog-empty-text">Connect Shopify (Integrations) to see your real catalog and live inventory here.</p>
         </div>
@@ -2280,7 +2286,7 @@
 <script src="../js/inventory-plan.js?v=20261126c"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
-<script src="../js/ads.js?v=20261127p"></script>
+<script src="../js/ads.js?v=20261127s"></script>
 <script src="../js/discount-schemes.js?v=20261123e"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/india-festivals.js?v=20261124a"></script>
