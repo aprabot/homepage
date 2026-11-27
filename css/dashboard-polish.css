@@ -1391,3 +1391,16 @@
   #dashboard .camp-table tr.camp-row td:nth-child(n+2):nth-child(-n+5){grid-column:1 / -1}
   #dashboard .camp-table tr.camp-row td.camp-acts{grid-column:1 / -1;text-align:left}
 }
+
+/* Campaigns: Google Ads launch state. */
+#dashboard .camp-launch{display:block;margin-top:5px;font-size:11.5px;color:var(--muted);white-space:nowrap}
+#dashboard .camp-launch[data-state="launched"]{color:var(--camp-ok)}
+#dashboard .camp-launch[data-state="failed"]{color:var(--camp-red);cursor:help;text-decoration:underline dotted}
+#dashboard .camp-launch a{color:inherit;font-weight:600;text-decoration:underline;text-underline-offset:2px}
+#dashboard .camp-btn-go{border-color:color-mix(in srgb,var(--obv-accent) 55%,transparent);color:var(--obv-accent)}
+#dashboard .camp-launch-box{display:grid;gap:6px;margin:10px 0 6px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;font-size:13px}
+#dashboard .camp-launch-box[hidden]{display:none}
+#dashboard .camp-launch-box>div{display:grid;grid-template-columns:170px minmax(0,1fr);gap:10px}
+#dashboard .camp-launch-box dt{color:var(--muted)}
+#dashboard .camp-launch-box dd{margin:0;color:var(--text);overflow-wrap:anywhere}
+#dashboard .camp-launch-box a{color:var(--obv-accent);font-weight:600}

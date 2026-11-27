@@ -15,6 +15,7 @@ from botocore.exceptions import ClientError
 
 from platform_clients import meta_mock as meta_client
 from platform_clients import google_mock as google_client
+from platform_clients import google_ads
 
 s3  = boto3.client('s3')
 ddb = boto3.resource('dynamodb')
@@ -1034,8 +1035,11 @@ def _plans_response(org, email):
         if not page.get('LastEvaluatedKey'):
             break
         query['ExclusiveStartKey'] = page['LastEvaluatedKey']
+    gads = _read_json(_google_ads_settings_key(org)) or {}
     return _resp(200, {'plans': [_public_plan(p) for p in sorted(items, key=lambda p: p['code'])],
-                       'can_edit': _is_admin(org, email)})
+                       'can_edit': _is_admin(org, email),
+                       'google_ads': {'ready': bool(gads.get('customer_id') and gads.get('mode') == 'test'),
+                                      'currency': gads.get('currency')}})
 
 
 def _public_plan(plan):
@@ -1157,6 +1161,72 @@ def _save_plan(org, email, event):
         raise
 
 
+def _google_ads_settings_key(org):
+    return f'orgs/{org}/amplify/google_ads.json'
+
+
+def _launch_plan(org, email, body):
+    """Launch a committed Google plan into the org's Google Ads TEST
+    account (see platform_clients/google_ads.py). One launch per plan: a
+    'launching' claim is written first, under the plan's version, so a
+    double click or a second tab can't create two campaigns. A failed
+    launch records Google's error and can be retried."""
+    code = body.get('code')
+    if not isinstance(code, str) or not re.fullmatch(r'[A-Z0-9][A-Z0-9_-]{0,39}', code):
+        return _resp(400, {'error': 'Unknown campaign code.'})
+    key = {'pk': f'ORG#{org}', 'sk': f'PLAN#{code}'}
+    plan = table.get_item(Key=key, ConsistentRead=True).get('Item')
+    if not plan:
+        return _resp(404, {'error': 'Campaign plan not found.'})
+    if plan.get('status') != 'committed':
+        return _resp(400, {'error': 'Commit the plan before launching it.'})
+    if plan.get('platform') != 'google':
+        return _resp(400, {'error': 'Only Google campaigns can be launched for now.'})
+    if body.get('version') != plan.get('version'):
+        return _resp(409, {'error': 'This plan changed. Reload and retry.'})
+    launch = plan.get('launch') or {}
+    if launch.get('campaign_id'):
+        return _resp(409, {'error': 'This plan is already on Google Ads.'})
+    if launch.get('status') == 'launching':
+        return _resp(409, {'error': 'A launch is already in progress for this plan.'})
+    cfg = _read_json(_google_ads_settings_key(org))
+    if not cfg or not cfg.get('customer_id') or not cfg.get('login_customer_id') or not cfg.get('client_id'):
+        return _resp(400, {'error': 'No Google Ads test account is set up for this organization yet.'})
+
+    version = plan['version']
+    try:
+        table.update_item(
+            Key=key, UpdateExpression='SET #l = :l, #v = :nv',
+            ConditionExpression='#v = :v',
+            ExpressionAttributeNames={'#l': 'launch', '#v': 'version'},
+            ExpressionAttributeValues={':l': {'status': 'launching', 'started_at': _now(), 'by': email},
+                                       ':v': version, ':nv': version + 1})
+    except ClientError as exc:
+        if exc.response.get('Error', {}).get('Code') == 'ConditionalCheckFailedException':
+            return _resp(409, {'error': 'This plan changed. Reload and retry.'})
+        raise
+
+    try:
+        result = google_ads.launch(secretsmanager, org, cfg, plan)
+        record = {**result, 'launched_at': _now(), 'by': email}
+        status = 200
+        out = {'launch': record}
+    except google_ads.GoogleAdsError as exc:
+        record = {'status': 'failed', 'error': str(exc), 'at': _now(), 'by': email}
+        status, out = 502, {'error': str(exc)}
+    except Exception as exc:  # noqa: BLE001 — never leave the plan stuck in 'launching'
+        print(f'GOOGLE_LAUNCH_ERROR[{org}/{code}]: {exc!r}')
+        record = {'status': 'failed', 'error': 'Launch failed unexpectedly. Try again.', 'at': _now(), 'by': email}
+        status, out = 502, {'error': record['error']}
+    table.update_item(Key=key, UpdateExpression='SET #l = :l, #v = :nv',
+                      ExpressionAttributeNames={'#l': 'launch', '#v': 'version'},
+                      ExpressionAttributeValues={':l': record, ':nv': version + 2})
+    _write_audit(org, 'launch', email, 'plan', code, 'google',
+                 before=None, after={'campaign_id': record.get('campaign_id'), 'status': record.get('status')},
+                 result='success' if status == 200 else 'failure')
+    return _resp(status, out)
+
+
 def handler(event, context):
     # Self-invoked async job, not an API Gateway request at all (see
     # _invoke_shopify_catalog_sync_async) — the one path in this Lambda that
@@ -1181,6 +1251,12 @@ def handler(event, context):
             if method == 'POST':
                 if not _is_admin(org, caller_email):
                     return _resp(403, {'error': 'Only an admin can change campaign plans.'})
+                try:
+                    body = json.loads(event.get('body') or '{}')
+                except json.JSONDecodeError:
+                    body = {}
+                if isinstance(body, dict) and body.get('action') == 'launch':
+                    return _launch_plan(org, caller_email, body)
                 return _save_plan(org, caller_email, event)
 
         if method == 'GET' and path == '/amplify-campaigns':

@@ -513,6 +513,7 @@
       planForm.elements[name].disabled = Boolean(readOnly);
     });
     planForm.elements.code.readOnly = Boolean(plan);
+    renderLaunchDetails(plan);
     if (plan) plan.scope.forEach(addScope);
     else addScope(null);
     scopeLines.querySelectorAll('input, button').forEach(function (control) {
@@ -603,6 +604,87 @@
     box.hidden = false;
   }
 
+  // ---- Google Ads launch (test accounts only, see the campaigns service).
+  function launchState(plan) {
+    var l = plan.launch || {};
+    if (l.campaign_id) return 'launched';
+    return l.status || '';
+  }
+  function launchLine(plan) {
+    var l = plan.launch || {}, st = launchState(plan);
+    if (!st) return null;
+    var line = document.createElement('span');
+    line.className = 'camp-launch';
+    line.dataset.state = st;
+    if (st === 'launched') {
+      line.append(document.createTextNode('On Google Ads · ' + (l.status === 'PAUSED' ? 'Paused' : (l.status || '').toLowerCase())));
+      if (l.url) {
+        var a = document.createElement('a');
+        a.href = l.url; a.target = '_blank'; a.rel = 'noopener';
+        a.textContent = 'Open ↗';
+        a.setAttribute('aria-label', 'Open campaign ' + l.campaign_id + ' in Google Ads');
+        a.onclick = function (e) { e.stopPropagation(); };
+        line.append(' ', a);
+      } else {
+        line.append(document.createTextNode(' · ID ' + l.campaign_id));
+      }
+    } else if (st === 'launching') {
+      line.textContent = 'Launching on Google…';
+    } else if (st === 'failed') {
+      line.textContent = 'Launch failed';
+      line.title = l.error || '';
+    }
+    return line;
+  }
+  function launchPlan(plan, btn, currency) {
+    var cur = currency || 'the Google account\'s currency';
+    if (!confirm('Create "' + plan.name + '" in your Google Ads TEST account?\n\n' +
+      'It is created paused, in a test account: no ads run and nothing is charged. ' +
+      'Daily budget ' + Number(plan.daily_budget_yen).toLocaleString() + ' is sent as an amount in ' + cur + '.')) return;
+    btn.disabled = true; btn.textContent = 'Launching…';
+    planStatus.textContent = '';
+    var failure = '';
+    postPlan({ action: 'launch', code: plan.code, version: plan.version })
+      .catch(function (err) { failure = err.message; })
+      .then(function () { return loadCampaigns(); })
+      .then(function () { if (failure) planStatus.textContent = failure; });
+  }
+  function renderLaunchDetails(plan) {
+    var box = document.getElementById('ads-plan-launch');
+    if (!box) {
+      box = document.createElement('dl');
+      box.id = 'ads-plan-launch';
+      box.className = 'camp-launch-box';
+      planForm.querySelector('.camp-form-head').after(box);
+    }
+    box.replaceChildren();
+    var l = (plan && plan.launch) || {};
+    function add(k, v) {
+      if (v == null || v === '') return;
+      var d = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd');
+      dt.textContent = k;
+      if (v instanceof Node) dd.append(v); else dd.textContent = v;
+      d.append(dt, dd); box.append(d);
+    }
+    if (l.campaign_id) {
+      var link = null;
+      if (l.url) { link = document.createElement('a'); link.href = l.url; link.target = '_blank'; link.rel = 'noopener'; link.textContent = 'Open in Google Ads ↗'; }
+      add('Google Ads', link || 'Campaign ' + l.campaign_id);
+      add('Campaign ID', l.campaign_id);
+      add('Account', l.customer_id ? l.customer_id.replace(/(\d{3})(\d{3})(\d{4})/, '$1-$2-$3') + ' (test)' : '');
+      add('Status', l.status === 'PAUSED' ? 'Paused' : l.status);
+      add('Budget currency', l.currency);
+      add('Postal codes targeted', (l.postal_targeted || []).join(', ') || 'None');
+      if ((l.postal_missing || []).length) add('Not found on Google', l.postal_missing.join(', '));
+      if (l.geo_error) add('Targeting note', l.geo_error);
+      add('Launched', l.launched_at ? new Date(l.launched_at).toLocaleString() : '');
+    } else if (l.status === 'failed') {
+      add('Google Ads', 'Launch failed');
+      add('Reason', l.error);
+    }
+    box.hidden = !box.children.length;
+  }
+
   function loadCampaigns() {
     var list = document.getElementById('ads-plan-list');
     planStatus.textContent = 'Loading campaigns…';
@@ -636,7 +718,10 @@
         var pins = Array.from(new Set([].concat.apply([], (plan.scope || []).map(function (l) { return l.postal_codes || []; }))));
         two(cell(row), skus.slice(0, 2).join(', ') + (skus.length > 2 ? ' +' + (skus.length - 2) : ''),
           pins.length + (pins.length === 1 ? ' postal code' : ' postal codes'));
-        cell(row).append(pill(plan.status));
+        var stCell = cell(row);
+        stCell.append(pill(plan.status));
+        var ll = launchLine(plan);
+        if (ll) stCell.append(ll);
         var actions = cell(row, 'camp-acts');
         var view = document.createElement('button');
         view.type = 'button';
@@ -645,7 +730,19 @@
         view.setAttribute('aria-label', view.textContent + ' ' + plan.name);
         view.onclick = function (e) { e.stopPropagation(); open(); };
         actions.append(view);
-        if (res.body.can_edit && plan.status === 'committed') {
+        var lst = launchState(plan);
+        var gads = res.body.google_ads || {};
+        if (res.body.can_edit && gads.ready && plan.status === 'committed' && plan.platform === 'google' &&
+            (lst === '' || lst === 'failed')) {
+          var go = document.createElement('button');
+          go.type = 'button';
+          go.className = 'camp-btn camp-btn-go';
+          go.textContent = lst === 'failed' ? 'Retry launch' : 'Launch (test)';
+          go.setAttribute('aria-label', 'Launch ' + plan.name + ' on Google Ads test account');
+          go.onclick = function (e) { e.stopPropagation(); launchPlan(plan, go, gads.currency); };
+          actions.append(go);
+        }
+        if (res.body.can_edit && plan.status === 'committed' && lst !== 'launched') {
           var withdraw = document.createElement('button');
           withdraw.type = 'button';
           withdraw.className = 'camp-btn camp-btn-danger';
