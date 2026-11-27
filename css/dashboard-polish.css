@@ -1490,3 +1490,18 @@
 #dashboard .perf-loading .amp-loading-table td{padding:14px 10px}
 #dashboard #perf-refresh .amp-spinner{margin-right:6px;vertical-align:-1px}
 #dashboard .perf-checked[hidden]{display:none}
+
+/* Integrations: loading state on the connection cards. */
+#dashboard .integ-checking{display:inline-flex;align-items:center;gap:6px;color:var(--muted);border-color:var(--line-2)}
+#dashboard .integ-checking .amp-spinner{margin:0}
+#dashboard .amp-connect-card.is-loading .amp-conn-meta{min-height:96px}
+#dashboard .integ-skel{display:block!important;padding:3px 0}
+#dashboard .integ-skel .skel-line{height:12px}
+#dashboard .integ-skel:nth-child(2) .skel-line{width:80%}
+#dashboard .integ-skel:nth-child(3) .skel-line{width:60%}
+#dashboard .integ-load{display:flex;align-items:center;gap:10px;margin:10px 0 0;font-size:13px;color:var(--muted)}
+#dashboard .integ-load[hidden]{display:none}
+#dashboard .integ-load.is-error{color:#FF8585}
+[data-theme="light"] #dashboard .integ-load.is-error{color:#B3261E}
+#dashboard .amp-connect-card.is-loading .amp-conn-btn{visibility:hidden}
+#dashboard .amp-connect-card.is-loading .amp-shop-input{display:none!important}

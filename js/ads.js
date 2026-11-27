@@ -548,9 +548,68 @@
     });
   }
 
+  // Loading state on the Integrations cards: a "Checking…" badge with a
+  // spinner and placeholder detail lines, a hint if it's slow, and a Retry
+  // on failure. Separate from #ads-integration-status, which carries the
+  // "connection completed / failed" message after an OAuth round trip.
+  var integSlowTimer = null;
+  function integrationNote() {
+    var el = document.getElementById('ads-integration-load');
+    if (!el) {
+      var status = document.getElementById('ads-integration-status');
+      if (!status) return null;
+      el = document.createElement('p');
+      el.id = 'ads-integration-load'; el.className = 'integ-load'; el.setAttribute('role', 'status'); el.hidden = true;
+      status.after(el);
+    }
+    return el;
+  }
+  function setIntegrationsLoading(on) {
+    var note = integrationNote();
+    clearTimeout(integSlowTimer);
+    if (note && on) { note.hidden = true; note.replaceChildren(); }
+    document.querySelectorAll('#integrationsPanel .amp-connect-card').forEach(function (card) {
+      card.classList.toggle('is-loading', on);
+      card.setAttribute('aria-busy', on ? 'true' : 'false');
+      if (!on) return;
+      var badge = card.querySelector('.amp-conn-status'), btn = card.querySelector('.amp-conn-btn');
+      badge.className = 'pill amp-conn-status integ-checking';
+      badge.innerHTML = '<span class="amp-spinner"></span>Checking…';
+      btn.disabled = true;
+      var dl = card.querySelector('.amp-conn-meta');
+      if (!dl) {
+        dl = document.createElement('dl'); dl.className = 'amp-conn-meta';
+        card.insertBefore(dl, card.querySelector('.row'));
+      }
+      dl.hidden = false;
+      dl.innerHTML = '<div class="integ-skel"><span class="skel-line"></span></div><div class="integ-skel"><span class="skel-line"></span></div><div class="integ-skel"><span class="skel-line"></span></div>';
+    });
+    if (on && note) integSlowTimer = setTimeout(function () {
+      note.textContent = 'Still checking your connections…'; note.className = 'integ-load'; note.hidden = false;
+    }, 8000);
+  }
   function loadConnectAccounts() {
-    return loadAccountConnections().then(renderConnectAccounts).catch(function () {
-      document.getElementById('ads-integration-status').textContent = 'Could not load account connections.';
+    setIntegrationsLoading(true);
+    return loadAccountConnections().then(function (status) {
+      setIntegrationsLoading(false);
+      var note = integrationNote(); if (note) note.hidden = true;
+      renderConnectAccounts(status);
+    }).catch(function () {
+      setIntegrationsLoading(false);
+      document.querySelectorAll('#integrationsPanel .amp-connect-card').forEach(function (card) {
+        var badge = card.querySelector('.amp-conn-status');
+        badge.className = 'pill amp-conn-status'; badge.textContent = 'Unknown';
+        var dl = card.querySelector('.amp-conn-meta'); if (dl) dl.hidden = true;
+      });
+      var note = integrationNote();
+      if (!note) return;
+      note.className = 'integ-load is-error';
+      note.textContent = 'Couldn’t load your connections. ';
+      var retry = document.createElement('button');
+      retry.type = 'button'; retry.className = 'camp-btn'; retry.textContent = 'Retry';
+      retry.onclick = function () { loadConnectAccounts(); };
+      note.append(retry);
+      note.hidden = false;
     });
   }
 
