@@ -1596,3 +1596,10 @@
 [data-theme="light"] #dashboard #integrationsPanel .integ-card[data-state="connected"] .amp-conn-btn:hover{color:#B3261E;border-color:rgba(179,38,30,.35);background:rgba(179,38,30,.05)}
 #dashboard #integrationsPanel .integ-card[data-state="checking"] .amp-conn-btn{visibility:hidden}
 @media(max-width:520px){#dashboard #integrationsPanel .integ-grid{grid-template-columns:1fr}}
+
+/* Sidebar: keep the dashboard to the window height so a long menu scrolls
+   inside the sidebar (logo and Sign out stay put) instead of being cut off. */
+#dashboard.open{height:100vh;height:100dvh;grid-template-rows:minmax(0,1fr)}
+#dashboard .dside{min-height:0}
+#dashboard .dnav{min-height:0;overflow-y:auto;overscroll-behavior:contain;scrollbar-width:thin;scrollbar-color:var(--line-2) transparent;margin-right:-8px;padding-right:8px}
+#dashboard .dmain{height:auto;min-height:0}
