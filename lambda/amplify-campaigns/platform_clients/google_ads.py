@@ -155,3 +155,30 @@ def launch(secretsmanager, org, cfg, plan):
         'currency': cfg.get('currency'), 'postal_targeted': targeted, 'postal_missing': missing,
         'geo_error': geo_error, 'url': campaign_url(cfg, campaign_id),
     }
+
+
+def performance(secretsmanager, org, cfg, campaign_ids):
+    """Live status and lifetime results for launched campaigns, straight
+    from Google. Read-only. Test accounts never serve ads, so their
+    results are real zeros, not placeholders."""
+    ids = [_digits(i) for i in campaign_ids if _digits(i)]
+    if not ids:
+        return {}
+    token = access_token(secretsmanager, org, cfg)
+    query = ('SELECT campaign.id, campaign.status, campaign.serving_status, campaign.primary_status, '
+             'campaign.start_date_time, campaign.end_date_time, campaign_budget.amount_micros, '
+             'metrics.impressions, metrics.clicks, metrics.cost_micros, metrics.conversions '
+             f"FROM campaign WHERE campaign.id IN ({', '.join(ids)})")
+    data = _call(token, cfg, f"customers/{_digits(cfg['customer_id'])}/googleAds:search", {'query': query})
+    out = {}
+    for row in data.get('results', []):
+        c, m, b = row.get('campaign', {}), row.get('metrics', {}), row.get('campaignBudget', {})
+        out[str(c.get('id'))] = {
+            'status': c.get('status'), 'serving_status': c.get('servingStatus'),
+            'primary_status': c.get('primaryStatus'),
+            'start': c.get('startDateTime'), 'end': c.get('endDateTime'),
+            'daily_budget': int(b.get('amountMicros') or 0) / 1_000_000,
+            'impressions': int(m.get('impressions') or 0), 'clicks': int(m.get('clicks') or 0),
+            'cost': int(m.get('costMicros') or 0) / 1_000_000, 'conversions': float(m.get('conversions') or 0),
+        }
+    return out

@@ -1165,6 +1165,40 @@ def _google_ads_settings_key(org):
     return f'orgs/{org}/amplify/google_ads.json'
 
 
+def _performance_response(org):
+    """Performance page: every launched plan with Google's live status and
+    results. Plans are listed even if Google can't be reached, with the
+    reason, so the page never silently shows nothing."""
+    items, query = [], {'KeyConditionExpression': Key('pk').eq(f'ORG#{org}') & Key('sk').begins_with('PLAN#')}
+    while True:
+        page = table.query(**query)
+        items.extend(page.get('Items', []))
+        if not page.get('LastEvaluatedKey'):
+            break
+        query['ExclusiveStartKey'] = page['LastEvaluatedKey']
+    launched = [p for p in items if (p.get('launch') or {}).get('campaign_id')]
+    cfg = _read_json(_google_ads_settings_key(org)) or {}
+    live, error = {}, None
+    if launched and cfg.get('customer_id'):
+        try:
+            live = google_ads.performance(secretsmanager, org, cfg, [p['launch']['campaign_id'] for p in launched])
+        except google_ads.GoogleAdsError as exc:
+            error = str(exc)
+    rows = []
+    for p in sorted(launched, key=lambda p: p['start_date']):
+        l = p['launch']
+        rows.append({'code': p['code'], 'name': p['name'], 'platform': p.get('platform'),
+                     'start_date': p['start_date'], 'end_date': p['end_date'],
+                     'plan_daily_budget': p['daily_budget_yen'], 'campaign_id': l['campaign_id'],
+                     'url': l.get('url'), 'launched_at': l.get('launched_at'),
+                     'google': live.get(str(l['campaign_id']))})
+    pending = sum(1 for p in items if p.get('status') == 'committed' and p.get('platform') == 'google'
+                  and not (p.get('launch') or {}).get('campaign_id'))
+    return _resp(200, {'campaigns': rows, 'error': error, 'test_account': cfg.get('mode') == 'test',
+                       'currency': cfg.get('currency'), 'committed_not_launched': pending,
+                       'checked_at': _now()})
+
+
 def _launch_plan(org, email, body):
     """Launch a committed Google plan into the org's Google Ads TEST
     account (see platform_clients/google_ads.py). One launch per plan: a
@@ -1244,6 +1278,9 @@ def handler(event, context):
     try:
         caller_email = _claims(event).get('email')
         org = _org_id(caller_email)
+
+        if path == '/amplify-campaigns' and qs.get('view') == 'performance' and method == 'GET':
+            return _performance_response(org)
 
         if path == '/amplify-campaigns' and qs.get('view') == 'plans':
             if method == 'GET':

@@ -503,7 +503,7 @@
   #ads-plan-list td:last-child button + button{margin-left:6px}
   @media(max-width:860px){.amp-connect-grid{grid-template-columns:1fr}}
 </style>
-<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261126i">
+<link rel="stylesheet" href="../css/dashboard-polish.css?v=20261127p">
 </head>
 <body>
 <div id="sessionRetry" hidden role="status">
@@ -1897,7 +1897,7 @@
         </div>
         <h3 class="camp-sec">Budget and schedule</h3>
         <div class="ads-fields camp-grid-3">
-          <label>Daily budget (JPY)<input name="daily_budget_yen" type="number" required min="1" step="1" placeholder="1000"></label>
+          <label>Daily budget (₹)<input name="daily_budget_yen" type="number" required min="1" step="1" placeholder="1000"></label>
           <label>Start date<input name="start_date" type="date" required></label>
           <label>End date<input name="end_date" type="date" required></label>
         </div>
@@ -1973,11 +1973,24 @@
     </div>
 
 
-    <div class="dbody" id="performancePanel" style="display:none">
-      <h1 class="dgreet">Performance</h1>
-      <div class="dcard ads-table-card">
-        <p class="dsubtle">Live campaign results are unavailable. Performance will appear when live ad reporting is connected.</p>
+    <div class="dbody camp perf" id="performancePanel" style="display:none">
+      <div class="ads-heading">
+        <div>
+          <h1 class="dgreet">Performance</h1>
+          <p class="dsubtle">Live results from Google Ads for campaigns launched from APRABot.</p>
+        </div>
+        <button type="button" class="camp-btn" id="perf-refresh">Refresh</button>
       </div>
+      <p class="perf-note" id="perf-note" hidden></p>
+      <dl class="camp-stats" id="perf-summary" hidden></dl>
+      <div class="ads-table-card camp-list perf-list">
+        <table class="amp-table camp-table" id="perf-table" hidden>
+          <thead><tr><th>Campaign</th><th>Google status</th><th>Schedule</th><th class="num">Budget</th><th class="num">Impr.</th><th class="num">Clicks</th><th class="num">CTR</th><th class="num">Cost</th><th class="num">Conv.</th><th><span class="camp-sr">Link</span></th></tr></thead>
+          <tbody id="perf-rows"></tbody>
+        </table>
+        <p class="dsubtle" id="perf-status" role="status"></p>
+      </div>
+      <p class="dsubtle perf-checked" id="perf-checked"></p>
     </div>
     <!-- Integrations & Settings panel (OAuth connect/disconnect) -->
     <div class="dbody" id="integrationsPanel" style="display:none">
@@ -2256,10 +2269,10 @@
 </div>
 
 <script src="../js/data.js"></script>
-<script src="../js/main.js?v=20261126a"></script>
+<script src="../js/main.js?v=20261127p"></script>
 <script src="../js/theme.js"></script>
-<script src="../js/scenario-forecast.js?v=20261125a"></script>
-<script src="../js/overview-matrix.js?v=20261124c"></script>
+<script src="../js/scenario-forecast.js?v=20261127p"></script>
+<script src="../js/overview-matrix.js?v=20261127p"></script>
 <script src="../js/opportunities.js?v=20261124b"></script>
 <script src="../js/scenarios.js?v=20261126s"></script>
 <script src="../js/insights.js?v=20261126a"></script>
@@ -2267,7 +2280,7 @@
 <script src="../js/inventory-plan.js?v=20261126c"></script>
 <script src="../js/knowledge.js"></script>
 <script src="../js/support.js"></script>
-<script src="../js/ads.js?v=20261126d"></script>
+<script src="../js/ads.js?v=20261127p"></script>
 <script src="../js/discount-schemes.js?v=20261123e"></script>
 <script src="https://unpkg.com/xlsx@0.18.5/dist/xlsx.full.min.js" integrity="sha384-vtjasyidUo0kW94K5MXDXntzOJpQgBKXmE7e2Ga4LG0skTTLeBi97eFAXsqewJjw" crossorigin=""></script>
 <script src="../js/india-festivals.js?v=20261124a"></script>
@@ -2363,6 +2376,7 @@
         if(isSettings) syncSettingsPanel();
         if(name === 'Discount Schemes') window.loadDiscountSchemes();
         if(name === 'Campaigns') window.loadAdsCampaigns();
+        if(name === 'Performance' && window.loadAdsPerformance) window.loadAdsPerformance();
         if(name === 'Products') window.loadAdsProducts();
         if(name === 'Integrations') window.loadAdsIntegrations();
         if(name === 'AI Insights' && window.loadInsights) window.loadInsights();

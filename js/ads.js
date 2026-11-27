@@ -572,7 +572,7 @@
       ? { day: 'numeric', month: 'short', year: 'numeric', timeZone: 'UTC' }
       : { day: 'numeric', month: 'short', timeZone: 'UTC' });
   }
-  function yen(n) { return Number(n).toLocaleString(undefined, { style: 'currency', currency: 'JPY', maximumFractionDigits: 0 }); }
+  function yen(n) { return window.apraRupees ? window.apraRupees(n) : '₹' + Number(n).toLocaleString('en-IN'); }
   function cell(row, cls) { var td = row.insertCell(); if (cls) td.className = cls; return td; }
   function two(td, main, sub) {
     var b = document.createElement('span'); b.className = 'camp-main'; b.textContent = main;
@@ -640,7 +640,7 @@
     var cur = currency || 'the Google account\'s currency';
     if (!confirm('Create "' + plan.name + '" in your Google Ads TEST account?\n\n' +
       'It is created paused, in a test account: no ads run and nothing is charged. ' +
-      'Daily budget ' + Number(plan.daily_budget_yen).toLocaleString() + ' is sent as an amount in ' + cur + '.')) return;
+      'Daily budget ' + yen(plan.daily_budget_yen) + ' is sent to Google as ' + cur + '.')) return;
     btn.disabled = true; btn.textContent = 'Launching…';
     planStatus.textContent = '';
     var failure = '';
@@ -814,6 +814,91 @@
   };
   document.getElementById('ads-close-plan').onclick = function () { planForm.hidden = true; };
   window.loadAdsCampaigns = loadCampaigns;
+
+  // ---- Performance: launched campaigns with Google's live status and
+  // results (read-only). Test accounts never serve ads, so their results
+  // are real zeros; the page says so instead of looking broken.
+  var PERF_API = CAMPAIGNS_API + '?view=performance';
+  function googleStatus(g) {
+    if (!g) return 'Unknown';
+    if (g.status === 'REMOVED') return 'Removed';
+    if (g.status === 'PAUSED') return 'Paused';
+    return ({ SERVING: 'Running', PENDING: 'Scheduled', ENDED: 'Ended', SUSPENDED: 'Suspended', NONE: 'Not serving' })[g.serving_status] || 'Enabled';
+  }
+  function perfNum(n) { return n == null ? '—' : Number(n).toLocaleString('en-IN'); }
+  function loadPerformance() {
+    var rows = document.getElementById('perf-rows'), table = document.getElementById('perf-table');
+    var status = document.getElementById('perf-status'), note = document.getElementById('perf-note');
+    var sum = document.getElementById('perf-summary'), checked = document.getElementById('perf-checked');
+    var btn = document.getElementById('perf-refresh');
+    if (!rows) return Promise.resolve();
+    status.textContent = 'Loading results from Google Ads…';
+    btn.disabled = true;
+    return apiFetch(PERF_API).then(function (res) {
+      if (!res.ok || !Array.isArray(res.body.campaigns)) throw new Error((res.body && res.body.error) || 'Could not load performance.');
+      var d = res.body, list = d.campaigns;
+      rows.replaceChildren();
+      table.hidden = !list.length;
+      var tot = { impressions: 0, clicks: 0, cost: 0, conversions: 0 }, known = 0;
+      list.forEach(function (c) {
+        var g = c.google, row = rows.insertRow();
+        row.className = 'camp-row';
+        two(cell(row), c.name, c.code);
+        var st = cell(row), p = document.createElement('span');
+        p.className = 'camp-pill'; p.dataset.status = g && g.status === 'ENABLED' ? 'committed' : 'withdrawn';
+        p.textContent = googleStatus(g); st.append(p);
+        if (g && g.status === 'PAUSED' && g.serving_status === 'PENDING') {
+          var sub = document.createElement('span'); sub.className = 'camp-sub'; sub.textContent = 'Starts ' + shortDate(c.start_date); st.append(sub);
+        }
+        var days = planDays(c);
+        two(cell(row), shortDate(c.start_date) + ' – ' + shortDate(c.end_date, true), days + (days === 1 ? ' day' : ' days'));
+        two(cell(row, 'num'), yen(g ? g.daily_budget : c.plan_daily_budget) + ' / day', g ? 'from Google' : 'from the plan');
+        if (g) {
+          known++;
+          ['impressions', 'clicks', 'cost', 'conversions'].forEach(function (k) { tot[k] += Number(g[k]) || 0; });
+          cell(row, 'num').textContent = perfNum(g.impressions);
+          cell(row, 'num').textContent = perfNum(g.clicks);
+          cell(row, 'num').textContent = g.impressions ? (100 * g.clicks / g.impressions).toFixed(2) + '%' : '—';
+          cell(row, 'num').textContent = yen(g.cost);
+          cell(row, 'num').textContent = perfNum(Math.round(g.conversions * 10) / 10);
+        } else {
+          for (var i = 0; i < 5; i++) cell(row, 'num').textContent = '—';
+        }
+        var lk = cell(row, 'camp-acts');
+        if (c.url) {
+          var a = document.createElement('a'); a.href = c.url; a.target = '_blank'; a.rel = 'noopener';
+          a.className = 'camp-btn perf-open'; a.textContent = 'Open ↗';
+          a.setAttribute('aria-label', 'Open ' + c.name + ' in Google Ads'); lk.append(a);
+        }
+      });
+      sum.replaceChildren();
+      if (list.length) {
+        [['On Google Ads', list.length, list.length === 1 ? 'campaign launched' : 'campaigns launched'],
+         ['Impressions', known ? perfNum(tot.impressions) : '—', 'all time'],
+         ['Clicks', known ? perfNum(tot.clicks) : '—', tot.impressions ? (100 * tot.clicks / tot.impressions).toFixed(2) + '% CTR' : 'all time'],
+         ['Cost', known ? yen(tot.cost) : '—', 'all time']].forEach(function (x) {
+          var dv = document.createElement('div'), dt = document.createElement('dt'), dd = document.createElement('dd'), n = document.createElement('dd');
+          dt.textContent = x[0]; dd.textContent = x[1]; n.className = 'camp-note'; n.textContent = x[2];
+          dv.append(dt, dd, n); sum.append(dv);
+        });
+      }
+      sum.hidden = !list.length;
+      var notes = [];
+      if (d.error) notes.push('Couldn’t reach Google Ads: ' + d.error);
+      if (list.length && d.test_account) notes.push('Test account: Google never shows these ads, so impressions, clicks and cost stay at 0. Real results appear once campaigns run in a live, billed account.');
+      if (d.committed_not_launched) notes.push(d.committed_not_launched + (d.committed_not_launched === 1 ? ' committed Google plan isn’t' : ' committed Google plans aren’t') + ' launched yet. Launch from Campaigns.');
+      note.textContent = notes.join(' ');
+      note.hidden = !notes.length;
+      note.classList.toggle('is-error', !!d.error);
+      status.textContent = list.length ? '' : 'No campaigns on Google Ads yet. Launch a committed Google plan from Campaigns and its results will show here.';
+      checked.textContent = list.length ? 'Checked with Google ' + new Date(d.checked_at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' }) : '';
+    }).catch(function (err) {
+      status.textContent = err.message;
+    }).finally(function () { btn.disabled = false; });
+  }
+  window.loadAdsPerformance = loadPerformance;
+  var perfBtn = document.getElementById('perf-refresh');
+  if (perfBtn) perfBtn.onclick = function () { loadPerformance(); };
 
   window.loadAdsProducts = loadProducts;
   window.loadAdsIntegrations = loadConnectAccounts;

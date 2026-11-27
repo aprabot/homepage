@@ -261,7 +261,7 @@
       head.textContent = r.sku;
       tr.append(head);
       [[r.units, nfFull], [r.plan, nfFull], [r.vsPlan, pct, trend(r.vsPlan)], [r.prior, nfFull], [r.change, pct, trend(r.change)],
-       [r.revenue, nfFull], [r.wape, function (v) { return v.toFixed(1) + '%'; }]].forEach(function (c) {
+       [r.revenue, function (v) { return window.apraRupees(v); }], [r.wape, function (v) { return v.toFixed(1) + '%'; }]].forEach(function (c) {
         var td = tr.insertCell();
         td.className = 'fcly-number' + (c[0] == null ? ' ov-dim' : c[2] ? ' ' + c[2] : '');
         td.textContent = c[0] == null ? '—' : c[1](c[0]);

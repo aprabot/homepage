@@ -198,7 +198,7 @@
           return r;
         }) },
       { group: 'money', title: 'Money', rows: [
-        { name: 'Revenue predicted (after discount), ' + span, text: count('revenue'), lastWhy: noYear, lastNote: 'Units sold × that day’s selling price, same weeks last year',
+        { name: 'Revenue predicted (after discount), ' + span, text: function (f) { return f.revenue == null ? null : window.apraRupees(f.revenue); }, lastWhy: noYear, lastNote: 'Units sold × that day’s selling price, same weeks last year',
           vs: function (f) { return f.other ? null : change(f.revenue, f.planRevenue); }, why: 'No selling prices in your sales data' },
         { name: 'Marketing spend committed', why: 'Not connected yet' }] },
       { group: 'growth-units', title: 'Growth: Units', rows: growthRows('yoy', 'spread', 'No last-year data') },

@@ -499,13 +499,20 @@
 
   // Compact money-style figure for the KPI card (no currency symbol: the
   // input data doesn't say which currency its prices are in).
+  // All money in the portal is shown in rupees, Indian style: ₹1,23,456,
+  // and for compact figures ₹12.3 L (lakh) and ₹1.24 Cr (crore). Amounts
+  // are shown as entered; nothing is converted.
+  window.apraRupees=function(value,opts){
+    if(value==null||!Number.isFinite(Number(value)))return '—';
+    const v=Number(value), abs=Math.abs(v), sign=v<0?'−':'';
+    if(opts&&opts.compact){
+      if(abs>=1e7)return sign+'₹'+(abs/1e7).toFixed(abs>=1e9?0:2)+' Cr';
+      if(abs>=1e5)return sign+'₹'+(abs/1e5).toFixed(1)+' L';
+    }
+    return sign+'₹'+abs.toLocaleString('en-IN',{maximumFractionDigits:0});
+  };
   function fclyCompact(value){
-    if(value==null)return '—';
-    const abs=Math.abs(value);
-    if(abs>=1e9)return (value/1e9).toFixed(2)+'B';
-    if(abs>=1e6)return (value/1e6).toFixed(2)+'M';
-    if(abs>=1e4)return (value/1e3).toFixed(1)+'K';
-    return value.toLocaleString(undefined,{maximumFractionDigits:2});
+    return window.apraRupees(value,{compact:true});
   }
 
   function fclyRender(){
@@ -539,7 +546,7 @@
     const revenue=fclyPricing(rows,'avgPrice');
     const discount=fclyPricing(rows,'avgDiscount');
     kpi('fclyKpiRevenue',fclyCompact(revenue),revenue==null);
-    document.getElementById('fclyKpiRevenue').title=revenue==null?'':revenue.toLocaleString(undefined,{maximumFractionDigits:2});
+    document.getElementById('fclyKpiRevenue').title=revenue==null?'':window.apraRupees(revenue);
     setTxt('fclyRevenueDetail',revenue==null?'Price data unavailable':'Estimated from historical prices');
     kpi('fclyKpiDiscount',discount==null?'—':discount.toLocaleString(undefined,{minimumFractionDigits:2,maximumFractionDigits:2}),discount==null);
     setTxt('fclyDiscountDetail',discount==null?'Discount data unavailable':'Historical average, weighted by forecast units');
@@ -590,7 +597,7 @@
       cell(r.units,r.units==null?'':nfFull(r.units))+
       cell(r.prior,r.prior==null?'':nfFull(r.prior))+
       cell(r.change,fclyChange(r.change),r.change>0?'fc-up':r.change<0?'fc-down':'')+
-      cell(r.revenue,r.revenue==null?'':Math.round(r.revenue).toLocaleString())+
+      cell(r.revenue,r.revenue==null?'':window.apraRupees(r.revenue))+
       cell(r.wape,r.wape==null?'':r.wape.toFixed(1)+'%')+
       '</tr>'
     ).join('');
